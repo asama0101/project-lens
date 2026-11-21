@@ -1,8 +1,8 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, readFileSync, copyFileSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, copyFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, basename } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -84,7 +84,7 @@ test("calendar-apply: 会議が追加され、規則でプロジェクトが付�
   assert.equal(p.status, 0, p.err);
   assert.equal(p.out.added.length, 1);
   assert.equal(w.read(), before);
-  assert.equal(run("calendar-apply", w.data, fetched, "2026-10-19", "2026-10-25").status, 0);
+  assert.equal(run("calendar-apply", w.data, fetched, "2026-10-19", "2026-10-25", "--plan-key", p.out.planKey).status, 0);
   const e = w.json().events.find((x) => x.externalId === "ext-new");
   assert.deepEqual([e.projectId, e.projectBy], ["A", "rule"]);
 });
@@ -96,10 +96,56 @@ test("calendar-apply: 反映後のデータが検証に通らないときは、�
   writeFileSync(w.data, JSON.stringify(d));
   const before = w.read();
   const fetched = w.put("fetched.json", [{ externalId: "ext-z", title: "x", date: "2026-10-22", start: "09:00", end: "10:00" }]);
-  const r = run("calendar-apply", w.data, fetched, "2026-10-19", "2026-10-25");
+  const key = run("calendar-plan", w.data, fetched, "2026-10-19", "2026-10-25").out.planKey;
+  const r = run("calendar-apply", w.data, fetched, "2026-10-19", "2026-10-25", "--plan-key", key);
   assert.equal(r.status, 1);
   assert.match(r.err, /ZZ/);
   assert.equal(w.read(), before);
+});
+
+test("calendar-apply: 確認した削除の一覧（planKey）と同じときだけ消す。取得し直しが欠けて一覧が変わった・キーがないときは、書かずに止める", () => {
+  const w = work();
+  const d = w.json();
+  const ev = (i) => ({ id: `cm${i}`, date: "2026-10-22", start: `0${i + 4}:00`, end: `0${i + 4}:30`, title: `会議${i}`, source: "mcp", skip: false, externalId: `ext-${i}` });
+  d.events.push(...[1, 2, 3, 4, 5].map(ev));
+  writeFileSync(w.data, JSON.stringify(d));
+  const all = [1, 2, 3, 4, 5].map((i) => ({ externalId: `ext-${i}`, title: `会議${i}`, date: "2026-10-22", start: `0${i + 4}:00`, end: `0${i + 4}:30` }));
+  const two = w.put("two.json", all.slice(0, 2)), none = w.put("none.json", []);
+  const R = ["2026-10-19", "2026-10-25"];
+  const keyNone = run("calendar-plan", w.data, none, ...R).out.planKey; // 利用者が一覧を見て「はい」と答えた時点のキー（全件消える）
+  const before = w.read();
+  const bad = run("calendar-apply", w.data, two, ...R, "--plan-key", keyNone); // 取得し直しが 2 件に増えた → 消える会議が変わる
+  assert.equal(bad.status, 1);
+  assert.match(bad.err, /確認した削除の一覧/);
+  const noKey = run("calendar-apply", w.data, two, ...R);
+  assert.equal(noKey.status, 1);
+  assert.match(noKey.err, /--plan-key/);
+  assert.equal(w.read(), before);
+  const keyTwo = run("calendar-plan", w.data, two, ...R).out.planKey;
+  assert.notEqual(keyTwo, keyNone);
+  const ok = run("calendar-apply", w.data, two, ...R, "--plan-key", keyTwo);
+  assert.equal(ok.status, 0, ok.err);
+  assert.equal(ok.out.summary.removed, 5); // cm3〜cm5 と、sample の m1・m3
+  assert.deepEqual(w.json().events.filter((e) => e.source === "mcp").map((e) => e.id).sort(), ["cm1", "cm2"]);
+});
+
+test("fetched-remove: 一時フォルダ直下の project-lens-fetched-*.json だけを消す。名前が違う・一時フォルダの外・.. で外へ出る形は、消さず非 0。無ければ成功", () => {
+  const mk = (dir, name) => { const p = join(dir, name); writeFileSync(p, "[]"); return p; };
+  const good = mk(tmpdir(), `project-lens-fetched-test-${process.pid}.json`);
+  const badName = mk(tmpdir(), `project-lens-other-${process.pid}.json`);
+  const outside = mk(base, "project-lens-fetched-x.json");
+  try {
+    assert.equal(run("fetched-remove", good).status, 0);
+    assert.equal(existsSync(good), false);
+    const r1 = run("fetched-remove", badName);
+    assert.equal(r1.status, 1); assert.match(r1.err, /project-lens-fetched-/); assert.equal(existsSync(badName), true);
+    const r2 = run("fetched-remove", outside);
+    assert.equal(r2.status, 1); assert.match(r2.err, /一時フォルダ/); assert.equal(existsSync(outside), true);
+    const dotted = join(base, "..", basename(base), "project-lens-fetched-x.json"); // .. を経ても、実体が一時フォルダ直下でなければ消さない
+    assert.equal(run("fetched-remove", dotted).status, 1); assert.equal(existsSync(outside), true);
+    assert.equal(run("fetched-remove", join(tmpdir(), `project-lens-fetched-none-${process.pid}.json`)).status, 0, "無いファイルは成功");
+    assert.equal(run("fetched-remove").status, 2);
+  } finally { for (const p of [good, badName, outside]) rmSync(p, { force: true }); }
 });
 
 test("rules-apply: manual のひも付けは変わらない", () => {
@@ -173,7 +219,7 @@ test("calendar-plan・calendar-apply: 設定の selfEmails（PROJECT_LENS_HOME �
     assert.deepEqual([p.out.added.map((e) => e.externalId), p.out.excluded.map((e) => e.externalId), p.out.warnings], [["mtg1"], ["solo1", "solo2"], []]);
     assert.equal(w.read(), before);
   }
-  const a = runEnv({ PROJECT_LENS_HOME: home }, "calendar-apply", w.data, fetched, "2026-10-19", "2026-10-25");
+  const a = runEnv({ PROJECT_LENS_HOME: home }, "calendar-apply", w.data, fetched, "2026-10-19", "2026-10-25", "--plan-key", runEnv({ PROJECT_LENS_HOME: home }, "calendar-plan", w.data, fetched, "2026-10-19", "2026-10-25").out.planKey);
   assert.equal(a.status, 0, a.err);
   assert.deepEqual([a.out.summary.added, a.out.summary.excluded], [1, 2]);
   assert.deepEqual(w.json().events.filter((e) => e.source === "mcp" && e.externalId.startsWith("solo")), []);
@@ -213,7 +259,7 @@ test("calendar-plan・calendar-apply: 設定ファイルの指定が正しくな
   const before = w.read();
   const env = { PROJECT_LENS_HOME: homeWith({ selfEmails: SELF }) };
   for (const cmd of ["calendar-plan", "calendar-apply"]) {
-    const r = runEnv(env, cmd, w.data, fetched, "2026-10-19", "2026-10-25");
+    const r = runEnv(env, cmd, w.data, fetched, "2026-10-19", "2026-10-25", "--plan-key", "x");
     assert.equal(r.status, 1);
     assert.match(r.err, /project-lens-mcp\.json.*selfEmails/s);
   }

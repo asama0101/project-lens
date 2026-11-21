@@ -2,6 +2,9 @@
 // 取り込み（WBS・予定表）と、会議のプロジェクト規則、WBS の列の対応を扱う。結果は JSON で標準出力へ。
 // *-plan・*-list・*-get は data.json を書かない。*-apply・*-set・*-remove は検証に通ったときだけ書く。
 import { createHash } from "node:crypto";
+import { realpathSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, dirname, resolve, join } from "node:path";
 import { today, isDate, nowLocal } from "../src/core/dates.js";
 import { readJson, out, save } from "./cli.js";
 import { assignMeetingProjects, setProjectRule, removeProjectRule } from "../src/core/rules.js";
@@ -13,17 +16,32 @@ import { takeData, pickHome } from "./home.js";
 const USAGE = `使い方: node tools/intake.js <コマンド> <data.json> ...
   wbs-plan | wbs-apply   <data.json> <projectId> <rows.json> [--source <取り込んだファイル名>] [--plan-key <planKey>]   (--source は wbs-apply の取り込み記録用。--plan-key は wbs-apply だけ。wbs-plan が出す planKey を渡すと、承認した変更案と違うとき、書かずに止める)
   calendar-auto                  <data.json> <fetched.json> <開始日> <終了日> [--data <置き場>]   (自動更新。見張りと /project-lens:intake calendar が使う。承認の確認なしで書く。終わった会議・確認済みの会議は変えず、取得が 0 件、または取得に無い会議が多すぎる（3 件以上で、終わっていない取り込み済みの半数超）なら消さない)
-  calendar-plan | calendar-apply <data.json> <fetched.json> <開始日> <終了日> [--data <置き場>]   (--data は、自分のメールアドレスなどの設定（project-lens-mcp.json）の置き場。環境変数 PROJECT_LENS_HOME が優先)
+  calendar-plan | calendar-apply <data.json> <fetched.json> <開始日> <終了日> [--data <置き場>] [--plan-key <planKey>]   (--data は、自分のメールアドレスなどの設定（project-lens-mcp.json）の置き場。環境変数 PROJECT_LENS_HOME が優先。--plan-key は calendar-apply で必須。calendar-plan が出す planKey（消える会議の ID の指紋）を渡すと、確認した削除の一覧と違うとき、書かずに止める)
   rules-list | rules-apply <data.json>
   rules-set              <data.json> <keyword> <projectId>
   rules-remove           <data.json> <keyword>
   mapping-get            <data.json> <projectId>
-  mapping-set            <data.json> <projectId> <mapping.json>`;
+  mapping-set            <data.json> <projectId> <mapping.json>
+  fetched-remove         <パス>   (取得した予定の一時ファイル（一時フォルダ直下の project-lens-fetched-*.json）だけを消す。ほかは消さず、理由を出して終わる。ファイルが無ければ何もしない。data.json は読まない)`;
 
 const usage = () => { console.error(USAGE); process.exit(2); };
 
 /** 変更案（追加と更新）の指紋。承認した案と、書く時点の案が同じかを、wbs-apply が確かめるために使う */
 const planKey = (plan) => createHash("sha256").update(JSON.stringify({ add: plan.add, update: plan.update })).digest("hex").slice(0, 16);
+
+/** 消える会議（removed）の ID の指紋。確認した削除の一覧と、書く時点の一覧が同じかを、calendar-apply が確かめるために使う */
+const removedKey = (removed) => createHash("sha256").update(JSON.stringify(removed.map((e) => e.id).sort())).digest("hex").slice(0, 16);
+
+/** 取得した予定（参加者のメールアドレスを含む）の一時ファイルを消す。見張り中に任意のファイルを消せないよう、名前と置き場所を確かめる */
+function removeFetched(p) {
+  const target = resolve(p), name = basename(target);
+  if (!name.startsWith("project-lens-fetched-") || !name.endsWith(".json")) throw new Error(`消しません: ファイル名が project-lens-fetched-*.json ではありません（${name}）`);
+  const norm = (x) => (process.platform === "win32" ? x.toLowerCase() : x);
+  let dir;
+  try { dir = realpathSync(dirname(target)); } catch { return; } // 置き場が無ければ、ファイルも無い
+  if (norm(join(dir, name)) !== norm(join(realpathSync(tmpdir()), name))) throw new Error(`消しません: 一時フォルダ（${tmpdir()}）の直下にありません`);
+  rmSync(join(dir, name), { force: true });
+}
 
 // コマンド名 → [必要な引数の数(コマンド名を除く), 実行]
 const COMMANDS = {
@@ -38,10 +56,12 @@ const COMMANDS = {
     const { added, updated, removed, excluded, warnings } = planCalendarSync(d, readJson(f), { start: s, end: e }, o.calendar);
     const gone = new Set(excluded.map((e) => e.externalId));
     const removedByExclusion = removed.filter((e) => gone.has(e.externalId)).map((e) => ({ id: e.id, title: e.title, date: e.date, confirmed: !!e.confirmed })); // 対象外になって消える取り込み済みの会議。確認済みの実績も消えるので、承認の前に見せる
-    out({ added, updated, removed, excluded: excluded.map(({ externalId, title, date, start, end }) => ({ externalId, title, date, start, end })), removedByExclusion, warnings }); // 参加者（メールアドレス）は出さない
+    out({ added, updated, removed, excluded: excluded.map(({ externalId, title, date, start, end }) => ({ externalId, title, date, start, end })), removedByExclusion, warnings, planKey: removedKey(removed) }); // 参加者（メールアドレス）は出さない
   }],
   "calendar-apply": [4, (d, [path, f, s, e], o) => {
     const plan = planCalendarSync(d, readJson(f), { start: s, end: e }, o.calendar);
+    if (o.planKey == null) throw new Error("--plan-key がありません。calendar-plan が出す planKey を渡してください。何も書いていません");
+    if (o.planKey !== removedKey(plan.removed)) throw new Error("確認した削除の一覧と、いまの削除の対象が違います（確認を待つ間に、データか fetched.json が変わりました）。何も書いていません。calendar-plan をやり直して、確認を取ってください");
     save(path, plan.data); // 検証は save が行う
     out({ ok: true, summary: { added: plan.added.length, updated: plan.updated.length, removed: plan.removed.length, excluded: plan.excluded.length }, warnings: plan.warnings });
   }],
@@ -64,6 +84,11 @@ const planKeyArg = take("--plan-key");
 if (planKeyArg === null) usage(); // 値の取り損ねで、照合を黙って省かない
 const opts = { source: take("--source") ?? null, planKey: planKeyArg ?? null }; // source: wbs-apply の取り込み記録に残す、取り込んだファイル名
 const [cmd, ...args] = argv;
+if (cmd === "fetched-remove") { // data.json を読まない
+  if (args.length !== 1) usage();
+  try { removeFetched(args[0]); out({ ok: true }); } catch (e) { console.error(e.message); process.exit(1); }
+  process.exit(0);
+}
 const spec = COMMANDS[cmd];
 if (!spec || args.length < spec[0]) usage();
 if (cmd.startsWith("calendar-") && !(isDate(args[2]) && isDate(args[3]))) usage();

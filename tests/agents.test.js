@@ -157,12 +157,15 @@ test("intake-calendar: 承認の確認なしで calendar-auto を実行し、保
   for (const w of ["calendar-auto", "承認の確認なし", "held", "blocked", "取得に失敗", "fetched.json", "--data", "使った MCP", "削除してよいか", "calendar-apply"]) assert.ok(cal.includes(w), w);
   const step3 = cal.slice(cal.indexOf("3. `calendar-auto"), cal.indexOf("4. 結果"));
   assert.doesNotMatch(step3, /calendar-plan/, "書き込みの手順に、変更案の表はない");
-  assert.ok(step3.includes("（削除確認済み）") && step3.includes("calendar-apply"), "calendar-apply は、依頼に（削除確認済み）があるときだけ");
+  assert.ok(step3.includes("（削除確認済み <planKey>）") && step3.includes("calendar-apply") && step3.includes("--plan-key"), "calendar-apply は、依頼に（削除確認済み <planKey>）があるときだけ。--plan-key を渡す");
+  assert.ok(step3.includes("（見張りから）") && step3.includes("無視"), "見張りからの依頼は、削除確認済みが付いていても calendar-auto");
   const step5 = cal.slice(cal.indexOf("5. `blocked`"), cal.indexOf("6. "));
-  for (const w of ["calendar-plan", "見張りからのときは、聞かずに終わる", "実績", "削除しない", "取得からやり直"]) assert.ok(step5.includes(w), w);
+  for (const w of ["calendar-plan", "見張りからのときは、聞かずに終わる", "実績", "削除しない", "planKey"]) assert.ok(step5.includes(w), w);
+  const step6 = cal.slice(cal.indexOf("6. "));
+  for (const w of ["fetched-remove", "project-lens-fetched-", "blocked"]) assert.ok(step6.includes(w), w);
   assert.doesNotMatch(step5, /利用者に聞く/, "エージェントは質問して待てない");
   const skill = read("skills/intake/SKILL.md");
-  assert.ok(skill.includes("（削除確認済み）"), "会話が、削除の確認を取ってから、エージェントに calendar-apply を頼む");
+  assert.ok(skill.includes("（削除確認済み <planKey>）") && skill.includes("fetched-remove"), "会話が、削除の確認を取ってから、エージェントに calendar-apply を頼む。fetched.json を消す具体的なコマンドがある");
   assert.doesNotMatch(t, /## calendar --auto/, "calendar --auto の節は calendar に統合した");
 });
 
@@ -170,7 +173,7 @@ test("watch: 見張りの開始時と、30 分ごとの再起動時に、予定�
   const t = read("skills/watch/SKILL.md");
   for (const w of ["（見張りから）", "project-lens:intake-calendar", "未指定", "30 分"]) assert.ok(t.includes(w), w);
   const step = t.slice(t.indexOf("予定表を更新します"), t.indexOf("2. イベントの種類"));
-  for (const w of ["mcpconf.js", "listTool", "fetched.json", "読むだけのデータ", "取得に失敗", "（見張りから）", "project-lens-fetched-", "前景"]) assert.ok(step.includes(w), w);
+  for (const w of ["mcpconf.js", "listTool", "fetched.json", "読むだけのデータ", "取得に失敗", "（見張りから）", "project-lens-fetched-", "前景", "fetched-remove"]) assert.ok(step.includes(w), w);
   assert.ok(t.indexOf("予定表を更新します") > t.indexOf("1. Monitor"), "見張りを始めてから更新する（許可の確認で、見張りの開始が止まらないように）");
   assert.match(t.slice(t.indexOf("4. 30 分で")), /予定表/, "再起動時にも予定表を更新する");
 });

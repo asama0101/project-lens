@@ -360,17 +360,17 @@
 
   <div class="branch"><p class="bt">止めた理由（取得が 0 件、全件が対象外、または取得に無い会議が多すぎる）があるとき</p><div class="flow">
     <div class="n">a</div><div class="cell empty"></div>
-    <div class="cell c">止めた理由を伝え、削除せずに終わる。見張りからのときは、聞かずに終わる。それ以外は、消える会議の一覧（件名・日付）を出し、削除したいときは取得からやり直すよう添える。<small class="src">agents/intake-calendar.md calendar 5</small></div>
-    <div class="cell s"><code>calendar-plan</code>（読み取りだけ）: 消える会議を出す。終わった会議・確認済みの会議も含む。<small class="src">tools/intake.js calendar-plan</small></div>
+    <div class="cell c">止めた理由を伝え、削除せずに終わる。見張りからのときは、聞かずに終わる。それ以外は、消える会議の一覧（件名・日付）と <code>planKey</code> を出して終わる（<code>fetched.json</code> は消さず、会話が持つ）。<small class="src">agents/intake-calendar.md calendar 5</small></div>
+    <div class="cell s"><code>calendar-plan</code>（読み取りだけ）: 消える会議と、その ID の指紋（<code>planKey</code>）を出す。終わった会議・確認済みの会議も含む。<small class="src">tools/intake.js calendar-plan</small></div>
     <div class="n">b</div>
-    <div class="cell u"><span class="tag ok">承認</span>呼び出し元の会話が一覧を見せて聞く。削除してよいか答える（終わった会議・確認済みの会議も消える）。「はい」以外なら何も削除しない。</div>
-    <div class="cell c">「はい」のときだけ、取得し直して <code>fetched.json</code> を書き、「削除確認済み」を付けてエージェントに頼む。エージェントが、反映のスクリプトを実行する。（未確認: 実際に動かしていない）<small class="src">skills/intake/SKILL.md calendar の取得 4 / agents/intake-calendar.md calendar 3</small></div>
-    <div class="cell s"><span class="tag write">書き込み</span><code>calendar-apply</code>: 期間内で予定表から消えた会議を、確認済みの実績と「参加しない」の設定ごと消す。予定表で日時が変わった会議は、確認済みが外れる。検証に通らなければ例外で何も書かない。<small class="src">tools/intake.js calendar-apply / src/core/schedule.js syncMcpEvents / tools/cli.js save</small></div>
+    <div class="cell u"><span class="tag ok">承認</span>呼び出し元の会話が一覧を見せて聞く。削除してよいか答える（終わった会議・確認済みの会議も消える）。答えのあと、会話が持っている古い <code>fetched.json</code> を消す。「はい」以外なら何も削除しない。</div>
+    <div class="cell c">「はい」のときだけ、取得し直して新しい <code>fetched.json</code> を書き、「削除確認済み <code>&lt;planKey&gt;</code>」を付けてエージェントに頼む（見張りからの依頼では、この付記を無視して自動更新に進む）。エージェントが、<code>--plan-key</code> つきで反映のスクリプトを実行する。（未確認: 実際に動かしていない）<small class="src">skills/intake/SKILL.md calendar の取得 4 / agents/intake-calendar.md calendar 3</small></div>
+    <div class="cell s"><span class="tag write">書き込み</span><code>calendar-apply --plan-key</code>: 消える会議が確認した一覧（<code>planKey</code>）と違えば、何も書かずに止まる。同じなら、期間内で予定表から消えた会議を、確認済みの実績と「参加しない」の設定ごと消す。予定表で日時が変わった会議は、確認済みが外れる。検証に通らなければ例外で何も書かない。<small class="src">tools/intake.js calendar-apply / src/core/schedule.js syncMcpEvents / tools/cli.js save</small></div>
   </div></div>
 
   <div class="n">5</div>
   <div class="cell empty"></div>
-  <div class="cell c">成功しても失敗しても <code>fetched.json</code>（メールアドレスを含む）を消す。<small class="src">agents/intake-calendar.md calendar 6</small></div>
+  <div class="cell c">成功しても失敗しても <code>fetched.json</code>（メールアドレスを含む）を消す（手動の止めた場合だけは消さず、会話が答えのあとに消す）。名前が <code>project-lens-fetched-</code> で始まるかを確かめてから、<code>tools/intake.js fetched-remove</code> で消す（<code>project-lens-fetched-*.json</code> で、一時フォルダ直下のものだけ消える）。<small class="src">agents/intake-calendar.md calendar 6 / tools/intake.js fetched-remove</small></div>
   <div class="cell empty"></div>
 </div>
 
@@ -414,7 +414,7 @@
   <div class="n">3</div>
   <div class="cell empty"></div>
   <div class="cell c">Claude Code の監視機能（Monitor）で、依頼を待つスクリプトを起動する。上限は 30 分。起動できたら「見張りを始めました。HTML の『Claude Code に依頼する』から依頼できます」とだけ伝える。<small class="src">skills/watch/SKILL.md 手順 1</small></div>
-  <div class="cell s"><code>inbox.js wait</code>: 2 秒ごとにデータファイルを読み、①30 秒ごとに「見ている印」を <span class="tag write">書き込み</span>、②新しく届いた依頼（返信・再提案の依頼を含む）を「request」として 1 行出す。書き込みの途中で読めないときと、見ている印を書けないとき（データファイルが検証に通らない、など）は、何も出さず、次の回にもう一度試す。<small class="src">tools/inbox.js wait / skills/watch/SKILL.md 手順 2</small></div>
+  <div class="cell s"><code>inbox.js wait</code>: 2 秒ごとにデータファイルを読み、①30 秒ごとに「見ている印」を <span class="tag write">書き込み</span>、②新しく届いた依頼（返信・再提案の依頼を含む）を「request」として 1 行出す。書き込みの途中で読めないときと、見ている印を書けないとき（データファイルが検証に通らない、など）は、標準エラーに理由を 1 行出し（同じ理由は続けて出さない）、次の回にもう一度試す（依頼の検出は止めない。Monitor が標準エラーを会話へ出すかは未確認）。<small class="src">tools/inbox.js wait / skills/watch/SKILL.md 手順 2</small></div>
 
   <div class="branch"><p class="bt">監視機能が使えない</p><div class="flow">
     <div class="n"></div><div class="cell empty"></div>
@@ -551,6 +551,7 @@
 
   <div class="branch"><p class="bt">提案に付く警告（<span class="tag warn">注意</span>提案は作られる）</p><div class="flow">
     <div class="case">登録・移動の結果、タスクの期限がプロジェクトの期限を超える</div>
+    <div class="case">移動した先の期限が、休みの日・今日より前・前のタスクの期限より前（動かしていない前のタスクを含む）</div>
     <div class="case">期限が指定した開始日より前になるので開始日を外す／次のタスクの期限が前のタスクより前なので揃えた／前のタスクの新しい期限より前にできないので揃えた／登録の営業日が、前のタスクの期限の引き上げで反映されていない</div>
         <div class="case">祝日を取得できなかった（手動登録の休みだけで計算）／祝日の一覧の範囲を超えている</div>
   </div></div>

@@ -27,6 +27,18 @@ test("planOps(moveDue): newDue 指定は deltaDays と同じ結果。前倒し�
   assert.deepEqual(dueRows(n).map((r) => r.taskId), ["A5"], "compress なしは次のタスクを詰めない");
 });
 
+test("planOps(moveDue): 新しい期限が、休み（土曜・祝日）・今日より前・前のタスクの期限より前のときは、警告が出る（提案は止めない）。営業日で十分先なら出ない。土日祝を営業日に数える設定なら、休みの警告は出ない", () => {
+  const warn = (d, op, today = TODAY) => planOps(d, [{ op: "moveDue", ...op }], { today }).warnings;
+  assert.ok(warn(load(), { taskId: "A3", deltaDays: 43 }).some((w) => /A3 の新しい期限 2026-11-28 は休みの日/.test(w)), "土曜");
+  const h = load(); h.settings.nationalHolidays = { dates: [{ date: "2026-11-23", name: "勤労感謝の日" }] };
+  assert.ok(warn(h, { taskId: "A3", newDue: "2026-11-23" }).some((w) => /2026-11-23 は休みの日/.test(w)), "祝日");
+  assert.ok(warn(load(), { taskId: "A3", newDue: "2026-10-20" }).some((w) => /A3 の新しい期限 2026-10-20 は、今日（2026-10-21）より前/.test(w)), "過去");
+  assert.ok(warn(load(), { taskId: "A4", newDue: "2026-10-14" }, "2026-10-01").some((w) => /A4 の新しい期限 2026-10-14 は、前のタスク A3 の期限 2026-10-16 より前/.test(w)), "動かしていない前のタスクより前");
+  assert.deepEqual(warn(load(), { taskId: "A3", newDue: "2026-11-30" }), [], "営業日・十分先");
+  const w = load(); w.settings.countWeekendsAndHolidays = true;
+  assert.deepEqual(warn(w, { taskId: "A3", newDue: "2026-11-28" }), [], "土日祝を営業日に数える設定");
+});
+
 test("planOps: 循環・自分自身・存在しない ID・他のプロジェクト・完了済みの moveDue・不明な op・日数なし・0 日は例外で、データは変わらない", () => {
   const d = load(); const before = JSON.stringify(d);
   const bad = [

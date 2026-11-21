@@ -152,6 +152,20 @@ test("wait: 起動時に pending の依頼を request イベントで出し、�
   assert.ok(Date.now() - Date.parse(w.json().inbox.watching.at) < 30000);
 });
 
+test("wait: 見ている印を書けない（検証に通らない）ときは、標準エラーに理由を 1 回だけ出し、依頼の検出は止めない", async () => {
+  const w = work();
+  run("submit", w.data, "A", "先に届いていた依頼");
+  const d = w.json(); d.tasks[0].projectId = "ZZ"; writeFileSync(w.data, JSON.stringify(d)); // 検証に通らない
+  const child = spawn(process.execPath, [CLI, "wait", w.data, "--interval", "150", "--timeout", "2"], { encoding: "utf8" });
+  let out = "", err = "";
+  child.stdout.on("data", (c) => { out += c; }); child.stderr.on("data", (c) => { err += c; });
+  await new Promise((res) => child.on("exit", res));
+  const lines = err.split(/\r?\n/).filter(Boolean);
+  assert.equal(lines.length, 1, err);
+  assert.match(lines[0], /^見張りの印を書けませんでした: .*ZZ/);
+  assert.ok(out.includes('"event":"request"') && out.includes('"event":"end"'), out);
+});
+
 test("wait: 待っている間に届いた依頼を出す。提案の承認（decision）は出さない", async () => {
   const w = work();
   const { done } = startWait(w, ["--timeout", "5"]);

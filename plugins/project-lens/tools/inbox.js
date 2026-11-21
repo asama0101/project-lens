@@ -87,14 +87,17 @@ function wait(path, o) {
   const interval = Number(o.interval ?? 2000), timeoutMs = Number(o.timeout ?? 0) * 1000;
   const announced = new Set();
   const started = Date.now();
-  let lastBeat = 0;
+  let lastBeat = 0, lastBeatError = null;
   const emit = (e) => console.log(JSON.stringify(e));
   const tick = () => {
     let d = null;
     try { d = readJson(path); } catch { /* 書き込みの途中などで読めないときは、この回の確認を飛ばす（終了の判定は、読めなくても行う） */ }
     if (d && Date.now() - lastBeat >= 30000) {
       lastBeat = Date.now();
-      try { save(path, touchWatching(readJson(path), now()), undefined, { backup: false }); } catch { /* 次の回にもう一度試す */ }
+      try { save(path, touchWatching(readJson(path), now()), undefined, { backup: false }); lastBeatError = null; } catch (e) { // 次の回にもう一度試す。同じ理由は 1 回だけ知らせる（見張りと依頼の検出は止めない）
+        if (e.message !== lastBeatError) console.error(`見張りの印を書けませんでした: ${e.message}`);
+        lastBeatError = e.message;
+      }
     }
     for (const r of d?.inbox?.requests ?? []) {
       const key = `${r.id}:${r.thread.length}`;
