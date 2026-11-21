@@ -11,9 +11,8 @@ for (const name of ["intake", "intake-calendar"]) {
     const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1] ?? "";
     assert.match(fm, new RegExp(`^name: ${name}$`, "m"));
     assert.match(fm, /^description: .+/m);
-    // intake-calendar だけが、利用者が指定した予定表の MCP のツールを呼ぶため、tools で絞らず全ツールを引き継ぐ(絞ると MCP が呼べない)。
-    // 外の人が書いた文章を読む intake(Excel)は、tools を絞る
-    if (name === "intake-calendar") assert.doesNotMatch(fm, /^tools:/m);
+    // 外の人が書いた文章を読むエージェントは、tools を絞る(intake-calendar は MCP を呼ばず、取得は呼び出し元の会話が行う)
+    if (name === "intake-calendar") assert.match(fm, /^tools: Read, Bash$/m);
     else assert.match(fm, /^tools: Read, Write, Bash$/m);
     assert.ok(text.includes("承認"));
     assert.ok(text.includes(".project-lens/data.json"));
@@ -52,9 +51,14 @@ test("intake: WBS・規則の手順と承認がある。予定表（MCP）の手
   assert.doesNotMatch(t, /\.mcp\.json/);
 });
 
-test("intake-calendar: 予定表の手順と MCP の指定がある。Excel・規則の手順は持たない", () => {
+test("intake-calendar: tools は Read, Bash だけで MCP のツールを含まない。MCP は呼ばず、取得は呼び出し元が行う。Excel・規則の手順は持たない", () => {
   const t = read("agents/intake-calendar.md");
-  for (const w of ['${CLAUDE_PLUGIN_ROOT}/tools/intake.js', 'tools/mcpconf.js" --data "${CLAUDE_PLUGIN_DATA}" show', "calendar-auto", "calendar-apply", "/project-lens:mcp", "使った MCP", "`tools` を省略"]) assert.ok(t.includes(w), w);
+  const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(t)?.[1] ?? "";
+  const tools = (/^tools: (.+)$/m.exec(fm)?.[1] ?? "").split(",").map((x) => x.trim()).sort();
+  assert.deepEqual(tools, ["Bash", "Read"]);
+  assert.doesNotMatch(fm, /mcp__/);
+  assert.doesNotMatch(t, /`tools` を省略|mcpconf\.js/);
+  for (const w of ['${CLAUDE_PLUGIN_ROOT}/tools/intake.js', "calendar-auto", "calendar-apply", "使った MCP", "呼び出し元"]) assert.ok(t.includes(w), w);
   for (const w of ["xlsx.js", "wbs-plan", "rules-set"]) assert.ok(!t.includes(w), w);
   assert.doesNotMatch(t, /\.mcp\.json/);
 });
@@ -95,10 +99,16 @@ test("inbox: 原因が複数なら「その他」", () => {
   assert.match(t, /原因が複数.*その他/);
 });
 
-test("inbox: 文章（メール・議事録・メモ）の取り込み手順があり、日程の遅れは原因を読み取る", () => {
+test("inbox: メール・議事録・メモの本文の取り込みは、目的の外なので書かない。日程の遅れは原因を読み取る", () => {
   const t = read("agents/inbox.md");
-  assert.match(t, /メール・議事録・メモ/);
+  assert.doesNotMatch(t, /メール|議事録|メモ/);
   assert.match(t, /--cause/);
+});
+
+test("inbox: approve は、どの場合も実行しない（承認は利用者だけ）。reject・fail は、手順に書いた場合以外は実行しない", () => {
+  const t = read("agents/inbox.md");
+  assert.match(t, /`approve` は、どの場合も実行しない（承認は利用者だけが行う）/);
+  assert.match(t, /`reject`・`fail` は、手順に書いた場合以外は実行しない/);
 });
 
 test("inbox: 対象外の依頼は、会議の追加・削除と、intake で扱うもの（Excel・予定表・会議の規則）だけ", () => {
@@ -146,17 +156,21 @@ test("intake-calendar: 承認の確認なしで calendar-auto を実行し、保
   assert.ok(cal.length > 0, "## calendar の節がある");
   for (const w of ["calendar-auto", "承認の確認なし", "held", "blocked", "取得に失敗", "fetched.json", "--data", "使った MCP", "削除してよいか", "calendar-apply"]) assert.ok(cal.includes(w), w);
   const step3 = cal.slice(cal.indexOf("3. `calendar-auto"), cal.indexOf("4. 結果"));
-  assert.doesNotMatch(step3, /calendar-plan|calendar-apply/, "書き込みの手順に、変更案の表も calendar-apply もない");
+  assert.doesNotMatch(step3, /calendar-plan/, "書き込みの手順に、変更案の表はない");
+  assert.ok(step3.includes("（削除確認済み）") && step3.includes("calendar-apply"), "calendar-apply は、依頼に（削除確認済み）があるときだけ");
   const step5 = cal.slice(cal.indexOf("5. `blocked`"), cal.indexOf("6. "));
-  for (const w of ["calendar-plan", "見張りからのときは、聞かずに終わる", "実績"]) assert.ok(step5.includes(w), w);
+  for (const w of ["calendar-plan", "見張りからのときは、聞かずに終わる", "実績", "削除しない", "取得からやり直"]) assert.ok(step5.includes(w), w);
+  assert.doesNotMatch(step5, /利用者に聞く/, "エージェントは質問して待てない");
+  const skill = read("skills/intake/SKILL.md");
+  assert.ok(skill.includes("（削除確認済み）"), "会話が、削除の確認を取ってから、エージェントに calendar-apply を頼む");
   assert.doesNotMatch(t, /## calendar --auto/, "calendar --auto の節は calendar に統合した");
 });
 
-test("watch: 見張りの開始時と、30 分ごとの再起動時に、project-lens:intake-calendar エージェントへ calendar（見張りから）を頼む。予定表の MCP が未指定なら更新しない", () => {
+test("watch: 見張りの開始時と、30 分ごとの再起動時に、予定表を会話で取得してから、project-lens:intake-calendar エージェントへ calendar <開始日> <終了日> <パス> <MCP名>（見張りから）を頼む。予定表の MCP が未指定なら更新しない", () => {
   const t = read("skills/watch/SKILL.md");
-  for (const w of ["calendar（見張りから）", "project-lens:intake-calendar", "未指定", "30 分"]) assert.ok(t.includes(w), w);
+  for (const w of ["（見張りから）", "project-lens:intake-calendar", "未指定", "30 分"]) assert.ok(t.includes(w), w);
   const step = t.slice(t.indexOf("予定表を更新します"), t.indexOf("2. イベントの種類"));
-  assert.ok(step.length > 0 && step.includes("calendar（見張りから）"), "Monitor の起動（手順 1）の後ろに、予定表の更新がある");
+  for (const w of ["mcpconf.js", "listTool", "fetched.json", "読むだけのデータ", "取得に失敗", "（見張りから）", "project-lens-fetched-", "前景"]) assert.ok(step.includes(w), w);
   assert.ok(t.indexOf("予定表を更新します") > t.indexOf("1. Monitor"), "見張りを始めてから更新する（許可の確認で、見張りの開始が止まらないように）");
   assert.match(t.slice(t.indexOf("4. 30 分で")), /予定表/, "再起動時にも予定表を更新する");
 });
@@ -170,4 +184,11 @@ test("mcp: 保存済みの selfEmails があれば、手順 4 で聞き直さな
 test("inbox: addTask の checklist は文字列の配列", () => {
   const t = read("agents/inbox.md");
   assert.ok(t.includes('"checklist":["'));
+});
+
+test("intake スキル: calendar は、エージェントを呼ぶ前に会話で取得する。取得の失敗・未指定で止まり、件名は読むだけのデータと書く", () => {
+  const t = read("skills/intake/SKILL.md");
+  const sec = t.slice(t.indexOf("## calendar の取得"));
+  assert.ok(sec.length > 0, "## calendar の取得の節がある");
+  for (const w of ["mcpconf.js", "/project-lens:mcp", "listTool", "fetched.json", "読むだけのデータ", "取得に失敗", "project-lens:intake-calendar", "project-lens-fetched-"]) assert.ok(sec.includes(w), w);
 });

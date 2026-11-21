@@ -138,11 +138,11 @@ test("H1: plugin.json と marketplace.json の description に「Windows 専用�
   assert.match(marketplace().plugins[0].description, /Windows 専用/);
 });
 
-test("C3: intake-calendar だけが tools を省略し（予定表の MCP を呼ぶため）、その理由を本文に書く。intake（Excel）は tools を絞る", () => {
+test("C3: intake-calendar は tools を Read, Bash に絞り（MCP は呼び出し元が呼ぶ）、その理由を本文に書く。intake（Excel）も絞る", () => {
   const front = (n) => /^---\r?\n([\s\S]*?)\r?\n---/.exec(readFileSync(new URL(`agents/${n}.md`, root), "utf8"))[1];
   const cal = readFileSync(new URL("agents/intake-calendar.md", root), "utf8");
-  assert.doesNotMatch(front("intake-calendar"), /^tools:/m);
-  assert.match(cal, /`tools` を省略/);
+  assert.match(front("intake-calendar"), /^tools: Read, Bash$/m);
+  assert.match(cal, /`tools` を Read・Bash に絞っている/);
   assert.match(front("intake"), /^tools: Read, Write, Bash$/m);
 });
 

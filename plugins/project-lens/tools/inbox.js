@@ -11,7 +11,7 @@ import { planOps, applyProposal, summarizeSections } from "../src/ui/inboxops.js
 import { fetchHolidays, holidayStatus, needsHolidayUpdate } from "./holidays.js";
 
 const USAGE = `使い方: node tools/inbox.js <コマンド> <data.json> ...
-  submit  <data.json> <projectId|-> <text> [--working]   依頼を足す（--working は処理中として作る。文章の取り込み用）
+  submit  <data.json> <projectId|-> <text> [--working]   依頼を足す（--working は処理中として作る）
   list    <data.json>                             依頼の一覧
   get     <data.json> <id>                        依頼 1 件（やりとり・提案つき）
   wait    <data.json> [--timeout <秒>]            依頼を待つ。1 行 1 イベントの JSON を出し続ける
@@ -94,7 +94,7 @@ function wait(path, o) {
     try { d = readJson(path); } catch { /* 書き込みの途中などで読めないときは、この回の確認を飛ばす（終了の判定は、読めなくても行う） */ }
     if (d && Date.now() - lastBeat >= 30000) {
       lastBeat = Date.now();
-      try { save(path, touchWatching(readJson(path), now())); } catch { /* 次の回にもう一度試す */ }
+      try { save(path, touchWatching(readJson(path), now()), undefined, { backup: false }); } catch { /* 次の回にもう一度試す */ }
     }
     for (const r of d?.inbox?.requests ?? []) {
       const key = `${r.id}:${r.thread.length}`;
