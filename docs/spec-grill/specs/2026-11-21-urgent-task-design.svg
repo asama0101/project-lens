@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 560" role="img">
+<title>SPEC 全体の図解: 突発タスクの登録の流れ</title>
+<desc>スケジュール画面の日表示で、空き時間を押してから、タスクと枠ができ、今日のタスクに載るまでの流れと分岐</desc>
+<style>
+:root{--bg:#d9e1de;--panel:#f3f6f5;--text:#12201d;--muted:#526561;--line:#b4c2be;--sel:#0e6657;--sel-weak:#d2ebe5;--warn:#a65500}
+@media (prefers-color-scheme: dark){:root{--bg:#0f1614;--panel:#18211f;--text:#e3efec;--muted:#93aaa5;--line:#2c3b38;--sel:#4fd1b8;--sel-weak:#17332e;--warn:#e0a35a}}
+text{font-family:"Yu Gothic","Meiryo",sans-serif;fill:var(--text);font-size:14px}
+.bg{fill:var(--bg)}
+.box{fill:var(--panel);stroke:var(--line);stroke-width:1.5}
+.key{fill:var(--sel-weak);stroke:var(--sel);stroke-width:2}
+.note{fill:var(--muted);font-size:12px}
+.h{font-size:16px;font-weight:bold}
+.arrow{stroke:var(--sel);stroke-width:2;fill:none}
+.warn{fill:var(--warn);font-size:12px}
+</style>
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10z" fill="#0e6657"/></marker></defs>
+<rect class="bg" x="0" y="0" width="900" height="560"/>
+<text class="h" x="20" y="30">突発タスクの登録の流れ（スケジュール画面・日表示）</text>
+
+<rect class="box" x="20" y="50" width="250" height="70" rx="8"/>
+<text x="34" y="76">1 空き時間のボタンを押す</text>
+<text class="note" x="34" y="98">どの日でも可。週表示・休みの日は不可</text>
+
+<rect class="box" x="325" y="50" width="250" height="70" rx="8"/>
+<text x="339" y="76">選択中のタスクがある？</text>
+<text class="note" x="339" y="98">ある → 既存の動き（60 分の枠を置く）</text>
+
+<rect class="key" x="630" y="50" width="250" height="70" rx="8"/>
+<text x="644" y="76">2 その場に入力欄が開く</text>
+<text class="note" x="644" y="98">選択がないときだけ</text>
+
+<path class="arrow" d="M270 85H325" marker-end="url(#ah)"/>
+<path class="arrow" d="M575 85H630" marker-end="url(#ah)"/>
+<text class="note" x="582" y="78">なし</text>
+
+<rect class="key" x="630" y="170" width="250" height="110" rx="8"/>
+<text x="644" y="196">3 入力する</text>
+<text class="note" x="644" y="218">件名（必須）</text>
+<text class="note" x="644" y="236">プロジェクト（既定: なし）</text>
+<text class="note" x="644" y="254">長さ 15・30・45・60 分（初期 30）</text>
+<path class="arrow" d="M755 120V170" marker-end="url(#ah)"/>
+
+<rect class="box" x="325" y="170" width="250" height="110" rx="8"/>
+<text x="339" y="196">Esc・外を押す</text>
+<text class="note" x="339" y="218">何も作らずに閉じる</text>
+<text class="note" x="339" y="236">変換確定の Enter では</text>
+<text class="note" x="339" y="254">確定しない</text>
+<path class="arrow" d="M630 225H575" marker-end="url(#ah)"/>
+
+<rect class="key" x="630" y="330" width="250" height="100" rx="8"/>
+<text x="644" y="356">4 確定（Enter かボタン）</text>
+<text class="note" x="644" y="378">タスクと枠を 1 操作で作る</text>
+<text class="note" x="644" y="396">期限・開始日 = 押した日</text>
+<text class="note" x="644" y="414">状態 = In Progress</text>
+<path class="arrow" d="M755 280V330" marker-end="url(#ah)"/>
+
+<rect class="box" x="325" y="330" width="250" height="100" rx="8"/>
+<text x="339" y="356">重なる・空きより長い</text>
+<text class="warn" x="339" y="378">警告を出して、置く</text>
+<text class="note" x="339" y="398">種別は既存の規則</text>
+<text class="note" x="339" y="414">（過去は実績、未来は予定）</text>
+<path class="arrow" d="M630 380H575" marker-end="url(#ah)"/>
+
+<rect class="box" x="20" y="330" width="250" height="100" rx="8"/>
+<text x="34" y="356">5 枠が今日にある</text>
+<text class="note" x="34" y="378">→「今日のタスク」「今日の優先」に載る</text>
+<text class="note" x="34" y="398">今日以外の日 → その日まで載らない</text>
+<path class="arrow" d="M325 380H270" marker-end="url(#ah)"/>
+
+<rect class="box" x="20" y="460" width="860" height="80" rx="8"/>
+<text class="h" x="34" y="486">プロジェクトなし（projectId = null）のタスク</text>
+<text class="note" x="34" y="508">ガント・リストの末尾の区切り／絞り込みに「プロジェクトなし」／稼働は「プロジェクト未設定」の行／進捗・期限超過には含めない</text>
+<text class="note" x="34" y="526">付け替えは編集の窓（前後の関係があると不可・ID は変えない）／並び替えと前のタスクは不可／依頼・WBS は対象外</text>
+</svg>
