@@ -4,7 +4,7 @@
 import { createHash } from "node:crypto";
 import { realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, resolve, join } from "node:path";
+import { basename, dirname, resolve, join, relative, isAbsolute } from "node:path";
 import { today, isDate, nowLocal } from "../src/core/dates.js";
 import { readJson, out, save } from "./cli.js";
 import { assignMeetingProjects, setProjectRule, removeProjectRule } from "../src/core/rules.js";
@@ -22,7 +22,7 @@ const USAGE = `使い方: node tools/intake.js <コマンド> <data.json> ...
   rules-remove           <data.json> <keyword>
   mapping-get            <data.json> <projectId>
   mapping-set            <data.json> <projectId> <mapping.json>
-  fetched-remove         <パス>   (取得した予定の一時ファイル（一時フォルダ直下の project-lens-fetched-*.json）だけを消す。ほかは消さず、理由を出して終わる。ファイルが無ければ何もしない。data.json は読まない)`;
+  fetched-remove         <パス>   (取得した予定の一時ファイル（一時フォルダの下の project-lens-fetched-*.json）だけを消す。ほかは消さず、理由を出して終わる。ファイルが無ければ何もしない。data.json は読まない)`;
 
 const usage = () => { console.error(USAGE); process.exit(2); };
 
@@ -39,7 +39,8 @@ function removeFetched(p) {
   const norm = (x) => (process.platform === "win32" ? x.toLowerCase() : x);
   let dir;
   try { dir = realpathSync(dirname(target)); } catch { return; } // 置き場が無ければ、ファイルも無い
-  if (norm(join(dir, name)) !== norm(join(realpathSync(tmpdir()), name))) throw new Error(`消しません: 一時フォルダ（${tmpdir()}）の直下にありません`);
+  const rel = relative(norm(realpathSync(tmpdir())), norm(dir));
+  if (rel.split(/[\\/]/)[0] === ".." || isAbsolute(rel)) throw new Error(`消しません: 一時フォルダ（${tmpdir()}）の下にありません`);
   rmSync(join(dir, name), { force: true });
 }
 

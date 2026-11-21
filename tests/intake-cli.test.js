@@ -2,7 +2,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, readFileSync, copyFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, basename } from "node:path";
+import { join, basename, relative, dirname } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -129,23 +129,29 @@ test("calendar-apply: 確認した削除の一覧（planKey）と同じときだ
   assert.deepEqual(w.json().events.filter((e) => e.source === "mcp").map((e) => e.id).sort(), ["cm1", "cm2"]);
 });
 
-test("fetched-remove: 一時フォルダ直下の project-lens-fetched-*.json だけを消す。名前が違う・一時フォルダの外・.. で外へ出る形は、消さず非 0。無ければ成功", () => {
+test("fetched-remove: 一時フォルダの下（深さは問わない）の project-lens-fetched-*.json だけを消す。名前が違う・一時フォルダの外・.. で外へ出る形は、消さず非 0。無ければ成功", () => {
   const mk = (dir, name) => { const p = join(dir, name); writeFileSync(p, "[]"); return p; };
+  const deepDir = join(base, "claude", "id", "scratchpad"); mkdirSync(deepDir, { recursive: true });
+  const outDir = mkdtempSync(join(dirname(tmpdir()), "project-lens-outside-")); // 一時フォルダの外（親フォルダ）
   const good = mk(tmpdir(), `project-lens-fetched-test-${process.pid}.json`);
+  const deep = mk(deepDir, "project-lens-fetched-deep.json");
   const badName = mk(tmpdir(), `project-lens-other-${process.pid}.json`);
-  const outside = mk(base, "project-lens-fetched-x.json");
+  const outside = mk(outDir, "project-lens-fetched-x.json");
   try {
     assert.equal(run("fetched-remove", good).status, 0);
     assert.equal(existsSync(good), false);
+    assert.equal(run("fetched-remove", deep).status, 0);
+    assert.equal(existsSync(deep), false, "深い場所でも消える");
     const r1 = run("fetched-remove", badName);
     assert.equal(r1.status, 1); assert.match(r1.err, /project-lens-fetched-/); assert.equal(existsSync(badName), true);
     const r2 = run("fetched-remove", outside);
     assert.equal(r2.status, 1); assert.match(r2.err, /一時フォルダ/); assert.equal(existsSync(outside), true);
-    const dotted = join(base, "..", basename(base), "project-lens-fetched-x.json"); // .. を経ても、実体が一時フォルダ直下でなければ消さない
+    const dotted = join(tmpdir(), relative(tmpdir(), outDir), "project-lens-fetched-x.json"); // .. を経て外へ出る形
+    assert.ok(relative(tmpdir(), outDir).startsWith(".."));
     assert.equal(run("fetched-remove", dotted).status, 1); assert.equal(existsSync(outside), true);
     assert.equal(run("fetched-remove", join(tmpdir(), `project-lens-fetched-none-${process.pid}.json`)).status, 0, "無いファイルは成功");
     assert.equal(run("fetched-remove").status, 2);
-  } finally { for (const p of [good, badName, outside]) rmSync(p, { force: true }); }
+  } finally { for (const p of [good, deep, badName]) rmSync(p, { force: true }); rmSync(outDir, { recursive: true, force: true }); }
 });
 
 test("rules-apply: manual のひも付けは変わらない", () => {
