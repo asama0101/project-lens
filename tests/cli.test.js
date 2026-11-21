@@ -1,6 +1,6 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, readFileSync, readdirSync, linkSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, readdirSync, linkSync, rmSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { save } from "../plugins/project-lens/tools/cli.js";
@@ -18,18 +18,25 @@ test("save: 書き込みの途中で止まっても元のファイルが壊れ�
   save(path, empty);
   assert.equal(readFileSync(link, "utf8"), "OLD");
   assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), empty);
-  assert.deepEqual(readdirSync(dir).sort(), ["data.json", "link.json"], "一時ファイルが残らない");
+  assert.deepEqual(readdirSync(dir).sort(), ["data.json", "data.json.bak", "link.json"], "一時ファイルが残らない");
 });
 
-test("save: 置き換えが 3 回とも失敗したら、直接上書きせず例外にする。data.json は元のまま、一時ファイルも残らない", () => {
+test("save: 置き換えが 3 回とも失敗したら、直接上書きせず例外にする。data.json も .bak も元のまま、一時ファイルも残らない", () => {
   const sub = mkdtempSync(join(dir, "fail-"));
   const path = join(sub, "data.json");
   writeFileSync(path, "KEEP");
+  writeFileSync(`${path}.bak`, "PREV");
   let calls = 0;
   assert.throws(() => save(path, empty, () => { calls++; throw new Error("EBUSY"); }), /置き換えられませんでした/);
   assert.equal(calls, 3);
   assert.equal(readFileSync(path, "utf8"), "KEEP");
-  assert.deepEqual(readdirSync(sub), ["data.json"]);
+  assert.equal(readFileSync(`${path}.bak`, "utf8"), "PREV");
+  assert.deepEqual(readdirSync(sub).sort(), ["data.json", "data.json.bak"]); // 一時ファイル（.bak.tmp を含む）は残らない
+  const sub2 = mkdtempSync(join(dir, "fail2-"));
+  const path2 = join(sub2, "data.json");
+  writeFileSync(path2, "KEEP");
+  assert.throws(() => save(path2, empty, () => { throw new Error("EBUSY"); }), /置き換えられませんでした/);
+  assert.deepEqual(readdirSync(sub2), ["data.json"]); // もとの .bak が無ければ、作られない
 });
 
 test("save: 検証に通らないときは、元のファイルにも一時ファイルにも触れない", () => {
@@ -38,6 +45,39 @@ test("save: 検証に通らないときは、元のファイルにも一時フ�
   assert.throws(() => save(path, { ...empty, tasks: "x" }), /tasks/);
   assert.equal(readFileSync(path, "utf8"), "KEEP");
   assert.ok(!readdirSync(dir).some((f) => f.includes(".tmp")));
+});
+
+test("save: 保存すると data.json.bak に直前の内容が入る。初回（元が無い）は作らない", () => {
+  const sub = mkdtempSync(join(dir, "bak-"));
+  const path = join(sub, "data.json");
+  save(path, empty);
+  assert.deepEqual(readdirSync(sub), ["data.json"]);
+  const next = { ...empty, settings: { a: 1 } };
+  save(path, next);
+  assert.deepEqual(JSON.parse(readFileSync(`${path}.bak`, "utf8")), empty);
+  assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), next);
+});
+
+test("save: { backup: false } では .bak が変わらない", () => {
+  const sub = mkdtempSync(join(dir, "nobak-"));
+  const path = join(sub, "data.json");
+  writeFileSync(path, "OLD");
+  writeFileSync(`${path}.bak`, "BAK");
+  save(path, empty, undefined, { backup: false });
+  assert.equal(readFileSync(`${path}.bak`, "utf8"), "BAK");
+  assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), empty);
+});
+
+test("save: .bak が書けなくても保存は成功する", () => {
+  const sub = mkdtempSync(join(dir, "badbak-"));
+  const path = join(sub, "data.json");
+  writeFileSync(path, "OLD");
+  mkdirSync(`${path}.bak`); // ディレクトリがあると、控えの確定（.bak.tmp の rename）は失敗する
+  const orig = process.stderr.write, errs = [];
+  process.stderr.write = (s) => { errs.push(String(s)); return true; };
+  try { save(path, empty); } finally { process.stderr.write = orig; }
+  assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), empty);
+  assert.match(errs.join(""), /data\.json\.bak を更新できませんでした: /);
 });
 
 // ---- 置き換え（rename）のやり直し ----

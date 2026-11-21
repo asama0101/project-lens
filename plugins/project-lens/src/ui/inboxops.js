@@ -3,7 +3,7 @@
 // 適用（applyProposal）は、いまのデータで同じ手順をもう一度計算して、提案の表と同じときだけ、変更履歴を足して返す。
 // 当てる順: addTask（前のタスクは足し終えてから結ぶ）→ moveDue（書かれた順）。次のタスクの動きは computeImpact の規則に合わせる。
 import { diffDays, dueAfter } from "../core/dates.js";
-import { calendarOf } from "../core/holidays.js";
+import { calendarOf, offDayChecker } from "../core/holidays.js";
 import { computeImpact } from "../core/impact.js";
 import { CAUSES, PROPOSE_OPS, isClosed, validate } from "../core/schema.js";
 import { addTask, newChecklist, updateTask } from "./edit.js";
@@ -30,6 +30,7 @@ function simulate(data, ops, today) {
   const reasons = new Map();    // タスク ID → 期限が動いた理由
   const warnings = [];
   const moves = [];
+  const offDay = offDayChecker(data.settings);
   const inboxIds = new Set();   // source: inbox の記録に載せるタスク
   let addCount = 0;
 
@@ -135,6 +136,13 @@ function simulate(data, ops, today) {
       const raised = new Set(ids);
       raise(id, need2.due, `前のタスク ${need2.id} の期限より前にできない`, raised);
       ids.splice(0, ids.length, ...raised); // 引き上げで動いた次のタスクも、変更履歴に載せる
+    }
+    // 動かした先の期限の注意（提案は止めない）。引き上げ済みの前のタスクは、上で合わせてあるので出ない
+    const newDue = T(id).due;
+    if (offDay(newDue)) warnings.push(`${id} の新しい期限 ${newDue} は休みの日です`);
+    if (newDue < today) warnings.push(`${id} の新しい期限 ${newDue} は、今日（${today}）より前です`);
+    for (const p of (T(id).predecessors ?? []).map((x) => T(x)).filter((x) => x && !isClosed(x) && x.due > newDue)) {
+      warnings.push(`${id} の新しい期限 ${newDue} は、前のタスク ${p.id} の期限 ${p.due} より前です`);
     }
     moves.push({ deltaDays: delta, taskIds: ids });
     for (const x of ids) if (before.has(x)) touched.add(x);

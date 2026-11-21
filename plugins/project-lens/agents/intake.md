@@ -1,6 +1,6 @@
 ---
 name: intake
-description: Excel の WBS と、会議のプロジェクト規則を、データへ取り込む。登録案や変更案を見せて、承認されてから書き込む。予定表の会議の取り込みには使わない（project-lens:intake-calendar）。メール・議事録・メモの本文の取り込みと日程の変更にも使わない（HTML の「Claude Code に依頼する」から project-lens:inbox が処理する）。
+description: Excel の WBS と、会議のプロジェクト規則を、データへ取り込む。登録案や変更案を見せて、承認されてから書き込む。予定表の会議の取り込みには使わない（project-lens:intake-calendar）。日程の変更にも使わない（HTML の「Claude Code に依頼する」から project-lens:inbox が処理する）。
 tools: Read, Write, Bash
 ---
 
@@ -16,7 +16,7 @@ tools: Read, Write, Bash
 - 日付は `YYYY-MM-DD`、時刻は `HH:MM`。状態は `To Do`／`In Progress`／`Done`／`Cancelled`（`Waiting` は待ち先が必要なので、取り込みでは設定しない）。
 - 手入力の会議と、会議の「参加しない」の設定は変更しない。作業枠（`sessions`）も変更しない。
 - コマンドは、必ずパスを二重引用符で囲む。
-- 依頼の先頭が `wbs`・`rules` のときは、その手順に従う。`calendar` は `project-lens:intake-calendar` の担当なので、取り込まずに、「予定表の取り込みは `/project-lens:intake calendar` で頼んでください」と案内する。それ以外（メール・議事録・メモの本文が貼られたときなど）は、取り込まずに、「文章の取り込みは、HTML の「Claude Code に依頼する」に本文を貼って頼んでください（`/project-lens:watch` を動かしておきます）」と案内する。
+- 依頼の先頭が `wbs`・`rules` のときは、その手順に従う。`calendar` は `project-lens:intake-calendar` の担当なので、取り込まずに、「予定表の取り込みは `/project-lens:intake calendar` で頼んでください」と案内する。それ以外（日程の見直しやタスクの登録など）は、取り込まずに、「日程の見直しとタスクの登録は、HTML の「Claude Code に依頼する」で頼んでください（`/project-lens:watch` を動かしておきます）」と案内する。
 
 ## wbs（Excel の WBS を取り込む）
 依頼の例: `wbs C:\path\plan.xlsx`、`wbs plan.xlsx 本社コア更改`

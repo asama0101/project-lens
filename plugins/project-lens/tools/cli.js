@@ -1,5 +1,5 @@
 // CLI（tools/*.js）で共有する data.json の読み書き。save は検証に通ったときだけ書く。
-import { readFileSync, writeFileSync, renameSync, rmSync, statSync } from "node:fs";
+import { readFileSync, writeFileSync, renameSync, rmSync, statSync, copyFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { validate } from "../src/core/schema.js";
 
@@ -28,21 +28,26 @@ export function renameWithRetry(from, to, rename = renameSync, sleep = (ms) => A
  * 検証に通ったときだけ書く。通らなければ例外（errors を連結した文言）で、何も書かない。
  * 書き込みの途中で止まっても元のファイルが壊れないよう、同じフォルダの一時ファイルに書いてから置き換える。
  * readJson で読んだあとに他（ブラウザ・別のコマンド）がファイルを書き換えていたら、上書きせず例外にする（もう一度読み直して実行する）。
+ * 直前の版は、先に `<path>.bak.tmp` へコピーしておき、置き換えに成功したあとで `<path>.bak` にする（1 世代。backup: false で省く。置き換えに失敗したときは、`.bak` を変えない）。
  * 置き換えに 3 回失敗したときは、直接上書きせず例外にする（上書きの途中で止まると、ファイルが壊れるため）。rename は、テストで置き換えを失敗させるための差し込み口。
  */
-export function save(path, data, rename = renameSync) {
+export function save(path, data, rename = renameSync, { backup = true } = {}) {
   const { errors } = validate(data);
   if (errors.length) throw new Error(errors.join(" / "));
   const key = resolve(path), read = seen.get(key);
   const assertFresh = () => { if (read && read !== stamp(path)) throw new Error("他で更新されました。読み直して、もう一度実行してください"); };
   assertFresh();
   const text = JSON.stringify(data, null, 2) + "\n";
-  const tmp = `${path}.${process.pid}.tmp`;
+  const tmp = `${path}.${process.pid}.tmp`, bakTmp = `${path}.bak.tmp`;
   try {
     writeFileSync(tmp, text);
+    let bakReady = false;
+    const warn = (e) => process.stderr.write(`${path}.bak を更新できませんでした: ${e.message}\n`);
+    if (backup) { try { copyFileSync(path, bakTmp); bakReady = true; } catch (e) { if (e.code !== "ENOENT") warn(e); /* 初回（元が無い）や控えが書けないときも、本体は保存する */ } }
     try { renameWithRetry(tmp, path, rename); } catch (e) { throw new Error(`${path} を置き換えられませんでした（${e.message}）。ウイルス対策ソフトや同期ソフトなど、ほかのプログラムが data.json を開いていないか確かめて、もう一度実行してください`); }
+    if (bakReady) { try { renameSync(bakTmp, `${path}.bak`); } catch (e) { warn(e); } } // 置き換えに成功したあとで、控えを確定する（失敗したときは、1 つ前の控えを残す）
   } finally {
-    try { rmSync(tmp, { force: true }); } catch { /* 消せなくても、データは書けている */ }
+    try { rmSync(tmp, { force: true }); rmSync(bakTmp, { force: true }); } catch { /* 消せなくても、データは書けている */ }
   }
   seen.set(key, stamp(path));
 }
