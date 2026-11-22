@@ -118,6 +118,8 @@ push のたびには `version` を上げない。リリースするときだけ�
 
 - **`/project-lens:mcp` は、引数なしでも指定の手順へ進む（表示だけで終わるのは `show` のとき）**: README・利用ガイド・doctor・intake の案内は、どれも引数なしの `/project-lens:mcp` なので、案内どおりの操作で指定まで進めるため。指定済みのときは、変えるかを聞いて、変えないなら候補の提案と保存を飛ばす（実行のたびにやり直させないため）。
   - 見送った案: 案内を `/project-lens:mcp calendar` にそろえる案（直す箇所が doctor.js・README・利用ガイド・intake に散り、テストの文言も変わるため）。
+- **`fetched.json` の形の規則は、watch と intake の両方の本文に書く（別のファイルにまとめない）**: watch は、intake の本文を読めない（intake は自動で読み込まれないスキル）。また、frontmatter と Read で開いたファイルは、スキルを起動した turn のあとでは助けにならない。作業フォルダの外にあるプラグインのファイルを Read で開くと承認の確認が出て、事前承認はスキルを起動した turn だけで効く。watch の予定表の更新は、30 分ごとに Monitor の通知で始まる turn で動くので、別のファイルにすると毎回確認が出て、断られると形の規則なしで書きうる。
+  - 見送った案: 形の規則を 1 つのファイルにまとめ、書く直前に Read で読ませる案（上の理由）。
 
 ## 算出の規則
 
@@ -304,7 +306,7 @@ WBS と規則は「読み取り → 変更案の表 → 利用者の承認 → �
   - 承認を外した理由: 承認なしで `calendar-apply`（`syncMcpEvents`）を使うと、予定表から消えた・対象外になった確認済みの会議（実績）が消える。実績を残す動きは `calendar-auto` にあるので、そちらに揃えた。
   - 自分だけ・自分と会議室だけの予定は、取り込まない（`import/calendar.js` の `excludeSolo`。純関数で、`planCalendarSync` が `syncMcpEvents` の前に呼ぶ）。取得した予定の `attendees`（`[{type: "person"|"resource", email, name}]`）から判定する。
     - 自分 = `email` が `selfEmails` のどれかと一致、または `name` が `selfNames` のどれかと一致（どちらも、前後の空白と大文字小文字を区別しない完全一致）。会議室 = `type` が `resource`、または `name` が `roomKeywords`（既定は「会議室」）を含む。自分と会議室を除いた参加者が 0 人なら対象外。
-    - `attendees` の項目がない予定は、参加者が不明なので、取り込む。空の配列は「参加者なし」として対象外にする。MCP が参加者を返さないときに、エージェントが空の配列を書かないよう、`plugins/project-lens/skills/intake/SKILL.md` に書いてある。
+    - `attendees` の項目がない予定は、参加者が不明なので、取り込む。空の配列は「参加者なし」として対象外にする。MCP が参加者を返さないときに、エージェントが空の配列を書かないよう、`plugins/project-lens/skills/intake/SKILL.md` と `plugins/project-lens/skills/watch/SKILL.md` の両方の本文に書いてある（`fetched.json` を書くのは、どちらも呼び出し元の会話のため）。日付・時刻の書式（`YYYY-MM-DD`・`HH:MM`）も同じ。2 か所の食い違いは、`tests/agents.test.js` で調べる。
     - `attendees` の要素が `null`・文字列など、形が崩れている予定も、不明として取り込む（例外にしない）。
     - `selfEmails` も `selfNames` も未設定なら、自分を特定できないので、何も除かない（参加者つきの予定があれば `warnings` に出す）。どちらかを設定済みでも、どの予定にも `attendees` がないときは、判定できていないと `warnings` に出す（MCP が参加者を返さないと、機能が黙って効かなくなるため）。
     - 設定は `project-lens-mcp.json` の `calendar` の任意の項目 `selfEmails`・`selfNames`・`roomKeywords`（空でない文字列の配列）。`tools/intake.js calendar-plan|calendar-apply|calendar-auto` が、置き場（`PROJECT_LENS_HOME` か `--data`）から読む。判定を LLM に任せず、CLI で行うため。`schema_version` は上げない（任意の項目の追加。既存のファイルはそのまま読める）。

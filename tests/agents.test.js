@@ -178,6 +178,19 @@ test("watch: 見張りの開始時と、30 分ごとの再起動時に、予定�
   assert.match(t.slice(t.indexOf("4. 30 分で")), /予定表/, "再起動時にも予定表を更新する");
 });
 
+test("watch・intake: fetched.json を書く側の本文に、日付・時刻の書式と attendees の規則がある（watch は intake を読めないので、写しを持つ）", () => {
+  const w = read("skills/watch/SKILL.md");
+  const wStep = w.slice(w.indexOf("予定表を更新します"), w.indexOf("2. イベントの種類"));
+  const i = read("skills/intake/SKILL.md");
+  const iSec = i.slice(i.indexOf("## calendar の取得"));
+  for (const sec of [wStep, iSec]) {
+    for (const s of ["YYYY-MM-DD", "HH:MM", "[{type, email, name}]", "項目ごと省"]) assert.ok(sec.includes(s), s);
+  }
+  assert.ok(wStep.includes("`attendees: []` とは書かない"));
+  assert.ok(iSec.includes("`[]` を書きません"));
+  assert.ok(!w.includes("「calendar の取得」と同じ"), "watch から読めない intake を参照しない");
+});
+
 test("mcp: 保存済みの selfEmails があれば、手順 4 で聞き直さない", () => {
   const t = read("skills/mcp/SKILL.md");
   const step = t.slice(t.indexOf("4. **自分のメールアドレス"), t.indexOf("5. **試しに"));
