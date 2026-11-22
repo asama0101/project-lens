@@ -24,15 +24,13 @@
 | Node.js | 24 以上 |
 | Python | 3.12 以上。Excel の WBS を取り込むときだけ |
 
-<img src="docs/images/install-flow.svg" alt="導入の流れ。マーケットプレイスの登録、プラグインの導入、init の実行、project-lens.html を開いて data.json を選ぶ" width="800">
-
-*図 3: 導入の流れ。*
-
 ```
 /plugin marketplace add asama0101/project-lens
 /plugin install project-lens@project-lens
 /project-lens:init
 ```
+
+そのあと、Edge か Chrome で `project-lens.html` を開き、「ファイルを開く」で `.project-lens/data.json` を選びます。
 
 **すでに `project-lens.html` があると、`init` は新しい版に置き換えます。** 手で直していたときは、先に別の名前でコピーします（`data.json` は変わりません）。オフラインでの導入、更新、アンインストール、動作環境の確認（`/project-lens:doctor`）は、[利用ガイド](docs/guide.md)を見てください。
 
@@ -48,7 +46,7 @@
 
 <img src="docs/images/priority-score.svg" alt="点数の計算例の棒グラフ。突発タスク（期限は今日）は 45、期限 5 日後で項目なしは 37.5、期限 5 日後で未チェック 3 件は 48.75、3 日超過で未チェック 10 件は 199" width="800">
 
-*図 4: 点数の計算例（重要度なし）。前のタスクがすべて完了しているタスクだけが載ります。*
+*図 3: 点数の計算例（重要度なし）。前のタスクがすべて完了しているタスクだけが載ります。*
 
 | 項目 | 点数 |
 |---|---|
@@ -62,13 +60,13 @@
 
 <img src="docs/images/urgent-flow.svg" alt="突発タスクの流れ。日表示で空き時間を押し、件名・プロジェクト・長さを入れると、タスクと作業枠が作られる。やめると何も作らない" width="800">
 
-*図 5: 空き時間を押して登録する流れ。承認と見張りは要りません。*
+*図 4: 空き時間を押して登録する流れ。承認と見張りは要りません。*
 
 ### 依頼の帯から日程を頼む
 
 <img src="docs/images/request-flow.svg" alt="依頼の流れ。画面で依頼を書き、Claude Code が変更案を作り、画面で確認して、承認すると期限が変わる。却下すると何も変わらない" width="800">
 
-*図 6: 日程を変える流れ。「承認して反映する」を押すまで、期限は変わりません。*
+*図 5: 日程を変える流れ。「承認して反映する」を押すまで、期限は変わりません。*
 
 Claude Code で `/project-lens:watch` を 1 回実行し、画面下端の帯に依頼を書きます（例: `A3 が 5 日遅れた（原因: ベンダー）`）。
 
@@ -76,7 +74,7 @@ Claude Code で `/project-lens:watch` を 1 回実行し、画面下端の帯に
 
 <img src="docs/images/intake-flow.svg" alt="取り込みの流れ。読み取り、変更案の表、承認、書き込みの順。承認の前は data.json を変えない" width="800">
 
-*図 7: Excel の WBS と規則の取り込み。予定表の会議だけは、承認なしで更新します。*
+*図 6: Excel の WBS と規則の取り込み。予定表の会議だけは、承認なしで更新します。*
 
 ### コマンド一覧
 
@@ -92,7 +90,7 @@ Claude Code で `/project-lens:watch` を 1 回実行し、画面下端の帯に
 
 <img src="docs/images/screens.svg" alt="画面の 5 つのタブ。ガントチャート、リスト、スケジュール、稼働、設定" width="800">
 
-*図 8: 画面上部の 5 つのタブ。*
+*図 7: 画面上部の 5 つのタブ。*
 
 ## 困ったとき
 
