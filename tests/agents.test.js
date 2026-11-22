@@ -81,7 +81,9 @@ test("intake(wbs・rules): エージェントは質問して待てないので�
   assert.ok(t.includes("（setup 承認済み venv）") && t.includes("（setup 承認済み system）"), "setup の入れ先は、選んだ依頼の行で受け取る");
   const step6 = t.slice(t.indexOf("6. **承認後に、書き込む。**"), t.indexOf("## rules"));
   assert.ok(step6.includes("（承認済み"), "手順 6 は、承認済みの依頼のときだけ書く");
-  assert.doesNotMatch(t, /利用者に聞く|選んでもらう|利用者に伝える/, "エージェントは利用者に直接聞かない");
+  assert.doesNotMatch(t, /利用者に聞く|選んでもらう|利用者に伝える|保存してもらう/, "エージェントは利用者に直接聞かない");
+  const rules = t.slice(t.indexOf("## rules"));
+  assert.ok(rules.includes("依頼に案がない") && rules.includes("承認の依頼は書かない"), "rules で案がないときは、質問を報告して終わる");
   assert.ok(t.includes("保存済みの対応を使うときも、その内容を一時フォルダの `mapping.json` に書く"), "再取り込みでも、承認の依頼に入れる mapping.json がある");
 });
 

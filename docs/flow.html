@@ -289,7 +289,7 @@
 
   <div class="n">3</div>
   <div class="cell empty"></div>
-  <div class="cell c">保存済みの「列の対応」（Excel のどの列が件名・期限・大項目…か）を確かめる。なければ、見出しと中身から判断して対応表を作る（OS の一時フォルダに置く）。<b>ここでは承認を求めず</b>、手順 4〜5 まで進めて、変更案と一緒に見せる。<small class="src">agents/intake.md wbs 3</small></div>
+  <div class="cell c">保存済みの「列の対応」（Excel のどの列が件名・期限・大項目…か）を確かめる。なければ、見出しと中身から判断して対応表を作る（OS の一時フォルダに置く）。<b>ここでは承認を求めず</b>、手順 4〜5 まで進めて、変更案と一緒に見せる。保存済みの対応を使うときも、その内容を一時フォルダの <code>mapping.json</code> に書く（承認の依頼にパスを入れるため）。<small class="src">agents/intake.md wbs 3</small></div>
   <div class="cell s"><code>mapping-get</code>: 保存済みの対応を返す（読み取りだけ）。<small class="src">tools/intake.js</small></div>
 
   <div class="n">4</div>
@@ -382,6 +382,10 @@
   <div class="cell u"><code>/project-lens:intake rules</code>、または <code>rules [A社] はプロジェクト A</code> のように伝える。</div>
   <div class="cell c">現状の規則（件名のキーワード → プロジェクト）を見せる。<small class="src">agents/intake.md rules</small></div>
   <div class="cell s"><code>rules-list</code>（読み取りだけ）。</div>
+
+  <div class="branch"><p class="bt">案がない</p><div class="flow">
+    <div class="case"><code>rules</code> だけで頼んだ → エージェントが現状の一覧と「追加・変更・削除したい規則」の質問を報告して終わり、会話が聞いて、答えを依頼に足して頼み直す（承認の依頼は書かない）<small class="src">agents/intake.md rules</small> <span class="tag unv">未確認</span>動かしていない</div>
+  </div></div>
 
   <div class="n">2</div>
   <div class="cell u"><span class="tag ok">承認</span>追加・変更・削除の内容を承認する。</div>

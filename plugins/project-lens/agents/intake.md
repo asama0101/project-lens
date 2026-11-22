@@ -32,13 +32,13 @@ tools: Read, Write, Bash
    - 表示をそのまま報告し、最後に 2 つの依頼の行を書いて終わる: `wbs "<ファイル>" <projectId>（setup 承認済み venv）` と `wbs "<ファイル>" <projectId>（setup 承認済み system）`。入れ先（専用の venv（推奨）か、システムの Python のユーザー領域）は、呼び出し元の会話が利用者に選ばせる。**依頼に `（setup 承認済み venv）` があるときだけ**、同じコマンドに `--yes` を付けて実行する（venv に入れる）。`（setup 承認済み system）` のときは `--system --yes` を付ける。どちらもない依頼で `--yes` を付けない。成功したら読み取りをやり直し、続きの手順へ進む。
    - システムは、他のツールの openpyxl と版が衝突しうるので、利用者が選んだときだけにする。
    - venv を作れない Python（`venv` か `ensurepip` が無い）のときは、出力の案内に従う。状況を調べるだけなら `doctor --data "${CLAUDE_PLUGIN_DATA}"`（何も変更しない）。
-   - 承認されない、または Python が無い・openpyxl を入れられないときは、**Excel を「CSV UTF-8（コンマ区切り）」で保存してもらう**（`.csv` は Read で読める）。
+   - 承認されない、または Python が無い・openpyxl を入れられないときは、**Excel を「CSV UTF-8（コンマ区切り）」で保存して取り込む方法を、報告に入れて終わる**（`.csv` は Read で読める）。
      - 「CSV（コンマ区切り）」は、日本語の Windows では Shift_JIS で保存され、文字化けすることがある。
      - CSV では、結合セル・インデント・非表示行の情報が失われるので、階層は大項目・中項目の列に書いてもらう。実機の CSV での読み取りは、未確認。
    - シートが複数あり、依頼にシートの指定がないときは、シートの一覧（`hidden` は除く）を添えて、どれを取り込むかを質問として報告して終わる。
 3. **列の対応を決める。**
-   - まず次のコマンドで、保存済みの対応を確認する（読み取り専用）: `node "${CLAUDE_PLUGIN_ROOT}/tools/intake.js" mapping-get ".project-lens/data.json" <projectId>`
-   - 無ければ、見出しと内容から、列の意味（`group` 大項目・`subgroup` 中項目・`title` 件名・`due` 期限・`start` 開始・`status` 状態・`predecessors` 前のタスク・`memo` メモ・`importance` 重要度）を判断する。対応（Excel の列 → 項目）は `{"title": "作業名", "due": "期限", ...}`（項目 → Excel の列見出し）の JSON にして OS の一時フォルダに置く。保存済みの対応を使うときも、その内容を一時フォルダの `mapping.json` に書く（手順 5 の承認の依頼に、パスを入れるため）。
+   - まず次のコマンドで、保存済みの対応を確認する（読み取り専用）: `node "${CLAUDE_PLUGIN_ROOT}/tools/intake.js" mapping-get ".project-lens/data.json" <projectId>`。保存済みの対応を使うときも、その内容を一時フォルダの `mapping.json` に書く（手順 5 の承認の依頼に、パスを入れるため）。
+   - 無ければ、見出しと内容から、列の意味（`group` 大項目・`subgroup` 中項目・`title` 件名・`due` 期限・`start` 開始・`status` 状態・`predecessors` 前のタスク・`memo` メモ・`importance` 重要度）を判断する。対応（Excel の列 → 項目）は `{"title": "作業名", "due": "期限", ...}`（項目 → Excel の列見出し）の JSON にして OS の一時フォルダの `mapping.json` に置く。
    - **ここでは承認を求めず**、手順 4〜5（`rows.json` の作成と `wbs-plan`。どちらも読み取り専用）まで進め、**対応表と変更案を一緒に報告する**（承認は 1 回。手順 6 の依頼で受ける）。
    - 依頼に列の対応の直しが足されていたら、それに従った対応で手順 4 から作る。次回は、保存済みの対応を使い、同じく変更案と一緒に報告する。
 4. **行を正規化する。** WBS の形式は固定でない。階層は、列（大項目・中項目の列）、結合セル（展開済み）、インデント（`indents`）、番号（1.1.2 など）のいずれかで表されている。次の規則で `rows.json`（`[{group, subgroup, title, due, start, status, importance, memo, predecessorKeys}]`）を作る。
