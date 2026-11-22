@@ -106,15 +106,15 @@ test("C1: NOTICE があり、git 管理下で、取得する外部依存の出�
   assert.match(r.stdout, /NOTICE/);
 });
 
-test("A3・A4: README に、ネットワーク接続の依存と、環境の確認（doctor）の呼び出し方を書いている", () => {
-  const readme = readFileSync(new URL("README.md", repoRoot), "utf8");
+test("A3・A4: 利用ガイドに、ネットワーク接続の依存と、環境の確認（doctor）の呼び出し方を書いている", () => {
+  const readme = readFileSync(new URL("docs/guide.md", repoRoot), "utf8");
   assert.match(readme, /ネットワーク/);
   assert.match(readme, /\/project-lens:doctor/);
   assert.match(readme, /tools\/doctor\.js" --data/);
 });
 
-test("Excel 用の Python: README は、システムの openpyxl を使うことと、無いときの入れ先(専用の venv・システムのユーザー領域)と、venv を作れない Python を書く", () => {
-  const readme = readFileSync(new URL("README.md", repoRoot), "utf8");
+test("Excel 用の Python: 利用ガイドは、システムの openpyxl を使うことと、無いときの入れ先(専用の venv・システムのユーザー領域)と、venv を作れない Python を書く", () => {
+  const readme = readFileSync(new URL("docs/guide.md", repoRoot), "utf8");
   assert.match(readme, /Python 3.12 以上/);
   assert.match(readme, /標準ライブラリの venv と ensurepip が要ります/);
   assert.match(readme, /システムの Python に openpyxl/);
@@ -146,8 +146,8 @@ test("C3: intake-calendar は tools を Read, Bash に絞り（MCP は呼び出�
   assert.match(front("intake"), /^tools: Read, Write, Bash$/m);
 });
 
-test("README: アンインストールで消えるもの・残るもの(H4)を書き、intake は自動起動しない(B4)", () => {
-  const readme = readFileSync(new URL("README.md", repoRoot), "utf8");
+test("利用ガイド: アンインストールで消えるもの・残るもの(H4)を書き、intake は自動起動しない(B4)", () => {
+  const readme = readFileSync(new URL("docs/guide.md", repoRoot), "utf8");
   assert.match(readme, /### アンインストール/);
   assert.match(readme, /project-lens-mcp\.json/);
   for (const n of ["intake"]) assert.match(readFileSync(new URL(`skills/${n}/SKILL.md`, root), "utf8"), /^disable-model-invocation: true\s*$/m);
@@ -157,7 +157,8 @@ test("README: コマンド一覧に inbox・replan・holidays が無く、init�
   const readme = readFileSync(new URL("README.md", repoRoot), "utf8");
   const table = readme.slice(readme.indexOf("### コマンド一覧"), readme.indexOf("### 画面の見方"));
   for (const n of ["doctor", "init", "mcp", "watch", "intake"]) assert.ok(table.includes(`/project-lens:${n}`), n);
-  for (const n of ["inbox", "replan", "holidays"]) assert.ok(!readme.includes(`/project-lens:${n}`), n);
+  const guide = readFileSync(new URL("docs/guide.md", repoRoot), "utf8");
+  for (const n of ["inbox", "replan", "holidays"]) assert.ok(!readme.includes(`/project-lens:${n}`) && !guide.includes(`/project-lens:${n}`), n);
 });
 
 test("Node の版: package.json の engines が README の動作確認の版（24）と一致し、GitHub Actions が同じ版で npm test を実行する", () => {

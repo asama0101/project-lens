@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 320" font-family="'Yu Gothic','Meiryo','Hiragino Sans',sans-serif" role="img" aria-labelledby="t d">
   <title id="t">「今日の優先」の点数の計算例</title>
-  <desc id="d">4 つの例の点数。緊急タスク（期限は今日）は 45。期限 5 日後で項目なしは 37.5。期限 5 日後で未チェック 3 件は 48.75。3 日超過で未チェック 10 件は 199。</desc>
+  <desc id="d">4 つの例の点数。突発タスク（期限は今日）は 45。期限 5 日後で項目なしは 37.5。期限 5 日後で未チェック 3 件は 48.75。3 日超過で未チェック 10 件は 199。</desc>
   <rect width="860" height="320" fill="#ffffff"/>
   <g stroke="#d3dce2" stroke-width="1">
     <line x1="230" y1="20" x2="230" y2="240"/><line x1="370" y1="20" x2="370" y2="240"/><line x1="510" y1="20" x2="510" y2="240"/><line x1="650" y1="20" x2="650" y2="240"/><line x1="790" y1="20" x2="790" y2="240"/>
@@ -9,7 +9,7 @@
     <text x="230" y="260">0</text><text x="370" y="260">50</text><text x="510" y="260">100</text><text x="650" y="260">150</text><text x="790" y="260">200（点）</text>
   </g>
   <g font-size="14" fill="#16222c" text-anchor="end">
-    <text x="220" y="52">緊急タスク（期限は今日）</text>
+    <text x="220" y="52">突発タスク（期限は今日）</text>
     <text x="220" y="108">期限 5 日後・項目なし</text>
     <text x="220" y="164">期限 5 日後・未チェック 3 件</text>
     <text x="220" y="220">3 日超過・未チェック 10 件</text>

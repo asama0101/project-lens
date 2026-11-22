@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300" font-family="'Yu Gothic','Meiryo','Hiragino Sans',sans-serif" role="img" aria-labelledby="t d">
+  <title id="t">突発タスクを登録する流れ</title>
+  <desc id="d">スケジュールを日表示にして、選択中のタスクがない状態で空き時間を押す。入力欄に件名・プロジェクト・長さを入れて Enter か追加を押すと、タスクと作業枠が 1 回の保存で作られる。Esc・欄の外のクリック・キャンセルでは、何も作らずに閉じる。</desc>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#334155"/>
+    </marker>
+  </defs>
+  <rect width="800" height="300" fill="#ffffff"/>
+
+  <rect x="6" y="14" width="196" height="120" rx="10" fill="#ffffff" stroke="#0369a1" stroke-width="2"/>
+  <text x="104" y="42" text-anchor="middle" font-size="16" font-weight="bold" fill="#0c4a6e">1. 日表示にする</text>
+  <text x="104" y="70" text-anchor="middle" font-size="14" fill="#1e293b">「スケジュール」を</text>
+  <text x="104" y="90" text-anchor="middle" font-size="14" fill="#1e293b">日表示にして、</text>
+  <text x="104" y="110" text-anchor="middle" font-size="14" fill="#1e293b">選択中のタスクなし</text>
+
+  <rect x="228" y="14" width="164" height="120" rx="10" fill="#ffffff" stroke="#0369a1" stroke-width="2"/>
+  <text x="310" y="42" text-anchor="middle" font-size="16" font-weight="bold" fill="#0c4a6e">2. 空き時間を押す</text>
+  <text x="310" y="74" text-anchor="middle" font-size="14" fill="#1e293b">押した空き時間の</text>
+  <text x="310" y="94" text-anchor="middle" font-size="14" fill="#1e293b">開始が出る</text>
+  <text x="310" y="114" text-anchor="middle" font-size="14" fill="#1e293b">（例: 17:30 から）</text>
+
+  <rect x="418" y="14" width="376" height="120" rx="10" fill="#ffffff" stroke="#0369a1" stroke-width="2"/>
+  <text x="606" y="42" text-anchor="middle" font-size="16" font-weight="bold" fill="#0c4a6e">3. 入力欄に入れる</text>
+  <rect x="436" y="56" width="104" height="30" rx="4" fill="#f1f5f9" stroke="#475569" stroke-width="1.5"/>
+  <text x="488" y="76" text-anchor="middle" font-size="14" fill="#1e293b">件名</text>
+  <rect x="548" y="56" width="124" height="30" rx="4" fill="#f1f5f9" stroke="#475569" stroke-width="1.5"/>
+  <text x="610" y="76" text-anchor="middle" font-size="14" fill="#1e293b">プロジェクト</text>
+  <rect x="680" y="56" width="100" height="30" rx="4" fill="#f1f5f9" stroke="#475569" stroke-width="1.5"/>
+  <text x="730" y="76" text-anchor="middle" font-size="14" fill="#1e293b">長さ</text>
+  <text x="606" y="106" text-anchor="middle" font-size="14" fill="#1e293b">長さは 15・30・45・60 分（初期値 30）</text>
+  <text x="606" y="125" text-anchor="middle" font-size="14" fill="#1e293b">入れたら Enter か「追加」</text>
+
+  <line x1="204" y1="74" x2="224" y2="74" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
+  <line x1="394" y1="74" x2="414" y2="74" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
+
+  <rect x="418" y="190" width="376" height="100" rx="10" fill="#dcfce7" stroke="#15803d" stroke-width="2"/>
+  <text x="606" y="216" text-anchor="middle" font-size="16" font-weight="bold" fill="#14532d">1 回の保存で、2 つ作る</text>
+  <text x="606" y="244" text-anchor="middle" font-size="14" fill="#14532d">タスク: 期限・開始日は押した日、In Progress</text>
+  <text x="606" y="268" text-anchor="middle" font-size="14" fill="#14532d">作業枠: 押した空き時間から、選んだ長さ</text>
+  <line x1="606" y1="138" x2="606" y2="186" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
+  <text x="616" y="168" font-size="14" fill="#1e293b">追加</text>
+
+  <rect x="6" y="190" width="300" height="100" rx="10" fill="#f1f5f9" stroke="#475569" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="156" y="216" text-anchor="middle" font-size="16" font-weight="bold" fill="#1e293b">何も作らずに閉じる</text>
+  <text x="156" y="244" text-anchor="middle" font-size="14" fill="#1e293b">Esc・欄の外のクリック・</text>
+  <text x="156" y="266" text-anchor="middle" font-size="14" fill="#1e293b">「キャンセル」</text>
+  <path d="M470,138 C470,175 330,160 250,186" fill="none" stroke="#334155" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#a)"/>
+  <text x="350" y="150" font-size="14" fill="#1e293b">やめる</text>
+</svg>
