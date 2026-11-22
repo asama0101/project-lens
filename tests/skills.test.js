@@ -33,6 +33,7 @@ test("watch: Monitor で wait を動かし、request のイベントと、30 分
   assert.ok(!text.includes("decision") && !text.includes('"warn"'), "warn・decision は出さない");
   for (const w of ["タスク ID", "TaskStop", "見張りをやめて", "このセッションでは見張りが動いていません"]) assert.ok(text.includes(w), w);
   assert.ok(!text.includes("TaskList"), "TaskList には Monitor が出ないので、使わない");
+  assert.ok(text.includes("そのすべて）に返ったタスク ID を、TaskStop に渡して止めます"), "見張りを何度か始めても、すべて止める");
   assert.ok(!text.includes("手順 4 の代わり"));
   assert.ok(!text.includes("/project-lens:inbox"), "手動の入口（inbox コマンド）はない");
 });

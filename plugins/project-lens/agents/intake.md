@@ -25,7 +25,7 @@ tools: Read, Write, Bash
    ```
    node "${CLAUDE_PLUGIN_ROOT}/tools/xlsx.js" --data "${CLAUDE_PLUGIN_DATA}" "<ファイル>"
    ```
-   終了コードが 3 のときは、Excel を読むための openpyxl が使えない（システムの Python にも専用の venv にも無い）。出力のメッセージを利用者に伝える。環境が無い・版がずれているだけなら、まず次を実行する。このコマンドは、`--yes` なしでは何も入れず、入れ先の選択肢・内容・使う Python を表示して終了コード 3 になる。
+   終了コードが 3 のときは、Excel を読むための openpyxl が使えない（システムの Python にも専用の venv にも無い）。出力のメッセージを報告に入れる。環境が無い・版がずれているだけなら、まず次を実行する。このコマンドは、`--yes` なしでは何も入れず、入れ先の選択肢・内容・使う Python を表示して終了コード 3 になる。
    ```
    node "${CLAUDE_PLUGIN_ROOT}/tools/xlsx.js" setup --data "${CLAUDE_PLUGIN_DATA}"
    ```
@@ -38,9 +38,9 @@ tools: Read, Write, Bash
    - シートが複数あり、依頼にシートの指定がないときは、シートの一覧（`hidden` は除く）を添えて、どれを取り込むかを質問として報告して終わる。
 3. **列の対応を決める。**
    - まず次のコマンドで、保存済みの対応を確認する（読み取り専用）: `node "${CLAUDE_PLUGIN_ROOT}/tools/intake.js" mapping-get ".project-lens/data.json" <projectId>`
-   - 無ければ、見出しと内容から、列の意味（`group` 大項目・`subgroup` 中項目・`title` 件名・`due` 期限・`start` 開始・`status` 状態・`predecessors` 前のタスク・`memo` メモ・`importance` 重要度）を判断する。対応（Excel の列 → 項目）は `{"title": "作業名", "due": "期限", ...}`（項目 → Excel の列見出し）の JSON にして OS の一時フォルダに置く。
-   - **ここでは承認を求めず**、手順 4〜5（`rows.json` の作成と `wbs-plan`。どちらも読み取り専用）まで進め、**対応表と変更案を一緒に見せて、承認を 1 回で得る**（手順 6）。
-   - 対応が違うと言われたら、対応を直して手順 4 からやり直す。次回は、保存済みの対応を使い、同じく変更案と一緒に見せる。
+   - 無ければ、見出しと内容から、列の意味（`group` 大項目・`subgroup` 中項目・`title` 件名・`due` 期限・`start` 開始・`status` 状態・`predecessors` 前のタスク・`memo` メモ・`importance` 重要度）を判断する。対応（Excel の列 → 項目）は `{"title": "作業名", "due": "期限", ...}`（項目 → Excel の列見出し）の JSON にして OS の一時フォルダに置く。保存済みの対応を使うときも、その内容を一時フォルダの `mapping.json` に書く（手順 5 の承認の依頼に、パスを入れるため）。
+   - **ここでは承認を求めず**、手順 4〜5（`rows.json` の作成と `wbs-plan`。どちらも読み取り専用）まで進め、**対応表と変更案を一緒に報告する**（承認は 1 回。手順 6 の依頼で受ける）。
+   - 依頼に列の対応の直しが足されていたら、それに従った対応で手順 4 から作る。次回は、保存済みの対応を使い、同じく変更案と一緒に報告する。
 4. **行を正規化する。** WBS の形式は固定でない。階層は、列（大項目・中項目の列）、結合セル（展開済み）、インデント（`indents`）、番号（1.1.2 など）のいずれかで表されている。次の規則で `rows.json`（`[{group, subgroup, title, due, start, status, importance, memo, predecessorKeys}]`）を作る。
    - **末尾の行（子を持たない行）をタスク**にする。その直上の2段を大項目・中項目にし、それより上の段は大項目の前に `/` で連結する。階層が1〜2段しかなければ、足りない分は省く。子を持つ行（親）はタスクにしない。
    - 日付は `YYYY-MM-DD` にそろえる（`2026/12/18`、シリアル値、和暦など）。状態は `To Do`／`In Progress`／`Done`／`Cancelled` に対応づける（対応が曖昧なら、状態は入れない）。
@@ -63,4 +63,5 @@ tools: Read, Write, Bash
 依頼の例: `rules`、`rules [A社] はプロジェクト A`
 - 件名のキーワードと、プロジェクトの対応。会議のひも付けに使う。
 - `rules-list ".project-lens/data.json"` で現状を見せる。追加・変更は `rules-set ".project-lens/data.json" "<キーワード>" <projectId>`、削除は `rules-remove ".project-lens/data.json" "<キーワード>"`。
+- 依頼に案がない（`rules` だけ）ときは、現状の一覧と「追加・変更・削除したい規則」の質問を報告して終わる（承認の依頼は書かない）。
 - 追加・変更・削除の案（キーワードとプロジェクト）を見せて、報告の最後の行に承認の依頼 `rules（承認済み）<案の一覧>` を書いて終わる。依頼に `（承認済み）` があるときだけ、その一覧どおりに `rules-set`・`rules-remove` を実行し、続けて `rules-apply ".project-lens/data.json"` で会議へ反映する。手動で付けたひも付けは変わらない。

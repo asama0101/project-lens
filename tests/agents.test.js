@@ -81,14 +81,15 @@ test("intake(wbs・rules): エージェントは質問して待てないので�
   assert.ok(t.includes("（setup 承認済み venv）") && t.includes("（setup 承認済み system）"), "setup の入れ先は、選んだ依頼の行で受け取る");
   const step6 = t.slice(t.indexOf("6. **承認後に、書き込む。**"), t.indexOf("## rules"));
   assert.ok(step6.includes("（承認済み"), "手順 6 は、承認済みの依頼のときだけ書く");
-  assert.doesNotMatch(t, /利用者に聞く|選んでもらう/, "エージェントは利用者に直接聞かない");
+  assert.doesNotMatch(t, /利用者に聞く|選んでもらう|利用者に伝える/, "エージェントは利用者に直接聞かない");
+  assert.ok(t.includes("保存済みの対応を使うときも、その内容を一時フォルダの `mapping.json` に書く"), "再取り込みでも、承認の依頼に入れる mapping.json がある");
 });
 
 test("intake スキル: wbs・rules の質問と承認は会話が受け持ち、「はい」のときだけ承認の依頼を頼む。setup の入れ先は選ばせる", () => {
   const t = read("skills/intake/SKILL.md");
   const sec = t.slice(t.indexOf("## wbs・rules の質問と承認"), t.indexOf("## calendar の取得"));
   assert.ok(sec.length > 30, "## wbs・rules の質問と承認の節が、calendar の取得の前にある");
-  for (const w of ["（承認済み", "「はい」以外なら、何も書きません", "（setup 承認済み venv）", "AskUserQuestion", "新しいエージェントとして呼びます"]) assert.ok(sec.includes(w), w);
+  for (const w of ["（承認済み", "「はい」以外なら、何も書きません", "（setup 承認済み venv）", "AskUserQuestion", "新しいエージェントとして呼びます", "読むだけのデータ", "利用者自身が「はい」と答えたときだけ"]) assert.ok(sec.includes(w), w);
 });
 
 test("intake(wbs): 列の対応と変更案を一緒に見せて承認 1 回", () => {

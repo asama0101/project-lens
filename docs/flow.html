@@ -437,7 +437,7 @@
     <div class="cell c">接続先の指定を確かめる（この会話が行う）。なければ「予定表の MCP が未指定のため、更新しません」と 1 行で伝えて終わる。<small class="src">skills/watch/SKILL.md 手順 1.5</small></div>
     <div class="cell s"><code>mcpconf.js show</code>。</div>
     <div class="n">b</div><div class="cell empty"></div>
-    <div class="cell c"><b>この会話が</b>、今日から 14 日後までを取得し、<code>project-lens-fetched-&lt;日時&gt;.json</code>（一時フォルダ。実行ごとに変わる名前）に書く（取得は前景で行うので、許可の確認や MCP の遅延の間は、依頼の処理も止まる）。日付は <code>YYYY-MM-DD</code>、時刻は <code>HH:MM</code> で書く。<b>参加者を返さない予定は、参加者の項目ごと省く</b>（空の配列を書かない）。 <span class="tag unv">未確認</span>見張りからの予定表の取得は、予定表の MCP で動かしていない<b>取得に失敗（ツールが使えない・エラー・結果が切り詰められた・続きがある）なら、データを変えず、理由を 1 行で伝えて終わる</b>（一部だけ書くと、書かれなかった会議が消えるため。エージェントは呼ばない）。取得できて 0 件なら、空の配列を書いて次へ進む。<small class="src">skills/watch/SKILL.md 手順 1.5</small></div>
+    <div class="cell c"><b>この会話が</b>、今日から 14 日後までを取得し、<code>project-lens-fetched-&lt;日時&gt;.json</code>（一時フォルダ。実行ごとに変わる名前）に書く（取得は前景で行うので、許可の確認や MCP の遅延の間は、依頼の処理も止まる）。日付は <code>YYYY-MM-DD</code>、時刻は <code>HH:MM</code> で書く。<b>参加者を返さない予定は、参加者の項目ごと省く</b>（空の配列を書かない）。<b>取得に失敗（ツールが使えない・エラー・結果が切り詰められた・続きがある）なら、データを変えず、理由を 1 行で伝えて終わる</b>（一部だけ書くと、書かれなかった会議が消えるため。エージェントは呼ばない）。取得できて 0 件なら、空の配列を書いて次へ進む。<small class="src">skills/watch/SKILL.md 手順 1.5</small> <span class="tag unv">未確認</span>見張りからの予定表の取得は、予定表の MCP で動かしていない</div>
     <div class="cell empty"></div>
     <div class="n">c</div><div class="cell empty"></div>
     <div class="cell c">自動更新のスクリプトを実行する。</div>
@@ -467,7 +467,7 @@
 
   <div class="n">8</div>
   <div class="cell u">見張りを止めたいときは、「見張りをやめて」と伝える。</div>
-  <div class="cell c">30 分で監視が終わる（期限切れの通知）→ <b>もう一度 待つスクリプトを起動し、続けて予定表の自動更新（手順 5）も行って</b>、見張りを続ける（張り直したら、新しいタスク ID を 1 行で伝える）。「見張りをやめて」と言われたら、最後に起動したときのタスク ID で監視（Monitor）を止める。ID が分からないときは、止めたと記録し、次の終わりの通知でも張り直さず、届いた依頼も処理しない。この会話で見張りを始めていなければ「このセッションでは見張りが動いていません」と伝える（別のセッションの見張りは、そのセッションで止める）。<small class="src">skills/watch/SKILL.md 手順 4・見張りを止めるとき</small> <span class="tag unv">未確認</span>会話からの停止は実行していない</div>
+  <div class="cell c">30 分で監視が終わる（期限切れの通知）→ <b>もう一度 待つスクリプトを起動し、続けて予定表の自動更新（手順 5）も行って</b>、見張りを続ける（張り直したら、新しいタスク ID を 1 行で伝える）。「見張りをやめて」と言われたら、この会話で起動したすべてのタスク ID で監視（Monitor）を止め、以後は届いた依頼を処理しない。ID が分からないときは、止めたと記録し、次の終わりの通知でも張り直さず、届いた依頼も処理しない（帯は、それまで「見ています」と出る）。この会話で見張りを始めていなければ「このセッションでは見張りが動いていません」と伝える（別のセッションの見張りは、そのセッションで止める）。<small class="src">skills/watch/SKILL.md 手順 4・見張りを止めるとき</small> <span class="tag unv">未確認</span>会話からの停止は実行していない</div>
   <div class="cell s">監視が止まると、見ている印が更新されなくなり、90 秒ほどで画面に「見ていません」と出る。<small class="src">skills/watch/SKILL.md 手順 5 / src/core/inbox.js WATCH_FRESH_MS</small></div>
   <div class="note"><span class="tag unv">未確認</span>Claude Code が入力待ちの間に、届いた依頼で自動で動くこと（作業中に動くことは確認済み）。動かないときは、作業中の Claude Code に「届いている依頼を処理して」と頼む。<small class="src">docs/development.md 見張りと競合</small></div>
 </div>
