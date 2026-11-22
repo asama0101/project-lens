@@ -73,6 +73,24 @@ test("intake・intake-calendar: 文章の手順が無い。文章を貼られた
   for (const w of ["## calendar", "Claude Code に依頼する"]) assert.ok(c.includes(w), w);
 });
 
+test("intake(wbs・rules): エージェントは質問して待てないので、質問・承認・入れ先の選択を報告して終わる。書くのは（承認済み …）の依頼のときだけ", () => {
+  const t = read("agents/intake.md");
+  assert.ok(t.includes("利用者に質問して答えを待てない"));
+  assert.ok(t.includes("（承認済み <planKey>"), "wbs の承認の依頼に planKey を入れる");
+  assert.ok(t.includes("rules（承認済み）"), "rules の承認の依頼");
+  assert.ok(t.includes("（setup 承認済み venv）") && t.includes("（setup 承認済み system）"), "setup の入れ先は、選んだ依頼の行で受け取る");
+  const step6 = t.slice(t.indexOf("6. **承認後に、書き込む。**"), t.indexOf("## rules"));
+  assert.ok(step6.includes("（承認済み"), "手順 6 は、承認済みの依頼のときだけ書く");
+  assert.doesNotMatch(t, /利用者に聞く|選んでもらう/, "エージェントは利用者に直接聞かない");
+});
+
+test("intake スキル: wbs・rules の質問と承認は会話が受け持ち、「はい」のときだけ承認の依頼を頼む。setup の入れ先は選ばせる", () => {
+  const t = read("skills/intake/SKILL.md");
+  const sec = t.slice(t.indexOf("## wbs・rules の質問と承認"), t.indexOf("## calendar の取得"));
+  assert.ok(sec.length > 30, "## wbs・rules の質問と承認の節が、calendar の取得の前にある");
+  for (const w of ["（承認済み", "「はい」以外なら、何も書きません", "（setup 承認済み venv）", "AskUserQuestion"]) assert.ok(sec.includes(w), w);
+});
+
 test("intake(wbs): 列の対応と変更案を一緒に見せて承認 1 回", () => {
   const t = read("agents/intake.md");
   assert.match(t, /対応表.*変更案/);
