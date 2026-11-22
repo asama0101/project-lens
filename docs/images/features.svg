@@ -21,8 +21,8 @@
   <rect x="205" y="56" width="70" height="16" rx="3" fill="#a16207"/>
   <line x1="203" y1="90" x2="277" y2="90" stroke="#713f12" stroke-width="2" marker-start="url(#a)" marker-end="url(#a)"/>
   <text x="240" y="140" text-anchor="middle" font-size="17" font-weight="bold" fill="#713f12">日程の調整</text>
-  <text x="240" y="170" text-anchor="middle" font-size="14" fill="#713f12">1 件はバーを</text>
-  <text x="240" y="192" text-anchor="middle" font-size="14" fill="#713f12">ドラッグ。連鎖は</text>
+  <text x="240" y="170" text-anchor="middle" font-size="14" fill="#713f12">1 件はバーを動かす</text>
+  <text x="240" y="192" text-anchor="middle" font-size="14" fill="#713f12">前後も動くなら</text>
   <text x="240" y="214" text-anchor="middle" font-size="14" fill="#713f12">依頼の帯に文章で</text>
 
   <rect x="327" y="10" width="146" height="230" rx="10" fill="#ffedd5" stroke="#c2410c" stroke-width="2"/>

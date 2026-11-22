@@ -28,6 +28,6 @@
   <g font-size="13" fill="#16222c">
     <rect x="230" y="285" width="12" height="12" fill="#7b8b97"/><text x="248" y="296">期限超過 +100</text>
     <rect x="380" y="285" width="12" height="12" fill="#0b6b86"/><text x="398" y="296">期限点</text>
-    <rect x="470" y="285" width="12" height="12" fill="#a4571b"/><text x="488" y="296">チェックリストの倍率で増えた分</text>
+    <rect x="470" y="285" width="12" height="12" fill="#a4571b"/><text x="488" y="296">未チェック項目で増えた分</text>
   </g>
 </svg>
