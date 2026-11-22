@@ -88,7 +88,7 @@ test("intake スキル: wbs・rules の質問と承認は会話が受け持ち�
   const t = read("skills/intake/SKILL.md");
   const sec = t.slice(t.indexOf("## wbs・rules の質問と承認"), t.indexOf("## calendar の取得"));
   assert.ok(sec.length > 30, "## wbs・rules の質問と承認の節が、calendar の取得の前にある");
-  for (const w of ["（承認済み", "「はい」以外なら、何も書きません", "（setup 承認済み venv）", "AskUserQuestion"]) assert.ok(sec.includes(w), w);
+  for (const w of ["（承認済み", "「はい」以外なら、何も書きません", "（setup 承認済み venv）", "AskUserQuestion", "新しいエージェントとして呼びます"]) assert.ok(sec.includes(w), w);
 });
 
 test("intake(wbs): 列の対応と変更案を一緒に見せて承認 1 回", () => {
