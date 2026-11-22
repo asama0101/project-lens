@@ -1,7 +1,7 @@
 ---
 name: mcp
 description: 予定表の取り込みで使う MCP とツールを指定して保存する。接続中の MCP から候補を提案し、承認後に保存して、1件取得して動作を確認する。予定表以外の取り込みには使わない（/project-lens:intake）
-argument-hint: "[show | calendar]"
+argument-hint: "[show]"
 allowed-tools: 'Bash(node "${CLAUDE_PLUGIN_ROOT}/tools/mcpconf.js" --data "${CLAUDE_PLUGIN_DATA}" show) Bash(node "${CLAUDE_PLUGIN_ROOT}/tools/mcpconf.js" --data "${CLAUDE_PLUGIN_DATA}" set *) Bash(node "${CLAUDE_PLUGIN_ROOT}/tools/mcpconf.js" --data "${CLAUDE_PLUGIN_DATA}" clear *)'
 disable-model-invocation: true
 ---
@@ -13,7 +13,7 @@ disable-model-invocation: true
 起動コマンド `node` が見つからないとき、または構文エラーで起動に失敗するときは、Node.js 24 以上が入っていない。`winget install OpenJS.NodeJS.LTS` を案内し、ターミナルを開き直してからもう一度実行してもらう。
 
 ## 手順
-1. **現状を表示する。** 次のコマンドは、予定表用の指定の有無と内容を読んで表示する（何も書かない）。結果を伝える。引数が空または `show` のときは、ここまでで終わる。
+1. **現状を表示する。** 次のコマンドは、予定表用の指定の有無と内容を読んで表示する（何も書かない）。結果を伝える。引数が `show` のときは、ここまでで終わる。それ以外（空・`calendar`）は、手順 2 へ進む。予定表の指定がすでにあるときは、変えるかを聞き、変えないなら手順 4 へ進む。
    ```
    node "${CLAUDE_PLUGIN_ROOT}/tools/mcpconf.js" --data "${CLAUDE_PLUGIN_DATA}" show
    ```

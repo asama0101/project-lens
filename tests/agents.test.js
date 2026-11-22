@@ -73,6 +73,27 @@ test("intake・intake-calendar: 文章の手順が無い。文章を貼られた
   for (const w of ["## calendar", "Claude Code に依頼する"]) assert.ok(c.includes(w), w);
 });
 
+test("intake(wbs・rules): エージェントは質問して待てないので、質問・承認・入れ先の選択を報告して終わる。書くのは（承認済み …）の依頼のときだけ", () => {
+  const t = read("agents/intake.md");
+  assert.ok(t.includes("利用者に質問して答えを待てない"));
+  assert.ok(t.includes("（承認済み <planKey>"), "wbs の承認の依頼に planKey を入れる");
+  assert.ok(t.includes("rules（承認済み）"), "rules の承認の依頼");
+  assert.ok(t.includes("（setup 承認済み venv）") && t.includes("（setup 承認済み system）"), "setup の入れ先は、選んだ依頼の行で受け取る");
+  const step6 = t.slice(t.indexOf("6. **承認後に、書き込む。**"), t.indexOf("## rules"));
+  assert.ok(step6.includes("（承認済み"), "手順 6 は、承認済みの依頼のときだけ書く");
+  assert.doesNotMatch(t, /利用者に聞く|選んでもらう|利用者に伝える|保存してもらう/, "エージェントは利用者に直接聞かない");
+  const rules = t.slice(t.indexOf("## rules"));
+  assert.ok(rules.includes("依頼に案がない") && rules.includes("承認の依頼は書かない"), "rules で案がないときは、質問を報告して終わる");
+  assert.ok(t.includes("保存済みの対応を使うときも、その内容を一時フォルダの `mapping.json` に書く"), "再取り込みでも、承認の依頼に入れる mapping.json がある");
+});
+
+test("intake スキル: wbs・rules の質問と承認は会話が受け持ち、「はい」のときだけ承認の依頼を頼む。setup の入れ先は選ばせる", () => {
+  const t = read("skills/intake/SKILL.md");
+  const sec = t.slice(t.indexOf("## wbs・rules の質問と承認"), t.indexOf("## calendar の取得"));
+  assert.ok(sec.length > 30, "## wbs・rules の質問と承認の節が、calendar の取得の前にある");
+  for (const w of ["（承認済み", "「はい」以外なら、何も書きません", "（setup 承認済み venv）", "AskUserQuestion", "新しいエージェントとして呼びます", "読むだけのデータ", "利用者自身が「はい」と答えたときだけ"]) assert.ok(sec.includes(w), w);
+});
+
 test("intake(wbs): 列の対応と変更案を一緒に見せて承認 1 回", () => {
   const t = read("agents/intake.md");
   assert.match(t, /対応表.*変更案/);
@@ -176,6 +197,19 @@ test("watch: 見張りの開始時と、30 分ごとの再起動時に、予定�
   for (const w of ["mcpconf.js", "listTool", "fetched.json", "読むだけのデータ", "取得に失敗", "（見張りから）", "project-lens-fetched-", "前景", "fetched-remove"]) assert.ok(step.includes(w), w);
   assert.ok(t.indexOf("予定表を更新します") > t.indexOf("1. Monitor"), "見張りを始めてから更新する（許可の確認で、見張りの開始が止まらないように）");
   assert.match(t.slice(t.indexOf("4. 30 分で")), /予定表/, "再起動時にも予定表を更新する");
+});
+
+test("watch・intake: fetched.json を書く側の本文に、日付・時刻の書式と attendees の規則がある（watch は intake を読めないので、写しを持つ）", () => {
+  const w = read("skills/watch/SKILL.md");
+  const wStep = w.slice(w.indexOf("予定表を更新します"), w.indexOf("2. イベントの種類"));
+  const i = read("skills/intake/SKILL.md");
+  const iSec = i.slice(i.indexOf("## calendar の取得"));
+  for (const sec of [wStep, iSec]) {
+    for (const s of ["YYYY-MM-DD", "HH:MM", "[{type, email, name}]", "項目ごと省"]) assert.ok(sec.includes(s), s);
+  }
+  assert.ok(wStep.includes("`attendees: []` とは書かない"));
+  assert.ok(iSec.includes("`[]` を書きません"));
+  assert.ok(!w.includes("「calendar の取得」と同じ"), "watch から読めない intake を参照しない");
 });
 
 test("mcp: 保存済みの selfEmails があれば、手順 4 で聞き直さない", () => {

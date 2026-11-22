@@ -359,7 +359,7 @@ Excel の WBS を取り込むときだけ、openpyxl が要ります。システ
 | `/project-lens:doctor` | 動作環境の診断（足りないものと対処を表示する。何も変更しない） |
 | `/project-lens:init` | セットアップ（`--sample` でサンプルデータ入り） |
 | `/project-lens:intake` | Excel の WBS・予定表の会議の取り込み、会議のプロジェクト規則 |
-| `/project-lens:mcp` | 予定表で使う MCP の指定（`show`・`calendar`） |
+| `/project-lens:mcp` | 予定表で使う MCP の指定（`show` を付けると表示だけ） |
 | `/project-lens:watch` | 見張りを始めて、依頼の帯から届く依頼を処理する |
 
 ### 画面の見方

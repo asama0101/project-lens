@@ -31,9 +31,19 @@ test("watch: Monitor で wait を動かし、request のイベントと、30 分
   const text = read("watch");
   for (const w of ["Monitor", "wait", "request", "1800000", "止まらない", "R3"]) assert.ok(text.includes(w), w);
   assert.ok(!text.includes("decision") && !text.includes('"warn"'), "warn・decision は出さない");
-  for (const w of ["TaskList", "TaskStop", "見張りをやめて", "このセッションでは見張りが動いていません"]) assert.ok(text.includes(w), w);
+  for (const w of ["タスク ID", "TaskStop", "見張りをやめて", "このセッションでは見張りが動いていません"]) assert.ok(text.includes(w), w);
+  assert.ok(!text.includes("TaskList"), "TaskList には Monitor が出ないので、使わない");
+  assert.ok(text.includes("そのすべて）に返ったタスク ID を、TaskStop に渡して止めます"), "見張りを何度か始めても、すべて止める");
   assert.ok(!text.includes("手順 4 の代わり"));
   assert.ok(!text.includes("/project-lens:inbox"), "手動の入口（inbox コマンド）はない");
+});
+
+test("watch: 予定表の指定を見る show のコマンドを本文に書き、allowed-tools と同じ文字列にする（frontmatter は Claude に渡らない）", () => {
+  const text = read("watch");
+  const cmd = 'node "${CLAUDE_PLUGIN_ROOT}/tools/mcpconf.js" --data "${CLAUDE_PLUGIN_DATA}" show';
+  const body = text.slice(text.indexOf("\n---", 3) + 4);
+  assert.ok(body.includes(cmd), "本文にコマンドがある");
+  assert.ok(front(text).includes(`Bash(${cmd})`), "allowed-tools に同じコマンドがある");
 });
 
 test("init: 副作用があるので自動起動しない。init.js を呼び、引数を渡す", () => {
@@ -122,6 +132,14 @@ test("mcp: 副作用があるので自動起動しない。mcpconf.js だけを�
 
 test("mcp: 引数なしで終わる手順と矛盾する『指定のない役割』の文が無い", () => {
   assert.ok(!read("mcp").includes("指定のない役割"));
+});
+
+test("mcp: 引数なしでも指定の手順へ進み、表示だけで終わるのは show のときだけ。ヒントは show だけ", () => {
+  const text = read("mcp");
+  assert.ok(!text.includes("引数が空または `show`"));
+  assert.ok(text.includes("引数が `show` のときは、ここまでで終わる"));
+  assert.ok(text.includes("予定表の指定がすでにあるときは、変えるかを聞き"));
+  assert.match(front(text), /^argument-hint: "\[show\]"$/m);
 });
 
 
