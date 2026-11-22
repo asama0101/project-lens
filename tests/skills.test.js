@@ -124,6 +124,14 @@ test("mcp: 引数なしで終わる手順と矛盾する『指定のない役割
   assert.ok(!read("mcp").includes("指定のない役割"));
 });
 
+test("mcp: 引数なしでも指定の手順へ進み、表示だけで終わるのは show のときだけ。ヒントは show だけ", () => {
+  const text = read("mcp");
+  assert.ok(!text.includes("引数が空または `show`"));
+  assert.ok(text.includes("引数が `show` のときは、ここまでで終わる"));
+  assert.ok(text.includes("予定表の指定がすでにあるときは、変えるかを聞き"));
+  assert.match(front(text), /^argument-hint: "\[show\]"$/m);
+});
+
 
 test("watch: 始めるとき holidays.js ensure を実行し、失敗しても見張りを続ける。端末での承認・却下の手順（get・approve・reject）がある", () => {
   const text = read("watch");
