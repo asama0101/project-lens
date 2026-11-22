@@ -31,7 +31,8 @@ test("watch: Monitor で wait を動かし、request のイベントと、30 分
   const text = read("watch");
   for (const w of ["Monitor", "wait", "request", "1800000", "止まらない", "R3"]) assert.ok(text.includes(w), w);
   assert.ok(!text.includes("decision") && !text.includes('"warn"'), "warn・decision は出さない");
-  for (const w of ["TaskList", "TaskStop", "見張りをやめて", "このセッションでは見張りが動いていません"]) assert.ok(text.includes(w), w);
+  for (const w of ["タスク ID", "TaskStop", "見張りをやめて", "このセッションでは見張りが動いていません"]) assert.ok(text.includes(w), w);
+  assert.ok(!text.includes("TaskList"), "TaskList には Monitor が出ないので、使わない");
   assert.ok(!text.includes("手順 4 の代わり"));
   assert.ok(!text.includes("/project-lens:inbox"), "手動の入口（inbox コマンド）はない");
 });
