@@ -36,6 +36,14 @@ test("watch: Monitor で wait を動かし、request のイベントと、30 分
   assert.ok(!text.includes("/project-lens:inbox"), "手動の入口（inbox コマンド）はない");
 });
 
+test("watch: 予定表の指定を見る show のコマンドを本文に書き、allowed-tools と同じ文字列にする（frontmatter は Claude に渡らない）", () => {
+  const text = read("watch");
+  const cmd = 'node "${CLAUDE_PLUGIN_ROOT}/tools/mcpconf.js" --data "${CLAUDE_PLUGIN_DATA}" show';
+  const body = text.slice(text.indexOf("\n---", 3) + 4);
+  assert.ok(body.includes(cmd), "本文にコマンドがある");
+  assert.ok(front(text).includes(`Bash(${cmd})`), "allowed-tools に同じコマンドがある");
+});
+
 test("init: 副作用があるので自動起動しない。init.js を呼び、引数を渡す", () => {
   const text = read("init");
   assert.match(front(text), /^disable-model-invocation: true$/m);
