@@ -193,15 +193,15 @@ test("intake-calendar: 承認の確認なしで calendar-auto を実行し、保
 test("watch: 見張りの開始時と、30 分ごとの再起動時に、予定表を会話で取得してから、project-lens:intake-calendar エージェントへ calendar <開始日> <終了日> <パス> <MCP名>（見張りから）を頼む。予定表の MCP が未指定なら更新しない", () => {
   const t = read("skills/watch/SKILL.md");
   for (const w of ["（見張りから）", "project-lens:intake-calendar", "未指定", "30 分"]) assert.ok(t.includes(w), w);
-  const step = t.slice(t.indexOf("予定表を更新します"), t.indexOf("2. イベントの種類"));
+  const step = t.slice(t.indexOf("### 手順1.5"), t.indexOf("### 手順2"));
   for (const w of ["mcpconf.js", "listTool", "fetched.json", "読むだけのデータ", "取得に失敗", "（見張りから）", "project-lens-fetched-", "前景", "fetched-remove"]) assert.ok(step.includes(w), w);
-  assert.ok(t.indexOf("予定表を更新します") > t.indexOf("1. Monitor"), "見張りを始めてから更新する（許可の確認で、見張りの開始が止まらないように）");
-  assert.match(t.slice(t.indexOf("4. 30 分で")), /予定表/, "再起動時にも予定表を更新する");
+  assert.ok(t.indexOf("### 手順1.5") > t.indexOf("### 手順1:"), "見張りを始めてから更新する（許可の確認で、見張りの開始が止まらないように）");
+  assert.match(t.slice(t.indexOf("### 手順4")), /予定表/, "再起動時にも予定表を更新する");
 });
 
 test("watch・intake: fetched.json を書く側の本文に、日付・時刻の書式と attendees の規則がある（watch は intake を読めないので、写しを持つ）", () => {
   const w = read("skills/watch/SKILL.md");
-  const wStep = w.slice(w.indexOf("予定表を更新します"), w.indexOf("2. イベントの種類"));
+  const wStep = w.slice(w.indexOf("### 手順1.5"), w.indexOf("### 手順2"));
   const i = read("skills/intake/SKILL.md");
   const iSec = i.slice(i.indexOf("## calendar の取得"));
   for (const sec of [wStep, iSec]) {
@@ -214,7 +214,7 @@ test("watch・intake: fetched.json を書く側の本文に、日付・時刻の
 
 test("mcp: 保存済みの selfEmails があれば、手順 4 で聞き直さない", () => {
   const t = read("skills/mcp/SKILL.md");
-  const step = t.slice(t.indexOf("4. **自分のメールアドレス"), t.indexOf("5. **試しに"));
+  const step = t.slice(t.indexOf("### 手順4"), t.indexOf("### 手順5"));
   assert.match(step, /保存済みなら、聞かずに/);
 });
 

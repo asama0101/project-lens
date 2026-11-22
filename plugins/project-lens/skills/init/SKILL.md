@@ -6,25 +6,34 @@ allowed-tools: 'Bash(node "${CLAUDE_PLUGIN_ROOT}/tools/init.js") Bash(node "${CL
 disable-model-invocation: true
 ---
 
-project-lens のセットアップをします。作業フォルダに、ダッシュボード（`project-lens.html`）とデータ（`.project-lens/data.json`）を作ります。
-終わると、ブラウザで `project-lens.html` を開いて、プロジェクトとタスクを管理し始められます。
+# init: セットアップをする
 
-次のコマンドは、作業フォルダに `project-lens.html` と `.project-lens/data.json` を書きます（既存の `data.json` は変えません）。
+作業フォルダに、ダッシュボード（`project-lens.html`）とデータ（`.project-lens/data.json`）を作る。何度実行しても、既存のデータは変えない。終わると、ブラウザで `project-lens.html` を開いて、プロジェクトとタスクを管理し始められる。
+
+## 手順
+
+### 手順1: セットアップを実行する
+目的: 作業フォルダに `project-lens.html` と `.project-lens/data.json` を用意する。
+
+次のコマンドは、作業フォルダに `project-lens.html` と `.project-lens/data.json` を書く（既存の `data.json` は変えない）。
 
 ```
 node "${CLAUDE_PLUGIN_ROOT}/tools/init.js"
 ```
 
-- 利用者が `--sample` を付けたときだけ、代わりに次を実行してください。空のデータの代わりに架空のサンプルデータが入ります(試用向け)。
+- 利用者が `--sample` を付けたときだけ、代わりに次を実行する。空のデータの代わりに架空のサンプルデータが入る（試用向け）。
 
   ```
   node "${CLAUDE_PLUGIN_ROOT}/tools/init.js" --sample
   ```
-- この 2 つ以外の引数は渡さないでください。
-- 終了コードが 0 以外のときは、出力に書かれた理由をそのまま利用者に伝え、ファイルを作り直したり上書きしたりしないでください。
+- この 2 つ以外の引数は渡さない。
+- 終了コードが 0 以外のときは、出力に書かれた理由をそのまま利用者に伝え、ファイルを作り直したり上書きしたりしない。
 - 起動コマンド `node` が見つからないとき、または構文エラーで起動に失敗するときは、Node.js 24 以上が入っていない。`winget install OpenJS.NodeJS.LTS` を案内し、ターミナルを開き直してからもう一度実行してもらう。
 
-成功したら、作成・更新されたファイルを短く伝え、次の手順を案内してください。
+### 手順2: 結果を伝える
+目的: 作ったファイルと、次にやることを利用者に伝える。
 
-1. ブラウザ(Edge または Chrome)で、プロジェクト直下の `project-lens.html` を開く。
+成功したら、作成・更新されたファイルを短く伝え、次の手順を案内する。
+
+1. ブラウザ（Edge または Chrome）で、プロジェクト直下の `project-lens.html` を開く。
 2. 「ファイルを開く」で `.project-lens/data.json` を選ぶ。
