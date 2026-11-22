@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300" font-family="'Yu Gothic','Meiryo','Hiragino Sans',sans-serif" role="img" aria-labelledby="t d">
   <title id="t">突発タスクを登録する流れ</title>
-  <desc id="d">スケジュールを日表示にして、選択中のタスクがない状態で空き時間を押す。入力欄に件名・プロジェクト・長さを入れて Enter か追加を押すと、タスクと作業枠が 1 回の保存で作られる。Esc・欄の外のクリック・キャンセルでは、何も作らずに閉じる。</desc>
+  <desc id="d">スケジュールを日表示にして、選択中のタスクがない状態で空き時間を押す。入力欄に件名・プロジェクト・長さを入れて Enter か追加を押すと、タスクと作業枠が同時に作られる。Esc・欄の外のクリック・キャンセルでは、何も作らずに閉じる。</desc>
   <defs>
     <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#334155"/>
@@ -35,7 +35,7 @@
   <line x1="394" y1="74" x2="414" y2="74" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
 
   <rect x="418" y="190" width="376" height="100" rx="10" fill="#dcfce7" stroke="#15803d" stroke-width="2"/>
-  <text x="606" y="216" text-anchor="middle" font-size="16" font-weight="bold" fill="#14532d">1 回の保存で、2 つ作る</text>
+  <text x="606" y="216" text-anchor="middle" font-size="16" font-weight="bold" fill="#14532d">タスクと作業枠を、同時に作る</text>
   <text x="606" y="244" text-anchor="middle" font-size="14" fill="#14532d">タスク: 期限・開始日は押した日、In Progress</text>
   <text x="606" y="268" text-anchor="middle" font-size="14" fill="#14532d">作業枠: 押した空き時間から、選んだ長さ</text>
   <line x1="606" y1="138" x2="606" y2="186" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
