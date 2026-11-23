@@ -379,7 +379,7 @@ code{font-family:var(--f-mono);font-size:12px;background:var(--line-soft);paddin
 .cal.wk .week{min-width:560px}
 
 /* 画面下端の「Claude Code に依頼する」の帯と引き出し（帯は常に出し、引き出しは開いたときだけ） */
-body{padding-block:16px 76px}
+body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（-8px）と合わせて、ヘッダーをどの画面でもページの先頭から上端 0 に置く（スクロールの始めにヘッダーが動かない） */
 .toast{bottom:72px}
 .ib{position:fixed;left:0;right:0;bottom:0;z-index:40;background:#16202E;color:#E5EBF3;box-shadow:0 -4px 14px rgba(20,30,50,.18)}
 .ib.open{background:var(--surface);color:var(--ink);border-top:1px solid var(--line);border-radius:14px 14px 0 0;box-shadow:0 -10px 30px rgba(20,30,50,.28)}
@@ -471,8 +471,7 @@ body{padding-block:16px 76px}
 #view .thstrip:empty{display:none}
 #view .thstrip .thin{display:flex;white-space:nowrap}
 #view .thstrip .thc{flex:none;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;font-size:13px;color:var(--muted);text-align:left}
-/* ページの先頭でも、固定の行が、固定したときと同じ位置にあるようにする（スクロールの始めに、固定の行が数 px 動かない）。ガント・リスト（.ptool がある画面）とアプリだけ。ほかの画面は変えない */
-body:has(.ptool){padding-block-start:8px}
+/* ページの先頭でも、固定の行が、固定したときと同じ位置にあるようにする（スクロールの始めに、固定の行が数 px 動かない）。ヘッダーの上の余白（body の 8px。ヘッダーの負の margin で上端 0）は、依頼の帯の節の body の規則で、どの画面にも当てる。下は、ガント・リスト（.ptool がある画面）の、ヘッダーとフィルタ行の間・カードの上の余白 */
 .wrap:has(.ptool){gap:0}
 #banner:not(:empty){margin-block:8px}
 #view section.panel:has(> .gtop),#view section.panel:has(> .pstick){padding-top:0} /* カードの上の余白は、固定の行の中に持たせる（先頭でも固定したときと同じ位置にしつつ、カードの上端の線・角丸・余白は残す） */

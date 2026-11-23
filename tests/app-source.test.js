@@ -290,9 +290,11 @@ test("app.js: 複製は .twrap の子で、syncThStrips が --ph（固定の行�
 
 
 // ---- ページの先頭でも、固定の行が、固定したときと同じ位置にある（スクロールの始めに、固定の行が動かない） ----
-test("theme.css: ガント・リスト（.ptool がある画面）では、上部の余白を詰めて、先頭の位置が固定したときの位置と同じになる。規則は、その画面とアプリだけに効く（ほかの画面は変えない）", () => {
+test("theme.css: ヘッダーは、どの画面でも、ページの先頭で固定したときと同じ位置（上端 0）にある（body の上の余白 8px = ヘッダーの負の margin）。ガント・リスト（.ptool がある画面）では、ヘッダーとフィルタ行の間も詰める", () => {
+  assert.ok(css.includes("body{padding-block:8px 76px}") && !css.includes("padding-block:16px 76px"), "body の上の余白は、どの画面でも 8px（下は依頼の帯の分）");
+  assert.ok(css.includes("header.top{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;margin-block:-8px 0}"));
+  assert.ok(!css.includes("body:has(.ptool)"), "画面ごとに余白を変えない");
   for (const rule of [
-    "body:has(.ptool){padding-block-start:8px}",
     ".wrap:has(.ptool){gap:0}",
     "#banner:not(:empty){margin-block:8px}",
     "#view section.panel:has(> .gtop),#view section.panel:has(> .pstick){padding-top:0}",
@@ -303,7 +305,7 @@ test("theme.css: ガント・リスト（.ptool がある画面）では、上�
   const section = css.slice(css.indexOf("/* ページの先頭でも"));
   assert.ok(section.length > 100, "節がある");
   assert.ok(!section.includes("border-top-width:0") && !section.includes("border-top-left-radius:0"), "カードの上端の線と角丸は消さない");
-  for (const line of section.split(/\r?\n/).filter((l) => l.includes("{") && !l.startsWith("/*"))) assert.match(line, /^(body:has\(\.ptool\)|\.wrap:has\(\.ptool\)|#banner|#view)/, line);
+  for (const line of section.split(/\r?\n/).filter((l) => l.includes("{") && !l.startsWith("/*"))) assert.match(line, /^(\.wrap:has\(\.ptool\)|#banner|#view)/, line);
 });
 
 // ---- 固定表示（ガント）: 日付軸の複製（.gstrip）----
