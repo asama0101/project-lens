@@ -38,9 +38,9 @@
 
 ### 毎朝の流れ
 
-| 1. 「今日の優先」を見る | 2. 時間枠に置く | 3. 「着手」を押す |
+| 1. 「今日の優先」を見る | 2. 時間枠に置く | 3. 「実績にする」を押す |
 |---|---|---|
-| <img src="docs/images/morning-1-priority.png" alt="ガントチャートの右側に「今日のタスク」と「今日の優先」が並ぶ" width="260"> | <img src="docs/images/morning-2-schedule.png" alt="スケジュールの週の枠に、作業枠と会議が並ぶ" width="260"> | <img src="docs/images/morning-3-started.png" alt="タスクが In Progress になり、「着手」のボタンが消える" width="260"> |
+| <img src="docs/images/morning-1-priority.png" alt="ガントチャートの右側に「今日のタスク」と「今日の優先」が並ぶ" width="260"> | <img src="docs/images/morning-2-schedule.png" alt="スケジュールの週の枠に、作業枠と会議が並ぶ" width="260"> | <img src="docs/images/morning-3-started.png" alt="枠が実績になり、タスクが In Progress になる" width="260"> |
 
 ### 今日の優先の決まり方
 
@@ -58,9 +58,9 @@
 
 ### 突発タスクの登録
 
-<img src="docs/images/urgent-flow.svg" alt="突発タスクの流れ。日表示で空き時間を押し、件名・プロジェクト・長さを入れると、タスクと作業枠が作られる。やめると何も作らない" width="800">
+<img src="docs/images/urgent-flow.svg" alt="突発タスクの流れ。画面上部の「＋ 突発タスク」を押し、件名・プロジェクト・長さを入れると、タスクと作業枠が作られる。やめると何も作らない" width="800">
 
-*図 4: 空き時間を押して登録する流れ。承認と見張りは要りません。*
+*図 4: 「＋ 突発タスク」から登録する流れ。承認と見張りは要りません。*
 
 ### 依頼の帯から日程を頼む
 
@@ -68,7 +68,7 @@
 
 *図 5: 日程を変える流れ。「承認して反映する」を押すまで、期限は変わりません。*
 
-Claude Code で `/project-lens:watch` を 1 回実行し、画面下端の帯に依頼を書きます（例: `A3 が 5 日遅れた（原因: ベンダー）`）。
+Claude Code で `/project-lens:watch` を 1 回実行し、画面下端の帯に依頼を書きます（例: `AA-0003 が 5 日遅れた（原因: ベンダー）`）。
 
 ### 取り込み
 

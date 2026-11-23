@@ -18,23 +18,23 @@ function fakeHandle(initial) {
   return h;
 }
 const memIdb = () => { const m = new Map(); return { get: async (k) => m.get(k), set: async (k, v) => { m.set(k, v); } }; };
-const base = () => ({ projects: [], tasks: [{ id: "A1", title: "a" }], events: [], changeLog: [], inbox: { watching: null, requests: [] } });
+const base = () => ({ projects: [], tasks: [{ id: "AA-0001", title: "a" }], events: [], changeLog: [], inbox: { watching: null, requests: [] } });
 
 /** 画面の代わり: データの入れ物と、描画・通知の呼ばれた回数 */
-async function setup(initial = base()) {
+async function setup(initial = base(), { isEditing } = {}) {
   const h = fakeHandle(initial);
   const store = createStore({ showOpenFilePicker: async () => [h], idb: memIdb() });
   const ui = { data: await store.choose(), render: 0, renderBar: 0, banner: [], toast: [] };
   const sync = createSync({
     store, getData: () => ui.data, setData: (d) => { ui.data = d; },
     render: () => { ui.render++; }, renderBar: () => { ui.renderBar++; }, banner: (m) => ui.banner.push(m), toast: (m) => ui.toast.push(m),
-    visible: () => true, wantFast: () => false,
+    visible: () => true, wantFast: () => false, isEditing,
   });
   return { h, store, ui, sync };
 }
 /** 他（Claude Code）がファイルを更新した */
 const external = (h, patch) => { h.text = JSON.stringify({ ...JSON.parse(h.text), ...patch }); h.modified += 1; };
-const rename = (title) => (d) => ({ ...d, tasks: d.tasks.map((t) => (t.id === "A1" ? { ...t, title } : t)) });
+const rename = (title) => (d) => ({ ...d, tasks: d.tasks.map((t) => (t.id === "AA-0001" ? { ...t, title } : t)) });
 
 test("persist: 保存の前に他がファイルを更新していても、最新のファイルに同じ編集を当てて保存し、他の更新も画面の編集も消えない", async () => {
   const { h, ui, sync } = await setup();
@@ -56,7 +56,7 @@ test("pollInbox: 保存していない編集がある間は読み直さず、編
   const edit = rename("c");
   ui.data = edit(ui.data);
   sync.persist(edit);
-  external(h, { tasks: [{ id: "A1", title: "x" }] }); // 保存が済む前に他が書いた（当て直しの対象）
+  external(h, { tasks: [{ id: "AA-0001", title: "x" }] }); // 保存が済む前に他が書いた（当て直しの対象）
   sync.pollInbox(true); // 保存が並んでいる間は、読み直しを積まない
   await sync.whenIdle();
   assert.equal(JSON.parse(h.text).tasks[0].title, "c", "画面の編集が、古い内容で上書きされない");
@@ -73,8 +73,8 @@ test("pollInbox: 保存していない編集がある間は読み直さず、編
 });
 
 test("pollInbox: 2 ファイルのストア（createPairStore）でも、他が個人ファイルに足した予定を、結合したデータで取り込む", async () => {
-  const shared = { version: 1, projects: [], tasks: [{ id: "A1", title: "a" }], changeLog: [], settings: {} };
-  const personal = { version: 1, sessions: [{ taskId: "A1", id: "S1", date: "2026-10-20", start: "09:00", end: "10:00", kind: "planned" }], events: [], settings: {}, inbox: { watching: null, requests: [] } };
+  const shared = { version: 1, projects: [], tasks: [{ id: "AA-0001", title: "a" }], changeLog: [], settings: {} };
+  const personal = { version: 1, sessions: [{ taskId: "AA-0001", id: "S1", date: "2026-10-20", start: "09:00", end: "10:00", kind: "planned" }], events: [], settings: {}, inbox: { watching: null, requests: [] } };
   const sh = fakeHandle(shared), pe = fakeHandle(personal);
   const queue = [sh, pe];
   const store = createPairStore({ showOpenFilePicker: async () => [queue.shift()], idb: memIdb() });
@@ -107,4 +107,64 @@ test("persist: 保存の失敗から戻ったとき、バナーを消す呼び�
   sync.persist((d) => d);
   await sync.whenIdle();
   assert.deepEqual(calls.at(-1), ["", false]);
+});
+
+test("pollInbox: 入力欄で打ちかけ（isEditing）の間は、データは取り込むが描き直さず、flush で 1 回だけ描き直す", async () => {
+  let editing = true;
+  const { h, ui, sync } = await setup(base(), { isEditing: () => editing });
+  external(h, { tasks: [{ id: "AA-0001", title: "x" }] });
+  sync.pollInbox(true);
+  await sync.whenIdle();
+  assert.equal(ui.data.tasks[0].title, "x", "データは取り込む");
+  assert.equal(ui.render, 0, "打ちかけの間は描き直さない");
+  sync.flush();
+  assert.equal(ui.render, 0, "まだ打ちかけなら、flush でも描き直さない");
+  editing = false;
+  sync.flush();
+  sync.flush();
+  assert.equal(ui.render, 1, "打ち終えたら 1 回だけ");
+});
+
+test("pollInbox: 打ちかけでなければ、今までどおりすぐ描き直す。描き直しが済んだ（rendered）・開き直した（reset）ら、待っていた描き直しは捨てる", async () => {
+  const { h, ui, sync } = await setup(base(), { isEditing: () => false });
+  external(h, { tasks: [{ id: "AA-0001", title: "x" }] });
+  sync.pollInbox(true);
+  await sync.whenIdle();
+  assert.equal(ui.render, 1);
+  sync.flush();
+  assert.equal(ui.render, 1, "待っている描き直しが無ければ、flush は何もしない");
+
+  let editing = true;
+  const s2 = await setup(base(), { isEditing: () => editing });
+  for (const drop of [(x) => x.sync.rendered(), (x) => x.sync.reset()]) {
+    editing = true;
+    external(s2.h, { tasks: [{ id: "AA-0001", title: String(Math.random()) }] });
+    const atPoll = s2.ui.render;
+    s2.sync.pollInbox(true);
+    await s2.sync.whenIdle();
+    assert.equal(s2.ui.render, atPoll, "捨てる前に、描き直しを待たせている");
+    drop(s2);
+    editing = false;
+    const before = s2.ui.render;
+    s2.sync.flush();
+    assert.equal(s2.ui.render, before, "捨てたあとの flush は描き直さない");
+  }
+});
+
+test("pollInbox: 読んでいる間に画面で編集があった（pending の当て直し）ときも、打ちかけの間は描き直しを待たせる", async () => {
+  let editing = true;
+  const { h, store, ui, sync } = await setup(base(), { isEditing: () => editing });
+  external(h, { inbox: { watching: { at: "2026-10-31T00:00:00Z" }, requests: [] }, tasks: [{ id: "AA-0001", title: "x", note: "ext" }] });
+  const edit = (d) => ({ ...d, tasks: d.tasks.map((t) => ({ ...t, title: "mine" })) });
+  const reload = store.reload;
+  store.reload = async () => { const r = await reload(); ui.data = edit(ui.data); sync.persist(edit); return r; }; // 読んでいる間に編集した
+  sync.pollInbox(true);
+  await sync.whenIdle();
+  store.reload = reload;
+  assert.equal(ui.data.tasks[0].title, "mine", "画面の編集を、最新のファイルの上に重ねる");
+  assert.equal(ui.data.inbox.watching.at, "2026-10-31T00:00:00Z", "他の更新も取り込む");
+  editing = false;
+  const before = ui.render;
+  sync.flush();
+  assert.equal(ui.render, before + 1, "当て直しの描き直しを待たせていた（flush で描き直す）");
 });

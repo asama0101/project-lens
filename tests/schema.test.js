@@ -49,57 +49,57 @@ test("日付・時刻の演算", () => {
 
 test("チェックリスト: 正しい形はエラーなし。配列でない・id の重複・text が空・done が真偽値でない・id が文字列でないはエラー", () => {
   const d = load();
-  task(d, "A4").checklist = [{ id: "c1", text: "a", done: false }, { id: "c2", text: "b", done: true }];
+  task(d, "AA-0004").checklist = [{ id: "c1", text: "a", done: false }, { id: "c2", text: "b", done: true }];
   assert.deepEqual(v(d).errors, []);
-  const bad = (cl) => { const e = load(); task(e, "A4").checklist = cl; return v(e).errors; };
-  assert.ok(hit(bad("x"), "A4"));
+  const bad = (cl) => { const e = load(); task(e, "AA-0004").checklist = cl; return v(e).errors; };
+  assert.ok(hit(bad("x"), "AA-0004"));
   assert.ok(hit(bad([{ id: "c1", text: "a", done: false }, { id: "c1", text: "b", done: false }]), "c1"));
-  assert.ok(hit(bad([{ id: "c1", text: "  ", done: false }]), "A4"));
-  assert.ok(hit(bad([{ id: "c1", text: "a", done: "yes" }]), "A4"));
-  assert.ok(hit(bad([{ id: 1, text: "a", done: false }]), "A4"));
+  assert.ok(hit(bad([{ id: "c1", text: "  ", done: false }]), "AA-0004"));
+  assert.ok(hit(bad([{ id: "c1", text: "a", done: "yes" }]), "AA-0004"));
+  assert.ok(hit(bad([{ id: 1, text: "a", done: false }]), "AA-0004"));
 });
 
 test("不明な状態値はエラー", () => {
-  const d = load(); task(d, "A1").status = "Not Started";
-  assert.ok(hit(v(d).errors, "A1"));
+  const d = load(); task(d, "AA-0001").status = "Not Started";
+  assert.ok(hit(v(d).errors, "AA-0001"));
   const p = load(); p.projects[0].status = "不明";
-  assert.ok(hit(v(p).errors, "プロジェクト A"));
+  assert.ok(hit(v(p).errors, "プロジェクト AA"));
 });
 
 test("存在しない前のタスク・projectId はエラー", () => {
-  const d = load(); task(d, "A2").predecessors = ["ZZ"];
+  const d = load(); task(d, "AA-0002").predecessors = ["ZZ"];
   assert.ok(hit(v(d).errors, "ZZ"));
-  const e = load(); task(e, "A2").projectId = "Q";
+  const e = load(); task(e, "AA-0002").projectId = "AQ";
   assert.ok(hit(v(e).errors, "projectId"));
 });
 
 test("前のタスクの循環はエラー", () => {
-  const d = load(); task(d, "A1").predecessors = ["A2"];
+  const d = load(); task(d, "AA-0001").predecessors = ["AA-0002"];
   assert.ok(hit(v(d).errors, "循環"));
 });
 
 test("日付形式の不正・プロジェクト開始>期限・枠の不正はエラー", () => {
-  const a = load(); task(a, "A1").due = "2026/07/31";
-  assert.ok(hit(v(a).errors, "A1"));
+  const a = load(); task(a, "AA-0001").due = "2026/07/31";
+  assert.ok(hit(v(a).errors, "AA-0001"));
   const b = load(); b.projects[0].start = "2027-04-01";
   assert.ok(hit(v(b).errors, "開始日"));
-  const c = load(); task(c, "A5").sessions[0].end = "12:00";
+  const c = load(); task(c, "AA-0005").sessions[0].end = "12:00";
   assert.ok(hit(v(c).errors, "S1"));
-  const e = load(); task(e, "B2").sessions[0] = { id: "S4", date: "2026-10-14", start: "14:00", end: "16:00", kind: "actual" };
+  const e = load(); task(e, "AB-0002").sessions[0] = { id: "S4", date: "2026-10-14", start: "14:00", end: "16:00", kind: "actual" };
   assert.ok(hit(v(e).errors, "重な"));
 });
 
 test("警告: Waiting で待ち先なし／終了済みで未来の予定／start>due（前のタスクがあっても start は有効で、無視の警告は出ない）", () => {
-  const a = load(); task(a, "A3").waitingOn = null;
-  assert.ok(hit(v(a).warnings, "A3"));
-  const b = load(); task(b, "A6").start = "2026-12-01";
-  assert.ok(!hit(v(b).warnings, "A6"), "前のタスクがあっても、start は無視されない");
-  const b2 = load(); task(b2, "A6").start = "2027-03-01"; // 前のタスクがあるタスクも、start > due はエラー
-  assert.ok(hit(v(b2).errors, "A6"));
-  const c = load(); task(c, "A5").status = "Done"; task(c, "A5").doneAt = "2026-10-20";
-  assert.ok(hit(v(c).warnings, "A5"));
-  const d = load(); task(d, "A5").start = "2027-01-10";
-  assert.ok(hit(v(d).errors, "A5"));
+  const a = load(); task(a, "AA-0003").waitingOn = null;
+  assert.ok(hit(v(a).warnings, "AA-0003"));
+  const b = load(); task(b, "AA-0006").start = "2026-12-01";
+  assert.ok(!hit(v(b).warnings, "AA-0006"), "前のタスクがあっても、start は無視されない");
+  const b2 = load(); task(b2, "AA-0006").start = "2027-03-01"; // 前のタスクがあるタスクも、start > due はエラー
+  assert.ok(hit(v(b2).errors, "AA-0006"));
+  const c = load(); task(c, "AA-0005").status = "Done"; task(c, "AA-0005").doneAt = "2026-10-20";
+  assert.ok(hit(v(c).warnings, "AA-0005"));
+  const d = load(); task(d, "AA-0005").start = "2027-01-10";
+  assert.ok(hit(v(d).errors, "AA-0005"));
   assert.deepEqual(v(a).errors, []);
 });
 
@@ -109,13 +109,13 @@ test("空データは有効", () => {
 });
 
 test("警告: 前のタスクの期限が自分の期限より後（I2）", () => {
-  const d = load(); task(d, "A2").due = "2020-01-01";
-  assert.ok(hit(v(d).warnings, "A2"));
+  const d = load(); task(d, "AA-0002").due = "2020-01-01";
+  assert.ok(hit(v(d).warnings, "AA-0002"));
 });
 
 test("waitingOn.since が無い・不正ならエラー、deltaDays が整数でなければエラー（I4, M5）", () => {
-  const a = load(); delete task(a, "A3").waitingOn.since;
-  assert.ok(hit(v(a).errors, "A3"));
+  const a = load(); delete task(a, "AA-0003").waitingOn.since;
+  assert.ok(hit(v(a).errors, "AA-0003"));
   const b = load(); b.changeLog[0].deltaDays = "<b>";
   assert.ok(hit(v(b).errors, "deltaDays"));
 });
@@ -124,7 +124,7 @@ test("waitingOn.since が無い・不正ならエラー、deltaDays が整数で
 test("会議の projectId が存在しないプロジェクトなら error", () => {
   const d = load(); d.events[0].projectId = "ZZ";
   assert.ok(hit(v(d).errors, "projectId"));
-  const ok = load(); ok.events[0].projectId = "A"; ok.events[0].projectBy = "rule";
+  const ok = load(); ok.events[0].projectId = "AA"; ok.events[0].projectBy = "rule";
   assert.deepEqual(v(ok).errors, []);
 });
 
@@ -141,16 +141,16 @@ test("confirmed が真偽値でなければ error", () => {
 });
 
 test("projectRules の keyword が空、または projectId が存在しないなら error", () => {
-  const a = load(); a.settings.projectRules = [{ keyword: "", projectId: "A" }];
+  const a = load(); a.settings.projectRules = [{ keyword: "", projectId: "AA" }];
   assert.ok(hit(v(a).errors, "projectRules"));
   const b = load(); b.settings.projectRules = [{ keyword: "x", projectId: "ZZ" }];
   assert.ok(hit(v(b).errors, "projectRules"));
 });
 
 test("wbsImports は、存在するプロジェクトのキーと、file（文字列か null）・at（日付）・件数（0 以上の整数）を持つ。不正なら error", () => {
-  const ok = load(); ok.settings.wbsImports = { A: { file: "plan.xlsx", at: "2026-10-20", added: 2, updated: 0 }, B: { file: null, at: "2026-10-20", added: 0, updated: 1 } };
+  const ok = load(); ok.settings.wbsImports = { AA: { file: "plan.xlsx", at: "2026-10-20", added: 2, updated: 0 }, AB: { file: null, at: "2026-10-20", added: 0, updated: 1 } };
   assert.deepEqual(v(ok).errors, []);
-  for (const bad of [{ ZZ: { file: null, at: "2026-10-20", added: 0, updated: 0 } }, { A: { file: 3, at: "2026-10-20", added: 0, updated: 0 } }, { A: { file: null, at: "10/20", added: 0, updated: 0 } }, { A: { file: null, at: "2026-10-20", added: -1, updated: 0 } }, { A: { file: null, at: "2026-10-20", added: 1.5, updated: 0 } }, { A: null }]) {
+  for (const bad of [{ ZZ: { file: null, at: "2026-10-20", added: 0, updated: 0 } }, { AA: { file: 3, at: "2026-10-20", added: 0, updated: 0 } }, { AA: { file: null, at: "10/20", added: 0, updated: 0 } }, { AA: { file: null, at: "2026-10-20", added: -1, updated: 0 } }, { AA: { file: null, at: "2026-10-20", added: 1.5, updated: 0 } }, { A: null }]) {
     const d = load(); d.settings.wbsImports = bad;
     assert.ok(hit(v(d).errors, "wbsImports"), JSON.stringify(bad));
   }
@@ -159,9 +159,9 @@ test("wbsImports は、存在するプロジェクトのキーと、file（文�
 test("wbsMappings のキーが存在しないプロジェクト、値が文字列でないなら error", () => {
   const a = load(); a.settings.wbsMappings = { ZZ: { title: "B" } };
   assert.ok(hit(v(a).errors, "wbsMappings"));
-  const b = load(); b.settings.wbsMappings = { A: { title: 3 } };
+  const b = load(); b.settings.wbsMappings = { AA: { title: 3 } };
   assert.ok(hit(v(b).errors, "wbsMappings"));
-  const ok = load(); ok.settings.wbsMappings = { A: { title: "件名", due: "期限" } };
+  const ok = load(); ok.settings.wbsMappings = { AA: { title: "件名", due: "期限" } };
   assert.deepEqual(v(ok).errors, []);
 });
 
@@ -187,7 +187,7 @@ test("サンプルは新しい項目を使っている（大項目・会議の�
   assert.ok(d.tasks.some((t) => t.group && t.subgroup));
   assert.ok(d.events.some((e) => e.projectId && e.projectBy === "rule"));
   assert.ok(d.events.some((e) => e.confirmed === true));
-  assert.deepEqual(d.settings.projectRules, [{ keyword: "ベンダーX", projectId: "A" }]);
+  assert.deepEqual(d.settings.projectRules, [{ keyword: "ベンダーX", projectId: "AA" }]);
   assert.equal(d.settings.labels.group, "大項目");
 });
 
@@ -197,9 +197,9 @@ const REQ = (extra = {}) => ({ id: "R1", at: "2026-10-21T10:00:00.000Z", project
 test("inbox: 正しければ errors なし。inbox が無い従来のデータも通る。changeLog の source: inbox を認める", () => {
   const d = load();
   assert.deepEqual(v(d).errors, []);
-  d.inbox = { watching: { at: "2026-10-21T10:00:00.000Z" }, requests: [REQ(), REQ({ id: "R2", status: "proposed", projectId: "A", proposal: { summary: "s", ops: [{ op: "moveDue", taskId: "A3", deltaDays: 5 }], sections: [], warnings: [], base: {} } })] };
+  d.inbox = { watching: { at: "2026-10-21T10:00:00.000Z" }, requests: [REQ(), REQ({ id: "R2", status: "proposed", projectId: "AA", proposal: { summary: "s", ops: [{ op: "moveDue", taskId: "AA-0003", deltaDays: 5 }], sections: [], warnings: [], base: {} } })] };
   assert.deepEqual(v(d).errors, []);
-  d.changeLog.push({ at: "2026-10-21", taskIds: ["A3"], reason: "受信箱", cause: null, deltaDays: 0, source: "inbox" });
+  d.changeLog.push({ at: "2026-10-21", taskIds: ["AA-0003"], reason: "受信箱", cause: null, deltaDays: 0, source: "inbox" });
   assert.deepEqual(v(d).errors, []);
 });
 
@@ -224,9 +224,8 @@ test("inbox: 不正な status・重複 id・不明な projectId・不正な op�
 const withSettings = (s) => { const d = load(); d.settings = { ...d.settings, ...s }; return d; };
 const settingsWarn = (d, key) => v(d).warnings.filter((m) => m.startsWith(`settings.${key}:`));
 
-test("settings: 形が違う workday・waitingLongDays・labels は注意（エラーにしない）", () => {
+test("settings: 形が違う waitingLongDays・labels は注意（エラーにしない）", () => {
   const bad = {
-    workday: [{ start: "9:00", end: "18:00" }, { start: "18:00", end: "09:00" }, { start: "09:00" }, "x"],
     waitingLongDays: ["7", 0, 1.5, -2],
     labels: ["x", { group: 1 }, { subgroup: null }],
   };
@@ -240,7 +239,8 @@ test("settings: 形が違う workday・waitingLongDays・labels は注意（エ�
 });
 
 test("settings: 正しい値と settings なしのファイルに、settings の注意は出ない", () => {
-  const ok = withSettings({ workday: { start: "08:30", end: "17:30" }, waitingLongDays: 3, labels: { group: "フェーズ" } });
+  const ok = withSettings({ waitingLongDays: 3, labels: { group: "フェーズ" } });
+  assert.deepEqual(v(withSettings({ workday: "x" })).warnings.filter((m) => m.startsWith("settings.")), [], "古いファイルに残った workday は、形が違っても何も言わない（使わない）");
   assert.deepEqual(v(ok).warnings.filter((m) => m.startsWith("settings.")), []);
   const none = load();
   delete none.settings;
@@ -249,7 +249,7 @@ test("settings: 正しい値と settings なしのファイルに、settings の
 });
 
 test("settings: null は未設定として扱い（読む側は既定で動く）、注意を出さない。waitingLongDays の注意は既定で動くとは言わない", () => {
-  for (const key of ["workday", "waitingLongDays", "labels"]) assert.equal(settingsWarn(withSettings({ [key]: null }), key).length, 0, key);
+  for (const key of ["waitingLongDays", "labels"]) assert.equal(settingsWarn(withSettings({ [key]: null }), key).length, 0, key);
   const [w] = settingsWarn(withSettings({ waitingLongDays: 0 }), "waitingLongDays");
   assert.ok(!w.includes("既定の 7 で動きます") && w.includes("遅延バッジ"), w);
 });
@@ -283,7 +283,7 @@ test("settings.holidays の注意は、形の違う要素を data.json から直
 
 test("警告: 終了済みのタスクに残る予定枠の警告は、まだ開始していない枠だけ（進行中の枠は、完了時に残す仕様なので警告しない）", () => {
   const d = load();
-  const A1 = task(d, "A1"); // Done
+  const A1 = task(d, "AA-0001"); // Done
   A1.sessions = [
     { id: "S90", date: NOW.date, start: "10:00", end: "23:00", kind: "planned" }, // 開始済み・未終了（進行中）
     { id: "S91", date: NOW.date, start: "23:00", end: "23:30", kind: "planned" }, // 開始前
@@ -306,7 +306,7 @@ test("settings.countWeekendsAndHolidays: 真偽値でないと注意（エラー
 
 test("inbox: 依頼で受けなくなった操作（setStatus）を持つ保存済みの提案も、検証は通す（データを読み捨てない）", () => {
   const d = load();
-  d.inbox = { requests: [REQ({ status: "proposed", projectId: "A", proposal: { summary: "s", ops: [{ op: "setStatus", taskId: "A1", status: "Done" }], sections: [], warnings: [], base: {} } })] };
+  d.inbox = { requests: [REQ({ status: "proposed", projectId: "AA", proposal: { summary: "s", ops: [{ op: "setStatus", taskId: "AA-0001", status: "Done" }], sections: [], warnings: [], base: {} } })] };
   assert.deepEqual(v(d).errors, []);
 });
 
@@ -327,6 +327,22 @@ test("作業枠の ID が別のタスクで重複していたら warning（保�
   assert.ok(!hit(v(load()).warnings, "作業枠の ID が重複"), "サンプルは重複なし");
 });
 
+test("共有ファイルに無いタスクの作業枠(orphanSessions)も、作業枠の ID の重複を warning にする（error にはしない）", () => {
+  const orphan = (id) => ({ id, taskId: "ZZ-0099", date: "2026-10-21", start: "09:00", end: "10:00", kind: "planned" });
+  const live = load().tasks.flatMap((t) => t.sessions ?? [])[0].id;
+  const withLive = load();
+  withLive.orphanSessions = [orphan(live)];
+  const r = v(withLive);
+  assert.deepEqual(r.errors, []);
+  assert.ok(hit(r.warnings, `作業枠の ID が重複しています: ${live}`), "生きている枠と同じ ID");
+  const twoOrphans = load();
+  twoOrphans.orphanSessions = [orphan("S900"), orphan("S900")];
+  assert.ok(hit(v(twoOrphans).warnings, "作業枠の ID が重複しています: S900"), "共有に無い枠どうし");
+  const distinct = load();
+  distinct.orphanSessions = [orphan("S900"), orphan("S901")];
+  assert.ok(!hit(v(distinct).warnings, "作業枠の ID が重複"), "ID が別なら出さない");
+});
+
 test("reportShowMeetingTitles が残っていても検証は何も言わない", () => {
   const r = v(withSettings({ reportShowMeetingTitles: "x" }));
   assert.deepEqual(r.errors, []);
@@ -334,16 +350,16 @@ test("reportShowMeetingTitles が残っていても検証は何も言わない",
 });
 
 test("タスクの開始日が期限より後はエラー（警告にしない）。プロジェクトと同じ扱い", () => {
-  const t = load(); task(t, "A5").start = "2027-01-10"; task(t, "A5").due = "2027-01-09";
+  const t = load(); task(t, "AA-0005").start = "2027-01-10"; task(t, "AA-0005").due = "2027-01-09";
   const r = v(t);
-  assert.deepEqual(r.errors.filter((m) => m.includes("開始日が期限より後です")), ["タスク A5: 開始日が期限より後です"]);
+  assert.deepEqual(r.errors.filter((m) => m.includes("開始日が期限より後です")), ["タスク AA-0005: 開始日が期限より後です"]);
   assert.ok(!hit(r.warnings, "開始日が期限より後"));
   const p = load(); p.projects[0].start = "2027-04-01"; p.projects[0].due = "2027-03-01";
   assert.ok(hit(v(p).errors, `プロジェクト ${p.projects[0].id}: 開始日が期限より後です`));
 });
 
 test("前のタスクの期限が自分の期限より後は、警告のまま（エラーにしない）", () => {
-  const d = load(); task(d, "A2").due = "2020-01-01"; task(d, "A2").start = "2020-01-01";
+  const d = load(); task(d, "AA-0002").due = "2020-01-01"; task(d, "AA-0002").start = "2020-01-01";
   const r = v(d);
   assert.ok(hit(r.warnings, "前のタスクの期限が自分の期限より後です"));
   assert.ok(!hit(r.errors, "前のタスクの期限"));
@@ -354,7 +370,7 @@ test("validate: 要素の形が崩れた data.json は、例外ではなく日�
     ["tasks[0] がオブジェクトではありません", (d) => { d.tasks = [null]; }],
     ["events[0] がオブジェクトではありません", (d) => { d.events = [null]; }],
     ["changeLog[0] がオブジェクトではありません", (d) => { d.changeLog = [null]; }],
-    ["tasks[0].predecessors が配列ではありません", (d) => { d.tasks[0].predecessors = "T2"; }],
+    ["tasks[0].predecessors が配列ではありません", (d) => { d.tasks[0].predecessors = "AA-0002"; }],
     ["tasks[0].predecessors が配列ではありません", (d) => { d.tasks[0].predecessors = 5; }],
     ["tasks[0].sessions が配列ではありません", (d) => { d.tasks[0].sessions = {}; }],
     ["tasks[0].sessions[0] がオブジェクトではありません", (d) => { d.tasks[0].sessions = [null]; }],
@@ -373,10 +389,10 @@ test("validate: 要素の形が崩れた data.json は、例外ではなく日�
 
 test("validate: 期限が今日から 10 年以上離れていたら注意（年の打ち間違い）。エラーにはしない", () => {
   const d = load();
-  task(d, "A1").due = "2226-05-01";
+  task(d, "AA-0001").due = "2226-05-01";
   d.projects[0].due = "2226-05-01";
   const r = v(d);
-  assert.ok(hit(r.warnings, "タスク A1: 期限 2226-05-01 が今日から 10 年以上離れています"), r.warnings.join(" / "));
+  assert.ok(hit(r.warnings, "タスク AA-0001: 期限 2226-05-01 が今日から 10 年以上離れています"), r.warnings.join(" / "));
   assert.ok(hit(r.warnings, `プロジェクト ${d.projects[0].id}: 期限 2226-05-01`));
   assert.ok(!hit(r.errors, "2226"));
   assert.ok(!hit(v(load()).warnings, "10 年以上"), "サンプルは注意なし");
@@ -384,11 +400,11 @@ test("validate: 期限が今日から 10 年以上離れていたら注意（年
 
 test("projectId が null のタスクはエラーなし。存在しない projectId はエラー", () => {
   const d = load();
-  task(d, "C1").projectId = null;
+  task(d, "AC-0001").projectId = null;
   assert.deepEqual(v(d).errors, []);
-  task(d, "C1").projectId = "ZZ";
+  task(d, "AC-0001").projectId = "ZZ";
   assert.ok(hit(v(d).errors, "不明な projectId"));
-  delete task(d, "C1").projectId;
+  delete task(d, "AC-0001").projectId;
   assert.ok(hit(v(d).errors, "不明な projectId"));
 });
 
@@ -400,7 +416,7 @@ test("changeLog の source が screen の履歴は error（画面の期限変更
 test("共有ファイルに無いタスクの作業枠(orphanSessions): あれば警告（error ではない）、無い・空なら警告なし", () => {
   const word = "共有ファイルに無いタスクの作業枠が 1 件あります";
   const d = load();
-  d.orphanSessions = [{ id: "S9", taskId: "ZZ-0001", date: "2026-10-21", start: "09:00", end: "10:00", kind: "planned" }];
+  d.orphanSessions = [{ id: "S9", taskId: "ZZ-0099", date: "2026-10-21", start: "09:00", end: "10:00", kind: "planned" }];
   const r = v(d);
   assert.deepEqual(r.errors, []);
   assert.ok(hit(r.warnings, word));
@@ -409,4 +425,13 @@ test("共有ファイルに無いタスクの作業枠(orphanSessions): あれ�
     if (none) e.orphanSessions = none;
     assert.ok(!hit(v(e).warnings, "共有ファイルに無いタスクの作業枠"));
   }
+});
+
+test("作業枠の重なりは、実績を含んでも error。古いデータに残った running のキーは読まず、検証も何も言わない", () => {
+  const base = () => { const d = load(); d.tasks.find((t) => t.id === "AA-0004").sessions = [{ id: "S50", date: "2026-10-20", start: "10:00", end: "10:15", kind: "actual", running: true }]; return d; };
+  assert.deepEqual(v(base()).errors, []);
+  assert.ok(!v(base()).warnings.some((w) => w.includes("running")));
+  for (const running of [false, "true"]) { const d = base(); d.tasks.find((t) => t.id === "AA-0004").sessions[0].running = running; assert.deepEqual(v(d).errors, [], String(running)); }
+  const ov = base(); ov.tasks.find((t) => t.id === "AA-0005").sessions.push({ id: "S51", date: "2026-10-20", start: "10:05", end: "11:00", kind: "planned" });
+  assert.ok(v(ov).errors.some((e) => e.includes("S50") && e.includes("S51")), "実績と予定の重なりも error");
 });

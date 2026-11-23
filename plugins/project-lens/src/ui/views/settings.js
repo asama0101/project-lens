@@ -1,17 +1,15 @@
-// 「設定」タブ: 基本の設定（営業日の数え方・勤務時間・待ち長期化の日数・見出しの呼び名）と、休みと営業日（日本の祝日（表示のみ）・休み（手動）・営業日として扱う日）と、キーワード規則（会議名。編集できる）と、WBS の取り込み記録（表示のみ）。節は折りたため、閉じている節は opts.closed で渡す。
+// 「設定」タブ: 基本の設定（営業日の数え方・待ち長期化の日数・見出しの呼び名）と、休みと営業日（日本の祝日（表示のみ）・休み（手動）・営業日として扱う日）と、キーワード規則（会議名。編集できる）と、WBS の取り込み記録（表示のみ）。節は折りたため、閉じている節は opts.closed で渡す。
 import { ruleMeetingCounts } from "../../core/rules.js";
-import { validate, HOLIDAY_KINDS, DEFAULT_WORKDAY } from "../../core/schema.js";
-import { isDate, isTime, toMin } from "../../core/dates.js";
+import { validate, HOLIDAY_KINDS } from "../../core/schema.js";
+import { isDate } from "../../core/dates.js";
 import { groupLabels } from "../../core/groups.js";
-import { esc } from "../common.js";
+import { esc, dateInputHtml } from "../common.js";
 
 /** 基本の設定の入力に出す値。形が違う・無い項目は既定値（画面の描画と、不正な入力を元に戻すときに使う） */
 export function settingsInputValues(data) {
   const st = data.settings ?? {};
-  const ok = st.workday && isTime(st.workday.start) && isTime(st.workday.end) && toMin(st.workday.start) < toMin(st.workday.end);
-  const wd = ok ? st.workday : DEFAULT_WORKDAY;
   const lb = groupLabels(st);
-  return { workdayStart: wd.start, workdayEnd: wd.end, waitingLongDays: Number.isInteger(st.waitingLongDays) && st.waitingLongDays >= 1 ? st.waitingLongDays : 7, labelGroup: lb.group, labelSubgroup: lb.subgroup };
+  return { waitingLongDays: Number.isInteger(st.waitingLongDays) && st.waitingLongDays >= 1 ? st.waitingLongDays : 7, labelGroup: lb.group, labelSubgroup: lb.subgroup };
 }
 
 /** @param opts.ruleError  規則の追加・書き換えで出たエラーの文言
@@ -36,10 +34,9 @@ export function renderSettings(data, today, opts = {}) {
       <p class="note" style="margin:0 0 10px">変更はその場でファイルに保存されます。</p>
       <div class="tscroll"><table class="tbl edit"><tbody>
         <tr><td data-l="項目">営業日の数え方</td><td data-l="値"><label><input type="checkbox" data-set="countWeekendsAndHolidays" aria-label="土日祝を営業日に数える"${countOn ? " checked" : ""}> 土日祝を営業日に数える</label>${warnOf("countWeekendsAndHolidays")}</td><td class="muted" data-l="説明">日数の計算（営業日後の期限）とスケジュールの作業枠で、土日と日本の祝日を飛ばすかどうかを選びます。オンにしても、手動の休みは飛ばします。</td></tr>
-        <tr><td data-l="項目">勤務時間</td><td data-l="値"><input class="in" type="time" data-set="workday-start" value="${esc(iv.workdayStart)}" aria-label="勤務時間の開始"> 〜 <input class="in" type="time" data-set="workday-end" value="${esc(iv.workdayEnd)}" aria-label="勤務時間の終了">${warnOf("workday")}</td><td class="muted" data-l="説明">スケジュールで作業枠を置ける範囲です。</td></tr>
         <tr><td data-l="項目">待ち長期化の日数</td><td data-l="値"><input class="in" type="number" min="1" step="1" data-set="waitingLongDays" value="${iv.waitingLongDays}" aria-label="待ち長期化とみなす日数"> 日${warnOf("waitingLongDays")}</td><td class="muted" data-l="説明">Waiting がこの日数を超えると、「今日の優先」と遅延バッジに出ます。</td></tr>
         <tr><td data-l="項目">見出しの呼び名</td><td data-l="値"><input class="in" data-set="label-group" value="${esc(iv.labelGroup)}" aria-label="大項目の呼び名"> <input class="in" data-set="label-subgroup" value="${esc(iv.labelSubgroup)}" aria-label="中項目の呼び名">${warnOf("labels")}</td><td class="muted" data-l="説明">ガント・リストの見出しの呼び名です。空にすると既定（大項目・中項目）に戻ります。</td></tr>
-      </tbody></table></div>`, warnN("countWeekendsAndHolidays", "workday", "waitingLongDays", "labels"));
+      </tbody></table></div>`, warnN("countWeekendsAndHolidays", "waitingLongDays", "labels"));
 
   // 休みと営業日の指定: 形が違う要素は出さず（validate の注意が節の上に出る）、日付の昇順で並べる
   const entries = (v) => (Array.isArray(v) ? v.filter((x) => x && typeof x === "object" && isDate(x.date)) : []).slice().sort((p, q) => p.date.localeCompare(q.date));
@@ -62,7 +59,7 @@ export function renderSettings(data, today, opts = {}) {
       <p class="note" style="margin:0 0 10px">有給・会社独自の休みなどを登録します。営業日の計算で飛ばします（区分は整理用で、計算は同じです）。${countOn ? "終了日を入れると期間として登録します。土日祝を営業日に数えるときは、期間内の土日と日本の祝日も除きません。" : "終了日を入れると期間として登録し、期間内の土日と日本の祝日は除きます。"}変更はその場でファイルに保存されます。</p>
       ${warnOf("holidays")}
       <div class="tscroll"><table class="tbl edit"><thead><tr><th>日付</th><th>区分</th><th>メモ</th><th></th></tr></thead><tbody>${holidayRows || `<tr><td colspan="4" class="muted">休みは登録されていません。下の行から追加します。</td></tr>`}
-        <tr><td data-l="日付"><input class="in" type="date" data-hnew aria-label="休みの開始日"> 〜 <input class="in" type="date" data-hto aria-label="休みの終了日（期間のとき）"></td><td data-l="区分"><select class="in sm" data-hkind aria-label="追加する休みの区分">${kindOptions()}</select></td><td data-l="メモ"><input class="in" data-hnote placeholder="メモ（任意）" aria-label="休みのメモ"></td><td data-l=""><button class="btn" data-hadd>＋ 追加</button></td></tr></tbody></table></div>
+        <tr><td data-l="日付">${dateInputHtml({ attrs: 'data-hnew aria-label="休みの開始日"', label: "休みの開始日" })} 〜 ${dateInputHtml({ attrs: 'data-hto aria-label="休みの終了日（期間のとき）"', label: "休みの終了日" })}</td><td data-l="区分"><select class="in sm" data-hkind aria-label="追加する休みの区分">${kindOptions()}</select></td><td data-l="メモ"><input class="in" data-hnote placeholder="メモ（任意）" aria-label="休みのメモ"></td><td data-l=""><button class="btn" data-hadd>＋ 追加</button></td></tr></tbody></table></div>
     `, warnN("holidays"));
 
   const workdayRows = entries(st.workdays).map((x) => `<tr><td class="mono" data-l="日付">${esc(x.date)}</td>${noteTd(x)}<td data-l=""><button class="btn" data-wdel="${esc(x.date)}" aria-label="${esc(x.date)} を営業日の指定から外す">削除</button></td></tr>`).join("");
@@ -70,7 +67,7 @@ export function renderSettings(data, today, opts = {}) {
       <p class="note" style="margin:0 0 10px">土日・祝日・休みでも、この日は営業日として数えます（休日出勤など）。変更はその場でファイルに保存されます。</p>
       ${warnOf("workdays")}
       <div class="tscroll"><table class="tbl edit"><thead><tr><th>日付</th><th>メモ</th><th></th></tr></thead><tbody>${workdayRows || `<tr><td colspan="3" class="muted">営業日の指定はありません。下の行から追加します。</td></tr>`}
-        <tr><td data-l="日付"><input class="in" type="date" data-wnew aria-label="営業日として扱う日"></td><td data-l="メモ"><input class="in" data-wnote placeholder="メモ（任意）" aria-label="営業日の指定のメモ"></td><td data-l=""><button class="btn" data-wadd>＋ 追加</button></td></tr></tbody></table></div>
+        <tr><td data-l="日付">${dateInputHtml({ attrs: 'data-wnew aria-label="営業日として扱う日"', label: "営業日として扱う日" })}</td><td data-l="メモ"><input class="in" data-wnote placeholder="メモ（任意）" aria-label="営業日の指定のメモ"></td><td data-l=""><button class="btn" data-wadd>＋ 追加</button></td></tr></tbody></table></div>
     `, warnN("workdays"));
 
   const ruleRows = rules.map((r, i) => {

@@ -1,16 +1,17 @@
 // ガントチャートでタスク名・バーをクリックしたときに開く、編集の小さな窓。
 // 入力の属性（data-f・data-id・data-addpre・data-rmpre）は、リストの編集欄と同じ。保存と描き直しは、リストと同じ処理が受け持つ。
 // 窓を閉じる ×: data-tpopclose / 窓: data-tpop。「リストで開く」は data-goto、削除は data-del（どちらも既存の処理）
-import { esc, fmtMD } from "../common.js";
+import { esc, fmtMD, dateInputHtml } from "../common.js";
 import { taskStart } from "../../core/metrics.js";
 import { predecessorCandidates } from "../edit.js";
 import { checklistEditorHtml } from "./checklist.js";
 
-/** 前のタスクの外し方（×）と足し方（選択）。リストの編集欄と共用 */
-export function predEditHtml(data, t) {
-  const chips = (t.predecessors ?? []).map((id) => `<span class="chip">${esc(id)}<button data-rmpre="${esc(t.id)}|${esc(id)}" aria-label="${esc(id)} を前のタスクから外す">×</button></span>`).join("");
+/** 前のタスクの外し方（×）と足し方（選択）。リストの編集欄と共用。ids が false なら ID を出さず件名で出す（スケジュールの編集欄） */
+export function predEditHtml(data, t, { ids = true } = {}) {
+  const label = (id) => (ids ? id : data.tasks.find((u) => u.id === id)?.title ?? id);
+  const chips = (t.predecessors ?? []).map((id) => `<span class="chip">${esc(label(id))}<button data-rmpre="${esc(t.id)}|${esc(id)}" aria-label="${esc(id)} を前のタスクから外す">×</button></span>`).join("");
   const cand = predecessorCandidates(data, t.id).map((id) => data.tasks.find((u) => u.id === id));
-  const add = cand.length ? `<select class="in sm" data-addpre="${esc(t.id)}" aria-label="前のタスクを追加"><option value="">＋前のタスク</option>${cand.map((u) => `<option value="${esc(u.id)}">${esc(u.id)} ${esc(u.title)}</option>`).join("")}</select>` : "";
+  const add = cand.length ? `<select class="in sm" data-addpre="${esc(t.id)}" aria-label="前のタスクを追加"><option value="">＋前のタスク</option>${cand.map((u) => `<option value="${esc(u.id)}">${ids ? `${esc(u.id)} ` : ""}${esc(u.title)}</option>`).join("")}</select>` : "";
   return `<div class="chips">${chips}${add}</div>`;
 }
 
@@ -18,11 +19,11 @@ export function predEditHtml(data, t) {
 export function startInputHtml(data, t) {
   const derived = !t.start && (t.predecessors ?? []).length > 0;
   const hint = derived ? ` <small class="muted" title="開始日を指定していないので、前のタスクの期限から決まります">前のタスクから</small>` : "";
-  return `<input class="in" type="date" data-f="start" data-id="${esc(t.id)}" value="${esc(t.start || (derived ? taskStart(data, t.id) : ""))}" aria-label="${esc(t.id)} の開始日">${hint}`;
+  return `${dateInputHtml({ value: t.start || (derived ? taskStart(data, t.id) : ""), attrs: `data-f="start" data-id="${esc(t.id)}" aria-label="${esc(t.id)} の開始日"`, label: "開始日" })}${hint}`;
 }
 
 /**
- * 編集の項目の HTML。窓（full: true）とスケジュールの編集欄（full は詳細を開いたときだけ）で共用。
+ * 窓の編集の項目の HTML（縦に並べる。窓は常に full: true）。スケジュールの編集欄は別の並べ方（taskRowFieldsHtml）。
  * 軽い欄 = 件名・プロジェクト・状態・開始・期限・重要・メモ。full で、チェックリスト・前のタスク・繰り返しを足す
  */
 function taskFieldsHtml(data, t, { full, statusHtml }) {
@@ -34,7 +35,7 @@ function taskFieldsHtml(data, t, { full, statusHtml }) {
   return `${field("件名", `<input class="in" data-f="title" data-id="${id}" value="${esc(t.title)}">`)}
     ${field("プロジェクト", `<select class="in sm" data-f="projectId" data-id="${id}">${projects}</select>`)}
     <div class="tp-f"><span class="muted">状態</span><div>${statusHtml}</div></div>
-    <div class="tp-r">${field("開始", startInputHtml(data, t))}${field("期限", `<input class="in" type="date" data-f="due" data-id="${id}" value="${esc(t.due)}">`)}</div>
+    <div class="tp-r">${field("開始", startInputHtml(data, t))}${field("期限", dateInputHtml({ value: t.due, attrs: `data-f="due" data-id="${id}"`, label: "期限" }))}</div>
     ${full ? checklistEditorHtml(t) : ""}
     ${full ? `<div class="tp-f"><span class="muted">前のタスク</span>${predEditHtml(data, t)}</div>` : ""}
     <div class="tp-r">${imp}${full ? repeat : ""}</div>
@@ -57,16 +58,44 @@ export function renderTaskPop(data, pop, statusHtml) {
 }
 
 /**
- * スケジュール画面の編集欄（#mtgslot に出す）。対象のタスクが無ければ空。
+ * スケジュールの編集欄の項目（会議の入力欄と同じ、ラベル付きの横並び）。窓の taskFieldsHtml とは別の並べ方。
+ * fields = 軽い欄（1 行に折り返して並べる項目）、repeatField・wide = 詳細の入れ物に出す繰り返しと、全幅の行にする編集欄（full のときだけ）
+ */
+function taskRowFieldsHtml(data, t, { full, statusHtml }) {
+  const id = esc(t.id);
+  const field = (cls, label, inner) => `<label${cls ? ` class="${cls}"` : ""}><span>${label}</span>${inner}</label>`;
+  const projects = [["", "プロジェクトなし"], ...data.projects.map((p) => [p.id, p.name])].map(([v, l]) => `<option value="${esc(v)}" ${(t.projectId ?? "") === v ? "selected" : ""}>${esc(l)}</option>`).join("");
+  const repeat = `<option value="">なし</option><option value="week" ${t.repeat?.unit === "week" ? "selected" : ""}>毎週</option><option value="month" ${t.repeat?.unit === "month" ? "selected" : ""}>毎月${t.repeat?.unit === "month" ? `（${esc(t.repeat.day)} 日）` : ""}</option>`;
+  const fields = [
+    field("tp-title", "件名", `<input class="in" data-f="title" data-id="${id}" value="${esc(t.title)}">`),
+    field("", "開始", startInputHtml(data, t)),
+    field("", "期限", dateInputHtml({ value: t.due, attrs: `data-f="due" data-id="${id}"`, label: "期限" })),
+    `<div class="tp-st"><span>状態</span><div>${statusHtml}</div></div>`,
+    `<label class="chk"><input type="checkbox" data-f="important" data-id="${id}" ${t.important === true ? "checked" : ""}>重要</label>`,
+    field("", "プロジェクト", `<select class="in sm" data-f="projectId" data-id="${id}">${projects}</select>`),
+    field("tp-memo", "メモ", `<input class="in" data-f="memo" data-id="${id}" value="${esc(t.memo ?? "")}" placeholder="メモ">`),
+  ].join("\n    ");
+  const repeatField = full ? field("", "繰り返し", `<select class="in sm" data-f="repeat" data-id="${id}">${repeat}</select>`) : "";
+  const wide = full ? `${checklistEditorHtml(t)}<div class="tp-wide"><span>前のタスク</span>${predEditHtml(data, t, { ids: false })}</div>` : "";
+  return { fields, repeatField, wide };
+}
+
+/**
+ * スケジュール画面の編集欄（#mtgslot に出す）。対象のタスクが無ければ空。見出しに ID は出さない（スケジュールは件名だけで表す）。会議の入力欄と同じ、ラベル付きの項目が折り返して並ぶ形
  * @param edit { id, full, askDel }  askDel が真なら削除の確認を出す。full が真なら、繰り返し・チェックリスト・前のタスク・複製・削除も出す
  */
 export function renderTaskEditPanel(data, edit, statusHtml) {
   const t = data.tasks.find((x) => x.id === edit.id);
   if (!t) return "";
   const id = esc(t.id);
+  const { fields, repeatField, wide } = taskRowFieldsHtml(data, t, { full: edit.full, statusHtml });
+  const del = edit.askDel ? `<span class="ask">このタスクを削除します。<button class="btn danger" data-delyes="${id}">削除する</button><button class="btn" data-tedit-delno>やめる</button></span>` : `<button class="btn danger" data-tedit-del="${id}">削除</button>`;
+  // 詳細の項目は、軽い欄のあとの別の入れ物（全幅の行）に出す。軽い欄とボタンの行は、詳細の開閉で位置も大きさも変わらない
+  const detail = edit.full ? `
+    <div class="tedit-detail">${repeatField}<div class="tp-a"><button class="btn" data-dup="${id}">複製</button>${del}</div>${wide}</div>` : "";
   return `<div class="mtgform tedit" role="group" aria-label="${id} を編集" data-tedit>
-    <div class="tp-h"><b class="mono">${id}</b><span class="muted">${fmtMD(taskStart(data, t.id))}〜${fmtMD(t.due)}</span><button class="btn" data-tedit-full aria-expanded="${edit.full}">${edit.full ? "詳細を閉じる" : "詳細を開く"}</button><button class="gx" data-tedit-close aria-label="編集を閉じる" style="opacity:1">×</button></div>
-    ${taskFieldsHtml(data, t, { full: edit.full, statusHtml })}
-    ${edit.full ? `<div class="tp-a"><button class="btn" data-dup="${id}">複製</button>${edit.askDel ? `<span class="ask">このタスクを削除します。<button class="btn danger" data-delyes="${id}">削除する</button><button class="btn" data-tedit-delno>やめる</button></span>` : `<button class="btn danger" data-tedit-del="${id}">削除</button>`}</div>` : ""}
+    <span class="tp-h"><span class="muted">${fmtMD(taskStart(data, t.id))}〜${fmtMD(t.due)}</span></span>
+    ${fields}
+    <div class="tp-a"><button class="btn" data-tedit-full aria-expanded="${edit.full}">${edit.full ? "詳細を閉じる" : "詳細を開く"}</button><button class="btn" data-tedit-close>閉じる</button></div>${detail}
   </div>`;
 }

@@ -24,7 +24,7 @@ test("nextRepeatDue: 毎月は指定の日で、短い月は月末に丸める�
   assert.equal(nextRepeatDue(month(5), "2026-12-05", "2026-12-01"), "2027-01-05");
 });
 
-// A5 に定例の設定・チェックリスト・重要・メモを付けて Done にしたデータ
+// AA-0005 に定例の設定・チェックリスト・重要・メモを付けて Done にしたデータ
 function doneRepeating(extra = {}) {
   let d = load();
   const id = d.tasks.find((t) => t.status !== "Done" && t.status !== "Cancelled").id;

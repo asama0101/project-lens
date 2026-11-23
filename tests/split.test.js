@@ -22,9 +22,9 @@ test("(b) shared のタスクに sessions が無い。personal の枠は taskId 
 });
 
 test("(c) 設定の振り分け", () => {
-  const d = { ...sample(), settings: { workday: { start: "09:00", end: "18:00" }, holidays: ["2026-12-30"], selfNames: ["a"], nationalHolidays: ["2026-01-01"], projectRules: [], reportShowMeetingTitles: true, waitingLongDays: 7 } };
+  const d = { ...sample(), settings: { holidays: ["2026-12-30"], selfNames: ["a"], nationalHolidays: ["2026-01-01"], projectRules: [], reportShowMeetingTitles: true, waitingLongDays: 7 } };
   const { shared, personal } = splitData(d);
-  assert.deepEqual(Object.keys(personal.settings).sort(), ["holidays", "selfNames", "workday"]);
+  assert.deepEqual(Object.keys(personal.settings).sort(), ["holidays", "selfNames"]);
   assert.deepEqual(Object.keys(shared.settings).sort(), ["nationalHolidays", "projectRules", "reportShowMeetingTitles", "waitingLongDays"]);
 });
 
@@ -102,9 +102,9 @@ test("dataFromTexts: 選ぶ順に関係なく、形で共有・個人を見分�
 test("checkSharedShape: 作業枠・予定を含む 1 ファイルの旧形式は例外（読み込んで、次の保存で枠・予定を消さない）", () => {
   const OLD = /作業枠・予定を含む 1 ファイルの旧形式の data\.json です/;
   assert.throws(() => checkSharedShape(sample()), OLD);
-  const ok = { projects: [], tasks: [{ id: "A" }], changeLog: [] };
+  const ok = { projects: [], tasks: [{ id: "AA-0001" }], changeLog: [] };
   assert.doesNotThrow(() => checkSharedShape(ok));
-  assert.throws(() => checkSharedShape({ ...ok, tasks: [{ id: "A", sessions: [] }] }), OLD);
+  assert.throws(() => checkSharedShape({ ...ok, tasks: [{ id: "AA-0001", sessions: [] }] }), OLD);
   assert.throws(() => checkSharedShape({ ...ok, events: [] }), OLD);
   assert.throws(() => dataFromTexts([JSON.stringify(sample()), JSON.stringify(emptyPersonal())]), OLD);
 });

@@ -31,8 +31,8 @@ test("savePrefs→loadPrefs で往復でき、setItem が例外を投げても�
 test("loadInboxDraft / saveInboxDraft: 依頼の下書きを往復でき、無い・壊れた・storage が使えないときは空。保存の失敗で落ちない", () => {
   const s = fake();
   assert.equal(loadInboxDraft(s), "");
-  saveInboxDraft("A3 が 5 日遅れた\n次の行", s);
-  assert.equal(loadInboxDraft(s), "A3 が 5 日遅れた\n次の行");
+  saveInboxDraft("AA-0003 が 5 日遅れた\n次の行", s);
+  assert.equal(loadInboxDraft(s), "AA-0003 が 5 日遅れた\n次の行");
   saveInboxDraft("", s);
   assert.equal(loadInboxDraft(s), "");
   assert.equal(loadInboxDraft(boom), "");

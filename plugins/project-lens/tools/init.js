@@ -4,7 +4,6 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { DEFAULT_WORKDAY } from "../src/core/schema.js";
 import { splitData, emptyPersonal, isOldShared } from "../src/core/split.js";
 import { takeMineOrExit } from "./cli.js";
 
@@ -18,7 +17,7 @@ const IGNORE = ".project-lens/";
 
 const SKELETON = {
   version: 1,
-  settings: { workday: DEFAULT_WORKDAY, waitingLongDays: 7, projectRules: [], labels: { group: "大項目", subgroup: "中項目" } },
+  settings: { waitingLongDays: 7, projectRules: [], labels: { group: "大項目", subgroup: "中項目" } },
   projects: [], tasks: [], events: [], changeLog: [],
 };
 
@@ -119,6 +118,8 @@ const LABEL = { created: "作りました", updated: "更新しました", uncha
 function main() {
   const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const { mine, rest } = takeMineOrExit(process.argv.slice(2));
+  // 知らない引数は、何かを書く前に止める（--help の打ち間違いなどで、黙ってファイルを作らない）
+  if (rest.some((a) => a !== "--sample")) { console.error("使い方: node tools/init.js [--sample] [--mine <個人ファイル>]"); process.exit(2); }
   let r;
   try { r = init({ cwd: process.cwd(), pluginRoot, sample: rest.includes("--sample"), mine }); }
   catch (e) { console.error(`失敗しました: ${e.message}`); process.exit(1); }

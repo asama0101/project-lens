@@ -1,9 +1,9 @@
 // 画面からの編集（追加・削除・更新）。すべて不変更新で、不正な入力は例外にする（呼び出し側が理由を表示する）。
-import { addDays, diffDays, isDate, isTime, isWeekend, toMin, toHHMM, nowLocal } from "../core/dates.js";
+import { addDays, diffDays, isDate, isWeekend, toMin, toHHMM, nowLocal } from "../core/dates.js";
 import { calendarOf } from "../core/holidays.js";
 import { taskStart } from "../core/metrics.js";
 import { groupSections } from "../core/groups.js";
-import { addSession } from "../core/sessions.js";
+import { addSession, confirmSession } from "../core/sessions.js";
 import { nextChecklistId } from "../core/checklist.js";
 import { isRepeat, nextRepeatDue } from "../core/repeat.js";
 import { HOLIDAY_KINDS } from "../core/schema.js";
@@ -373,14 +373,26 @@ export function addTaskQuick(data, projectId, title, today = nowLocal().date, pl
 }
 
 /** 突発タスク。タスク（開始・期限は当日、In Progress）と作業枠を 1 操作で作る。projectId は null でもよい。失敗は Error（データは変わらない） */
-export function addUrgentTask(data, { title, projectId, date, start, minutes }, now) {
+export function addUrgentTask(data, { title, projectId, date, start, minutes }) {
   if (projectId != null && !data.projects.some((p) => p.id === projectId)) throw new Error(`プロジェクト ${projectId} がありません`);
   const name = String(title ?? "").trim();
   if (!name) throw new Error("件名を入力してください");
   const t = newTask(data, projectId, name, date, { start: date, status: "In Progress" });
-  const r = addSession({ ...data, tasks: [...data.tasks, t] }, t.id, { date, start, end: toHHMM(toMin(start) + minutes) }, now);
+  const r = addSession({ ...data, tasks: [...data.tasks, t] }, t.id, { date, start, end: toHHMM(toMin(start) + minutes) });
   if (r.error) throw new Error(r.error);
   return { data: r.data, id: t.id, ...(r.warning && { warning: r.warning }) };
+}
+
+/**
+ * 今日のタスクの「実績にする」: 予定の枠を実績にし（confirmSession。ほかの実績の枠と重なる・明日以降は Error）、
+ * タスクが To Do・Waiting なら In Progress にする（updateTask の規則で、Waiting の待ち先は外れる）。statusChanged・from（元の状態）を返す
+ */
+export function confirmTodaySession(data, sessionId, now) {
+  const r = confirmSession(data, sessionId, now);
+  if (r.error) throw new Error(r.error);
+  const t = data.tasks.find((x) => (x.sessions ?? []).some((s) => s.id === sessionId));
+  const statusChanged = t.status === "To Do" || t.status === "Waiting";
+  return { data: statusChanged ? updateTask(r.data, t.id, { status: "In Progress" }, now.date) : r.data, taskId: t.id, statusChanged, from: t.status };
 }
 
 export function addTask(data, task) {
@@ -400,16 +412,11 @@ export function deleteTask(data, taskId) {
 }
 
 /**
- * 設定（勤務時間・待ち長期化の日数・土日祝を営業日に数えるか・見出しの呼び名）の変更。patch に含まれる項目だけ変える。
- * 勤務時間は開始・終了を組で渡す。呼び名は空にするとそのキーを消す（既定の呼び名に戻る）。不正な値は例外
+ * 設定（待ち長期化の日数・土日祝を営業日に数えるか・見出しの呼び名）の変更。patch に含まれる項目だけ変える。
+ * 呼び名は空にするとそのキーを消す（既定の呼び名に戻る）。不正な値は例外
  */
 export function updateSettings(data, patch) {
   const s = { ...(data.settings ?? {}) };
-  if ("workday" in patch) {
-    const { start, end } = patch.workday ?? {};
-    if (!isTime(start) || !isTime(end) || toMin(start) >= toMin(end)) throw new Error("勤務時間は HH:MM で、開始を終了より前にしてください");
-    s.workday = { start, end };
-  }
   if ("waitingLongDays" in patch) {
     if (!Number.isInteger(patch.waitingLongDays) || patch.waitingLongDays < 1) throw new Error("待ち長期化の日数は 1 以上の整数にしてください");
     s.waitingLongDays = patch.waitingLongDays;

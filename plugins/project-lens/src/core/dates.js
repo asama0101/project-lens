@@ -37,6 +37,20 @@ export function isDate(s) {
   return y === y2 && mo === m2 && d === d2;
 }
 
+/**
+ * 画面の日付の欄に打った文字 → YYYY-MM-DD。2026/10/20・2026-10-20・2026.10.20・20261020・2026/1/5・2026年10月20日 と、全角の数字、
+ * 日本語入力で出る区切り（・ ー ‐ − – — 。 ． 、 ， など）、前後や間の空白を受ける。区切りは数字の組の間だけ。実在しない日・年が 4 桁でない・空は null
+ */
+export function parseDateInput(text) {
+  const s = String(text ?? "").replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0)).replace(/\s+/g, "")
+    .replace(/^(\d{4})年(\d{1,2})月(\d{1,2})日?$/, "$1/$2/$3")
+    .replace(/[／－．・ー‐‑−–—。､、，,]/g, "/");
+  const m = /^(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})$/.exec(s) ?? /^(\d{4})(\d{2})(\d{2})$/.exec(s);
+  if (!m) return null;
+  const iso = `${m[1]}-${pad(+m[2])}-${pad(+m[3])}`;
+  return isDate(iso) ? iso : null;
+}
+
 /** HH:MM（00:00〜23:59）か */
 export function isTime(s) {
   return typeof s === "string" && TIME_RE.test(s);

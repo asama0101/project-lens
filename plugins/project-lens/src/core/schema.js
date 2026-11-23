@@ -13,7 +13,6 @@ const REQUEST_STATUS = ["pending", "working", "question", "proposed", "applied",
 export const OP_KINDS = ["moveDue", "addPred", "removePred", "addTask", "addProject", "setStatus", "setImportance", "updateProject", "removeTask", "removeProject", "addMilestone", "moveMilestone", "removeMilestone", "addChecklistItem", "setChecklistDone", "setChecklistText", "removeChecklistItem"];
 /** 新しい依頼（提案・承認）で受ける操作。OP_KINDS は、保存済みの proposal.ops の検証用に残す */
 export const PROPOSE_OPS = ["addTask", "moveDue"];
-export const DEFAULT_WORKDAY = { start: "09:00", end: "18:00" };
 
 /** 終わったタスク（Done・Cancelled）か */
 export const isClosed = (t) => t.status === "Done" || t.status === "Cancelled";
@@ -90,8 +89,9 @@ export function validate(data, now = nowLocal()) {
   dup(data.tasks, "タスク");
   dup(data.events, "会議");
   // 作業枠の ID は、移動・削除が ID だけで探すので、重複すると両方に効く。保存は止めず、注意に出す
+  // 共有ファイルに無いタスクの作業枠（orphanSessions）も、同じ個人ファイルの枠なので含める
   const sessionIds = new Set();
-  for (const t of data.tasks) for (const s of t.sessions ?? []) {
+  for (const s of [...data.tasks.flatMap((t) => t.sessions ?? []), ...(data.orphanSessions ?? [])]) {
     if (sessionIds.has(s.id)) warn(`作業枠の ID が重複しています: ${s.id}（移動・削除が両方に効きます。data.json から直接直してください）`);
     sessionIds.add(s.id);
   }
@@ -184,11 +184,7 @@ export function validate(data, now = nowLocal()) {
   }
 
   const st = data.settings ?? {};
-  // 形の違う設定は、注意にとどめる（読む側は、既定値で動く。workday だけは、HH:MM でないと画面が動かない）
-  const w = st.workday;
-  if (w != null && !(typeof w === "object" && isTime(w.start) && isTime(w.end) && toMin(w.start) < toMin(w.end))) {
-    warn("settings.workday: start・end は HH:MM で、開始 < 終了にしてください。直すまでスケジュール画面は正しく動きません");
-  }
+  // 形の違う設定は、注意にとどめる（読む側は、既定値で動く）
   if (st.waitingLongDays != null && !(Number.isInteger(st.waitingLongDays) && st.waitingLongDays >= 1)) {
     warn("settings.waitingLongDays: 1 以上の整数にしてください（直すまで、遅延バッジと「今日の優先」の待ち長期化が正しく出ません）");
   }

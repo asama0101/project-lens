@@ -12,9 +12,9 @@ const task = (id, projectId, sessions = []) => ({ id, projectId, title: id, due:
 const mtg = (id, date, start, end, extra = {}) => ({ id, date, start, end, title: id, source: "manual", skip: false, externalId: null, ...extra });
 const proj = (id, name) => ({ id, name, type: "更改", status: "進行中", start: "2026-09-01", due: "2026-12-31", milestones: [] });
 const mk = () => ({
-  version: 1, settings: {}, projects: [proj("A", "拠点A"), proj("B", "拠点B")],
-  tasks: [task("A1", "A", [sess("S1", D, "09:00", "10:30"), sess("S9", D, "16:00", "17:00", "planned")]), task("B1", "B", [sess("S2", D, "13:00", "14:00")])],
-  events: [mtg("m1", D, "10:30", "11:30", { projectId: "A", confirmed: true }), mtg("m2", D, "14:00", "14:30", { confirmed: true }), mtg("m3", D, "15:00", "16:00", { projectId: "B" })],
+  version: 1, settings: {}, projects: [proj("AA", "拠点A"), proj("AB", "拠点B")],
+  tasks: [task("AA-0001", "AA", [sess("S1", D, "09:00", "10:30"), sess("S9", D, "16:00", "17:00", "planned")]), task("AB-0001", "AB", [sess("S2", D, "13:00", "14:00")])],
+  events: [mtg("m1", D, "10:30", "11:30", { projectId: "AA", confirmed: true }), mtg("m2", D, "14:00", "14:30", { confirmed: true }), mtg("m3", D, "15:00", "16:00", { projectId: "AB" })],
   changeLog: [],
 });
 const NOW = { date: D, time: "17:30" };
@@ -42,7 +42,7 @@ test("renderWorkload: 未設定の会議の行、未確認の注記は該当す�
 test("renderWorkload: プロジェクトなしのタスクの実績は「プロジェクト未設定」の行のタスク列に出る", () => {
   const d = mk();
   d.events = [];
-  d.tasks.push(task("X1", null, [sess("S7", D, "16:30", "17:00")]));
+  d.tasks.push(task("ZZ-0001", null, [sess("S7", D, "16:30", "17:00")]));
   const html = wl(d);
   assert.match(html, /<td>プロジェクト未設定<\/td><td class="num mono">0\.5h<\/td>/);
   assert.ok(!html.includes("プロジェクト未設定の会議"));
@@ -65,26 +65,45 @@ test("renderWorkload: 内訳の横棒は合計に比例し、操作用の属性�
   const html = wl(d);
   assert.ok(!html.includes("<img src=x") && html.includes("&lt;img src=x"));
   assert.ok(html.includes('data-wnav="-1"') && html.includes('data-wnav="1"') && html.includes("data-wtoday"));
-  assert.ok(html.includes('data-wperiod="week" aria-pressed="true"') && html.includes('data-wperiod="month" aria-pressed="false"'));
+  assert.ok(html.includes('data-wperiod="week" aria-pressed="true"') && html.includes('data-wperiod="month" aria-pressed="false"') && html.includes('data-wperiod="day" aria-pressed="false"'));
+  assert.ok(html.indexOf('data-wperiod="day"') < html.indexOf('data-wperiod="week"') && html.indexOf('data-wperiod="week"') < html.indexOf('data-wperiod="month"'), "日・週・月の順");
   assert.match(html, /class="wl-bar" style="width:100(\.0+)?%/, "最大の行は 100%");
 });
 
 test("プロジェクトの見出しが『稼働 …（タスク …・会議 …）』になる（リストとガント）", () => {
   const d = JSON.parse(readFileSync(new URL("../plugins/project-lens/data/sample.json", import.meta.url), "utf8"));
   d.events.find((e) => e.id === "m2").confirmed = true; // A に付いた会議 1h を確認済みにする
-  const h = projectHours(d, "A");
+  const h = projectHours(d, "AA");
   const want = `稼働 ${(h.task + h.meeting).toFixed(1)}h（タスク ${h.task.toFixed(1)}h・会議 ${h.meeting.toFixed(1)}h）`;
   assert.ok(h.meeting >= 1, "前提: 会議の時間が入っている");
-  assert.ok(renderProjects(d, D, { filter: "A", view: "list" }).includes(want), "リスト");
-  assert.ok(renderGantt(d, ["A"], D, {}).includes(want), "ガント");
+  assert.ok(renderProjects(d, D, { filter: "AA", view: "list" }).includes(want), "リスト");
+  assert.ok(renderGantt(d, ["AA"], D, {}).includes(want), "ガント");
 });
 
 import { shiftWorkloadDate } from "../plugins/project-lens/src/ui/views/workload.js";
 
-test("shiftWorkloadDate: 週は7日、月は1か月（年またぎ・月末の日付でもずれない）", () => {
+test("renderWorkload(day): その日だけを集計し、見出しは 2026/10/20(火)、今日へのボタンは「今日」", () => {
+  const d = mk();
+  d.tasks[0].sessions.push(sess("S3", "2026-10-21", "09:00", "11:00"));
+  const html = wl(d, { period: "day" });
+  assert.ok(html.includes("2026/10/20(火)") && html.includes(">今日</button>") && html.includes('data-wperiod="day" aria-pressed="true"'));
+  assert.match(html, /拠点A[\s\S]*?1\.5h[\s\S]*?1\.0h[\s\S]*?2\.5h/, "10/21 の 2 時間は入らない");
+  assert.match(wl(d, { period: "day", date: "2026-10-21" }), /拠点A[\s\S]*?2\.0h[\s\S]*?0\.0h[\s\S]*?2\.0h/);
+});
+
+test("shiftWorkloadDate: 日は1日、週は7日、月は1か月（年またぎ・月末の日付でもずれない）", () => {
+  assert.equal(shiftWorkloadDate("day", "2026-12-31", 1), "2027-01-01");
+  assert.equal(shiftWorkloadDate("day", "2026-10-20", -1), "2026-10-19");
   assert.equal(shiftWorkloadDate("week", "2026-10-20", 1), "2026-10-27");
   assert.equal(shiftWorkloadDate("week", "2026-10-20", -1), "2026-10-13");
   assert.equal(shiftWorkloadDate("month", "2026-12-31", 1), "2027-01-01");
   assert.equal(shiftWorkloadDate("month", "2026-01-31", -1), "2025-12-01");
   assert.equal(shiftWorkloadDate("month", "2026-03-31", 1), "2026-04-01");
+});
+
+test("renderWorkload: 期間を渡さないときは日（今日）。app.js の初期値も日", () => {
+  const html = renderWorkload(mk(), D, { now: NOW });
+  assert.ok(html.includes('data-wperiod="day" aria-pressed="true"') && html.includes("2026/10/20(火)"));
+  const app = readFileSync(new URL("../plugins/project-lens/src/ui/app.js", import.meta.url), "utf8");
+  assert.match(app, /wperiod: "day", wdate: clock\(\)\.date/);
 });

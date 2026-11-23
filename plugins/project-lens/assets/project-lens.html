@@ -12,19 +12,19 @@ body{margin:0}
   --bg:#F0F3F7; --surface:#FFFFFF; --ink:#16202E; --muted:#5A6678; --line:#D6DDE8; --line-soft:#E8ECF3;
   --accent:#0B6E8A; --accent-soft:#DCEEF4; --pre:#C2670A; --next:#2E7D32;
   --ok:#2E7D5B; --warn:#B26B00; --warn-soft:#FBEBD0; --bad:#C23A3A; --bad-soft:#F9DEDE;
-  --todo:#8794A8; --meeting:#EBE4F7; --meeting-ink:#43346F; --meeting-edge:#7B5CC4; --free:#E9F4EC;
+  --todo:#8794A8; --meeting:#EBE4F7; --meeting-ink:#43346F; --meeting-edge:#7B5CC4; --free:#E9F4EC; --on-accent:#FFFFFF;
   --f-body:"BIZ UDPGothic","Yu Gothic UI","Meiryo",sans-serif; --f-mono:ui-monospace,Consolas,monospace;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#0E1520; --surface:#162030; --ink:#E5EBF3; --muted:#9AA7B9; --line:#2A3850; --line-soft:#1F2C40;
   --accent:#55B8D4; --accent-soft:#17323D; --pre:#E8963F; --next:#6CC070;
   --ok:#5CC08F; --warn:#E3A94B; --warn-soft:#3A2D14; --bad:#EE7B7B; --bad-soft:#3B1D1F;
-  --todo:#7B889C; --meeting:#2D2548; --meeting-ink:#D3C9F0; --meeting-edge:#9C84E0; --free:#14301F; color-scheme:dark}}
+  --todo:#7B889C; --meeting:#2D2548; --meeting-ink:#D3C9F0; --meeting-edge:#9C84E0; --free:#14301F; --on-accent:#0E1520; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0E1520; --surface:#162030; --ink:#E5EBF3; --muted:#9AA7B9; --line:#2A3850; --line-soft:#1F2C40;
   --accent:#55B8D4; --accent-soft:#17323D; --pre:#E8963F; --next:#6CC070;
   --ok:#5CC08F; --warn:#E3A94B; --warn-soft:#3A2D14; --bad:#EE7B7B; --bad-soft:#3B1D1F;
-  --todo:#7B889C; --meeting:#2D2548; --meeting-ink:#D3C9F0; --meeting-edge:#9C84E0; --free:#14301F; color-scheme:dark}
+  --todo:#7B889C; --meeting:#2D2548; --meeting-ink:#D3C9F0; --meeting-edge:#9C84E0; --free:#14301F; --on-accent:#0E1520; color-scheme:dark}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.6;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 40px}
 *{box-sizing:border-box}
@@ -89,15 +89,12 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 .rank .t{font-weight:700;line-height:1.4;overflow-wrap:anywhere}
 .rank .why{grid-column:2;color:var(--muted);font-size:12px;line-height:1.5}
 .rank .act{display:inline-block;font-size:11px;padding:0 6px;border-radius:4px;background:var(--warn-soft);color:var(--warn);margin-right:6px}
-.rank li[data-pick]{cursor:pointer;border-radius:6px}
+.rank li[data-dragtask]{cursor:grab;border-radius:6px}
 .rank .t .pill{vertical-align:1px}
-.rank .bb{display:flex;flex-direction:row;gap:6px;flex-wrap:wrap}
-.rank .bb .btn{padding:0 10px;font-size:12px}
 .rank.tl li{grid-template-columns:minmax(0,1fr)}
-.rank.tl .pj,.rank.tl .why,.rank.tl .bb,.rank.tl .ask{grid-column:1}
+.rank.tl .pj,.rank.tl .why,.rank.tl .ask{grid-column:1}
 .rank li.closed{opacity:.55}
 .blk .stt{font-size:11px;opacity:.85;margin-left:4px}
-.rank li.picked{background:var(--accent-soft);outline:2px solid var(--accent);outline-offset:-2px}
 /* テーブル */
 .tbl{width:100%;border-collapse:collapse;font-size:13px}
 .tbl th{font-weight:400;color:var(--muted);text-align:left;padding:6px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
@@ -112,8 +109,7 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 .kv{display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
 .kv b{color:var(--ink);font-weight:700}
 /* 日・週カレンダー */
-.cal{position:relative;--calh:clamp(340px,calc(100vh - 400px),1000px);--calh:clamp(340px,calc(100dvh - 400px),1000px)}
-.cal.wk{--calh:clamp(340px,calc(100vh - 500px),1000px);--calh:clamp(340px,calc(100dvh - 500px),1000px)}
+.cal{position:relative;--calh:2112px} /* 時間の軸は 00:00〜24:00。日・週とも 1 時間 88px（15 分 22px）で、1 日分をページの縦スクロールで見る */
 .cal-grid{position:relative;height:var(--calh)}
 .hour{position:absolute;left:0;right:0;border-top:1px solid var(--line-soft);font-family:var(--f-mono);font-size:11px;color:var(--muted)}
 .hour span{position:absolute;left:0;top:-9px;background:var(--surface);padding-right:4px}
@@ -123,9 +119,6 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 .blk.task{background:var(--accent-soft);color:var(--ink);border:1px solid var(--accent);border-left-width:4px}
 .blk .tm{font-family:var(--f-mono);font-size:10px;opacity:.8;display:block}
 .week .blk .tm{white-space:nowrap}
-button.free{position:absolute;left:2px;right:2px;border:1px dashed var(--ok);background:var(--free);border-radius:5px;color:var(--ok);font:inherit;font-size:12px;cursor:default;padding:0 6px;text-align:left}
-body.picking button.free{cursor:copy}
-body.picking button.free:hover{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
 .summary{display:flex;flex-wrap:wrap;gap:6px 20px;margin-bottom:12px;color:var(--muted);font-size:13px}
 .summary b{color:var(--ink)}
 .week{display:grid;grid-template-columns:44px repeat(7,minmax(120px,1fr));min-width:44px}
@@ -133,7 +126,7 @@ body.picking button.free:hover{background:var(--accent-soft);border-color:var(--
 .week .dh small{display:block;color:var(--muted);font-size:11px}
 .week .dh.t{color:var(--accent);font-weight:700}
 .week .col{position:relative;border-left:1px solid var(--line-soft);height:var(--calh)}
-.week .col.today{background:linear-gradient(var(--accent-soft),var(--accent-soft));background-blend-mode:normal}
+.week .col.today{box-shadow:inset 0 3px 0 var(--accent)} /* 今日の列は、日付の見出しとこの線だけで示す（背景色は付けない） */
 .week .col.weekend{background:var(--line-soft);opacity:.55}
 .week .hrs{position:relative;height:var(--calh)}
 .week .blk{left:3px;right:3px;font-size:11px}
@@ -175,7 +168,7 @@ body.picking button.free:hover{background:var(--accent-soft);border-color:var(--
 .tscroll{overflow-x:auto}
 /* 列見出しは、スクロール中も上端に付ける。リストは、表を包む枠の先頭の複製で固定する（下の「固定表示」の節）。設定・稼働の表は、sticky が効かないので、app.js の pinTableHeads が見出しのセルをずらす */
 .tbl.edit thead th{position:relative;z-index:2;background:var(--surface);box-shadow:inset 0 -1px 0 var(--line)}
-.hrs{background:var(--accent-soft);color:var(--ink);border-radius:4px;padding:0 8px}
+.mono.hrs{background:var(--accent-soft);color:var(--ink);border-radius:4px;padding:0 8px}
 .wl-tbl .num{text-align:right;white-space:nowrap}
 .wl-tbl tfoot td{font-weight:700;border-top:1px solid var(--line)}
 .wl-bar{display:flex;height:12px;min-width:2px}
@@ -249,7 +242,7 @@ tr.drop-after>td,.g-row.drop-after>.g-label,.g-row.drop-after>.g-lane{box-shadow
 .pg-head{width:100cqw}
 .g-lane{min-width:0}
 .week{grid-template-columns:44px repeat(7,minmax(0,1fr))}
-.week .dh{font:inherit;background:transparent;border:0;border-bottom:1px solid var(--line);text-align:left;cursor:pointer;color:var(--ink);min-width:0}
+.week .dh{font:inherit;background:var(--surface);border:0;border-bottom:1px solid var(--line);text-align:left;cursor:pointer;color:var(--ink);min-width:0;position:sticky;top:var(--hh,0px);z-index:7} /* 時間の軸が 24 時間で長いので、日付の見出しはヘッダーの下に固定する */
 .week .dh:hover{background:var(--accent-soft)}
 .week .blk{overflow:hidden;text-overflow:ellipsis}
 .duecell{padding:6px;border-left:1px solid var(--line-soft);font-size:12px;min-height:34px;min-width:0;overflow-wrap:anywhere}
@@ -325,7 +318,6 @@ tr.hl td{transition:background .3s}
 .sw.plan{background:var(--accent-soft);border:1px solid var(--accent);border-left-width:4px}
 .sw.act{background:color-mix(in srgb,var(--ok) 22%,var(--surface));border:1px solid var(--ok);border-left-width:4px}
 .sw.unconf{background:var(--warn-soft);border:1px dashed var(--warn);border-left:4px dashed var(--warn)}
-.sw.free{background:var(--free);border:1px dashed var(--ok)}
 .sw.now{height:0;border-radius:0;border-top:2px solid var(--bad)}
 .sw.sel{background:transparent;outline:2px solid var(--ink);outline-offset:-1px}
 .btn:disabled{opacity:.5;cursor:default;border-color:var(--line);color:var(--muted)}
@@ -366,7 +358,8 @@ tr.hl td{transition:background .3s}
 .note.err{color:var(--bad)}
 .btn.warm{background:var(--warn-soft);border-color:var(--warn);color:var(--ink);font-weight:700}
 .btn.warm:hover{border-color:var(--warn);color:var(--ink);filter:brightness(.95)}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:700}
+.btn.primary:hover,.btn.primary:focus-visible{border-color:var(--ink);color:var(--on-accent);filter:brightness(1.12)}
 .g-row.g-grp{background:var(--line-soft);min-height:26px;align-items:center}
 .g-row.g-grp .g-label{background:var(--line-soft)}
 .g-grp-t{grid-column:1/-1;font-size:12px;padding-left:6px}
@@ -381,11 +374,12 @@ tr.hl td{transition:background .3s}
 code{font-family:var(--f-mono);font-size:12px;background:var(--line-soft);padding:0 4px;border-radius:3px}
 
 /* 狭い画面では、週表示のカレンダーの中だけを横スクロールにする(ページ全体は横スクロールさせない) */
-.cal.wk{overflow-x:auto}
+.cal.wk{overflow-x:clip} /* clip はスクロールの枠を作らないので、日付の見出し（.dh）の sticky がページの縦スクロールに効く */
+@media (max-width:640px){#view .cal.wk{overflow-x:auto}} /* 狭い画面だけ横スクロール（この幅では、日付の見出しは固定しない）。末尾の節は @media を置かない規則なので、ここに #view 付きで置く */
 .cal.wk .week{min-width:560px}
 
 /* 画面下端の「Claude Code に依頼する」の帯と引き出し（帯は常に出し、引き出しは開いたときだけ） */
-body{padding-block:16px 76px}
+body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（-8px）と合わせて、ヘッダーをどの画面でもページの先頭から上端 0 に置く（スクロールの始めにヘッダーが動かない） */
 .toast{bottom:72px}
 .ib{position:fixed;left:0;right:0;bottom:0;z-index:40;background:#16202E;color:#E5EBF3;box-shadow:0 -4px 14px rgba(20,30,50,.18)}
 .ib.open{background:var(--surface);color:var(--ink);border-top:1px solid var(--line);border-radius:14px 14px 0 0;box-shadow:0 -10px 30px rgba(20,30,50,.28)}
@@ -477,13 +471,13 @@ body{padding-block:16px 76px}
 #view .thstrip:empty{display:none}
 #view .thstrip .thin{display:flex;white-space:nowrap}
 #view .thstrip .thc{flex:none;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;font-size:13px;color:var(--muted);text-align:left}
-/* ページの先頭でも、固定の行が、固定したときと同じ位置にあるようにする（スクロールの始めに、固定の行が数 px 動かない）。ガント・リスト（.ptool がある画面）とアプリだけ。ほかの画面は変えない */
-body:has(.ptool){padding-block-start:8px}
-.wrap:has(.ptool){gap:0}
+/* ページの先頭でも、固定の行が、固定したときと同じ位置にあるようにする（スクロールの始めに、固定の行が数 px 動かない）。ヘッダーの上の余白（body の 8px。ヘッダーの負の margin で上端 0）は、依頼の帯の節の body の規則で、どの画面にも当てる。下は、ガント・リスト（.ptool がある画面）とスケジュール（.stop がある画面）の、ヘッダーとフィルタ行・カードの間と、カードの上の余白 */
+.wrap:has(.ptool),.wrap:has(.stop){gap:0}
 #banner:not(:empty){margin-block:8px}
-#view section.panel:has(> .gtop),#view section.panel:has(> .pstick){padding-top:0} /* カードの上の余白は、固定の行の中に持たせる（先頭でも固定したときと同じ位置にしつつ、カードの上端の線・角丸・余白は残す） */
+#view section.panel:has(> .gtop),#view section.panel:has(> .pstick),#view section.panel:has(> .stop){padding-top:0} /* カードの上の余白は、固定の行の中に持たせる（先頭でも固定したときと同じ位置にしつつ、カードの上端の線・角丸・余白は残す） */
 #view section.panel > .pstick{padding-top:20px}
 #view section.panel > .gtop{padding-top:22px}
+#view section.panel > .stop{padding-top:16px}
 #view .cols>.side,#view .side-toggle{margin-top:8px}
 /* チェックリストの進み具合（細い線と「済み/全体」）。今日の優先・今日のタスク・ガントのラベルが使う */
 #view .ck-meter{display:flex;align-items:center;gap:6px}
@@ -529,21 +523,68 @@ body:has(.ptool){padding-block-start:8px}
 #view .tbl tr.imp{background:var(--bad-soft)}
 
 /* 今日の優先・今日のタスクの「重要」バッジ */
-#view .impbadge{background:var(--bad);color:#fff;font-size:10px;font-weight:700;border-radius:8px;padding:0 6px;margin-left:4px}
+#view .impbadge{display:inline-block;background:var(--bad);color:#fff;font-size:12px;font-weight:700;line-height:1.4;border-radius:999px;padding:2px 9px;margin-left:4px;white-space:nowrap}
 
-/* スケジュールの重要の印: 枠は左に赤い線と赤い太字の件名、期限の行は赤い太字の件名 */
-#view .blk.imp{box-shadow:inset 5px 0 0 var(--bad)}
+/* スケジュールの重要の印: 枠も期限の行も、赤い太字の件名だけ（線は付けない） */
 #view .blk.imp .ttl{color:var(--bad);font-weight:700}
 #view .impt{color:var(--bad);font-weight:700}
 
-/* スケジュールのタスク編集欄（#mtgslot）。窓（.tpop）と同じ項目を、横に並べて出す */
-#view .tedit{flex-direction:column;align-items:stretch;max-width:640px}
-#view .tedit .tp-h{display:flex;align-items:center;gap:8px}
-#view .tedit .tp-h .muted{flex:1;font-size:12px}
-#view .tedit .tp-f{display:flex;flex-direction:column;gap:2px;font-size:12px}
-#view .tedit .tp-f .in{width:100%;box-sizing:border-box;min-width:0}
-#view .tedit .tp-r{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
-#view .tedit .tp-a{display:flex;gap:8px;align-items:center}
+/* スケジュールのタスク編集欄（#mtgslot）。会議の入力欄（.mtgform）と同じ、ラベル付きの項目が折り返して並ぶ形。窓（.tpop）は縦のまま */
+#view .tedit .tp-h{display:flex;align-items:baseline;gap:6px;font-size:13px;color:var(--ink);align-self:flex-end}
+#view .tedit .tp-h .muted{font-size:12px}
+#view .tedit .tp-title{flex:2 1 220px;min-width:220px}
+#view .tedit .tp-memo{flex:1 1 160px;min-width:120px}
+#view .tedit .tp-title .in,#view .tedit .tp-memo .in{width:100%;box-sizing:border-box;min-width:0}
+#view .tedit .tp-st{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted)}
+#view .tedit .tp-st:has(.ask){flex-basis:100%}
+#view .tedit .tp-a{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+#view .tedit .ckedit,#view .tedit .tp-wide{flex-basis:100%}
+#view .tedit .tp-wide{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted)}
+/* スケジュールは、ページを下へスクロールしても、日付の見出しより上を動かさない: ページの先頭でも同じ位置にあるよう、カードの上の余白は .stop の padding に持たせる（ページの先頭の節）。ヘッダーの下に、操作の行とサマリー（.stop）・カレンダーの上の入力欄（会議・突発タスク・タスクの編集欄。#mtgslot）・週表示の日付の見出しを積んで固定する（高さは sticky.js が測る）。
+   入力欄は、積んだ高さが画面の 55% を超えないよう（下端の依頼の帯があっても、カレンダーに約 40% 残す）、高いときは欄の中でスクロールする */
+#view .stop{position:sticky;top:var(--hh,0px);z-index:9;background:var(--surface);display:flow-root}
+#view .stop>.toolbar{margin-bottom:10px}
+#view .stop>.summary{margin-bottom:8px}
+#view #mtgslot:not(:empty){position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px));z-index:9;max-height:max(120px,calc(55vh - var(--hh,0px) - var(--stop-h,0px) - var(--dh-h,0px)));overflow-y:auto;background:var(--surface);padding-top:4px}
+/* 作業枠・会議のブロックは、短い枠でも押せるよう、最低 14px の高さで描く（データは変えない） */
+#view .cal .blk{min-height:14px}
+/* 週表示の日付の見出しの行は、ヘッダー・操作の行（--stop-h）・カレンダーの上の入力欄（--slot-h）の下に固定する。左端のセル（時刻の列の上）も固定し、時刻の文字が透けないようにする */
+#view .cal.wk .week .dh{top:calc(var(--hh,0px) + var(--stop-h,0px) + var(--slot-h,0px))}
+#view .cal.wk .week:first-child>div:first-child{position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px) + var(--slot-h,0px));z-index:7;background:var(--surface)}
+/* 今日のタスクの枠の時間。枠ごとに、時間と「実績にする」のボタン（予定・未確認の枠だけ）を並べ、折り返す */
+#view .rank.tl .tss{display:flex;flex-wrap:wrap;gap:4px 12px}
+#view .rank.tl .ts{display:inline-flex;align-items:center;gap:6px}
+#view .rank.tl .ts .btn{padding:0 8px;font-size:12px;min-height:24px}
+/* 今日のタスクの枠の札（予定・実績・未確認）。色はカレンダーの凡例（.sw.plan・.sw.act・.sw.unconf）と同じ */
+#view .ktag{display:inline-block;font-family:var(--f-body);font-size:11px;font-weight:700;line-height:1.4;border-radius:4px;padding:0 6px;margin-right:4px;color:var(--ink);white-space:nowrap}
+#view .ktag.plan{background:var(--accent-soft);border:1px solid var(--accent)}
+#view .ktag.act{background:color-mix(in srgb,var(--ok) 22%,var(--surface));border:1px solid var(--ok)}
+#view .ktag.unconf{background:var(--warn-soft);border:1px dashed var(--warn);color:var(--warn)}
+/* スケジュールの色の凡例は、上の操作の行（週・日の見出しの横）に小さく並べる。入らないときだけ次の行へ折り返す */
+#view .toolbar .slegend{margin:0 0 0 10px;gap:2px 10px;font-size:11px}
+#view .toolbar .slegend .sw{width:14px;height:10px;margin-right:4px}
+/* 30 分未満の枠・会議（short）は、時刻と件名を 1 行に並べ、上下の余白を詰める（15 分は 22px） */
+#view .cal .blk.short{padding-top:1px;padding-bottom:1px;white-space:nowrap;text-overflow:ellipsis}
+#view .cal .blk.short .tm{display:inline;margin-right:4px}
+/* 日付の欄: 文字の欄（2026/10/20 を打てる）と「📅」（ブラウザの日付の選択を開く）。選ぶための日付の欄（.dpick-in）は見せず、ボタンの位置に置く */
+#view .dfield{display:inline-flex;align-items:center;gap:2px;position:relative;vertical-align:middle}
+#view .dfield .din{width:11.5ch;min-width:0}
+#view .dpick{font:inherit;font-size:13px;line-height:1;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);padding:4px 4px;cursor:pointer}
+#view .dpick:disabled{opacity:.4;cursor:default}
+#view .dpick-in{position:absolute;right:0;bottom:0;width:1px;height:1px;opacity:0;border:0;padding:0;pointer-events:none}
+#view .din.bad{outline:2px solid var(--bad);outline-offset:1px}
+/* ガントも、リストと同じく、プロジェクトごとに 1 枚のカード（section.pg。リストの section.panel と同じ線・角丸・背景・余白）に分け、カードの間を 16px 空ける。操作の帯（.gtop）も 1 枚のカード。
+   外側の panel は枠を持たず、.gtop の sticky の範囲（全プロジェクト）としてだけ残す。カードの上の余白は .pgstick の中に持たせる（固定したとき、見出しの上にも同じ余白） */
+#view section.panel:has(> .gtop){background:none;border:0;border-radius:0;padding:0}
+#view section.panel > .gtop{padding-inline:16px;margin-bottom:16px;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+#view section.pg{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:0 16px 16px}
+#view section.pg + section.pg{margin-top:16px}
+#view section.pg > .pgstick{padding-top:18px}
+/* スケジュールのタスク編集欄の「詳細を開く」: 詳細の項目（繰り返し・複製・削除・チェックリスト・前のタスク）は、軽い欄のあとの別の入れ物（全幅の行）に出し、その中で折り返して並べる。
+   軽い欄とボタンの行は、詳細の開閉で位置も大きさも変わらない。開閉のボタンは、長い方の文字（詳細を閉じる、6 字）の幅を最小にし、文字が変わっても隣を押さない */
+#view .tedit .tedit-detail{flex-basis:100%;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:flex-end;border-top:1px dashed var(--line);padding-top:8px}
+#view .tedit [data-tedit-full]{min-width:calc(6em + 26px)}
+#view #mtgslot:not(:empty){scrollbar-gutter:stable} /* 詳細を開いて欄の中のスクロールバーが出ても、軽い欄の幅が変わらない（出ると 15px 狭まった。実測） */
 </style>
 </head>
 <body>
@@ -565,7 +606,7 @@ body:has(.ptool){padding-block-start:8px}
 <div id="claudebar"></div>
 <div id="toast" class="toast" hidden role="status"></div>
 <script>/* src/core/dates.js */
-const { isDate, isTime, addDays, dueAfter, diffDays, weekday, isWeekend, toMin, toHHMM, today, nowLocal } = (() => {
+const { isDate, parseDateInput, isTime, addDays, dueAfter, diffDays, weekday, isWeekend, toMin, toHHMM, today, nowLocal } = (() => {
 // 日付(YYYY-MM-DD)・時刻(HH:MM)の文字列演算。Date の UTC 変換によるずれを避けるため、数値分解で計算する。
 
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -603,6 +644,20 @@ function isDate(s) {
   const [y, mo, d] = [+m[1], +m[2], +m[3]];
   const [y2, m2, d2] = fromDays(toDays(y, mo, d));
   return y === y2 && mo === m2 && d === d2;
+}
+
+/**
+ * 画面の日付の欄に打った文字 → YYYY-MM-DD。2026/10/20・2026-10-20・2026.10.20・20261020・2026/1/5・2026年10月20日 と、全角の数字、
+ * 日本語入力で出る区切り（・ ー ‐ − – — 。 ． 、 ， など）、前後や間の空白を受ける。区切りは数字の組の間だけ。実在しない日・年が 4 桁でない・空は null
+ */
+function parseDateInput(text) {
+  const s = String(text ?? "").replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0)).replace(/\s+/g, "")
+    .replace(/^(\d{4})年(\d{1,2})月(\d{1,2})日?$/, "$1/$2/$3")
+    .replace(/[／－．・ー‐‑−–—。､、，,]/g, "/");
+  const m = /^(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})$/.exec(s) ?? /^(\d{4})(\d{2})(\d{2})$/.exec(s);
+  if (!m) return null;
+  const iso = `${m[1]}-${pad(+m[2])}-${pad(+m[3])}`;
+  return isDate(iso) ? iso : null;
 }
 
 /** HH:MM（00:00〜23:59）か */
@@ -674,7 +729,7 @@ function nowLocal() {
   return { date: today(), time: `${pad(n.getHours())}:${pad(n.getMinutes())}` };
 }
 
-return { isDate, isTime, addDays, dueAfter, diffDays, weekday, isWeekend, toMin, toHHMM, today, nowLocal };
+return { isDate, parseDateInput, isTime, addDays, dueAfter, diffDays, weekday, isWeekend, toMin, toHHMM, today, nowLocal };
 })();
 
 /* src/core/holidays.js */
@@ -764,7 +819,7 @@ return { isRepeat, nextRepeatDue };
 })();
 
 /* src/core/schema.js */
-const { TASK_STATUS, PROJECT_STATUS, PROJECT_TYPE, CAUSES, HOLIDAY_KINDS, OP_KINDS, PROPOSE_OPS, DEFAULT_WORKDAY, isClosed, isImportantMark, validate } = (() => {
+const { TASK_STATUS, PROJECT_STATUS, PROJECT_TYPE, CAUSES, HOLIDAY_KINDS, OP_KINDS, PROPOSE_OPS, isClosed, isImportantMark, validate } = (() => {
 // data.json の検証。errors は保存してはいけない不整合、warnings は保存を止めない注意。
 
 
@@ -780,7 +835,6 @@ const REQUEST_STATUS = ["pending", "working", "question", "proposed", "applied",
 const OP_KINDS = ["moveDue", "addPred", "removePred", "addTask", "addProject", "setStatus", "setImportance", "updateProject", "removeTask", "removeProject", "addMilestone", "moveMilestone", "removeMilestone", "addChecklistItem", "setChecklistDone", "setChecklistText", "removeChecklistItem"];
 /** 新しい依頼（提案・承認）で受ける操作。OP_KINDS は、保存済みの proposal.ops の検証用に残す */
 const PROPOSE_OPS = ["addTask", "moveDue"];
-const DEFAULT_WORKDAY = { start: "09:00", end: "18:00" };
 
 /** 終わったタスク（Done・Cancelled）か */
 const isClosed = (t) => t.status === "Done" || t.status === "Cancelled";
@@ -857,8 +911,9 @@ function validate(data, now = nowLocal()) {
   dup(data.tasks, "タスク");
   dup(data.events, "会議");
   // 作業枠の ID は、移動・削除が ID だけで探すので、重複すると両方に効く。保存は止めず、注意に出す
+  // 共有ファイルに無いタスクの作業枠（orphanSessions）も、同じ個人ファイルの枠なので含める
   const sessionIds = new Set();
-  for (const t of data.tasks) for (const s of t.sessions ?? []) {
+  for (const s of [...data.tasks.flatMap((t) => t.sessions ?? []), ...(data.orphanSessions ?? [])]) {
     if (sessionIds.has(s.id)) warn(`作業枠の ID が重複しています: ${s.id}（移動・削除が両方に効きます。data.json から直接直してください）`);
     sessionIds.add(s.id);
   }
@@ -951,11 +1006,7 @@ function validate(data, now = nowLocal()) {
   }
 
   const st = data.settings ?? {};
-  // 形の違う設定は、注意にとどめる（読む側は、既定値で動く。workday だけは、HH:MM でないと画面が動かない）
-  const w = st.workday;
-  if (w != null && !(typeof w === "object" && isTime(w.start) && isTime(w.end) && toMin(w.start) < toMin(w.end))) {
-    warn("settings.workday: start・end は HH:MM で、開始 < 終了にしてください。直すまでスケジュール画面は正しく動きません");
-  }
+  // 形の違う設定は、注意にとどめる（読む側は、既定値で動く）
   if (st.waitingLongDays != null && !(Number.isInteger(st.waitingLongDays) && st.waitingLongDays >= 1)) {
     warn("settings.waitingLongDays: 1 以上の整数にしてください（直すまで、遅延バッジと「今日の優先」の待ち長期化が正しく出ません）");
   }
@@ -1028,7 +1079,7 @@ function validate(data, now = nowLocal()) {
   return { errors, warnings };
 }
 
-return { TASK_STATUS, PROJECT_STATUS, PROJECT_TYPE, CAUSES, HOLIDAY_KINDS, OP_KINDS, PROPOSE_OPS, DEFAULT_WORKDAY, isClosed, isImportantMark, validate };
+return { TASK_STATUS, PROJECT_STATUS, PROJECT_TYPE, CAUSES, HOLIDAY_KINDS, OP_KINDS, PROPOSE_OPS, isClosed, isImportantMark, validate };
 })();
 
 /* src/core/checklist.js */
@@ -1180,15 +1231,15 @@ return { taskStart, ganttRows, ganttLayout, timeTicks, projectProgress, taskFlag
 })();
 
 /* src/core/sessions.js */
-const { allSessions, sessionKind, addSession, moveSession, resizeSession, confirmSession, removeSession, taskActual, runningPlanned, futurePlanned } = (() => {
+const { LAST_END, allSessions, sessionKind, addSession, moveSession, resizeSession, confirmSession, removeSession, taskActual, runningPlanned, futurePlanned } = (() => {
 // 作業枠（予定／実績）の規則。枠は「作業した時間の記録」で、タスクの状態は変えない。すべて不変更新。
 
 
 
-
 const MIN_LEN = 15;
+/** 枠の終了の上限（分）。時刻は HH:MM（00:00〜23:59）で持つので、24:00 は書けない */
+const LAST_END = 23 * 60 + 59;
 
-const workdayOf = (data) => data.settings?.workday ?? DEFAULT_WORKDAY;
 /** 全タスクの枠に taskId・title を付けて平らに */
 const allSessions = (data) => data.tasks.flatMap((t) => (t.sessions ?? []).map((s) => ({ ...s, taskId: t.id, title: t.title })));
 const findSession = (data, id) => allSessions(data).find((s) => s.id === id);
@@ -1208,11 +1259,10 @@ const nextId = (data) => {
 
 /** 枠の置き場所の検証。他の枠との重なりは error、会議との重なりは warning */
 function check(data, slot, ignoreId) {
-  const wd = workdayOf(data);
+  if (!isTime(slot.end)) return { error: `終了は ${toHHMM(LAST_END)} までにしてください` }; // 24:00 以降（開始 + 長さが日をまたぐ）
   const [s, e] = [toMin(slot.start), toMin(slot.end)];
   if (e <= s) return { error: "終了は開始より後にしてください" };
   if (e - s < MIN_LEN) return { error: `枠は${MIN_LEN}分以上にしてください` };
-  if (s < toMin(wd.start) || e > toMin(wd.end)) return { error: `勤務時間（${wd.start}〜${wd.end}）の中に置いてください` };
   // 休みの日に置けないのは、新しく置く・別の日から動かすとき。休みの日にすでにある枠は、同じ日の中なら直せる
   const stays = ignoreId && allSessions(data).some((x) => x.id === ignoreId && x.date === slot.date);
   if (!stays && offDayChecker(data.settings)(slot.date)) return { error: `${isWeekend(slot.date) && data.settings?.countWeekendsAndHolidays !== true ? "土日" : "休みの日"}には置けません（設定タブの「営業日として扱う日」に指定すると置けます）` };
@@ -1228,11 +1278,14 @@ const mapSessions = (data, id, fn) => ({
   tasks: data.tasks.map((t) => ((t.sessions ?? []).some((s) => s.id === id) ? { ...t, sessions: t.sessions.map((s) => (s.id === id ? fn(s) : s)) } : t)),
 });
 
-function addSession(data, taskId, slot, now) {
+const startsLater = (slot, now) => slot.date > now.date || (slot.date === now.date && slot.start > now.time);
+
+/** 新しい枠は、過去の時間に置いても予定（planned）。過ぎた予定は未確認として出て、確認（confirmSession）で実績になる */
+function addSession(data, taskId, slot) {
   if (!data.tasks.some((t) => t.id === taskId)) return { data, error: `タスク ${taskId} がありません` };
   const r = check(data, slot);
   if (r.error) return { data, error: r.error };
-  const s = { id: nextId(data), date: slot.date, start: slot.start, end: slot.end, kind: isPast(slot, now) ? "actual" : "planned" };
+  const s = { id: nextId(data), date: slot.date, start: slot.start, end: slot.end, kind: "planned" };
   return { data: withTask(data, taskId, (t) => ({ ...t, sessions: [...(t.sessions ?? []), s] })), ...(r.warning && { warning: r.warning }) };
 }
 
@@ -1242,27 +1295,31 @@ function moveSession(data, sessionId, slot, now) {
   if (!cur) return { data, error: `枠 ${sessionId} がありません` };
   const len = toMin(cur.end) - toMin(cur.start);
   const next = { date: slot.date, start: slot.start, end: toHHMM(toMin(slot.start) + len) };
-  if (toMin(slot.start) + len > 24 * 60) return { data, error: "勤務時間の外になります" };
+  if (toMin(slot.start) + len > LAST_END) return { data, error: `終了は ${toHHMM(LAST_END)} までにしてください` };
   const r = check(data, next, sessionId);
   if (r.error) return { data, error: r.error };
-  // 実績の枠を未来へ動かしたら予定に戻す（未来の枠は実績にできない）
-  const kind = cur.kind === "actual" && !isPast(next, now) ? "planned" : cur.kind;
+  // 実績の枠は、開始が過去・今から未来へ動いたときだけ予定に戻す（終了が未来でも、始めた枠は実績のまま。先に実績にした未来の枠は、未来の中で動かしても実績のまま）
+  const kind = cur.kind === "actual" && !startsLater(cur, now) && startsLater(next, now) ? "planned" : cur.kind;
   return { data: mapSessions(data, sessionId, (s) => ({ ...s, ...next, kind })), ...(r.warning && { warning: r.warning }) };
 }
 
+/** 終了を変える。開始は変わらないので、種別（予定・実績）も変えない（now は使わない。呼び出し側との形をそろえて残す） */
 function resizeSession(data, sessionId, end, now) {
   const cur = findSession(data, sessionId);
   if (!cur) return { data, error: `枠 ${sessionId} がありません` };
   const r = check(data, { date: cur.date, start: cur.start, end }, sessionId);
   if (r.error) return { data, error: r.error };
-  const kind = cur.kind === "actual" && !isPast({ date: cur.date, end }, now) ? "planned" : cur.kind;
-  return { data: mapSessions(data, sessionId, (s) => ({ ...s, end, kind })), ...(r.warning && { warning: r.warning }) };
+  return { data: mapSessions(data, sessionId, (s) => ({ ...s, end })), ...(r.warning && { warning: r.warning }) };
 }
 
+/** 予定の枠を実績にする。今日のまだ終わっていない枠も実績にできる（今日のタスクの「実績にする」）。明日以降の枠は error */
 function confirmSession(data, sessionId, now) {
   const cur = findSession(data, sessionId);
   if (!cur) return { data, error: `枠 ${sessionId} がありません` };
-  if (!isPast(cur, now)) return { data, error: "未来の枠は実績にできません" };
+  if (cur.date > now.date) return { data, error: "明日以降の枠は実績にできません" };
+  // ほかの実績の枠と重なるなら、実績にしない（稼働に同じ時間を二重に数えないため）
+  const other = allSessions(data).find((x) => x.id !== sessionId && x.kind === "actual" && clash(x, cur));
+  if (other) return { data, error: `他の実績の枠（${other.start}〜${other.end}）と重なっています。どちらかの時間を直してから、実績にしてください` };
   return { data: mapSessions(data, sessionId, (s) => ({ ...s, kind: "actual" })) };
 }
 
@@ -1270,6 +1327,7 @@ function removeSession(data, sessionId) {
   return { ...data, tasks: data.tasks.map((t) => ((t.sessions ?? []).some((s) => s.id === sessionId) ? { ...t, sessions: t.sessions.filter((s) => s.id !== sessionId) } : t)) };
 }
 
+/** タスクの実績の時間 */
 function taskActual(data, taskId) {
   const ss = data.tasks.find((x) => x.id === taskId).sessions ?? [];
   const actual = ss.filter((s) => s.kind === "actual");
@@ -1291,7 +1349,7 @@ function futurePlanned(data, taskId, now) {
   return (t?.sessions ?? []).filter((s) => s.kind === "planned" && notStarted(s)).map((s) => s.id);
 }
 
-return { allSessions, sessionKind, addSession, moveSession, resizeSession, confirmSession, removeSession, taskActual, runningPlanned, futurePlanned };
+return { LAST_END, allSessions, sessionKind, addSession, moveSession, resizeSession, confirmSession, removeSession, taskActual, runningPlanned, futurePlanned };
 })();
 
 /* src/core/impact.js */
@@ -1470,30 +1528,12 @@ return { matchProject, assignMeetingProjects, setProjectRule, removeProjectRule,
 })();
 
 /* src/core/schedule.js */
-const { freeSlots, rankTasks, addMeeting, updateMeeting, meetingPast, meetingKind, confirmMeeting, deleteMeeting, syncMcpEvents } = (() => {
-// 空き時間・優先順位・会議の操作（純関数、不変更新）
+const { rankTasks, addMeeting, updateMeeting, meetingPast, meetingKind, confirmMeeting, deleteMeeting, syncMcpEvents } = (() => {
+// 優先順位・会議の操作（純関数、不変更新）
 
 
 
 
-
-/** 対象日の空き時間。skip の会議は無視し、重なりを統合して勤務時間内に切り詰める */
-function freeSlots(events, date, workday) {
-  const [ws, we] = [toMin(workday.start), toMin(workday.end)];
-  const busy = events
-    .filter((e) => e.date === date && !e.skip)
-    .map((e) => [Math.max(ws, toMin(e.start)), Math.min(we, toMin(e.end))])
-    .filter(([s, e]) => e > s)
-    .sort((a, b) => a[0] - b[0]);
-  const out = [];
-  let cur = ws;
-  for (const [s, e] of busy) {
-    if (s > cur) out.push({ start: toHHMM(cur), end: toHHMM(s) });
-    cur = Math.max(cur, e);
-  }
-  if (cur < we) out.push({ start: toHHMM(cur), end: toHHMM(we) });
-  return out;
-}
 
 /** このタスクを（推移的に）前のタスクとする未完了タスクの数。循環でも終了する */
 function openDownstream(tasks, id) {
@@ -1642,7 +1682,7 @@ function syncMcpEvents(data, fetched, range, excludedIds = new Set(), keepIds = 
   return { ...data, events };
 }
 
-return { freeSlots, rankTasks, addMeeting, updateMeeting, meetingPast, meetingKind, confirmMeeting, deleteMeeting, syncMcpEvents };
+return { rankTasks, addMeeting, updateMeeting, meetingPast, meetingKind, confirmMeeting, deleteMeeting, syncMcpEvents };
 })();
 
 /* src/core/workload.js */
@@ -1690,8 +1730,9 @@ function workload(data, range, now) {
   return { rows, unassigned, total: sumBy(rows, (r) => r.total) + unassigned.task + unassigned.meeting, unconfirmed: unconfirmedTasks + unconfirmedMeetings, unconfirmedTasks, unconfirmedMeetings };
 }
 
-/** 週（月曜〜日曜）または月（月初〜月末）の範囲 */
+/** 日（その日だけ）・週（月曜〜日曜）・月（月初〜月末）の範囲 */
 function periodRange(period, date) {
+  if (period === "day") return { start: date, end: date };
   if (period === "week") {
     const start = addDays(date, -((weekday(date) + 6) % 7));
     return { start, end: addDays(start, 6) };
@@ -1842,7 +1883,7 @@ const { PERSONAL_SETTINGS, SHARED_SETTINGS, splitData, mergeData, removeOrphanSe
 // 1 つのデータ（メモリ上の形）と、共有ファイル（data.json）・個人ファイル（personal.json）の間の変換。純関数。
 // 入力は変えず、新しいオブジェクトを返す。
 
-const PERSONAL_SETTINGS = ["workday", "holidays", "workdays", "selfEmails", "selfNames"];
+const PERSONAL_SETTINGS = ["holidays", "workdays", "selfEmails", "selfNames"];
 const SHARED_SETTINGS = ["countWeekendsAndHolidays", "nationalHolidays", "waitingLongDays", "projectRules", "labels", "wbsMappings", "wbsImports"];
 
 const pick = (obj, keys) => Object.fromEntries(keys.filter((k) => k in obj).map((k) => [k, obj[k]]));
@@ -2228,12 +2269,15 @@ const { createSync } = (() => {
 const CONFLICT ="他で更新されました。再読込してください。(再読込すると、保存できていない画面の変更は消えます)";
 
 /**
- * deps: { store, getData, setData, render, renderBar, banner, toast, visible, wantFast }
+ * deps: { store, getData, setData, render, renderBar, banner, toast, visible, wantFast, isEditing }
  *   visible: 画面が見えているか（隠れている間は読み直さない）/ wantFast: 帯が開いているか（4 秒ごとに読み直す。そうでなければ 16 秒ごと）
- * 戻り値: { persist(edit), pollInbox(force), whenIdle(), reset(), failed }。failed は保存に失敗したまま（バナーが出ている）か
+ *   isEditing: 入力欄で打ちかけ（まだ確定していない）か。真の間、読み直しはデータだけ取り込み、描き直しを flush まで待たせる（描き直すと打ちかけの文字が消えるため）
+ * 戻り値: { persist(edit), pollInbox(force), flush(), rendered(), whenIdle(), reset(), failed }。failed は保存に失敗したまま（バナーが出ている）か
  */
-function createSync({ store, getData, setData, render, renderBar, banner, toast, visible, wantFast }) {
+function createSync({ store, getData, setData, render, renderBar, banner, toast, visible, wantFast, isEditing = () => false }) {
   let chain = Promise.resolve();
+  let renderLater = false; // 打ちかけの間に待たせた描き直しがある
+  const renderOrWait = () => { if (isEditing()) renderLater = true; else render(); };
   let pending = []; // 保存がまだ済んでいない編集（data → data）。競合したとき、最新のファイルに当て直す
   let inflight = 0; // 保存・読み直しの待ち・実行中の数
   let tick = 0;
@@ -2283,19 +2327,23 @@ function createSync({ store, getData, setData, render, renderBar, banner, toast,
           const fresh = await store.reload();
           if (pending.length) { // 読んでいる間に、画面で編集があった。最新のファイルの上に重ねる（保存は、その編集の保存が行う）
             try { setData(pending.reduce((d, e) => e(d), fresh)); } catch { sync.failed = true; banner(CONFLICT, { reload: true, download: true }); return; }
-            render();
+            renderOrWait();
             return;
           }
           const bodyChanged = strip(fresh) !== strip(getData());
           setData(fresh);
-          if (bodyChanged) render(); else renderBar();
+          if (bodyChanged) renderOrWait(); else renderBar();
         } catch { /* 読めないときは、次の回に */ } finally { inflight--; }
       });
     },
+    /** 待たせた描き直しを、打ちかけでなくなっていれば行う（画面が、入力欄の確定・フォーカスが離れたときに呼ぶ） */
+    flush() { if (renderLater && !isEditing()) { renderLater = false; render(); } },
+    /** 画面がほかの理由で描き直した: 待たせた描き直しは要らない */
+    rendered() { renderLater = false; },
     /** 並んでいる保存・読み直しが終わるまで待つ */
     whenIdle: () => chain,
     /** ファイルを開き直したとき: 保存していない編集を捨て、失敗の印を消す */
-    reset() { pending = []; sync.failed = false; },
+    reset() { pending = []; sync.failed = false; renderLater = false; },
   };
   return sync;
 }
@@ -2358,7 +2406,7 @@ return { DEFAULT_PREFS, loadPrefs, savePrefs, loadInboxDraft, saveInboxDraft, SE
 })();
 
 /* src/ui/common.js */
-const { esc, fmtMD, wdJa, hm, hh, STATUS_UI, flagPills, checkMeterHtml, NO_PROJECT, bannerHtml } = (() => {
+const { esc, fmtMD, wdJa, hm, hh, dateInputHtml, STATUS_UI, flagPills, checkMeterHtml, NO_PROJECT, bannerHtml } = (() => {
 // 画面共通の小さな道具（HTML エスケープ、日付・時刻の表示、状態の見た目）。DOM には触れない。
 
 
@@ -2375,6 +2423,15 @@ const wdJa = (d) => WD_JA[weekday(d)];
 const hm = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, "0")}`;
 /** 分 → "09:05" */
 const hh = toHHMM;
+
+/**
+ * 日付の入力欄。文字の欄（data-date。2026/10/20・2026-10-20・20261020 を打てる。確定で app.js が YYYY-MM-DD に直す）と、
+ * ブラウザの日付の選択を開く「📅」（data-datepick）と、選ぶための隠れた日付の欄（.dpick-in）。attrs はエスケープ済みの属性の文字列
+ */
+function dateInputHtml({ value = "", attrs = "", cls = "in", label = "" } = {}) {
+  const off = /(^|\s)disabled(\s|$)/.test(attrs) ? " disabled" : "";
+  return `<span class="dfield"><input class="${cls} din" type="text" inputmode="numeric" autocomplete="off" data-date="1" ${attrs} value="${esc(value)}" placeholder="2026/10/20"><button type="button" class="dpick" data-datepick tabindex="-1" aria-label="${label ? `${esc(label)}を` : ""}カレンダーから選ぶ"${off}>📅</button><input type="date" class="dpick-in" tabindex="-1" aria-hidden="true"></span>`;
+}
 
 /** タスク状態 → ドット／バーの CSS クラス */
 const STATUS_UI = {
@@ -2417,7 +2474,7 @@ function bannerHtml(msg, actions = {}, orphans = 0, pending = false) {
   return `<div class="banner">${esc(msg)}${actions.reload ? ` <button class="btn" data-reload>再読込(画面の未保存の変更は破棄)</button>` : ""}${actions.download ? ` <button class="btn" data-download>変更を JSON で書き出す</button>` : ""}${orphan}</div>`;
 }
 
-return { esc, fmtMD, wdJa, hm, hh, STATUS_UI, flagPills, checkMeterHtml, NO_PROJECT, bannerHtml };
+return { esc, fmtMD, wdJa, hm, hh, dateInputHtml, STATUS_UI, flagPills, checkMeterHtml, NO_PROJECT, bannerHtml };
 })();
 
 /* src/ui/deps.js */
@@ -2491,7 +2548,7 @@ return { depPath, depMarkup, drawDeps, focusDeps };
 })();
 
 /* src/ui/edit.js */
-const { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, duplicateTask, addTaskQuick, addUrgentTask, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject } = (() => {
+const { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, duplicateTask, addTaskQuick, addUrgentTask, confirmTodaySession, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject } = (() => {
 // 画面からの編集（追加・削除・更新）。すべて不変更新で、不正な入力は例外にする（呼び出し側が理由を表示する）。
 
 
@@ -2867,14 +2924,26 @@ function addTaskQuick(data, projectId, title, today = nowLocal().date, place = {
 }
 
 /** 突発タスク。タスク（開始・期限は当日、In Progress）と作業枠を 1 操作で作る。projectId は null でもよい。失敗は Error（データは変わらない） */
-function addUrgentTask(data, { title, projectId, date, start, minutes }, now) {
+function addUrgentTask(data, { title, projectId, date, start, minutes }) {
   if (projectId != null && !data.projects.some((p) => p.id === projectId)) throw new Error(`プロジェクト ${projectId} がありません`);
   const name = String(title ?? "").trim();
   if (!name) throw new Error("件名を入力してください");
   const t = newTask(data, projectId, name, date, { start: date, status: "In Progress" });
-  const r = addSession({ ...data, tasks: [...data.tasks, t] }, t.id, { date, start, end: toHHMM(toMin(start) + minutes) }, now);
+  const r = addSession({ ...data, tasks: [...data.tasks, t] }, t.id, { date, start, end: toHHMM(toMin(start) + minutes) });
   if (r.error) throw new Error(r.error);
   return { data: r.data, id: t.id, ...(r.warning && { warning: r.warning }) };
+}
+
+/**
+ * 今日のタスクの「実績にする」: 予定の枠を実績にし（confirmSession。ほかの実績の枠と重なる・明日以降は Error）、
+ * タスクが To Do・Waiting なら In Progress にする（updateTask の規則で、Waiting の待ち先は外れる）。statusChanged・from（元の状態）を返す
+ */
+function confirmTodaySession(data, sessionId, now) {
+  const r = confirmSession(data, sessionId, now);
+  if (r.error) throw new Error(r.error);
+  const t = data.tasks.find((x) => (x.sessions ?? []).some((s) => s.id === sessionId));
+  const statusChanged = t.status === "To Do" || t.status === "Waiting";
+  return { data: statusChanged ? updateTask(r.data, t.id, { status: "In Progress" }, now.date) : r.data, taskId: t.id, statusChanged, from: t.status };
 }
 
 function addTask(data, task) {
@@ -2894,16 +2963,11 @@ function deleteTask(data, taskId) {
 }
 
 /**
- * 設定（勤務時間・待ち長期化の日数・土日祝を営業日に数えるか・見出しの呼び名）の変更。patch に含まれる項目だけ変える。
- * 勤務時間は開始・終了を組で渡す。呼び名は空にするとそのキーを消す（既定の呼び名に戻る）。不正な値は例外
+ * 設定（待ち長期化の日数・土日祝を営業日に数えるか・見出しの呼び名）の変更。patch に含まれる項目だけ変える。
+ * 呼び名は空にするとそのキーを消す（既定の呼び名に戻る）。不正な値は例外
  */
 function updateSettings(data, patch) {
   const s = { ...(data.settings ?? {}) };
-  if ("workday" in patch) {
-    const { start, end } = patch.workday ?? {};
-    if (!isTime(start) || !isTime(end) || toMin(start) >= toMin(end)) throw new Error("勤務時間は HH:MM で、開始を終了より前にしてください");
-    s.workday = { start, end };
-  }
   if ("waitingLongDays" in patch) {
     if (!Number.isInteger(patch.waitingLongDays) || patch.waitingLongDays < 1) throw new Error("待ち長期化の日数は 1 以上の整数にしてください");
     s.waitingLongDays = patch.waitingLongDays;
@@ -3007,7 +3071,7 @@ function deleteProject(data, projectId) {
   return { ...data, settings, events, ...(inbox ? { inbox } : {}), projects: data.projects.filter((p) => p.id !== projectId), tasks: data.tasks.filter((t) => t.projectId !== projectId) };
 }
 
-return { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, duplicateTask, addTaskQuick, addUrgentTask, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject };
+return { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, duplicateTask, addTaskQuick, addUrgentTask, confirmTodaySession, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject };
 })();
 
 /* src/ui/donecheck.js */
@@ -3262,12 +3326,15 @@ const PILL = { "To Do": "off", "In Progress": "ok", Waiting: "wait", Done: "done
 const IMP_BADGE = `<span class="impbadge">重要</span>`;
 const statusPill = (t) => `<span class="pill ${PILL[t.status] ?? "off"}">${esc(t.status)}</span>`;
 
-/** 着手（To Do・Waiting のとき）と完了（Done・Cancelled 以外）のボタン。今日のタスクが使う */
-function statusButtons(t) {
-  const btn = (status, label) => `<button class="btn" data-setstatus="${esc(t.id)}|${status}" aria-label="${esc(t.id)} を${label}にする">${label}</button>`;
-  const start = t.status === "To Do" || t.status === "Waiting" ? btn("In Progress", "着手") : "";
-  const done = !isClosed(t) ? btn("Done", "完了") : "";
-  return start || done ? `<span class="bb">${start}${done}</span>` : "";
+/** 枠の種類の札（カレンダーの凡例と同じ色の class。文字でも出す） */
+const KIND_TAG = { planned: ["plan", "予定"], actual: ["act", "実績"], unconfirmed: ["unconf", "未確認"] };
+
+/** 今日のタスクの枠の時間。前に予定・実績・未確認の札、終わっていないタスクの予定の枠（未確認を含む）には「実績にする」のボタンを付ける */
+function slotHtml(t, s, now) {
+  const time = esc(`${s.start}–${s.end}`);
+  const [cls, label] = KIND_TAG[sessionKind(s, now)];
+  const btn = !isClosed(t) && s.kind === "planned" ? `<button class="btn" data-session-actual="${esc(s.id)}" aria-label="${esc(t.id)} の ${time} の枠を実績にする">実績にする</button>` : "";
+  return `<span class="ts"><span class="ktag ${cls}">${label}</span>${time}${btn}</span>`;
 }
 
 /** Done・Cancelled にする前の確認（今日のタスクの行と、リストの状態の欄が使う）。
@@ -3278,7 +3345,7 @@ function doneAskHtml(pd) {
   if (pd.stage === "check") {
     return `<div class="ask warn-ck" role="alert" style="max-width:none"><b>チェックリストに、未完了の項目が ${pd.open.length} 件あります。</b><ul>${pd.open.map((x) => `<li>${esc(x)}</li>`).join("")}</ul><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px"><button class="btn" data-ckall="${id}">残りをすべてチェックして ${esc(pd.status)} にする</button><button class="btn" data-ckkeep="${id}">未完了のまま ${esc(pd.status)} にする</button><button class="btn" data-doneno>やめる</button></div></div>`;
   }
-  return `<div class="ask" style="max-width:none">${id} の未来の予定の枠 ${pd.n} 件を解除して ${esc(pd.status)} にします。<div style="display:flex;gap:6px;margin-top:4px"><button class="btn danger" data-doneok="${id}">解除して ${esc(pd.status)} にする</button><button class="btn" data-doneno>やめる</button></div></div>`;
+  return `<div class="ask" style="max-width:none">このタスクの未来の予定の枠 ${pd.n} 件を解除して ${esc(pd.status)} にします。<div style="display:flex;gap:6px;margin-top:4px"><button class="btn danger" data-doneok="${id}">解除して ${esc(pd.status)} にする</button><button class="btn" data-doneno>やめる</button></div></div>`;
 }
 
 /** 今日の日付に作業枠（予定・実績・未確認）があるタスクを [{ t, slots }] で返す。未完了を最初の枠の開始順に、Done・Cancelled を末尾に */
@@ -3292,26 +3359,29 @@ function todayList(data, today) {
 const todayTaskIds = (data, today) => todayList(data, today).map((r) => r.t.id);
 
 /** 今日のタスク。今日に枠が無ければ空文字
- *  @param opts.pendingDone  未来の予定の枠を解除する確認待ち { id, status, n }（その行に確認を出す） */
+ *  @param opts.pendingDone  未来の予定の枠を解除する確認待ち { id, status, n }（その行に確認を出す）
+ *  @param opts.sched        true なら、終わっていないタスクの行をカレンダーへドラッグできる（同じタスクをもう 1 つ置く）
+ *  @param opts.now          {date, time} 現在時刻（過ぎた予定を未確認にする。省略は today の 00:00） */
 function renderTodayTasks(data, today, opts = {}) {
   const rows = todayList(data, today);
+  const now = opts.now ?? { date: today, time: "00:00" };
   if (!rows.length) return "";
   const items = rows.map(({ t, slots }) => {
     const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? (t.projectId == null ? "プロジェクトなし" : ""));
-    const times = slots.map((s) => esc(`${s.start}–${s.end}`)).join("、");
+    const times = slots.map((s) => slotHtml(t, s, now)).join("");
     const ask = opts.pendingDone?.id === t.id ? doneAskHtml(opts.pendingDone) : "";
-    return `<li data-today="${esc(t.id)}"${isClosed(t) ? ' class="closed"' : ""}><span class="pj">${proj}</span><span class="t">${esc(t.title)} ${statusPill(t)}${isImportantMark(t) ? IMP_BADGE : ""}</span><span class="why mono">${times}</span>${isClosed(t) ? "" : checkMeterHtml(t, { remain: true })}${isClosed(t) ? "" : statusButtons(t)}${ask}</li>`;
+    const drag = opts.sched && !isClosed(t) ? ` draggable="true" data-dragtask="${esc(t.id)}"` : "";
+    return `<li data-today="${esc(t.id)}"${isClosed(t) ? ' class="closed"' : ""}${drag}><span class="pj">${proj}</span><span class="t">${esc(t.title)} ${statusPill(t)}${isImportantMark(t) ? IMP_BADGE : ""}</span><span class="why mono tss">${times}</span>${isClosed(t) ? "" : checkMeterHtml(t, { remain: true })}${ask}</li>`;
   }).join("");
   return `<section class="panel todaytasks" aria-labelledby="h-td"><h2 id="h-td">今日のタスク</h2><ul class="rank tl">${items}</ul></section>`;
 }
 
 /**
  * @param opts.sched   true ならスケジュール画面用（全件・ドラッグ可）。false なら上位 4 件
- * @param opts.picked  選択中のタスク ID
  * 今日のタスクに入っているタスクは出さない（順位の計算は変えず、表示で除く）
  */
 function renderPrio(data, today, opts = {}) {
-  const { sched = false, picked = null } = opts;
+  const { sched = false } = opts;
   const inToday = new Set(todayTaskIds(data, today));
   const ranked = rankTasks(data, today).filter((r) => !inToday.has(r.taskId));
   const shown = sched ? ranked : ranked.slice(0, 4);
@@ -3320,11 +3390,11 @@ function renderPrio(data, today, opts = {}) {
     const a = taskActual(data, t.id);
     const pill = a.count ? ` <span class="pill ok">${a.count}回・実績 ${a.hours.toFixed(1)}h</span>` : "";
     const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? (t.projectId == null ? "プロジェクトなし" : ""));
-    const drag = sched ? ` draggable="true" data-pick="${esc(t.id)}" tabindex="0"` : "";
-    return `<li${drag} class="${picked === t.id ? "picked" : ""}"><span class="n">${i + 1}</span><span class="pj">${proj}</span><span class="t">${r.action === "chase" ? `<span class="act">${r.reasons.some((x) => x.includes("催促")) ? "催促" : "確認"}</span>` : ""}${esc(t.title)} ${statusPill(t)}${pill}</span>${checkMeterHtml(t, { remain: true })}<span class="why">${isImportantMark(t) ? IMP_BADGE : ""}${esc(r.reasons.filter((x) => x !== "重要").join("。"))}</span></li>`;
+    const drag = sched ? ` draggable="true" data-dragtask="${esc(t.id)}"` : "";
+    return `<li${drag}><span class="n">${i + 1}</span><span class="pj">${proj}</span><span class="t">${r.action === "chase" ? `<span class="act">${r.reasons.some((x) => x.includes("催促")) ? "催促" : "確認"}</span>` : ""}${esc(t.title)} ${statusPill(t)}${pill}</span>${checkMeterHtml(t, { remain: true })}<span class="why">${isImportantMark(t) ? IMP_BADGE : ""}${esc(r.reasons.filter((x) => x !== "重要").join("。"))}</span></li>`;
   }).join("");
   const note = sched
-    ? "タスクをカレンダーへドラッグして配置します(15分刻み・長さ1時間)。配置済みの枠もドラッグで移動できます。キーボードでは、タスクを選んで日表示の空き枠を押します。"
+    ? "タスクをカレンダーへドラッグして配置します(15分刻み・長さ1時間)。今日のタスクの行からも、同じタスクをもう 1 つ置けます。配置済みの枠もドラッグで移動できます。"
     : "スケジュール画面で、時間枠に配置できます。";
   return `<section class="panel prio" aria-labelledby="h-rk"><h2 id="h-rk">今日の優先</h2>${shown.length ? `<ol class="rank">${items}</ol>` : `<p class="muted">優先するタスクはありません。</p>`}<p class="note" style="margin:10px 0 0">${note}</p></section>`;
 }
@@ -3531,7 +3601,7 @@ return { assignLevels, layoutMilestones, renderGantt };
 
 /* src/ui/views/workload.js */
 const { renderWorkload, shiftWorkloadDate } = (() => {
-// 「稼働」画面: 期間（週・月）ごとに、プロジェクト別のタスク（実績の作業枠）と会議（確認済み・参加するもの）の時間を見せる。
+// 「稼働」画面: 期間（日・週・月）ごとに、プロジェクト別のタスク（実績の作業枠）と会議（確認済み・参加するもの）の時間を見せる。
 
 
 
@@ -3539,17 +3609,17 @@ const { renderWorkload, shiftWorkloadDate } = (() => {
 const h = (v) => `${v.toFixed(1)}h`;
 
 /**
- * @param opts.period "week" | "month"
- * @param opts.date   表示する日（その日を含む週・月）
+ * @param opts.period "day" | "week" | "month"
+ * @param opts.date   表示する日（その日・その日を含む週・月）
  * @param opts.now    {date, time} 未確認の件数を数えるための現在時刻
  */
 function renderWorkload(data, today, opts = {}) {
-  const { period = "week", date = today, now } = opts;
+  const { period = "day", date = today, now } = opts;
   const range = periodRange(period, date);
   const w = workload(data, range, now);
   const [y, m] = date.split("-").map(Number);
-  const title = period === "week" ? `${fmtMD(range.start)}〜${fmtMD(range.end)} の週` : `${y}年${m}月`;
-  const todayLabel = period === "week" ? "今週" : "今月";
+  const title = period === "day" ? `${date.replace(/-/g, "/")}(${wdJa(date)})` : period === "week" ? `${fmtMD(range.start)}〜${fmtMD(range.end)} の週` : `${y}年${m}月`;
+  const todayLabel = { day: "今日", week: "今週" }[period] ?? "今月";
   const unTotal = w.unassigned.task + w.unassigned.meeting;
   const max = Math.max(0, ...w.rows.map((r) => r.total), unTotal);
   const bar = (task, meeting) => {
@@ -3570,7 +3640,7 @@ function renderWorkload(data, today, opts = {}) {
   const none = data.projects.length ? "" : `<p class="muted">プロジェクトがありません。ガントチャートかリストの「＋ プロジェクトを追加」から追加してください。</p>`;
   return `<section class="panel wl" aria-label="稼働">
     <div class="toolbar"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn" data-wnav="-1" aria-label="前へ">←</button><button class="btn" data-wnav="1" aria-label="次へ">→</button><button class="btn" data-wtoday>${todayLabel}</button><strong style="margin-left:6px">${title}</strong></div>
-      <div class="seg" role="group" aria-label="期間"><button data-wperiod="week" aria-pressed="${period === "week"}">週</button><button data-wperiod="month" aria-pressed="${period === "month"}">月</button></div></div>
+      <div class="seg" role="group" aria-label="期間"><button data-wperiod="day" aria-pressed="${period === "day"}">日</button><button data-wperiod="week" aria-pressed="${period === "week"}">週</button><button data-wperiod="month" aria-pressed="${period === "month"}">月</button></div></div>
     <div class="legend"><span><i class="sw wl-t"></i>タスク（実績の作業枠）</span><span><i class="sw wl-m"></i>会議（確認済み・参加するもの）</span></div>
     ${none}
     <div class="tscroll"><table class="tbl wl-tbl"><thead><tr><th>プロジェクト</th><th class="num">タスク</th><th class="num">会議</th><th class="num">合計</th><th>内訳</th></tr></thead><tbody>${rows}${un}</tbody>
@@ -3579,8 +3649,9 @@ function renderWorkload(data, today, opts = {}) {
   </section>`;
 }
 
-/** 期間を 1 つ前後へ動かした日（週は 7 日、月は 1 か月） */
+/** 期間を 1 つ前後へ動かした日（日は 1 日、週は 7 日、月は 1 か月） */
 function shiftWorkloadDate(period, date, dir) {
+  if (period === "day") return addDays(date, dir);
   if (period === "week") return addDays(date, 7 * dir);
   const [y, m] = date.split("-").map(Number);
   const t = y * 12 + (m - 1) + dir;
@@ -3592,7 +3663,7 @@ return { renderWorkload, shiftWorkloadDate };
 
 /* src/ui/views/settings.js */
 const { settingsInputValues, renderSettings } = (() => {
-// 「設定」タブ: 基本の設定（営業日の数え方・勤務時間・待ち長期化の日数・見出しの呼び名）と、休みと営業日（日本の祝日（表示のみ）・休み（手動）・営業日として扱う日）と、キーワード規則（会議名。編集できる）と、WBS の取り込み記録（表示のみ）。節は折りたため、閉じている節は opts.closed で渡す。
+// 「設定」タブ: 基本の設定（営業日の数え方・待ち長期化の日数・見出しの呼び名）と、休みと営業日（日本の祝日（表示のみ）・休み（手動）・営業日として扱う日）と、キーワード規則（会議名。編集できる）と、WBS の取り込み記録（表示のみ）。節は折りたため、閉じている節は opts.closed で渡す。
 
 
 
@@ -3602,10 +3673,8 @@ const { settingsInputValues, renderSettings } = (() => {
 /** 基本の設定の入力に出す値。形が違う・無い項目は既定値（画面の描画と、不正な入力を元に戻すときに使う） */
 function settingsInputValues(data) {
   const st = data.settings ?? {};
-  const ok = st.workday && isTime(st.workday.start) && isTime(st.workday.end) && toMin(st.workday.start) < toMin(st.workday.end);
-  const wd = ok ? st.workday : DEFAULT_WORKDAY;
   const lb = groupLabels(st);
-  return { workdayStart: wd.start, workdayEnd: wd.end, waitingLongDays: Number.isInteger(st.waitingLongDays) && st.waitingLongDays >= 1 ? st.waitingLongDays : 7, labelGroup: lb.group, labelSubgroup: lb.subgroup };
+  return { waitingLongDays: Number.isInteger(st.waitingLongDays) && st.waitingLongDays >= 1 ? st.waitingLongDays : 7, labelGroup: lb.group, labelSubgroup: lb.subgroup };
 }
 
 /** @param opts.ruleError  規則の追加・書き換えで出たエラーの文言
@@ -3630,10 +3699,9 @@ function renderSettings(data, today, opts = {}) {
       <p class="note" style="margin:0 0 10px">変更はその場でファイルに保存されます。</p>
       <div class="tscroll"><table class="tbl edit"><tbody>
         <tr><td data-l="項目">営業日の数え方</td><td data-l="値"><label><input type="checkbox" data-set="countWeekendsAndHolidays" aria-label="土日祝を営業日に数える"${countOn ? " checked" : ""}> 土日祝を営業日に数える</label>${warnOf("countWeekendsAndHolidays")}</td><td class="muted" data-l="説明">日数の計算（営業日後の期限）とスケジュールの作業枠で、土日と日本の祝日を飛ばすかどうかを選びます。オンにしても、手動の休みは飛ばします。</td></tr>
-        <tr><td data-l="項目">勤務時間</td><td data-l="値"><input class="in" type="time" data-set="workday-start" value="${esc(iv.workdayStart)}" aria-label="勤務時間の開始"> 〜 <input class="in" type="time" data-set="workday-end" value="${esc(iv.workdayEnd)}" aria-label="勤務時間の終了">${warnOf("workday")}</td><td class="muted" data-l="説明">スケジュールで作業枠を置ける範囲です。</td></tr>
         <tr><td data-l="項目">待ち長期化の日数</td><td data-l="値"><input class="in" type="number" min="1" step="1" data-set="waitingLongDays" value="${iv.waitingLongDays}" aria-label="待ち長期化とみなす日数"> 日${warnOf("waitingLongDays")}</td><td class="muted" data-l="説明">Waiting がこの日数を超えると、「今日の優先」と遅延バッジに出ます。</td></tr>
         <tr><td data-l="項目">見出しの呼び名</td><td data-l="値"><input class="in" data-set="label-group" value="${esc(iv.labelGroup)}" aria-label="大項目の呼び名"> <input class="in" data-set="label-subgroup" value="${esc(iv.labelSubgroup)}" aria-label="中項目の呼び名">${warnOf("labels")}</td><td class="muted" data-l="説明">ガント・リストの見出しの呼び名です。空にすると既定（大項目・中項目）に戻ります。</td></tr>
-      </tbody></table></div>`, warnN("countWeekendsAndHolidays", "workday", "waitingLongDays", "labels"));
+      </tbody></table></div>`, warnN("countWeekendsAndHolidays", "waitingLongDays", "labels"));
 
   // 休みと営業日の指定: 形が違う要素は出さず（validate の注意が節の上に出る）、日付の昇順で並べる
   const entries = (v) => (Array.isArray(v) ? v.filter((x) => x && typeof x === "object" && isDate(x.date)) : []).slice().sort((p, q) => p.date.localeCompare(q.date));
@@ -3656,7 +3724,7 @@ function renderSettings(data, today, opts = {}) {
       <p class="note" style="margin:0 0 10px">有給・会社独自の休みなどを登録します。営業日の計算で飛ばします（区分は整理用で、計算は同じです）。${countOn ? "終了日を入れると期間として登録します。土日祝を営業日に数えるときは、期間内の土日と日本の祝日も除きません。" : "終了日を入れると期間として登録し、期間内の土日と日本の祝日は除きます。"}変更はその場でファイルに保存されます。</p>
       ${warnOf("holidays")}
       <div class="tscroll"><table class="tbl edit"><thead><tr><th>日付</th><th>区分</th><th>メモ</th><th></th></tr></thead><tbody>${holidayRows || `<tr><td colspan="4" class="muted">休みは登録されていません。下の行から追加します。</td></tr>`}
-        <tr><td data-l="日付"><input class="in" type="date" data-hnew aria-label="休みの開始日"> 〜 <input class="in" type="date" data-hto aria-label="休みの終了日（期間のとき）"></td><td data-l="区分"><select class="in sm" data-hkind aria-label="追加する休みの区分">${kindOptions()}</select></td><td data-l="メモ"><input class="in" data-hnote placeholder="メモ（任意）" aria-label="休みのメモ"></td><td data-l=""><button class="btn" data-hadd>＋ 追加</button></td></tr></tbody></table></div>
+        <tr><td data-l="日付">${dateInputHtml({ attrs: 'data-hnew aria-label="休みの開始日"', label: "休みの開始日" })} 〜 ${dateInputHtml({ attrs: 'data-hto aria-label="休みの終了日（期間のとき）"', label: "休みの終了日" })}</td><td data-l="区分"><select class="in sm" data-hkind aria-label="追加する休みの区分">${kindOptions()}</select></td><td data-l="メモ"><input class="in" data-hnote placeholder="メモ（任意）" aria-label="休みのメモ"></td><td data-l=""><button class="btn" data-hadd>＋ 追加</button></td></tr></tbody></table></div>
     `, warnN("holidays"));
 
   const workdayRows = entries(st.workdays).map((x) => `<tr><td class="mono" data-l="日付">${esc(x.date)}</td>${noteTd(x)}<td data-l=""><button class="btn" data-wdel="${esc(x.date)}" aria-label="${esc(x.date)} を営業日の指定から外す">削除</button></td></tr>`).join("");
@@ -3664,7 +3732,7 @@ function renderSettings(data, today, opts = {}) {
       <p class="note" style="margin:0 0 10px">土日・祝日・休みでも、この日は営業日として数えます（休日出勤など）。変更はその場でファイルに保存されます。</p>
       ${warnOf("workdays")}
       <div class="tscroll"><table class="tbl edit"><thead><tr><th>日付</th><th>メモ</th><th></th></tr></thead><tbody>${workdayRows || `<tr><td colspan="3" class="muted">営業日の指定はありません。下の行から追加します。</td></tr>`}
-        <tr><td data-l="日付"><input class="in" type="date" data-wnew aria-label="営業日として扱う日"></td><td data-l="メモ"><input class="in" data-wnote placeholder="メモ（任意）" aria-label="営業日の指定のメモ"></td><td data-l=""><button class="btn" data-wadd>＋ 追加</button></td></tr></tbody></table></div>
+        <tr><td data-l="日付">${dateInputHtml({ attrs: 'data-wnew aria-label="営業日として扱う日"', label: "営業日として扱う日" })}</td><td data-l="メモ"><input class="in" data-wnote placeholder="メモ（任意）" aria-label="営業日の指定のメモ"></td><td data-l=""><button class="btn" data-wadd>＋ 追加</button></td></tr></tbody></table></div>
     `, warnN("workdays"));
 
   const ruleRows = rules.map((r, i) => {
@@ -3766,7 +3834,7 @@ function detailHtml(data, r, ui) {
       <div class="ib-ctl"><label>原因<select class="in" data-ib-cause="${esc(r.id)}" aria-label="原因">${CAUSES.map((c) => `<option${c === cause ? " selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
       <label style="flex:1 1 220px">変更履歴に残す理由<input class="in" data-ib-reason="${esc(r.id)}" value="${esc(reason)}" aria-label="変更履歴に残す理由"></label></div>
       <div class="ib-act"><button class="btn primary" data-ib-approve="${esc(r.id)}">承認して反映する</button><button class="btn" data-ib-reject="${esc(r.id)}">却下する</button></div>
-      <div class="ib-ctl"><input class="in" data-ib-reply="${esc(r.id)}" value="${esc(ui.replies?.[r.id] ?? "")}" placeholder="修正の依頼（例: A5 は 5 営業日にして）" aria-label="修正の依頼" style="flex:1 1 240px"><button class="btn warm" data-ib-replysend="${esc(r.id)}">修正を依頼する</button></div></div>`;
+      <div class="ib-ctl"><input class="in" data-ib-reply="${esc(r.id)}" value="${esc(ui.replies?.[r.id] ?? "")}" placeholder="修正の依頼（例: AA-0005 は 5 営業日にして）" aria-label="修正の依頼" style="flex:1 1 240px"><button class="btn warm" data-ib-replysend="${esc(r.id)}">修正を依頼する</button></div></div>`;
   }
   if (r.status === "pending" || r.status === "working") {
     // 見張りが止まって、受け取られない・処理が止まった依頼を、画面から取り下げられるようにする
@@ -3805,7 +3873,7 @@ function inboxBarHtml(data, ui) {
   const watching = isWatching(data, ui.nowMs);
   const state = `<span class="ib-state ${watching ? "on" : "off"}"><i></i>${watching ? "Claude Code が見ています" : "Claude Code が見ていません"}</span>`;
   const badge = proposed ? `<span class="ib-badge">提案が ${proposed} 件届いています</span>` : "";
-  const head = `<div class="ib-bar"><button class="ib-toggle" data-ib-toggle aria-expanded="${ui.open}">${ui.open ? "▼ 閉じる" : "▲ 開く"}</button><b>Claude Code に依頼する</b>${ui.open ? "" : `<span class="ib-hint">「A3 が 5 日遅れた」「このタスクを登録して」など</span>`}<span class="ib-sp"></span>${badge}${state}</div>`;
+  const head = `<div class="ib-bar"><button class="ib-toggle" data-ib-toggle aria-expanded="${ui.open}">${ui.open ? "▼ 閉じる" : "▲ 開く"}</button><b>Claude Code に依頼する</b>${ui.open ? "" : `<span class="ib-hint">「AA-0003 が 5 日遅れた」「このタスクを登録して」など</span>`}<span class="ib-sp"></span>${badge}${state}</div>`;
   if (!ui.open) return `<div class="ib">${head}</div>`;
 
   const projects = data.projects ?? [];
@@ -3859,11 +3927,12 @@ const { predEditHtml, startInputHtml, renderTaskPop, renderTaskEditPanel } = (()
 
 
 
-/** 前のタスクの外し方（×）と足し方（選択）。リストの編集欄と共用 */
-function predEditHtml(data, t) {
-  const chips = (t.predecessors ?? []).map((id) => `<span class="chip">${esc(id)}<button data-rmpre="${esc(t.id)}|${esc(id)}" aria-label="${esc(id)} を前のタスクから外す">×</button></span>`).join("");
+/** 前のタスクの外し方（×）と足し方（選択）。リストの編集欄と共用。ids が false なら ID を出さず件名で出す（スケジュールの編集欄） */
+function predEditHtml(data, t, { ids = true } = {}) {
+  const label = (id) => (ids ? id : data.tasks.find((u) => u.id === id)?.title ?? id);
+  const chips = (t.predecessors ?? []).map((id) => `<span class="chip">${esc(label(id))}<button data-rmpre="${esc(t.id)}|${esc(id)}" aria-label="${esc(id)} を前のタスクから外す">×</button></span>`).join("");
   const cand = predecessorCandidates(data, t.id).map((id) => data.tasks.find((u) => u.id === id));
-  const add = cand.length ? `<select class="in sm" data-addpre="${esc(t.id)}" aria-label="前のタスクを追加"><option value="">＋前のタスク</option>${cand.map((u) => `<option value="${esc(u.id)}">${esc(u.id)} ${esc(u.title)}</option>`).join("")}</select>` : "";
+  const add = cand.length ? `<select class="in sm" data-addpre="${esc(t.id)}" aria-label="前のタスクを追加"><option value="">＋前のタスク</option>${cand.map((u) => `<option value="${esc(u.id)}">${ids ? `${esc(u.id)} ` : ""}${esc(u.title)}</option>`).join("")}</select>` : "";
   return `<div class="chips">${chips}${add}</div>`;
 }
 
@@ -3871,11 +3940,11 @@ function predEditHtml(data, t) {
 function startInputHtml(data, t) {
   const derived = !t.start && (t.predecessors ?? []).length > 0;
   const hint = derived ? ` <small class="muted" title="開始日を指定していないので、前のタスクの期限から決まります">前のタスクから</small>` : "";
-  return `<input class="in" type="date" data-f="start" data-id="${esc(t.id)}" value="${esc(t.start || (derived ? taskStart(data, t.id) : ""))}" aria-label="${esc(t.id)} の開始日">${hint}`;
+  return `${dateInputHtml({ value: t.start || (derived ? taskStart(data, t.id) : ""), attrs: `data-f="start" data-id="${esc(t.id)}" aria-label="${esc(t.id)} の開始日"`, label: "開始日" })}${hint}`;
 }
 
 /**
- * 編集の項目の HTML。窓（full: true）とスケジュールの編集欄（full は詳細を開いたときだけ）で共用。
+ * 窓の編集の項目の HTML（縦に並べる。窓は常に full: true）。スケジュールの編集欄は別の並べ方（taskRowFieldsHtml）。
  * 軽い欄 = 件名・プロジェクト・状態・開始・期限・重要・メモ。full で、チェックリスト・前のタスク・繰り返しを足す
  */
 function taskFieldsHtml(data, t, { full, statusHtml }) {
@@ -3887,7 +3956,7 @@ function taskFieldsHtml(data, t, { full, statusHtml }) {
   return `${field("件名", `<input class="in" data-f="title" data-id="${id}" value="${esc(t.title)}">`)}
     ${field("プロジェクト", `<select class="in sm" data-f="projectId" data-id="${id}">${projects}</select>`)}
     <div class="tp-f"><span class="muted">状態</span><div>${statusHtml}</div></div>
-    <div class="tp-r">${field("開始", startInputHtml(data, t))}${field("期限", `<input class="in" type="date" data-f="due" data-id="${id}" value="${esc(t.due)}">`)}</div>
+    <div class="tp-r">${field("開始", startInputHtml(data, t))}${field("期限", dateInputHtml({ value: t.due, attrs: `data-f="due" data-id="${id}"`, label: "期限" }))}</div>
     ${full ? checklistEditorHtml(t) : ""}
     ${full ? `<div class="tp-f"><span class="muted">前のタスク</span>${predEditHtml(data, t)}</div>` : ""}
     <div class="tp-r">${imp}${full ? repeat : ""}</div>
@@ -3910,17 +3979,45 @@ function renderTaskPop(data, pop, statusHtml) {
 }
 
 /**
- * スケジュール画面の編集欄（#mtgslot に出す）。対象のタスクが無ければ空。
+ * スケジュールの編集欄の項目（会議の入力欄と同じ、ラベル付きの横並び）。窓の taskFieldsHtml とは別の並べ方。
+ * fields = 軽い欄（1 行に折り返して並べる項目）、repeatField・wide = 詳細の入れ物に出す繰り返しと、全幅の行にする編集欄（full のときだけ）
+ */
+function taskRowFieldsHtml(data, t, { full, statusHtml }) {
+  const id = esc(t.id);
+  const field = (cls, label, inner) => `<label${cls ? ` class="${cls}"` : ""}><span>${label}</span>${inner}</label>`;
+  const projects = [["", "プロジェクトなし"], ...data.projects.map((p) => [p.id, p.name])].map(([v, l]) => `<option value="${esc(v)}" ${(t.projectId ?? "") === v ? "selected" : ""}>${esc(l)}</option>`).join("");
+  const repeat = `<option value="">なし</option><option value="week" ${t.repeat?.unit === "week" ? "selected" : ""}>毎週</option><option value="month" ${t.repeat?.unit === "month" ? "selected" : ""}>毎月${t.repeat?.unit === "month" ? `（${esc(t.repeat.day)} 日）` : ""}</option>`;
+  const fields = [
+    field("tp-title", "件名", `<input class="in" data-f="title" data-id="${id}" value="${esc(t.title)}">`),
+    field("", "開始", startInputHtml(data, t)),
+    field("", "期限", dateInputHtml({ value: t.due, attrs: `data-f="due" data-id="${id}"`, label: "期限" })),
+    `<div class="tp-st"><span>状態</span><div>${statusHtml}</div></div>`,
+    `<label class="chk"><input type="checkbox" data-f="important" data-id="${id}" ${t.important === true ? "checked" : ""}>重要</label>`,
+    field("", "プロジェクト", `<select class="in sm" data-f="projectId" data-id="${id}">${projects}</select>`),
+    field("tp-memo", "メモ", `<input class="in" data-f="memo" data-id="${id}" value="${esc(t.memo ?? "")}" placeholder="メモ">`),
+  ].join("\n    ");
+  const repeatField = full ? field("", "繰り返し", `<select class="in sm" data-f="repeat" data-id="${id}">${repeat}</select>`) : "";
+  const wide = full ? `${checklistEditorHtml(t)}<div class="tp-wide"><span>前のタスク</span>${predEditHtml(data, t, { ids: false })}</div>` : "";
+  return { fields, repeatField, wide };
+}
+
+/**
+ * スケジュール画面の編集欄（#mtgslot に出す）。対象のタスクが無ければ空。見出しに ID は出さない（スケジュールは件名だけで表す）。会議の入力欄と同じ、ラベル付きの項目が折り返して並ぶ形
  * @param edit { id, full, askDel }  askDel が真なら削除の確認を出す。full が真なら、繰り返し・チェックリスト・前のタスク・複製・削除も出す
  */
 function renderTaskEditPanel(data, edit, statusHtml) {
   const t = data.tasks.find((x) => x.id === edit.id);
   if (!t) return "";
   const id = esc(t.id);
+  const { fields, repeatField, wide } = taskRowFieldsHtml(data, t, { full: edit.full, statusHtml });
+  const del = edit.askDel ? `<span class="ask">このタスクを削除します。<button class="btn danger" data-delyes="${id}">削除する</button><button class="btn" data-tedit-delno>やめる</button></span>` : `<button class="btn danger" data-tedit-del="${id}">削除</button>`;
+  // 詳細の項目は、軽い欄のあとの別の入れ物（全幅の行）に出す。軽い欄とボタンの行は、詳細の開閉で位置も大きさも変わらない
+  const detail = edit.full ? `
+    <div class="tedit-detail">${repeatField}<div class="tp-a"><button class="btn" data-dup="${id}">複製</button>${del}</div>${wide}</div>` : "";
   return `<div class="mtgform tedit" role="group" aria-label="${id} を編集" data-tedit>
-    <div class="tp-h"><b class="mono">${id}</b><span class="muted">${fmtMD(taskStart(data, t.id))}〜${fmtMD(t.due)}</span><button class="btn" data-tedit-full aria-expanded="${edit.full}">${edit.full ? "詳細を閉じる" : "詳細を開く"}</button><button class="gx" data-tedit-close aria-label="編集を閉じる" style="opacity:1">×</button></div>
-    ${taskFieldsHtml(data, t, { full: edit.full, statusHtml })}
-    ${edit.full ? `<div class="tp-a"><button class="btn" data-dup="${id}">複製</button>${edit.askDel ? `<span class="ask">このタスクを削除します。<button class="btn danger" data-delyes="${id}">削除する</button><button class="btn" data-tedit-delno>やめる</button></span>` : `<button class="btn danger" data-tedit-del="${id}">削除</button>`}</div>` : ""}
+    <span class="tp-h"><span class="muted">${fmtMD(taskStart(data, t.id))}〜${fmtMD(t.due)}</span></span>
+    ${fields}
+    <div class="tp-a"><button class="btn" data-tedit-full aria-expanded="${edit.full}">${edit.full ? "詳細を閉じる" : "詳細を開く"}</button><button class="btn" data-tedit-close>閉じる</button></div>${detail}
   </div>`;
 }
 
@@ -3984,9 +4081,9 @@ function renderList(data, p, today, opts) {
       <td data-l="プロジェクト"><select class="in sm" data-f="projectId" data-id="${esc(t.id)}" aria-label="${esc(t.id)} のプロジェクト"><option value=""${t.projectId == null ? " selected" : ""}>プロジェクトなし</option>${data.projects.map((o) => `<option value="${esc(o.id)}"${o.id === t.projectId ? " selected" : ""}>${esc(o.name)}</option>`).join("")}</select></td>
       <td data-l="状態">${statusCellHtml(t, opts, late)}</td>
       <td data-l="開始">${startInputHtml(data, t)}</td>
-      <td data-l="期限"><input class="in" type="date" data-f="due" data-id="${esc(t.id)}" value="${esc(t.due)}" aria-label="${esc(t.id)} の期限"></td>
+      <td data-l="期限">${dateInputHtml({ value: t.due, attrs: `data-f="due" data-id="${esc(t.id)}" aria-label="${esc(t.id)} の期限"`, label: "期限" })}</td>
       <td data-l="前のタスク">${predEditHtml(data, t)}</td>
-      <td data-l="待ち先"><input class="in" data-f="party" data-id="${esc(t.id)}" value="${esc(t.waitingOn?.party ?? "")}" placeholder="${t.status === "Waiting" ? "ベンダー・部署名" : "—"}" ${t.status === "Waiting" ? "" : "disabled"} aria-label="${esc(t.id)} の待ち先">${needParty}<input class="in sm" type="date" data-f="expected" data-id="${esc(t.id)}" value="${esc(t.waitingOn?.expected ?? "")}" title="回答予定日" ${t.status === "Waiting" && t.waitingOn?.party ? "" : "disabled"} aria-label="${esc(t.id)} の回答予定日"></td>
+      <td data-l="待ち先"><input class="in" data-f="party" data-id="${esc(t.id)}" value="${esc(t.waitingOn?.party ?? "")}" placeholder="${t.status === "Waiting" ? "ベンダー・部署名" : "—"}" ${t.status === "Waiting" ? "" : "disabled"} aria-label="${esc(t.id)} の待ち先">${needParty}${dateInputHtml({ value: t.waitingOn?.expected ?? "", cls: "in sm", attrs: `data-f="expected" data-id="${esc(t.id)}" title="回答予定日" ${t.status === "Waiting" && t.waitingOn?.party ? "" : "disabled"} aria-label="${esc(t.id)} の回答予定日"`, label: "回答予定日" })}</td>
       <td data-l="重要"><input type="checkbox" data-f="important" data-id="${esc(t.id)}" ${t.important === true ? "checked" : ""} aria-label="${esc(t.id)} を重要にする"></td>
       <td data-l="メモ"><input class="in" data-f="memo" data-id="${esc(t.id)}" value="${esc(t.memo ?? "")}" placeholder="メモ" aria-label="${esc(t.id)} のメモ"></td>
       <td data-l="チェック">${checkCell(t, opts)}</td>
@@ -4004,7 +4101,7 @@ function renderList(data, p, today, opts) {
     .map((l) => `<li><span class="d">${fmtMD(l.at)}</span><span><span class="pill">${esc(l.cause ?? "—")}</span> ${esc(l.reason)} <span class="mono muted">(${esc((l.taskIds ?? []).join(", "))}・${Number(l.deltaDays) > 0 ? "+" : ""}${Number(l.deltaDays)}日)</span></span></li>`).join("")
     || `<li class="muted">変更履歴はありません。</li>`;
 
-  const ms = (p.milestones ?? []).map((m, i) => `<div class="msrow"><input class="in" data-mf="name" data-pid="${esc(p.id)}" data-i="${i}" value="${esc(m.name)}" aria-label="マイルストーン名"><input class="in sm" type="date" data-mf="date" data-pid="${esc(p.id)}" data-i="${i}" value="${esc(m.date)}" aria-label="マイルストーンの日付"><button class="btn" data-msdel="${esc(p.id)}|${i}" aria-label="${esc(m.name)} を削除">削除</button></div>`).join("")
+  const ms = (p.milestones ?? []).map((m, i) => `<div class="msrow"><input class="in" data-mf="name" data-pid="${esc(p.id)}" data-i="${i}" value="${esc(m.name)}" aria-label="マイルストーン名">${dateInputHtml({ value: m.date, cls: "in sm", attrs: `data-mf="date" data-pid="${esc(p.id)}" data-i="${i}" aria-label="マイルストーンの日付"`, label: "マイルストーンの日付" })}<button class="btn" data-msdel="${esc(p.id)}|${i}" aria-label="${esc(m.name)} を削除">削除</button></div>`).join("")
     || '<p class="muted" style="margin:0">マイルストーンはありません。</p>';
 
   const delProj = opts.askDelProject === p.id
@@ -4016,8 +4113,8 @@ function renderList(data, p, today, opts) {
 
   return `<section class="panel" aria-label="${esc(p.name)}"><div class="pstick"><div class="prow"><h2><input class="in" data-pf="name" data-pid="${esc(p.id)}" value="${esc(p.name)}" style="font-size:17px;font-weight:700" aria-label="プロジェクト名"></h2><label>状態 <select class="in sm" data-pf="status" data-pid="${esc(p.id)}" aria-label="${esc(p.name)} の状態">${PROJECT_STATUS.map((o) => `<option ${o === p.status ? "selected" : ""}>${o}</option>`).join("")}</select></label></div><div class="phead"><div><div class="kv" style="align-items:center">
       <label>種別 <select class="in sm" data-pf="type" data-pid="${esc(p.id)}" aria-label="種別">${PROJECT_TYPE.map((o) => `<option ${o === p.type ? "selected" : ""}>${o}</option>`).join("")}</select></label>
-      <label>開始 <input class="in sm" type="date" data-pf="start" data-pid="${esc(p.id)}" value="${esc(p.start)}" aria-label="${esc(p.name)} の開始日"></label>
-      <label>期限 <input class="in sm" type="date" data-pf="due" data-pid="${esc(p.id)}" value="${esc(p.due)}" aria-label="${esc(p.name)} の期限"></label>
+      <label>開始 ${dateInputHtml({ value: p.start, cls: "in sm", attrs: `data-pf="start" data-pid="${esc(p.id)}" aria-label="${esc(p.name)} の開始日"`, label: "開始日" })}</label>
+      <label>期限 ${dateInputHtml({ value: p.due, cls: "in sm", attrs: `data-pf="due" data-pid="${esc(p.id)}" aria-label="${esc(p.name)} の期限"`, label: "期限" })}</label>
       <span>進捗 <b class="mono">${prog.done}/${prog.total}</b> (${Math.round(prog.rate * 100)}%)</span><span class="mono hrs">${(() => { const hh = projectHours(data, p.id); return `稼働 ${(hh.task + hh.meeting).toFixed(1)}h（タスク ${hh.task.toFixed(1)}h・会議 ${hh.meeting.toFixed(1)}h）`; })()}</span></div></div><div>${flagPills(data, p.id, today, projectFlags(data, p.id, today))}</div></div>
     </div>${table}
     <div style="display:flex;gap:12px;align-items:center;margin-top:12px;flex-wrap:wrap"><span class="note">変更はその場でファイルに保存されます。次のタスクの日程をまとめて見直すときは、画面の下端の「Claude Code に依頼する」に頼みます。</span></div>
@@ -4056,15 +4153,15 @@ function renderProjects(data, today, opts = {}) {
   // チップはプロジェクトの数だけ並ぶので、1 行に収めて横にスクロールする(折り返すと、固定の行が高くなり、表が見えなくなる)。プロジェクト名のプルダウンと追加ボタンは、スクロールの外
   return `<div class="toolbar ptool"><div class="chips-row" role="group" aria-label="プロジェクトで絞り込み">${chips}</div>
     <div class="ptool-end">${pick}${addBtn}</div></div>
-    <div class="cols${showPrio ? "" : " one"}">${body}${renderSideToggle(showPrio)}${showPrio ? renderSide(data, today, { sched: false, pendingDone: opts.pendingDone }) : ""}</div>${pop}`;
+    <div class="cols${showPrio ? "" : " one"}">${body}${renderSideToggle(showPrio)}${showPrio ? renderSide(data, today, { sched: false, pendingDone: opts.pendingDone, now: opts.now }) : ""}</div>${pop}`;
 }
 
 return { statusCellHtml, renderProjects };
 })();
 
 /* src/ui/views/schedule.js */
-const { snapStart, snapFreeStart, weekStartOf, calendarGeometry, firstFreeStart, urgentInput, urgentForm, renderCalendar, renderSchedule } = (() => {
-// スケジュール画面（週／日）。位置と高さは勤務時間に対する % で表し、カレンダーの高さは CSS で画面に追従させる。
+const { snapStart, selectionKey, revealSelection, weekStartOf, calendarGeometry, urgentDefaultStart, urgentInput, urgentForm, renderCalendar, renderSchedule } = (() => {
+// スケジュール画面（週／日）。位置と高さは 1 日（00:00〜24:00）に対する % で表し、カレンダーの高さは CSS で決める。
 
 
 
@@ -4078,25 +4175,27 @@ const { snapStart, snapFreeStart, weekStartOf, calendarGeometry, firstFreeStart,
 
 
 const SLOT_STEP = 15;
+/** これより短い枠・会議（分）は、時刻と件名を 1 行に並べる（class short） */
+const SHORT_MIN = 30;
 
-/** 15 分刻みに丸め、勤務時間内に収める（開始の分を返す） */
-function snapStart(minutes, durationMin, workday = DEFAULT_WORKDAY) {
-  const [ws, we] = [toMin(workday.start), toMin(workday.end)];
-  return Math.max(ws, Math.min(Math.round(minutes / SLOT_STEP) * SLOT_STEP, we - durationMin));
+/** 15 分刻みに丸め、その日（終了が 23:59 まで）に収める（開始の分を返す） */
+function snapStart(minutes, durationMin) {
+  const last = Math.floor((LAST_END - durationMin) / SLOT_STEP) * SLOT_STEP;
+  return Math.max(0, Math.min(Math.round(minutes / SLOT_STEP) * SLOT_STEP, last));
 }
 
-/** 押した空き枠の開始を、15 分刻みに丸める。長さは最短（15 分）で収めるので、1 時間より短い最後の空き枠でも前へ引かれない */
-const snapFreeStart = (minutes, workday = DEFAULT_WORKDAY) => snapStart(minutes, SLOT_STEP, workday);
+/** 選んだ枠と編集欄（タスク・詳細の開閉・削除の確認）の状態の鍵。選んでいなければ null */
+const selectionKey = (selSess, taskEdit) => (selSess ? `${selSess}|${taskEdit?.id ?? ""}|${taskEdit?.full ? 1 : 0}|${taskEdit?.askDel ? 1 : 0}` : null);
+/** 選んだ枠を見える位置へ出すか: 選択か編集欄が、この描き直しで開いた・変わったときだけ（同じ選択のままの描き直しでは、ページを動かさない） */
+const revealSelection = (prevKey, key) => key != null && key !== prevKey;
 
 const weekStartOf = (d) => addDays(d, -((weekday(d) + 6) % 7));
 
-/** 勤務時間 → 位置計算（すべて % ） */
-function calendarGeometry(data) {
-  const wd = data.settings?.workday ?? DEFAULT_WORKDAY;
-  const h0 = toMin(wd.start);
-  const span = toMin(wd.end) - h0;
+/** 時間の軸（00:00〜24:00 の固定）→ 位置計算（すべて % ） */
+function calendarGeometry() {
+  const h0 = 0, span = 24 * 60;
   const pc = (m) => ((m - h0) / span) * 100;
-  return { wd, h0, span, pc, tp: (m) => `${pc(m).toFixed(3)}%`, ht: (a, b) => `calc(${(pc(b) - pc(a)).toFixed(3)}% - 2px)` };
+  return { h0, span, pc, tp: (m) => `${pc(m).toFixed(3)}%`, ht: (a, b) => `calc(${(pc(b) - pc(a)).toFixed(3)}% - 2px)` };
 }
 
 const hoursHtml = (g) => {
@@ -4118,7 +4217,7 @@ function meetingBlocks(data, d, full, g, ctx) {
     const by = m.projectBy === "manual" ? "（手動）" : m.projectBy === "rule" ? "（規則）" : "";
     const proj = full ? `<span class="mp">${pname ? `プロジェクト: ${esc(pname)}${by}` : "プロジェクト未設定"}</span>` : "";
     const confirm = full && kind === "unconfirmed" ? `<span class="bb"><button class="btn" data-confirmmtg="${esc(m.id)}">実績にする</button></span>` : "";
-    return `<div class="blk mtg ${m.skip ? "skip" : ""} ${kc} ${ctx.selMtg === m.id ? "sel" : ""}" data-mtg="${esc(m.id)}" tabindex="0" ${manual ? `draggable="true" data-dragmtg="${esc(m.id)}"` : ""} style="top:${g.tp(a)};height:${g.ht(a, b)}" title="${esc(m.title)}${m.skip ? "(参加しない)" : ""}${manual ? "" : "(予定表から取得)"}"><span class="tm">${esc(m.start)}-${esc(m.end)}${mark}</span>${esc(m.title)}${proj}${confirm}${manual ? `<i class="rz" data-rzm="${esc(m.id)}" aria-label="終了時刻を変更"></i>` : ""}</div>`;
+    return `<div class="blk mtg ${m.skip ? "skip" : ""} ${kc} ${ctx.selMtg === m.id ? "sel" : ""}${b - a < SHORT_MIN ? " short" : ""}" data-mtg="${esc(m.id)}" tabindex="0" ${manual ? `draggable="true" data-dragmtg="${esc(m.id)}"` : ""} style="top:${g.tp(a)};height:${g.ht(a, b)}" title="${esc(m.title)}${m.skip ? "(参加しない)" : ""}${manual ? "" : "(予定表から取得)"}"><span class="tm">${esc(m.start)}-${esc(m.end)}${mark}</span>${esc(m.title)}${proj}${confirm}${manual ? `<i class="rz" data-rzm="${esc(m.id)}" aria-label="終了時刻を変更"></i>` : ""}</div>`;
   }).join("");
 }
 
@@ -4135,27 +4234,18 @@ function sessionBlocks(data, d, full, g, ctx) {
     const task = data.tasks.find((t) => t.id === s.taskId);
     const st = full ? ` <span class="stt">${STATUS_JA[task.status] ?? ""}</span>` : "";
     const imp = isImportantMark(task) ? " imp" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
-    return `<div class="blk task ${c}${imp} ${ctx.selSess === s.id ? "sel" : ""}" draggable="true" tabindex="0" data-dragsess="${esc(s.id)}" style="top:${g.tp(toMin(s.start))};height:${g.ht(toMin(s.start), toMin(s.end))}" title="${esc(s.title)}(${KIND_JA[c]})"><span class="tm">${esc(s.start)}-${esc(s.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${full ? `${esc(s.taskId)} ` : ""}${esc(s.title)}</span>${st}${confirm}<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i></div>`;
+    const short = toMin(s.end) - toMin(s.start) < SHORT_MIN ? " short" : "";
+    return `<div class="blk task ${c}${imp}${short} ${ctx.selSess === s.id ? "sel" : ""}" draggable="true" tabindex="0" data-dragsess="${esc(s.id)}" style="top:${g.tp(toMin(s.start))};height:${g.ht(toMin(s.start), toMin(s.end))}" title="${esc(s.title)}(${KIND_JA[c]})"><span class="tm">${esc(s.start)}-${esc(s.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${esc(s.title)}</span>${st}${confirm}<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i></div>`;
   }).join("");
 }
 
-/** 会議と配置済みの枠を除いた空き時間 */
-function freeOf(data, d, g, isOff) {
-  if (isOff(d)) return [];
-  const busy = [...(data.events ?? []), ...allSessions(data)].filter((x) => x.date === d);
-  return freeSlots(busy, d, g.wd);
-}
+/** 今日以外の日に開いたときの、突発タスクの開始の初期値 */
+const URGENT_OTHER_DAY_START = "09:00";
 
-/** 突発タスクの既定の開始: その日の勤務時間内で、会議・枠と重ならない最初の空き（今日なら現在時刻以降）の開始（15 分刻み）。なければ勤務の開始 */
-function firstFreeStart(data, date, now) {
-  const g = calendarGeometry(data);
-  const from = date === now.date ? toMin(now.time) : 0;
-  for (const x of freeOf(data, date, g, offDayChecker(data.settings))) {
-    let st = snapFreeStart(Math.max(toMin(x.start), from), g.wd);
-    if (st < from) st += SLOT_STEP; // 現在時刻より前へ戻さない
-    if (st + SLOT_STEP <= toMin(x.end)) return toHHMM(st);
-  }
-  return g.wd.start;
+/** 突発タスクの開始の初期値: 今日なら現在時刻を 15 分刻みに切り上げた時刻（23:45 まで）、ほかの日は 09:00 */
+function urgentDefaultStart(date, now) {
+  if (date !== now.date) return URGENT_OTHER_DAY_START;
+  return toHHMM(Math.min(Math.ceil(toMin(now.time) / SLOT_STEP) * SLOT_STEP, 24 * 60 - SLOT_STEP));
 }
 
 /** 突発タスクの入力欄の値 → addUrgentTask への入力。件名・日付・開始のどれかが空なら null（何も作らない） */
@@ -4178,17 +4268,17 @@ function meetingForm(data, ctx) {
   const projOpts = [`<option value=""${cur === "" ? " selected" : ""}>自動（規則）→ ${esc(autoName)}</option>`, ...projects.map((p) => `<option value="${esc(p.id)}"${cur === p.id ? " selected" : ""}>${esc(p.name)}</option>`)].join("");
   return `<div class="mtgform" role="group" aria-label="会議の${isNew ? "追加" : "編集"}">
     <label>件名<input class="in" data-mt="title" value="${esc(m.title)}" placeholder="会議名" style="min-width:200px" ${lock}></label>
-    <label>日付<input class="in" type="date" data-mt="date" value="${esc(m.date)}" ${lock}></label>
+    <label>日付${dateInputHtml({ value: m.date, attrs: `data-mt="date" ${lock}`, label: "会議の日付" })}</label>
     <label>開始<input class="in" type="time" step="900" data-mt="start" value="${esc(m.start)}" ${lock}></label>
     <label>終了<input class="in" type="time" step="900" data-mt="end" value="${esc(m.end)}" ${lock}></label>
     <label>プロジェクト<select class="in" data-mt="projectId" aria-label="会議のプロジェクト">${projOpts}</select></label>
-    <label class="chk"><input type="checkbox" data-mt="skip" ${m.skip ? "checked" : ""}>参加しない(空き時間として扱う)</label>
+    <label class="chk"><input type="checkbox" data-mt="skip" ${m.skip ? "checked" : ""}>参加しない(稼働に数えず、作業枠と重なっても注意しない)</label>
     <div style="display:flex;gap:6px;align-items:center">${isNew ? `<button class="btn" data-mtgsave>追加</button><button class="btn" data-mtgcancel>キャンセル</button>` : `${m.source === "manual" ? `<button class="btn danger" data-delsel>会議を削除</button>` : ""}<button class="btn" data-mtgclose>閉じる</button>`}</div>
     ${!isNew && m.source === "manual" ? `<p class="note" style="flex-basis:100%;margin:0">カレンダー上でドラッグして移動（別の日へも）、下端をドラッグして長さを変えられます。</p>` : ""}${!isNew && m.source === "mcp" ? `<p class="note" style="flex-basis:100%;margin:0">予定表から取得した会議です。件名と時間は取得内容が正のため変更できません。プロジェクトは、規則で自動に付き、ここで手動に変えられます。出席しない会議は「参加しない」にします（削除しても、次の取得で戻ります）。</p>` : ""}
   </div>`;
 }
 
-/** 空き時間から突発タスクを登録する入力欄（件名・プロジェクト・長さ）。下書きがないときは出さない */
+/** 突発タスクを登録する入力欄（件名・プロジェクト・長さ・日付・開始）。ヘッダーの「＋ 突発タスク」から開く。下書きがないときは出さない */
 function urgentForm(data, draft) {
   if (!draft) return "";
   const projOpts = [`<option value=""${draft.projectId === "" ? " selected" : ""}>プロジェクトなし</option>`, ...(data.projects ?? []).map((p) => `<option value="${esc(p.id)}"${draft.projectId === p.id ? " selected" : ""}>${esc(p.name)}</option>`)].join("");
@@ -4197,25 +4287,25 @@ function urgentForm(data, draft) {
     <label>件名<input class="in" data-ug="title" value="${esc(draft.title)}" placeholder="突発タスクの件名" style="min-width:200px"></label>
     <label>プロジェクト<select class="in" data-ug="projectId" aria-label="突発タスクのプロジェクト">${projOpts}</select></label>
     <label>長さ<select class="in" data-ug="minutes" aria-label="突発タスクの長さ">${minOpts}</select></label>
-    <label>日付<input class="in" type="date" data-ug="date" value="${esc(draft.date)}"></label>
+    <label>日付${dateInputHtml({ value: draft.date, attrs: 'data-ug="date"', label: "突発タスクの日付" })}</label>
     <label>開始<input class="in" type="time" step="900" data-ug="start" value="${esc(draft.start)}"></label>
     <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-urgsave>追加</button><button class="btn" data-urgcancel>キャンセル</button></div>
   </div>`;
 }
 
-/** カレンダー部分（週または日）＋凡例。会議の編集中はここだけを描き直す */
+/** 色の凡例（上の操作の行に置く）。日表示は現在時刻の線、参加しない会議を出すときはその印も */
+const legendHtml = (day, showSkipped) => `<div class="slegend" aria-label="色の凡例"><span><i class="sw mtg"></i>会議</span>${showSkipped ? '<span><i class="sw skipsw"></i>参加しない会議</span>' : ""}<span><i class="sw mtgun"></i>未確認の会議</span><span><i class="sw plan"></i>予定</span><span><i class="sw act"></i>実績(✓)</span><span><i class="sw unconf"></i>未確認(過ぎた予定)</span>${day ? '<span><i class="sw now"></i>現在時刻</span>' : ""}<span><i class="sw sel"></i>選択中</span></div>`;
+
+/** カレンダー部分（週または日）。会議の編集中はここだけを描き直す */
 function renderCalendar(data, today, opts) {
   const { view = "week", date = today } = opts;
   const ctx = { now: opts.now ?? { date: today, time: "00:00" }, selSess: opts.selSess ?? null, selMtg: opts.selMtg ?? null, showSkipped: opts.showSkipped === true };
-  const g = calendarGeometry(data);
+  const g = calendarGeometry();
   const isOff = offDayChecker(data.settings);
   let cal;
   if (view === "week") {
     const days = [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(weekStartOf(date), i));
-    const heads = days.map((d) => {
-      const free = freeOf(data, d, g, isOff).reduce((a, x) => a + toMin(x.end) - toMin(x.start), 0);
-      return `<button class="dh ${d === today ? "t" : ""}" data-day="${d}" aria-label="${fmtMD(d)}の1日表示">${fmtMD(d)}(${wdJa(d)})<small class="mono">${isOff(d) ? "—" : `空き ${(free / 60).toFixed(1)}h`}</small></button>`;
-    }).join("");
+    const heads = days.map((d) => `<button class="dh ${d === today ? "t" : ""}" data-day="${d}" aria-label="${fmtMD(d)}の1日表示">${fmtMD(d)}(${wdJa(d)})${isOff(d) ? '<small class="mono">—</small>' : ""}</button>`).join("");
     const cols = days.map((d) => `<div class="col dz ${d === today ? "today" : ""} ${isOff(d) ? "weekend" : ""}" data-date="${d}">${meetingBlocks(data, d, false, g, ctx)}${sessionBlocks(data, d, false, g, ctx)}</div>`).join("");
     const dues = days.map((d) => {
       const due = data.tasks.filter((t) => t.due === d && t.status !== "Done" && t.status !== "Cancelled");
@@ -4224,16 +4314,12 @@ function renderCalendar(data, today, opts) {
     cal = `<div class="cal wk"><div class="week"><div></div>${heads}<div class="hrs">${hoursHtml(g)}</div>${cols}</div><div class="week" style="margin-top:8px"><div class="note" style="padding-top:6px">期限</div>${dues}</div></div>
       <p class="note" style="margin:8px 0 0">日付を押すと1日表示に切り替わります。枠をクリックして選び、「枠を削除」か Delete キーで削除できます。</p>`;
   } else {
-    const free = freeOf(data, date, g, isOff).filter((x) => toMin(x.end) - toMin(x.start) >= 20);
-    const fb = free.map((x) => `<button class="free" data-free="${toMin(x.start)}" style="top:calc(${g.pc(toMin(x.start)).toFixed(3)}% + 1px);height:calc(${(g.pc(toMin(x.end)) - g.pc(toMin(x.start))).toFixed(3)}% - 3px)" aria-label="空き ${x.start}から${x.end}">${x.start}-${x.end} 空き</button>`).join("");
     const nowLine = date === ctx.now.date && toMin(ctx.now.time) >= g.h0 && toMin(ctx.now.time) <= g.h0 + g.span ? `<span class="nowline" style="top:${g.tp(toMin(ctx.now.time))}" title="現在 ${ctx.now.time}"></span>` : "";
     const offKinds = data.settings?.countWeekendsAndHolidays === true ? "休み" : "土日・日本の祝日・休み"; // 土日祝を営業日に数える設定のときは、手動の休みだけが休みの日
     const offNote = isOff(date) ? `<p class="note" style="margin:0 0 8px">この日は休みです（${offKinds}）。作業枠は置けません。設定タブの「営業日として扱う日」に指定すると置けます。</p>` : "";
-    cal = `${offNote}<div class="cal"><div class="cal-grid">${hoursHtml(g)}<div class="cal-body dz" id="calbody" data-date="${date}">${meetingBlocks(data, date, true, g, ctx)}${sessionBlocks(data, date, true, g, ctx)}${fb}${nowLine}</div></div></div>`;
+    cal = `${offNote}<div class="cal"><div class="cal-grid">${hoursHtml(g)}<div class="cal-body dz" id="calbody" data-date="${date}">${meetingBlocks(data, date, true, g, ctx)}${sessionBlocks(data, date, true, g, ctx)}${nowLine}</div></div></div>`;
   }
-  const day = view === "day";
-  const legend = `<div class="slegend" aria-label="色の凡例"><span><i class="sw mtg"></i>会議</span>${ctx.showSkipped ? '<span><i class="sw skipsw"></i>参加しない会議</span>' : ""}<span><i class="sw mtgun"></i>未確認の会議</span><span><i class="sw plan"></i>予定</span><span><i class="sw act"></i>実績(✓)</span><span><i class="sw unconf"></i>未確認(過ぎた予定)</span>${day ? '<span><i class="sw free"></i>空き時間</span><span><i class="sw now"></i>現在時刻</span>' : ""}<span><i class="sw sel"></i>選択中</span></div>`;
-  return cal + legend;
+  return cal;
 }
 
 /**
@@ -4241,9 +4327,8 @@ function renderCalendar(data, today, opts) {
  * @param opts.date      表示する日（週表示ではその日を含む週）
  * @param opts.now       {date, time}  現在時刻（過ぎた予定の判定に使う）
  * @param opts.selSess   選択中の枠 ID / opts.selMtg 選択中の会議 ID / opts.mtgDraft 追加中の会議の下書き / opts.urgentDraft 追加中の突発タスクの下書き / opts.taskEdit 編集欄を開いているタスク { id, full, askDel }
- * @param opts.picked    選択中のタスク ID（キーボード配置用）
  * @param opts.showPrio  false なら今日の優先を出さない
- * @param opts.showSkipped  true なら「参加しない」の会議も出す（既定は出さない。選択中の会議だけは、隠さない。空き時間の計算は変わらない）
+ * @param opts.showSkipped  true なら「参加しない」の会議も出す（既定は出さない。選択中の会議だけは、隠さない）
  */
 function renderSchedule(data, today, opts) {
   const { view = "week", date = today } = opts;
@@ -4264,16 +4349,16 @@ function renderSchedule(data, today, opts) {
   const delOk = !!selSess || (selMtg && selMtg.source === "manual");
   const calOpts = { ...opts, view, date, now, selSess: selSess?.id ?? null, selMtg: selMtg?.id ?? null };
 
-  const nav = `<div class="toolbar"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn" data-nav="${-step}" aria-label="前へ">←</button><button class="btn" data-nav="${step}" aria-label="次へ">→</button><button class="btn" data-sgoto>今日</button><strong style="margin-left:6px">${title}</strong></div>
+  const nav = `<div class="toolbar"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn" data-nav="${-step}" aria-label="前へ">←</button><button class="btn" data-nav="${step}" aria-label="次へ">→</button><button class="btn" data-sgoto>今日</button><strong style="margin-left:6px">${title}</strong>${legendHtml(view === "day", opts.showSkipped === true)}</div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="chip-btn pref" data-sskip aria-pressed="${opts.showSkipped === true}" title="「参加しない」にした会議を、カレンダーに出したり隠したりします">参加しない会議</button><button class="btn" data-mtgadd>＋ 会議を追加</button><div class="seg" role="group" aria-label="表示"><button data-sview="week" aria-pressed="${view === "week"}">週</button><button data-sview="day" aria-pressed="${view === "day"}">日</button></div></div></div>
-    <div class="summary"><span>実績 <b class="mono">${hours.toFixed(1)}時間</b></span><span>予定 <b class="mono">${planned}件</b></span>${unconf ? `<span class="pill wait">未確認 ${unconf}件（作業枠 ${unconfS}・会議 ${unconfM}）</span><button class="btn" data-confirmall>未確認をすべて実績にする</button>` : ""}<button class="btn danger" data-delsel ${delOk ? "" : "disabled"}>${delLabel}</button>${selSess ? `<button class="btn" data-tedit-open="${esc(selSess.taskId)}">タスクを編集</button>` : ""}</div>`;
-  const et = opts.taskEdit ? data.tasks.find((t) => t.id === opts.taskEdit.id) : null;
+    <div class="summary"><span>実績 <b class="mono">${hours.toFixed(1)}時間</b></span><span>予定 <b class="mono">${planned}件</b></span>${unconf ? `<span class="pill wait">未確認 ${unconf}件（作業枠 ${unconfS}・会議 ${unconfM}）</span><button class="btn" data-confirmall>未確認をすべて実績にする</button>` : ""}<button class="btn danger" data-delsel ${delOk ? "" : "disabled"}>${delLabel}</button></div>`;
+  const et = selSess && opts.taskEdit ? data.tasks.find((t) => t.id === opts.taskEdit.id) : null; // 編集欄は、表示中の枠を選んでいる間だけ出す（枠を選ぶと、そのタスクの編集欄になる）
   const editPanel = et ? renderTaskEditPanel(data, opts.taskEdit, statusCellHtml(et, { ...opts, todayIds: opts.showPrio === false ? new Set() : new Set(todayTaskIds(data, today)) }, taskFlags(et, today, data.settings).includes("overdue"))) : "";
-  return `<div class="cols${opts.showPrio === false ? " one" : ""}"><section class="panel">${nav}<div id="mtgslot">${meetingForm(data, { mtgDraft: opts.mtgDraft, selMtg: selMtg?.id })}${urgentForm(data, opts.urgentDraft)}${editPanel}</div><div id="calslot">${renderCalendar(data, today, calOpts)}</div></section>${renderSideToggle(opts.showPrio !== false)}${opts.showPrio === false ? "" : renderSide(data, today, { sched: true, picked: opts.picked, pendingDone: opts.pendingDone })}</div>`;
+  return `<div class="cols${opts.showPrio === false ? " one" : ""}"><section class="panel"><div class="stop">${nav}</div><div id="mtgslot">${meetingForm(data, { mtgDraft: opts.mtgDraft, selMtg: selMtg?.id })}${urgentForm(data, opts.urgentDraft)}${editPanel}</div><div id="calslot">${renderCalendar(data, today, calOpts)}</div></section>${renderSideToggle(opts.showPrio !== false)}${opts.showPrio === false ? "" : renderSide(data, today, { sched: true, pendingDone: opts.pendingDone, now })}</div>`;
 }
 
 
-return { snapStart, snapFreeStart, weekStartOf, calendarGeometry, firstFreeStart, urgentInput, urgentForm, renderCalendar, renderSchedule };
+return { snapStart, selectionKey, revealSelection, weekStartOf, calendarGeometry, urgentDefaultStart, urgentInput, urgentForm, renderCalendar, renderSchedule };
 })();
 
 /* src/ui/sticky.js */
@@ -4339,6 +4424,10 @@ function syncSticky() {
   root.setProperty("--hh", `${topbar.offsetHeight}px`);
   const tool = view.querySelector(".ptool");
   root.setProperty("--th", `${tool ? tool.offsetHeight : 0}px`);
+  // スケジュールは、ヘッダーの下に、操作の行（.stop）・入力欄（#mtgslot）・週表示の日付の見出しを積んで固定する。それぞれの高さを測り、下の段の top に足す
+  root.setProperty("--stop-h", `${view.querySelector(".stop")?.offsetHeight ?? 0}px`);
+  root.setProperty("--slot-h", `${view.querySelector("#mtgslot")?.offsetHeight ?? 0}px`);
+  root.setProperty("--dh-h", `${view.querySelector(".cal.wk .week .dh")?.offsetHeight ?? 0}px`);
   // ガントの操作の帯(.gtop)の高さ(プロジェクトの見出し .pgstick の固定位置)と、プロジェクトごとの見出しの高さ(日付軸の複製の固定位置)。スクロールには連動させない
   root.setProperty("--gh", `${view.querySelector(".gtop")?.offsetHeight ?? 0}px`);
   for (const pg of view.querySelectorAll("section.pg")) pg.style.setProperty("--pgh", `${pg.querySelector(".pgstick").getBoundingClientRect().height}px`);
@@ -4400,7 +4489,6 @@ return { syncSticky };
 (() => {
 // ダッシュボード本体: 状態の保持、描画、保存、イベントの結線。判断ロジックは src/core、見た目は src/ui/views、データ編集は src/ui/edit.js。
 const store = createPairStore();
-let settingTimer = null; // 勤務時間の保存待ちのタイマー（changeSettingSoon）。render が最初に呼ばれる前に宣言しておく
 const params = new URLSearchParams(location.search);
 // ?today=2026-10-20&time=10:15 で「現在」を固定できる(デモ・動作確認用)
 const clock = () => (params.get("today") ? { date: params.get("today"), time: params.get("time") ?? "10:15" } : nowLocal());
@@ -4410,13 +4498,16 @@ const S = {
   screen: "gantt",
   filter: "all", gwin: "m6", hideDone: false,
   askDel: null, askDelProject: null, pendingWait: null, pendingDone: null, checkOpen: new Set(),
-  sview: "week", sdate: clock().date, selSess: null, selMtg: null, mtgDraft: null, urgentDraft: null, taskEdit: null, picked: null,
+  sview: "week", sdate: clock().date, selSess: null, selMtg: null, mtgDraft: null, urgentDraft: null, taskEdit: null,
   prefs: loadPrefs(), settingsClosed: loadSettingsClosed(), tpop: null, addAt: null, last: null, ruleError: "",
   ib: { open: false, text: loadInboxDraft(), projectId: "", replies: {}, reasons: {}, causes: {} },
-  wperiod: "week", wdate: clock().date,
+  wperiod: "day", wdate: clock().date,
 };
 const $ = (id) => document.getElementById(id);
 const view = $("view");
+
+/** 通知で言うタスクの名前（件名）。スケジュールでも出る通知は、ID でなく件名で言う */
+const taskTitle = (id) => S.data.tasks.find((t) => t.id === id)?.title ?? id;
 
 function toast(msg) {
   const t = $("toast");
@@ -4430,7 +4521,7 @@ function toast(msg) {
 /** 開始画面の、まだ開いていないファイルごとの案内と選ぶボタン */
 const PICK = {
   shared: `<p><b>共有ファイルを選んでください。</b>プロジェクトとタスク（<code>/project-lens:init</code> が作った <code>.project-lens/data.json</code>）です。</p><button class="btn" data-open="shared">共有ファイルを選ぶ</button>`,
-  personal: `<p><b>個人ファイルを選んでください。</b>自分の作業枠・予定・勤務時間（既定は <code>.project-lens/personal.json</code>）です。</p><button class="btn" data-open="personal">個人ファイルを選ぶ</button>`,
+  personal: `<p><b>個人ファイルを選んでください。</b>自分の作業枠・予定・休み（既定は <code>.project-lens/personal.json</code>）です。</p><button class="btn" data-open="personal">個人ファイルを選ぶ</button>`,
 };
 function startScreen() {
   const canPick = typeof window.showOpenFilePicker === "function";
@@ -4444,13 +4535,13 @@ function startScreen() {
     ${S.openError ? `<p class="ask" style="max-width:none" role="alert">${esc(S.openError)}</p>` : ""}</section>`;
 }
 
-const scheduleOpts = () => ({ view: S.sview, date: S.sdate, now: clock(), selSess: S.selSess, selMtg: S.selMtg, mtgDraft: S.mtgDraft, urgentDraft: S.urgentDraft, taskEdit: S.taskEdit, pendingWait: S.pendingWait, picked: S.picked, showPrio: S.prefs.showPrio, showSkipped: S.prefs.showSkipped, pendingDone: S.pendingDone });
+const scheduleOpts = () => ({ view: S.sview, date: S.sdate, now: clock(), selSess: S.selSess, selMtg: S.selMtg, mtgDraft: S.mtgDraft, urgentDraft: S.urgentDraft, taskEdit: S.taskEdit, pendingWait: S.pendingWait, showPrio: S.prefs.showPrio, showSkipped: S.prefs.showSkipped, pendingDone: S.pendingDone });
 
 function renderBody() {
   const { date: today } = clock();
   if (!S.data) return startScreen();
   if (S.screen === "gantt" || S.screen === "list") {
-    return renderProjects(S.data, today, { filter: S.filter, view: S.screen, window: S.gwin, hideDone: S.hideDone, askDel: S.askDel, askDelProject: S.askDelProject, pendingWait: S.pendingWait, pendingDone: S.pendingDone, checkOpen: S.checkOpen, addAt: S.addAt, tpop: S.screen === "gantt" ? S.tpop : null, showPrio: S.prefs.showPrio, showActual: S.prefs.showActual });
+    return renderProjects(S.data, today, { filter: S.filter, view: S.screen, window: S.gwin, hideDone: S.hideDone, askDel: S.askDel, askDelProject: S.askDelProject, pendingWait: S.pendingWait, pendingDone: S.pendingDone, checkOpen: S.checkOpen, addAt: S.addAt, tpop: S.screen === "gantt" ? S.tpop : null, showPrio: S.prefs.showPrio, showActual: S.prefs.showActual, now: clock() });
   }
   if (S.screen === "settings") return renderSettings(S.data, today, { ruleError: S.ruleError, closed: S.settingsClosed });
   if (S.screen === "workload") return renderWorkload(S.data, today, { period: S.wperiod, date: S.wdate, now: clock() });
@@ -4478,26 +4569,29 @@ function drawAllDeps() {
   drawDeps(bodies);
 }
 
+let lastSelKey = null; // 前の描き直しの選択の鍵（selectionKey）
 function render() {
   hideTip();
-  clearTimeout(settingTimer); settingTimer = null; // 描き直しで入力欄を取り除くときに focusout が走り、保存が入れ子の描き直しになるのを防ぐ（待っていた入力は、描き直しで消えるのと同じ）
+  sync.rendered(); // 読み直しで待たせた描き直しは、この描き直しで済む
   if (S.tpop && !S.data.tasks.some((t) => t.id === S.tpop.id)) S.tpop = null; // 読み直しで対象のタスクが消えたら、窓も閉じる
-  if (S.taskEdit && (S.screen !== "schedule" || !S.data.tasks.some((t) => t.id === S.taskEdit.id))) S.taskEdit = null; // スケジュールの編集欄も同じ
+  if (S.selSess && !allSessions(S.data).some((s) => s.id === S.selSess)) { S.selSess = null; S.taskEdit = null; } // 読み直しなどで選択中の枠が無くなったら、選択と編集欄を外す
+  if (S.taskEdit && (S.screen !== "schedule" || !S.data.tasks.some((t) => t.id === S.taskEdit.id))) { S.taskEdit = null; S.selSess = null; } // スケジュールの編集欄も同じ（編集欄は枠の選択と一緒なので、選択も外す）
   const c = clock();
   $("todaylabel").textContent = `${c.date.replace(/-/g, "/")}(${wdJa(c.date)})`;
   document.querySelectorAll("nav [role=tab]").forEach((b) => b.setAttribute("aria-selected", String(b.id === "tab-" + S.screen)));
-  $("filebar").innerHTML = S.data ? `<button class="chip-btn pref" data-pref="actual" aria-pressed="${S.prefs.showActual}" title="ガントの実績の線を出したり隠したりします">ガント実績</button><span class="fsep" aria-hidden="true"></span><button class="btn" data-urgent-open title="空き時間を押さずに、突発タスクの入力欄を開きます">＋ 突発タスク</button><button class="btn" data-refresh title="ファイルを読み直します(Claude Code などが更新した内容を反映)">更新</button><button class="btn" data-open="shared" title="別の共有ファイル（data.json）を選びます">別の共有ファイル</button><button class="btn" data-open="personal" title="別の個人ファイル（personal.json）を選びます">別の個人ファイル</button>${typeof window.showOpenFilePicker === "function" ? "" : `<button class="btn" data-download>JSON を書き出す</button>`}` : "";
-  document.body.classList.toggle("picking", !!S.picked && S.screen === "schedule" && S.sview === "day");
+  $("filebar").innerHTML = S.data ? `<button class="chip-btn pref" data-pref="actual" aria-pressed="${S.prefs.showActual}" title="ガントの実績の線を出したり隠したりします">ガント実績</button><span class="fsep" aria-hidden="true"></span><button class="btn primary" data-urgent-open title="突発タスクの入力欄を開きます">＋ 突発タスク</button><button class="btn" data-refresh title="ファイルを読み直します(Claude Code などが更新した内容を反映)">更新</button><button class="btn" data-open="shared" title="別の共有ファイル（data.json）を選びます">別の共有ファイル</button><button class="btn" data-open="personal" title="別の個人ファイル（personal.json）を選びます">別の個人ファイル</button>${typeof window.showOpenFilePicker === "function" ? "" : `<button class="btn" data-download>JSON を書き出す</button>`}` : "";
   renderBar();
   // ガントの横スクロール位置(全プロジェクトで同じ)とページの縦の位置は、編集で描き直しても保つ(表示期間・絞り込みなどを変えたときだけ今日の位置へ戻す)。
   // 描き直しの間、ページが縮んで scrollY が飛ばないよう、#view の高さを保つ
   const prevCount = view.querySelectorAll(".gscroll").length;
+  const calTop = S.screen === "schedule" ? view.querySelector("#calslot")?.getBoundingClientRect().top : null; // スケジュールは、カレンダーの画面上の位置を保つ（上の入力欄が開閉しても、押した枠が動かない）
   const prevLeft = view.querySelector(".gscroll")?.scrollLeft ?? 0, prevY = window.scrollY, chipsLeft = view.querySelector(".chips-row")?.scrollLeft ?? 0;
   view.style.minHeight = `${view.offsetHeight}px`;
   const keepFocus = focusSelector(document.activeElement);
   view.innerHTML = renderBody();
   if (keepFocus && !S.focusSel) view.querySelector(keepFocus)?.focus();
   const bars = [...view.querySelectorAll(".gscroll")];
+  const reset = S.resetScroll;
   if (S.resetScroll || !prevCount || !bars.length) scrollToday(false); // 枠の数が変わっても(完了を隠すなど)、位置は保つ
   else bars.forEach((c) => { c.scrollLeft = prevLeft; });
   S.resetScroll = false;
@@ -4520,6 +4614,12 @@ function render() {
   }
   window.scrollTo(0, prevY); view.style.minHeight = "";
   syncSticky();
+  if (reset && S.screen === "schedule") scrollToMorning();
+  else if (calTop != null && !reset && S.screen === "schedule") { const nt = view.querySelector("#calslot")?.getBoundingClientRect().top; if (nt != null) window.scrollBy(0, nt - calTop); }
+  // 枠を選んだ・編集欄が変わった描き直しで、固定の段（編集欄など）が高くなって、選んだ枠が隠れたら、その下へ出す（同じ選択のままの描き直しでは動かさない）
+  const selKey = S.screen === "schedule" ? selectionKey(S.selSess, S.taskEdit) : null;
+  if (revealSelection(lastSelKey, selKey)) { const b = view.querySelector(".blk.sel")?.getBoundingClientRect(), top = stackBottom(); if (b && b.top < top) window.scrollBy(0, b.top - top - 8); }
+  lastSelKey = selKey;
   drawAllDeps();
   placeTaskPop();
   if (S.hlId) {
@@ -4552,6 +4652,7 @@ function focusSelector(el) {
   for (const k of ["hnew", "hto", "hnote", "wnew", "wnote"]) if (d[k] !== undefined) return `[data-${k}]`;
   if (d.rnewpj !== undefined) return "[data-rnewpj]";
   if (d.waitparty) return q("data-waitparty", d.waitparty);
+  if (d.ug) return q("data-ug", d.ug); // 突発タスクの欄（読み直しで待たせた描き直しが、欄を移ったときに走る）
   return null;
 }
 
@@ -4570,6 +4671,22 @@ function scrollToday(smooth) {
       c.scrollTo({ left: Math.max(0, Math.round(lane.offsetWidth * +c.dataset.todayfrac - 120)), behavior: smooth ? "smooth" : "auto" });
     }
   }));
+}
+
+/** スケジュールの固定の段（ヘッダー・操作の行・入力欄・週表示の日付の見出し）の下端（画面の y）。syncSticky が測った高さの和 */
+function stackBottom() {
+  const cs = getComputedStyle(document.documentElement), px = (k) => parseFloat(cs.getPropertyValue(k)) || 0;
+  return px("--hh") + px("--stop-h") + px("--slot-h") + px("--dh-h");
+}
+
+/** スケジュールを開いたとき（画面の切り替え・ファイルを開いたとき・「＋ 突発タスク」）に、時間の軸の先頭に見せる時刻（分） */
+const MORNING = 8 * 60;
+/** スケジュールを開いたとき、今の時刻によらず、08:00 が固定の段（ヘッダー・操作の行・入力欄・週表示の日付の見出し）のすぐ下（10px 下）に来るまで、ページを縦にスクロールする（時間の軸は 00:00〜24:00 で、先頭は夜中のため） */
+function scrollToMorning() {
+  const grid = view.querySelector(".cal-grid, .week .hrs");
+  if (!grid) return;
+  const r = grid.getBoundingClientRect();
+  window.scrollTo(0, Math.max(0, window.scrollY + r.top + r.height * calendarGeometry().pc(MORNING) / 100 - stackBottom() - 10)); // 10px 下げて、08:00 の目盛りの文字が段に隠れないようにする
 }
 
 /* ---------- 保存 ---------- */
@@ -4598,10 +4715,18 @@ function downloadJson() {
   }, i * 300));
 }
 
+/** 画面の入力欄で打ちかけ（打った文字が、まだ change で確定していない）か。描き直すと消えるので、読み直しの描き直しを待たせる */
+function isEditing() {
+  const el = document.activeElement;
+  if (!el || !view.contains(el)) return false;
+  const typing = el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && !["checkbox", "radio", "file", "button", "submit", "range", "color"].includes(el.type));
+  return typing && el.value !== el.defaultValue;
+}
+
 /** 保存と読み直し（競合の当て直しを含む）。中身は ui/sync.js */
 const sync = createSync({
   store, getData: () => S.data, setData: (d) => { S.data = d; if (!sync.failed) refreshBanner(); }, render, renderBar, banner, toast,
-  visible: () => document.visibilityState !== "hidden", wantFast: () => S.ib.open,
+  visible: () => document.visibilityState !== "hidden", wantFast: () => S.ib.open, isEditing,
 });
 
 /** 編集を適用して描画・保存する。edit は、いまのデータへの差分（data → data）で、例外を投げたら理由を表示して、データは変えない。
@@ -4748,6 +4873,12 @@ function submitGAdd(input) {
 
 /* ---------- 選択と削除 ---------- */
 const clearSel = () => { S.selSess = null; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.taskEdit = null; };
+/** 作業枠を選ぶ（id が null なら外す）。選んだ枠のタスクの編集欄を開き（外すと閉じる）、詳細を開いているか（full）は引き継ぐ */
+const selectSession = (id) => {
+  const s = id ? allSessions(S.data).find((x) => x.id === id) : null;
+  S.selSess = s ? id : null;
+  S.taskEdit = s ? { id: s.taskId, full: S.taskEdit?.full ?? false, askDel: false } : null;
+};
 
 function deleteSelected() {
   if (S.selMtg) {
@@ -4764,7 +4895,7 @@ function deleteSelected() {
 /** 表示の好み（今日の優先・ガント実績）を反転して保存する。今日の優先を閉じると、パネル内にしか出ない確認待ちは出す場所がなくなるので捨てる */
 function togglePref(key) {
   S.pendingDone = null;
-  if (key === "showPrio") S.resetScroll = true; // 右の列の開け閉めでガントの幅が変わるので、横スクロールを今日の位置へ戻す
+  if (key === "showPrio" && S.screen === "gantt") S.resetScroll = true; // 右の列の開け閉めでガントの幅が変わるので、横スクロールを今日の位置へ戻す（スケジュールでは戻さない。scrollToMorning でページが跳ぶため）
   S.prefs = { ...S.prefs, [key]: !S.prefs[key] };
   savePrefs(S.prefs);
   render();
@@ -4801,7 +4932,7 @@ $("filebar").addEventListener("click", async (e) => {
     clearSel(); S.tpop = null; S.pendingDone = null; S.ruleError = "";
     const date = S.screen === "schedule" ? S.sdate : clock().date;
     S.screen = "schedule"; S.sdate = date; S.resetScroll = true;
-    S.urgentDraft = { date, start: firstFreeStart(S.data, date, clock()), title: "", projectId: "", minutes: 30 };
+    S.urgentDraft = { date, start: urgentDefaultStart(date, clock()), title: "", projectId: "", minutes: 30 };
     render(); view.querySelector('[data-ug="title"]')?.focus();
     return;
   }
@@ -4854,7 +4985,7 @@ view.addEventListener("click", (e) => {
   if (S.tpop && !q(".tpop,[data-gt],[data-gh]")) { S.tpop = null; render(); } // 閉じたあと、押したものの操作もそのまま行う
   let cleared = false;
   // 欄外のクリックで、枠・会議の選択と追加中の下書きを外す
-  if ((S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.taskEdit) && !q("[data-dragsess],[data-mtg],[data-delsel],[data-tedit-open],.mtgform,[data-mtgadd],[data-confirm],[data-confirmmtg],[data-confirmall]")) { clearSel(); cleared = true; }
+  if ((S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.taskEdit) && !q("[data-dragsess],[data-mtg],[data-delsel],.mtgform,[data-mtgadd],[data-confirm],[data-confirmmtg],[data-confirmall]")) { clearSel(); cleared = true; }
   const { date: today, time } = clock();
   const now = clock();
 
@@ -4917,7 +5048,7 @@ view.addEventListener("click", (e) => {
   const dl = q("[data-del]"); if (dl) { S.askDel = dl.dataset.del; S.tpop = null; render(); return; }
   if (q("[data-delno]")) { S.askDel = null; render(); return; }
   const dy = q("[data-delyes]");
-  if (dy) { const id = dy.dataset.delyes; S.askDel = null; apply((d) => deleteTask(d, id),`${id} を削除しました`); return; }
+  if (dy) { const id = dy.dataset.delyes, name = taskTitle(id); S.askDel = null; apply((d) => deleteTask(d, id),`${name} を削除しました`); return; }
   const pd = q("[data-pdel]"); if (pd) { S.askDelProject = pd.dataset.pdel; render(); return; }
   if (q("[data-pdelno]")) { S.askDelProject = null; render(); return; }
   const pdy = q("[data-pdelyes]");
@@ -4947,36 +5078,43 @@ view.addEventListener("click", (e) => {
   if (q("[data-wtoday]")) { S.wdate = today; render(); return; }
 
   /* スケジュール画面 */
-  const ss = q("[data-setstatus]");
-  if (ss) { const [id, status] = ss.dataset.setstatus.split("|"); changeStatus(id, status); return; }
+  const sa = q("[data-session-actual]"); // 今日のタスクの「実績にする」。枠を実績にし、To Do・Waiting なら In Progress にする（1 回の保存）
+  if (sa) {
+    const sid = sa.dataset.sessionActual; let r;
+    if (apply((d) => { r = confirmTodaySession(d, sid, now); return r.data; }, null)) {
+      const s = allSessions(S.data).find((x) => x.id === sid);
+      toast(`${taskTitle(r.taskId)} の ${s.start}–${s.end} を実績にしました${r.statusChanged ? `（状態を In Progress にしました${r.from === "Waiting" ? "。待ち先の記録は外しました" : ""}）` : ""}`);
+    }
+    return;
+  }
   const sv = q("[data-sview]"); if (sv) { S.sview = sv.dataset.sview; render(); return; }
   const nv = q("[data-nav]"); if (nv) { S.sdate = addDays(S.sdate, +nv.dataset.nav); render(); return; }
   if (q("[data-sgoto]")) { S.sdate = today; render(); return; }
   if (q("[data-sskip]")) { togglePref("showSkipped"); return; }
   const dy0 = q("[data-day]"); if (dy0) { S.sdate = dy0.dataset.day; S.sview = "day"; render(); return; }
-  const pk = q("[data-pick]");
-  if (pk) { S.picked = S.picked === pk.dataset.pick ? null : pk.dataset.pick; if (S.picked && S.sview === "week") toast("日表示にすると、空き枠を押して配置できます"); render(); return; }
   const cf = q("[data-confirm]");
   if (cf) { apply((d) => { const r = confirmSession(d, cf.dataset.confirm, now); if (r.error) throw new Error(r.error); return r.data; }, "実績にしました。時間が違うときは、枠をドラッグして直します"); return; }
   const cm = q("[data-confirmmtg]");
   if (cm) { apply((d) => confirmMeeting(d, cm.dataset.confirmmtg, now), "会議を実績にしました。参加しなかったときは「参加しない」にします"); return; }
   if (q("[data-confirmall]")) {
     const days = S.sview === "week" ? [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(weekStartOf(S.sdate), i)) : [S.sdate];
+    let skipped = 0; // ほかの実績の枠と重なって、実績にできなかった枠（confirmSession が断る）
     apply((d) => {
-      const next = d.tasks.flatMap((t) => t.sessions ?? []).filter((s) => days.includes(s.date) && sessionKind(s, now) === "unconfirmed").reduce((acc, s) => confirmSession(acc, s.id, now).data, d);
+      skipped = 0;
+      const next = d.tasks.flatMap((t) => t.sessions ?? []).filter((s) => days.includes(s.date) && sessionKind(s, now) === "unconfirmed").reduce((acc, s) => { const r = confirmSession(acc, s.id, now); if (r.error) skipped++; return r.data; }, d);
       return next.events.filter((m) => days.includes(m.date) && meetingKind(m, now) === "unconfirmed").reduce((acc, m) => confirmMeeting(acc, m.id, now), next);
-    }, "未確認の枠と会議を実績にしました");
+    }, null);
+    toast(skipped ? `未確認の枠と会議を実績にしました。ほかの実績の枠と重なる ${skipped} 件は、未確認のまま残しました` : "未確認の枠と会議を実績にしました");
     return;
   }
   if (q("[data-delsel]")) { deleteSelected(); return; }
   const sb = q("[data-dragsess]");
-  if (sb && !q("[data-rz]")) { S.selSess = S.selSess === sb.dataset.dragsess ? null : sb.dataset.dragsess; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.taskEdit = null; render(); return; }
+  if (sb && !q("[data-rz]")) { selectSession(S.selSess === sb.dataset.dragsess ? null : sb.dataset.dragsess); S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; render(); return; }
   const mb = q("[data-mtg]");
   if (mb && !q("[data-rzm]")) { S.selMtg = S.selMtg === mb.dataset.mtg ? null : mb.dataset.mtg; S.selSess = null; S.mtgDraft = null; S.urgentDraft = null; S.taskEdit = null; render(); return; }
   if (q("[data-mtgadd]")) {
-    const wd = S.data.settings?.workday ?? DEFAULT_WORKDAY;
     const base = S.sdate === today ? Math.ceil((toMin(time) + 1) / 60) * 60 : 10 * 60;
-    const st = Math.max(toMin(wd.start), Math.min(base, toMin(wd.end) - 60));
+    const st = Math.min(base, 22 * 60); // 1 時間の会議が 23:59 までに収まる、最後の正時
     clearSel(); S.mtgDraft = { date: S.sdate, start: toHHMM(st), end: toHHMM(st + 60), title: "", skip: false };
     render(); toast("会議の内容を入力して「追加」を押してください"); return;
   }
@@ -4989,28 +5127,11 @@ view.addEventListener("click", (e) => {
   if (q("[data-mtgcancel]")) { S.mtgDraft = null; render(); return; }
   if (q("[data-mtgclose]")) { S.selMtg = null; render(); return; }
   if (q("[data-urgsave]")) { submitUrgent(); return; }
-  const to = q("[data-tedit-open]");
-  if (to) { S.mtgDraft = null; S.urgentDraft = null; S.pendingDone = null; S.taskEdit = { id: to.dataset.teditOpen, full: false, askDel: false }; render(); view.querySelector('[data-tedit] [data-f="title"]')?.focus(); return; }
   if (q("[data-tedit-full]")) { S.taskEdit = { ...S.taskEdit, full: !S.taskEdit.full, askDel: false }; render(); return; }
-  if (q("[data-tedit-close]")) { S.taskEdit = null; render(); return; }
+  if (q("[data-tedit-close]")) { clearSel(); render(); return; } // 編集欄は枠の選択と一緒に出るので、閉じると選択も外す
   if (q("[data-tedit-del]")) { S.taskEdit = { ...S.taskEdit, askDel: true }; render(); return; }
   if (q("[data-tedit-delno]")) { S.taskEdit = { ...S.taskEdit, askDel: false }; render(); return; }
   if (q("[data-urgcancel]")) { S.urgentDraft = null; render(); return; }
-  const fr = q("[data-free]");
-  if (fr) {
-    const wd = S.data.settings?.workday ?? DEFAULT_WORKDAY;
-    if (!S.picked) {
-      clearSel(); S.urgentDraft = { date: S.sdate, start: toHHMM(snapFreeStart(+fr.dataset.free, wd)), title: "", projectId: "", minutes: 30 };
-      render(); view.querySelector('[data-ug="title"]')?.focus(); return;
-    }
-    const st = snapStart(+fr.dataset.free, 60, wd), id = S.picked;
-    const sess = { date: S.sdate, start: toHHMM(st), end: toHHMM(st + 60) };
-    const r = addSession(S.data, id, sess, now);
-    if (r.error) { toast(r.error); return; }
-    S.picked = null;
-    apply(asEdit((d) => addSession(d, id, sess, now)), `${S.data.tasks.find((t) => t.id === id).title} を ${hm(st)} に配置しました${r.warning ? `(${r.warning})` : ""}`);
-    return;
-  }
   if (cleared) render();
 });
 
@@ -5023,13 +5144,13 @@ function submitUrgent() {
   if (!r) return;
   const { input } = r, title = input.title;
   let warning;
-  if (apply((d) => { const r = addUrgentTask(d, input, clock()); warning = r.warning; return r.data; }, null, { quiet: true })) {
+  if (apply((d) => { const r = addUrgentTask(d, input); warning = r.warning; return r.data; }, null, { quiet: true })) {
     S.urgentDraft = null; S.sdate = input.date; render();
     toast(`${title} を ${input.start} に ${input.minutes} 分で登録しました${warning ? `(${warning})` : ""}`);
   }
 }
 
-/** 状態の変更（リストの select と、スケジュール画面の着手・完了ボタンが共用）。待ち先・未来の予定枠の確認が要るときは、確認待ちにする */
+/** 状態の変更（リストの select・編集の窓・スケジュールの編集欄）。待ち先・未来の予定枠の確認が要るときは、確認待ちにする */
 function changeStatus(id, status) {
   const t = S.data.tasks.find((x) => x.id === id);
   if (status === "Waiting" && !t.waitingOn?.party) { S.pendingWait = id; S.focusSel = `[data-waitparty="${id}"]`; render(); return; }
@@ -5043,7 +5164,7 @@ function setStatus(id, status, future, checkAll = false) {
   const kept = status === "Done" || status === "Cancelled" ? runningPlanned(S.data, id, clock()).length : 0; // 完了にしても進行中の枠は残る
   const keptMsg = kept ? `。進行中の枠 ${kept} 件は残しました（終わったら「実績にする」で確定します）` : "";
   const n0 = S.data.tasks.length;
-  const doneMsg = future.length ? `${id} の状態を ${status} にしました。未来の予定の枠 ${future.length} 件を解除しました${keptMsg}` : `変更を保存しました${keptMsg}`;
+  const doneMsg = future.length ? `${taskTitle(id)} の状態を ${status} にしました。未来の予定の枠 ${future.length} 件を解除しました${keptMsg}` : `変更を保存しました${keptMsg}`;
   apply((d) => {
     let next = updateTask(d, id, { status }, clock().date);
     if (checkAll) next = checkAllChecklist(next, id);
@@ -5052,7 +5173,7 @@ function setStatus(id, status, future, checkAll = false) {
   }, doneMsg);
   if (S.data.tasks.length > n0) {
     const sp = S.data.tasks.find((x) => x.id === S.data.tasks.find((y) => y.id === id).repeat.spawned);
-    toast(`${doneMsg}。次回 ${sp.id}（期限 ${fmtMD(sp.due)}）を作りました`);
+    toast(`${doneMsg}。次回（期限 ${fmtMD(sp.due)}）を作りました`);
   }
 }
 
@@ -5061,7 +5182,7 @@ function submitWait(id) {
   const party = input.value.trim();
   if (!party) { toast("待ち先を入力してください"); return; }
   S.pendingWait = null;
-  apply((d) => updateTask(d, id, { status: "Waiting", waitingOn: { party, since: clock().date } }, clock().date), `${id} を Waiting にしました`);
+  apply((d) => updateTask(d, id, { status: "Waiting", waitingOn: { party, since: clock().date } }, clock().date), `${taskTitle(id)} を Waiting にしました`);
 }
 
 /* ---------- 入力の変更 ---------- */
@@ -5076,6 +5197,47 @@ view.addEventListener("keydown", (e) => {
   S.focusSel = `[data-ckadd="${id}"]`;
   apply((d) => addChecklistItem(d, id, text));
 });
+/**
+ * 日付の欄（data-date）の確定: 打った文字（2026/10/20・20261020 など）を YYYY-MM-DD に直して el.value に入れる（以後の処理は、いつも YYYY-MM-DD を読む）。
+ * 読めないときは、元の値に戻して通知し、false を返す（呼び出し側が、その確定を止める）。空は、欄ごとの扱いのまま通す
+ */
+function normalizeDateField(el) {
+  const v = el.value.trim();
+  if (!v) { el.value = ""; return true; }
+  const iso = parseDateInput(v);
+  if (iso) { el.value = iso; return true; }
+  el.value = el.defaultValue;
+  el.classList.add("bad");
+  setTimeout(() => el.classList.remove("bad"), 1600);
+  toast("日付は 2026/10/20 の形で入力してください");
+  return false;
+}
+// 日付の欄の確定は、ほかの change の処理より先に（キャプチャ段階で）直す。読めない値は、ほかの処理に渡さない。
+// 「📅」で選んだ日（隠れた日付の欄 .dpick-in の change）は、文字の欄に写して、文字の欄の change として流す
+view.addEventListener("change", (e) => {
+  const el = e.target;
+  if (el.matches?.(".dpick-in")) {
+    e.stopImmediatePropagation();
+    const field = el.closest(".dfield")?.querySelector("[data-date]");
+    if (field && el.value) { field.value = el.value; field.dispatchEvent(new Event("change", { bubbles: true })); }
+    return;
+  }
+  if (el.matches?.("[data-date]") && !normalizeDateField(el)) e.stopImmediatePropagation();
+}, true);
+// Enter で確定する欄（休み・営業日の追加）も、先に日付を直す
+view.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" || e.isComposing || !e.target.matches?.("[data-date]")) return;
+  if (!normalizeDateField(e.target)) { e.preventDefault(); e.stopImmediatePropagation(); }
+}, true);
+// 「📅」: 隠れた日付の欄に今の値を入れて、ブラウザの日付の選択を開く（showPicker が使えないときは、その欄を押す）
+view.addEventListener("click", (e) => {
+  const b = e.target.closest?.("[data-datepick]");
+  if (!b) return;
+  e.stopImmediatePropagation();
+  const box = b.closest(".dfield"), pick = box.querySelector(".dpick-in"), field = box.querySelector("[data-date]");
+  pick.value = parseDateInput(field.value) ?? "";
+  try { pick.showPicker(); } catch { pick.focus(); pick.click(); }
+}, true);
 view.addEventListener("change", (e) => { const el = e.target; setTimeout(() => onChange(el), 0); });
 // 設定タブの節の開閉は、描き直さずに記録して保存する（toggle はバブリングしないので、キャプチャで受ける）。描き直しでは S.settingsClosed から開閉を復元する
 view.addEventListener("toggle", (e) => {
@@ -5087,16 +5249,14 @@ view.addEventListener("toggle", (e) => {
   saveSettingsClosed(S.settingsClosed);
 }, true);
 
-/** 設定タブの基本の設定を保存する。勤務時間は開始・終了を組で渡す（片方だけだと、両方が不正なファイルを直せない）。不正な値は通知して、入力を元に戻す */
+/** 設定タブの基本の設定を保存する。不正な値は通知して、入力を元に戻す */
 function changeSetting(el) {
   const k = el.dataset.set;
   if (k === "countWeekendsAndHolidays") { apply((d) => updateSettings(d, { countWeekendsAndHolidays: el.checked }), "設定を保存しました"); return; } // 描き直して、祝日・休みの節の説明を切り替える
-  const val = (name) => view.querySelector(`[data-set="${name}"]`)?.value ?? "";
   let patch;
-  if (k === "workday-start" || k === "workday-end") patch = { workday: { start: val("workday-start"), end: val("workday-end") } };
-  else if (k === "waitingLongDays") patch = { waitingLongDays: Number(el.value) };
+  if (k === "waitingLongDays") patch = { waitingLongDays: Number(el.value) };
   else patch = { labels: { [k.slice("label-".length)]: el.value } }; // label-group / label-subgroup
-  // 成功したら描き直さない（時刻は時・分を打つたびに change が起き、描き直すと入力の位置が「時」に戻って続きが打てない）。不正な値は、先に検査して通知し、入力欄だけを元に戻す（restoreSettingInputs。描き直すとフォーカスが消える）
+  // 成功したら描き直さない（描き直すとフォーカスが消える）。不正な値は、先に検査して通知し、入力欄だけを元に戻す（restoreSettingInputs）
   const edit = (d) => updateSettings(d, patch);
   try { edit(S.data); } catch (e) { toast(e.message); restoreSettingInputs(); return; } // 描き直すとフォーカスが消えるので、入力欄だけ元に戻す
   apply(edit, "設定を保存しました", { quiet: true });
@@ -5108,20 +5268,19 @@ function changeSetting(el) {
 function restoreSettingInputs() {
   const v = settingsInputValues(S.data);
   const set = (name, value) => { const input = view.querySelector(`[data-set="${name}"]`); if (input) input.value = value; };
-  set("workday-start", v.workdayStart); set("workday-end", v.workdayEnd); set("waitingLongDays", v.waitingLongDays); // 呼び名は不正にならない（updateSettings が例外にするのは勤務時間と待ち長期化の日数だけ）
+  set("waitingLongDays", v.waitingLongDays); // 呼び名は不正にならない（updateSettings が例外にするのは待ち長期化の日数だけ）
 }
 
-/** 勤務時間は、打っている途中の値（「1」だけで 01:00 になり、開始より前など）で保存・検査しない。打ち終わる（少し止まる）か、入力欄を離れたら保存する */
-function changeSettingSoon(el) {
-  clearTimeout(settingTimer);
-  settingTimer = setTimeout(() => { settingTimer = null; if (view.contains(el)) changeSetting(el); }, 800);
-}
-view.addEventListener("focusout", (e) => {
-  if (!settingTimer || !e.target.matches('[data-set^="workday-"]')) return;
-  clearTimeout(settingTimer);
-  settingTimer = null;
-  changeSetting(e.target);
-});
+// 読み直しで待たせた描き直しは、入力が確定した（onChange のあと）・フォーカスが移り終わったあとに行う
+// マウスを押している間はしない（押したボタンが描き直しで作り直されると、離したときのクリックが届かない）。離したあと（click の処理のあと）に行う
+let pressing = false, pressTimer = null;
+const flushSoon = () => setTimeout(() => { if (!pressing) sync.flush(); }, 0);
+const release = () => { if (!pressing) return; pressing = false; clearTimeout(pressTimer); flushSoon(); };
+document.addEventListener("pointerdown", () => { pressing = true; clearTimeout(pressTimer); pressTimer = setTimeout(release, 3000); }, true); // 離した知らせが来ないときも、待たせた描き直しを失わない
+document.addEventListener("pointerup", release, true);
+document.addEventListener("pointercancel", release, true);
+view.addEventListener("change", flushSoon);
+view.addEventListener("focusout", flushSoon);
 
 function onChange(el) {
   const { date: today } = clock();
@@ -5130,6 +5289,8 @@ function onChange(el) {
     Promise.all([...el.files].map((f) => f.text())).then((texts) => { try { loaded(dataFromTexts(texts, [...el.files].map((f) => f.name))); } catch (err) { S.openError = `開けません: ${err.message}`; } render(); });
     return;
   }
+  // 突発タスクの欄は、確定した値を下書きに残す（読み直しの描き直しで、打った内容を消さない）
+  if (el.dataset.ug !== undefined) { if (S.urgentDraft) S.urgentDraft = { ...S.urgentDraft, [el.dataset.ug]: el.dataset.ug === "minutes" ? +el.value : el.value }; return; }
   if (el.dataset.mt) {
     const f = el.dataset.mt, v = f === "skip" ? el.checked : el.value;
     const m = S.mtgDraft ?? S.data.events.find((o) => o.id === S.selMtg);
@@ -5150,10 +5311,10 @@ function onChange(el) {
       return;
     }
     if (!v && f !== "title" && f !== "skip" && f !== "projectId") { el.value = old; toast("日付と時刻を入力してください"); return; }
-    if (!apply((d) => updateMeeting(d, m.id, { [f]: v }), f === "skip" ? (v ? "参加しない会議にしました。空き時間として扱います" : "参加する会議に戻しました") : "会議を更新しました", { partial: true })) { el.value = old; }
+    if (!apply((d) => updateMeeting(d, m.id, { [f]: v }), f === "skip" ? (v ? "参加しない会議にしました。稼働に数えず、作業枠と重なっても注意しません" : "参加する会議に戻しました") : "会議を更新しました", { partial: true })) { el.value = old; }
     return;
   }
-  if (el.dataset.set !== undefined) { el.dataset.set.startsWith("workday-") ? changeSettingSoon(el) : changeSetting(el); return; }
+  if (el.dataset.set !== undefined) { changeSetting(el); return; }
   if (el.dataset.hrowkind !== undefined) {
     const date = el.dataset.hrowkind, kind = el.value;
     apply((d) => addHoliday(d, { date, kind, note: (d.settings?.holidays ?? []).find((h) => h?.date === date)?.note }), "区分を変更しました");
@@ -5200,7 +5361,7 @@ function onChange(el) {
       apply((d) => updateTask(d, id, { repeat: r }, today), "変更を保存しました");
       return;
     }
-    if (f === "expected") { if (el.validity.badInput) return; apply((d) => updateTask(d, id, { waitingOn: { party: t.waitingOn.party, since: t.waitingOn.since, expected: el.value } }, today), "変更を保存しました"); return; }
+    if (f === "expected") { apply((d) => updateTask(d, id, { waitingOn: { party: t.waitingOn.party, since: t.waitingOn.since, expected: el.value } }, today), "変更を保存しました"); return; }
     if (f === "group" || f === "subgroup") S.hlId = id; // 該当グループへ移った行を強調して見失わないようにする
     apply((d) => updateTask(d, id, { [f]: f === "important" ? el.checked : el.value }, today), "変更を保存しました");
   }
@@ -5208,29 +5369,27 @@ function onChange(el) {
 
 /* ---------- ドラッグ&ドロップ(枠・会議の配置と移動) ---------- */
 let ghost = null, drag = null;
-const wdOf = () => S.data.settings?.workday ?? DEFAULT_WORKDAY;
-const minAtEl = (y, el) => { const g = calendarGeometry(S.data), r = el.getBoundingClientRect(); return g.h0 + ((y - r.top) / r.height) * g.span; };
+const minAtEl = (y, el) => { const g = calendarGeometry(), r = el.getBoundingClientRect(); return g.h0 + ((y - r.top) / r.height) * g.span; };
 const findSession = (id) => allSessions(S.data).find((s) => s.id === id);
 
 /** ドロップ先の判定(データは変えない): { st, end, error?, warning?, commit() } */
 function planDrop(dz, clientY) {
-  const date = dz.dataset.date, now = clock(), wd = wdOf(), at = minAtEl(clientY, dz);
+  const date = dz.dataset.date, now = clock(), at = minAtEl(clientY, dz);
   if (drag.kind === "mtg") {
-    const m = S.data.events.find((o) => o.id === drag.id), dur = toMin(m.end) - toMin(m.start), st = snapStart(at, dur, wd);
+    const m = S.data.events.find((o) => o.id === drag.id), dur = toMin(m.end) - toMin(m.start), st = snapStart(at, dur);
     const clash = S.data.tasks.some((t) => (t.sessions ?? []).some((s) => s.date === date && toMin(s.start) < st + dur && toMin(s.end) > st));
     return { st, end: st + dur, warning: clash ? "配置済みの枠と重なっています" : "", next: (d) => updateMeeting(d, m.id, { date, start: toHHMM(st), end: toHHMM(st + dur) }), msg: `会議「${m.title}」を ${fmtMD(date)} ${hm(st)} に移動しました` };
   }
   if (drag.kind === "sess") {
-    const s = findSession(drag.id), dur = toMin(s.end) - toMin(s.start), st = snapStart(at, dur, wd);
+    const s = findSession(drag.id), dur = toMin(s.end) - toMin(s.start), st = snapStart(at, dur);
     const to = { date, start: toHHMM(st) };
     const r = moveSession(S.data, s.id, to, now);
     return { st, end: st + dur, error: r.error, warning: r.warning, next: asEdit((d) => moveSession(d, s.id, to, now)), msg: `${S.data.tasks.find((t) => t.id === s.taskId).title} を ${fmtMD(date)} ${hm(st)} に移動しました` };
   }
-  const st = snapStart(at, 60, wd);
+  const st = snapStart(at, 60);
   const did = drag.id, put = { date, start: toHHMM(st), end: toHHMM(st + 60) };
-  const r = addSession(S.data, did, put, now);
-  const kind = r.error ? "" : r.data.tasks.find((t) => t.id === drag.id).sessions.at(-1).kind;
-  return { st, end: st + 60, error: r.error, warning: r.warning, next: asEdit((d) => addSession(d, did, put, now)), msg: `${S.data.tasks.find((t) => t.id === did).title} を ${fmtMD(date)} ${hm(st)} に${kind === "actual" ? "実績として記録" : "予定として配置"}しました` };
+  const r = addSession(S.data, did, put);
+  return { st, end: st + 60, error: r.error, warning: r.warning, next: asEdit((d) => addSession(d, did, put)), msg: `${S.data.tasks.find((t) => t.id === did).title} を ${fmtMD(date)} ${hm(st)} に予定として配置しました` };
 }
 
 /** ドラッグ中の時刻（10:00–11:00）を、ポインタの近くに出す。終わり・Esc・描き直しで消す */
@@ -5252,8 +5411,8 @@ view.addEventListener("dragstart", (e) => {
     e.dataTransfer.effectAllowed = "move";
     return;
   }
-  const li = e.target.closest("[data-pick]"), bl = e.target.closest("[data-dragsess]"), mg = e.target.closest("[data-dragmtg]"), mv = e.target.closest("[data-mvh]");
-  drag = li ? { kind: "task", id: li.dataset.pick } : bl ? { kind: "sess", id: bl.dataset.dragsess } : mg ? { kind: "mtg", id: mg.dataset.dragmtg } : mv ? { kind: "order", id: mv.dataset.mvh } : null;
+  const li = e.target.closest("[data-dragtask]"), bl = e.target.closest("[data-dragsess]"), mg = e.target.closest("[data-dragmtg]"), mv = e.target.closest("[data-mvh]");
+  drag = li ? { kind: "task", id: li.dataset.dragtask } : bl ? { kind: "sess", id: bl.dataset.dragsess } : mg ? { kind: "mtg", id: mg.dataset.dragmtg } : mv ? { kind: "order", id: mv.dataset.mvh } : null;
   if (!drag) return;
   if (mv) e.dataTransfer.setDragImage(mv.closest("tr,.g-label"), 12, 12); // 動かしているタスクの見た目にする（ガントは、横に長い行ではなくラベルだけ）
   e.dataTransfer.setData("text/plain", drag.id);
@@ -5317,7 +5476,7 @@ view.addEventListener("dragover", (e) => {
   const dz = e.target.closest(".dz");
   if (!dz || !drag) return;
   e.preventDefault();
-  const p = planDrop(dz, e.clientY), g = calendarGeometry(S.data);
+  const p = planDrop(dz, e.clientY), g = calendarGeometry();
   if (!ghost || !ghost.isConnected || ghost.parentNode !== dz) { ghost?.remove(); ghost = document.createElement("div"); ghost.className = "ghost"; dz.appendChild(ghost); }
   ghost.style.top = g.tp(p.st);
   ghost.style.height = g.ht(p.st, p.end);
@@ -5350,7 +5509,6 @@ view.addEventListener("drop", (e) => {
   ghost?.remove(); ghost = null;
   hideTip();
   if (p.error) { toast(p.error); return; }
-  S.picked = null;
   apply((d) => p.next(d), `${p.msg}${p.warning ? `(${p.warning})` : ""}`);
 });
 view.addEventListener("dragend", () => { clearOrderLine(); drag = null; ghost?.remove(); ghost = null; hideTip(); });
@@ -5362,12 +5520,12 @@ view.addEventListener("mousedown", (e) => {
   e.preventDefault(); e.stopPropagation();
   const isMtg = h.dataset.rzm !== undefined, id = isMtg ? h.dataset.rzm : h.dataset.rz, blk = h.closest(".blk");
   blk.draggable = false; // つまみの操作中にブラウザ標準のドラッグが始まらないようにする
-  const g = calendarGeometry(S.data);
+  const g = calendarGeometry();
   const rec = isMtg ? S.data.events.find((o) => o.id === id) : findSession(id);
   const a0 = Math.max(toMin(rec.start), g.h0);
   let end = null;
   const move = (ev) => {
-    end = Math.max(a0 + 15, Math.min(g.h0 + g.span, Math.round(minAtEl(ev.clientY, blk.parentNode) / 15) * 15));
+    end = Math.min(LAST_END, Math.max(a0 + 15, Math.round(minAtEl(ev.clientY, blk.parentNode) / 15) * 15)); // 終了は 23:59 まで（24:00 は時刻に書けない）
     blk.style.height = g.ht(a0, end);
     showTip(`${hm(a0)}–${hm(end)}`, ev.clientX, ev.clientY);
   };
@@ -5480,7 +5638,7 @@ view.addEventListener("mousedown", (e) => {
 
 /* ---------- キーボード ---------- */
 document.addEventListener("keydown", (e) => {
-  const typing = e.target.matches?.("input,select,textarea");
+  const typing = e.target.matches?.("input,select,textarea") || !!e.target.closest?.("[data-tedit], .mtgform"); // 編集欄・入力欄のボタンでも、枠を消さない
   if ((e.key === "Delete" || e.key === "Backspace") && S.screen === "schedule" && (S.selSess || S.selMtg) && !typing) { e.preventDefault(); deleteSelected(); }
   if (e.key === "Escape" && S.tpop) { S.tpop = null; render(); return; }
   if (e.key === "Escape" && S.screen === "schedule" && (S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.taskEdit)) { clearSel(); render(); }
@@ -5494,7 +5652,6 @@ view.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.isComposing && e.target.matches("[data-wnew],[data-wnote]")) { e.preventDefault(); addWorkdayFromInput(); return; }
   if (e.key === "Escape" && e.target.matches("[data-gadd]")) { S.addAt = null; render(); return; }
   if (e.key === "Enter" && !e.isComposing && e.target.matches("[data-waitparty]")) { e.preventDefault(); submitWait(e.target.dataset.waitparty); return; }
-  if ((e.key === "Enter" || e.key === " ") && e.target.matches("[data-pick]")) { e.preventDefault(); e.target.click(); }
 });
 
 /* ---------- Claude Code への依頼（画面下の帯） ---------- */

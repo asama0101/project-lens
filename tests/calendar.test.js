@@ -8,15 +8,15 @@ const range = { start: "2026-10-19", end: "2026-10-25" };
 const ev = (id, title, extra = {}) => ({ id, date: D, start: "10:00", end: "11:00", title, source: "mcp", skip: false, externalId: id, ...extra });
 const f = (externalId, title, extra = {}) => ({ externalId, title, date: D, start: "10:00", end: "11:00", ...extra });
 const mk = (events) => ({
-  version: 1, settings: { projectRules: [{ keyword: "ベンダーX", projectId: "A" }] },
-  projects: [{ id: "A", name: "A", type: "更改", status: "進行中", start: "2026-09-01", due: "2026-12-31", milestones: [] }],
+  version: 1, settings: { projectRules: [{ keyword: "ベンダーX", projectId: "AA" }] },
+  projects: [{ id: "AA", name: "A", type: "更改", status: "進行中", start: "2026-09-01", due: "2026-12-31", milestones: [] }],
   tasks: [], events, changeLog: [],
 });
 
 test("planCalendarSync: 追加・更新・削除の差分と、規則による projectId（rule）。手入力の会議と skip は変わらない", () => {
   const d = mk([ev("m1", "旧題", { externalId: "e1", skip: true }), ev("m2", "消える会議", { externalId: "e2" }), ev("m3", "手入力", { source: "manual", externalId: null })]);
   const p = planCalendarSync(d, [f("e1", "ベンダーX 打合せ"), f("e9", "ベンダーX 定例", { start: "13:00", end: "14:00" })], range);
-  assert.deepEqual(p.added.map((e) => [e.title, e.projectId, e.projectBy]), [["ベンダーX 定例", "A", "rule"]]);
+  assert.deepEqual(p.added.map((e) => [e.title, e.projectId, e.projectBy]), [["ベンダーX 定例", "AA", "rule"]]);
   assert.equal(p.updated.length, 1);
   assert.deepEqual([p.updated[0].after.title, p.updated[0].after.skip], ["ベンダーX 打合せ", true]);
   assert.deepEqual(p.removed.map((e) => e.id), ["m2"]);
@@ -24,11 +24,11 @@ test("planCalendarSync: 追加・更新・削除の差分と、規則による p
 });
 
 test("planCalendarSync: 確認済み（confirmed）と手動のひも付けは保たれる", () => {
-  const d = mk([ev("m1", "ベンダーX 打合せ", { externalId: "e1", confirmed: true, projectId: "B", projectBy: "manual" })]);
-  d.projects.push({ ...d.projects[0], id: "B" });
+  const d = mk([ev("m1", "ベンダーX 打合せ", { externalId: "e1", confirmed: true, projectId: "AB", projectBy: "manual" })]);
+  d.projects.push({ ...d.projects[0], id: "AB" });
   const n = planCalendarSync(d, [f("e1", "ベンダーX 打合せ（変更）")], range).data;
   const m = n.events[0];
-  assert.deepEqual([m.title, m.confirmed, m.projectId, m.projectBy], ["ベンダーX 打合せ（変更）", true, "B", "manual"]);
+  assert.deepEqual([m.title, m.confirmed, m.projectId, m.projectBy], ["ベンダーX 打合せ（変更）", true, "AB", "manual"]);
 });
 
 // ---- 自分だけ・自分と会議室だけの予定を除く ----
@@ -192,7 +192,7 @@ test("planAutoSync: 終わった会議は、予定表の内容（件名・日時
   delete d.events[0].projectId;
   const p = planAutoSync(d, [f("e1", "ベンダーX 打合せ", { start: "08:00", end: "09:00" })], range, {}, NOW);
   assert.deepEqual(p.held, []);
-  assert.equal(p.data.events[0].projectId, "A"); // 規則（ベンダーX → A）が付く
+  assert.equal(p.data.events[0].projectId, "AA"); // 規則（ベンダーX → AA）が付く
 });
 
 test("planAutoSync: 終了時刻が現在と同じ会議は、終わった会議として扱う。終わった会議が、未来の日時に変わっても、そのまま残す（held の updated）", () => {

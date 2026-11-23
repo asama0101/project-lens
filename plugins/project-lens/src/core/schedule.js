@@ -1,26 +1,8 @@
-// 空き時間・優先順位・会議の操作（純関数、不変更新）
-import { toMin, toHHMM, diffDays, isDate, isTime } from "./dates.js";
+// 優先順位・会議の操作（純関数、不変更新）
+import { toMin, diffDays, isDate, isTime } from "./dates.js";
 import { assignMeetingProjects } from "./rules.js";
 import { isClosed } from "./schema.js";
 import { checklistCount } from "./checklist.js";
-
-/** 対象日の空き時間。skip の会議は無視し、重なりを統合して勤務時間内に切り詰める */
-export function freeSlots(events, date, workday) {
-  const [ws, we] = [toMin(workday.start), toMin(workday.end)];
-  const busy = events
-    .filter((e) => e.date === date && !e.skip)
-    .map((e) => [Math.max(ws, toMin(e.start)), Math.min(we, toMin(e.end))])
-    .filter(([s, e]) => e > s)
-    .sort((a, b) => a[0] - b[0]);
-  const out = [];
-  let cur = ws;
-  for (const [s, e] of busy) {
-    if (s > cur) out.push({ start: toHHMM(cur), end: toHHMM(s) });
-    cur = Math.max(cur, e);
-  }
-  if (cur < we) out.push({ start: toHHMM(cur), end: toHHMM(we) });
-  return out;
-}
 
 /** このタスクを（推移的に）前のタスクとする未完了タスクの数。循環でも終了する */
 function openDownstream(tasks, id) {

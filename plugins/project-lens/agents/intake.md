@@ -73,7 +73,7 @@ tools: Read, Write, Bash
    - 結果（追加・更新の件数）を報告する。
 
 ## rules（会議のプロジェクト規則）
-依頼の例: `rules`、`rules [A社] はプロジェクト A`
+依頼の例: `rules`、`rules [A社] はプロジェクト AA`
 - 件名のキーワードと、プロジェクトの対応。会議のひも付けに使う。
 - `rules-list ".project-lens/data.json"` で現状を見せる。追加・変更は `rules-set ".project-lens/data.json" "<キーワード>" <projectId>`、削除は `rules-remove ".project-lens/data.json" "<キーワード>"`。
 - 依頼に案がない（`rules` だけ）ときは、現状の一覧と「追加・変更・削除したい規則」の質問を報告して終わる（承認の依頼は書かない）。

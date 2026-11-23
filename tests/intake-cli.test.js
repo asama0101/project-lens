@@ -39,7 +39,7 @@ const ROWS = [
 
 test("wbs-plan は data.json を1バイトも変えない", () => {
   const w = work(); const before = w.read();
-  const r = run("wbs-plan", w.data, "A", w.put("rows.json", ROWS));
+  const r = run("wbs-plan", w.data, "AA", w.put("rows.json", ROWS));
   assert.equal(r.status, 0, r.err);
   assert.equal(r.out.add.length, 2);
   assert.equal(w.read(), before);
@@ -48,20 +48,20 @@ test("wbs-plan は data.json を1バイトも変えない", () => {
 test("wbs-apply: タスクが増え、2回目の wbs-plan は add が0件", () => {
   const w = work(); const rows = w.put("rows.json", ROWS);
   const before = w.json().tasks.length;
-  const r = run("wbs-apply", w.data, "A", rows);
+  const r = run("wbs-apply", w.data, "AA", rows);
   assert.equal(r.status, 0, r.err);
   assert.deepEqual(r.out.summary, { added: 2, updated: 0 });
   assert.equal(w.json().tasks.length, before + 2);
-  assert.equal(run("wbs-plan", w.data, "A", rows).out.add.length, 0);
+  assert.equal(run("wbs-plan", w.data, "AA", rows).out.add.length, 0);
 });
 
 test("wbs-apply: --source のファイル名が取り込み記録に入る（なければ null）", () => {
   const w = work(); const rows = w.put("rows.json", ROWS);
-  assert.equal(run("wbs-apply", w.data, "A", rows, "--source", "plan.xlsx").status, 0);
-  assert.deepEqual(w.json().settings.wbsImports.A, { file: "plan.xlsx", at: w.json().settings.wbsImports.A.at, added: 2, updated: 0 });
+  assert.equal(run("wbs-apply", w.data, "AA", rows, "--source", "plan.xlsx").status, 0);
+  assert.deepEqual(w.json().settings.wbsImports.AA, { file: "plan.xlsx", at: w.json().settings.wbsImports.AA.at, added: 2, updated: 0 });
   const w2 = work(); const rows2 = w2.put("rows.json", ROWS);
-  assert.equal(run("wbs-apply", w2.data, "A", rows2).status, 0);
-  assert.equal(w2.json().settings.wbsImports.A.file, null);
+  assert.equal(run("wbs-apply", w2.data, "AA", rows2).status, 0);
+  assert.equal(w2.json().settings.wbsImports.AA.file, null);
 });
 
 test("wbs-apply: 前のタスクが循環する rows は、循環になる指定だけ設定せず、警告に出して取り込む（終了コード 0、data.json は検証に通る）", () => {
@@ -69,7 +69,7 @@ test("wbs-apply: 前のタスクが循環する rows は、循環になる指定
   const rows = w.put("rows.json", [
     { title: "X1", due: "2026-11-01", predecessorKeys: ["X2"] }, { title: "X2", due: "2026-11-02", predecessorKeys: ["X1"] },
   ]);
-  const r = run("wbs-apply", w.data, "A", rows);
+  const r = run("wbs-apply", w.data, "AA", rows);
   assert.equal(r.status, 0, r.err);
   assert.equal(r.out.summary.added, 2);
   assert.ok(r.out.warnings.some((x) => /循環になるため設定しません/.test(x)), JSON.stringify(r.out.warnings));
@@ -88,7 +88,7 @@ test("calendar-apply: 会議が追加され、規則でプロジェクトが付�
   assert.equal(w.read(), before);
   assert.equal(run("calendar-apply", w.data, fetched, "2026-10-19", "2026-10-25", "--plan-key", p.out.planKey).status, 0);
   const e = w.json().events.find((x) => x.externalId === "ext-new");
-  assert.deepEqual([e.projectId, e.projectBy], ["A", "rule"]);
+  assert.deepEqual([e.projectId, e.projectBy], ["AA", "rule"]);
 });
 
 test("calendar-apply: 反映後のデータが検証に通らないときは、終了コード 1 で何も書かない", () => {
@@ -158,19 +158,19 @@ test("fetched-remove: 一時フォルダの下（深さは問わない）の pro
 
 test("rules-apply: manual のひも付けは変わらない", () => {
   const w = work();
-  const d = w.json(); d.events.find((e) => e.id === "m3").projectId = "B"; d.events.find((e) => e.id === "m3").projectBy = "manual";
+  const d = w.json(); d.events.find((e) => e.id === "m3").projectId = "AB"; d.events.find((e) => e.id === "m3").projectBy = "manual";
   writeTwo(w.data, d);
   assert.equal(run("rules-apply", w.data).status, 0);
   const e = w.json().events;
-  assert.equal(e.find((x) => x.id === "m3").projectId, "B");
-  assert.equal(e.find((x) => x.id === "m2").projectId, "A");
+  assert.equal(e.find((x) => x.id === "m3").projectId, "AB");
+  assert.equal(e.find((x) => x.id === "m2").projectId, "AA");
 });
 
 test("rules-set→rules-list→rules-remove の往復。不明なプロジェクトは終了コード1で data.json は変わらない", () => {
   const w = work();
-  assert.equal(run("rules-set", w.data, "部内", "B").status, 0);
+  assert.equal(run("rules-set", w.data, "部内", "AB").status, 0);
   assert.deepEqual(run("rules-list", w.data).out.map((r) => r.keyword), ["ベンダーX", "部内"]);
-  assert.equal(w.json().events.find((e) => e.id === "m3").projectId, "B");
+  assert.equal(w.json().events.find((e) => e.id === "m3").projectId, "AB");
   assert.equal(run("rules-remove", w.data, "部内").status, 0);
   assert.deepEqual(run("rules-list", w.data).out.map((r) => r.keyword), ["ベンダーX"]);
   const before = w.read();
@@ -180,11 +180,11 @@ test("rules-set→rules-list→rules-remove の往復。不明なプロジェク
 
 test("mapping-set→mapping-get の往復。mapping-get は保存が無ければ null で、ファイルを書かない", () => {
   const w = work(); const before = w.read();
-  assert.equal(run("mapping-get", w.data, "A").out, null);
+  assert.equal(run("mapping-get", w.data, "AA").out, null);
   assert.equal(w.read(), before);
-  assert.equal(run("mapping-set", w.data, "A", w.put("map.json", { title: "作業名", due: "期限" })).status, 0);
-  assert.deepEqual(run("mapping-get", w.data, "A").out, { title: "作業名", due: "期限" });
-  assert.equal(run("mapping-set", w.data, "A", w.put("bad.json", { due: "期限" })).status, 1);
+  assert.equal(run("mapping-set", w.data, "AA", w.put("map.json", { title: "作業名", due: "期限" })).status, 0);
+  assert.deepEqual(run("mapping-get", w.data, "AA").out, { title: "作業名", due: "期限" });
+  assert.equal(run("mapping-set", w.data, "AA", w.put("bad.json", { due: "期限" })).status, 1);
 });
 
 test("引数が足りないと終了コード2と使い方を出す", () => {
@@ -362,7 +362,7 @@ test("wbs-plan は planKey を出す。wbs-apply --plan-key が一致すれば�
 test("wbs-apply: --plan-key に値が無いときは、照合を黙って省かず、終了コード 2 で止まる", () => {
   const w = work(); const before = w.read();
   const rows = w.put("rows.json", [{ title: "x", due: "2026-12-01" }]);
-  const r = run("wbs-apply", w.data, "A", rows, "--plan-key");
+  const r = run("wbs-apply", w.data, "AA", rows, "--plan-key");
   assert.equal(r.status, 2);
   assert.equal(w.read(), before);
 });
@@ -379,7 +379,7 @@ test("2 ファイル: calendar-apply は personal.json の events だけ、wbs-a
   assert.equal(readFileSync(w.data, "utf8"), sharedBefore, "共有は変わらない");
   assert.ok(rdJson(pp).events.some((e) => e.title === "新しい会議"));
   const mid = readFileSync(pp, "utf8");
-  assert.equal(run("wbs-apply", w.data, "A", w.put("rows.json", ROWS)).status, 0);
+  assert.equal(run("wbs-apply", w.data, "AA", w.put("rows.json", ROWS)).status, 0);
   assert.equal(readFileSync(pp, "utf8"), mid, "個人は変わらない");
   assert.ok(rdJson(w.data).tasks.some((t) => t.title === "基本設計"));
   assert.notEqual(readFileSync(w.data, "utf8"), sharedBefore);
@@ -395,7 +395,7 @@ test("--mine: 別の場所の個人ファイルへ events が書かれる。指�
   assert.ok(rdJson(other).events.some((e) => e.title === "別の場所の会議"));
   assert.equal(existsSync(pp), false);
   const nope = join(w.dir, "nope.json"), before = w.read();
-  const r = run("rules-set", w.data, "週次", "A", "--mine", nope);
+  const r = run("rules-set", w.data, "週次", "AA", "--mine", nope);
   assert.equal(r.status, 1);
   assert.match(r.err, /個人ファイル .*nope\.json がありません。--mine の指定を確かめてください/);
   assert.equal(existsSync(nope), false);

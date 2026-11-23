@@ -35,12 +35,12 @@ const run = (...args) => {
   return { status: r.status, out, err: r.stderr, raw: r.stdout };
 };
 const OPS = [
-  { op: "moveDue", taskId: "A3", deltaDays: 45 },
-  { op: "addTask", ref: "t1", projectId: "A", title: "疎通確認テスト", due: "2026-12-10", predecessors: ["A4"] },
+  { op: "moveDue", taskId: "AA-0003", deltaDays: 45 },
+  { op: "addTask", ref: "t1", projectId: "AA", title: "疎通確認テスト", due: "2026-12-10", predecessors: ["AA-0004"] },
 ];
 /** 依頼 R1 を proposed まで進める */
 function proposed(w) {
-  assert.equal(run("submit", w.data, "A", "A3 が 45 日遅れた。疎通確認テストを登録して").status, 0);
+  assert.equal(run("submit", w.data, "AA", "AA-0003 が 45 日遅れた。疎通確認テストを登録して").status, 0);
   assert.equal(run("claim", w.data, "R1").status, 0);
   const r = run("propose", w.data, "R1", w.put("ops.json", OPS), "--summary", "2 種類の変更案", "--reason", "ベンダーX の納期回答が遅れた", "--cause", "ベンダー");
   assert.equal(r.status, 0, r.err);
@@ -50,9 +50,9 @@ function proposed(w) {
 test("submit → list → claim → propose: 提案が書かれ、承認するまで tasks と changeLog は変わらない", () => {
   const w = work();
   const tasksBefore = JSON.stringify(w.json().tasks), logBefore = w.json().changeLog.length;
-  const s = run("submit", w.data, "A", "A3 が 45 日遅れた");
+  const s = run("submit", w.data, "AA", "AA-0003 が 45 日遅れた");
   assert.deepEqual([s.status, s.out.id, s.out.status], [0, "R1", "pending"]);
-  assert.deepEqual(run("list", w.data).out.map((r) => [r.id, r.status, r.projectId, r.text]), [["R1", "pending", "A", "A3 が 45 日遅れた"]]);
+  assert.deepEqual(run("list", w.data).out.map((r) => [r.id, r.status, r.projectId, r.text]), [["R1", "pending", "AA", "AA-0003 が 45 日遅れた"]]);
   const c = run("claim", w.data, "R1");
   assert.equal(c.out.status, "working");
   const p = proposed(work());
@@ -70,7 +70,7 @@ test("approve: 変更が書かれ、applied（by: claude）。2 回目は終了�
   const a = run("approve", w.data, "R1");
   assert.equal(a.status, 0, a.err);
   const d = w.json();
-  assert.equal(d.tasks.find((t) => t.id === "A3").due, "2026-11-30");
+  assert.equal(d.tasks.find((t) => t.id === "AA-0003").due, "2026-11-30");
   assert.ok(d.tasks.some((t) => t.title === "疎通確認テスト"));
   assert.deepEqual([d.inbox.requests[0].status, d.inbox.requests[0].result.by], ["applied", "claude"]);
   assert.equal(d.changeLog.at(-1).source, "inbox");
@@ -92,17 +92,17 @@ test("approve: HTML で先に applied になっていたら、何も変えず終
 
 test("propose: 存在しない前のタスクの ops は終了コード 1 で、データは変わらない", () => {
   const w = work();
-  run("submit", w.data, "A", "x"); run("claim", w.data, "R1");
+  run("submit", w.data, "AA", "x"); run("claim", w.data, "R1");
   const before = w.read();
-  const r = run("propose", w.data, "R1", w.put("bad.json", [{ op: "addTask", ref: "t1", projectId: "A", title: "x", due: "2026-12-10", predecessors: ["X9"] }]));
+  const r = run("propose", w.data, "R1", w.put("bad.json", [{ op: "addTask", ref: "t1", projectId: "AA", title: "x", due: "2026-12-10", predecessors: ["ZZ-0009"] }]));
   assert.equal(r.status, 1);
-  assert.match(r.err, /X9/);
+  assert.match(r.err, /ZZ-0009/);
   assert.equal(w.read(), before);
 });
 
 test("approve: 提案のあとに対象のタスクが変わっていたら、failed にして終了コード 1。再提案で pending に戻せる", () => {
   const w = work(); proposed(w);
-  const d = w.json(); d.tasks.find((t) => t.id === "A3").due = "2026-10-20"; w.write(d);
+  const d = w.json(); d.tasks.find((t) => t.id === "AA-0003").due = "2026-10-20"; w.write(d);
   const r = run("approve", w.data, "R1");
   assert.equal(r.status, 1);
   assert.match(r.err, /データが変わりました/);
@@ -113,14 +113,14 @@ test("approve: 提案のあとに対象のタスクが変わっていたら、fa
 test("approve: 保存済みの提案に、依頼で受けなくなった操作（setStatus）があれば、failed にして終了コード 1。data.json のほかは変わらない", () => {
   const w = work(); proposed(w);
   const d = w.json();
-  d.inbox.requests[0].proposal.ops = [{ op: "setStatus", taskId: "A3", status: "Done" }];
+  d.inbox.requests[0].proposal.ops = [{ op: "setStatus", taskId: "AA-0003", status: "Done" }];
   w.write(d);
   const r = run("approve", w.data, "R1");
   assert.equal(r.status, 1);
   assert.match(r.err, /画面で行ってください/);
   const after = w.json();
   assert.equal(after.inbox.requests[0].status, "failed");
-  assert.equal(after.tasks.find((t) => t.id === "A3").status, d.tasks.find((t) => t.id === "A3").status);
+  assert.equal(after.tasks.find((t) => t.id === "AA-0003").status, d.tasks.find((t) => t.id === "AA-0003").status);
   assert.deepEqual({ ...after, inbox: null }, { ...d, inbox: null });
 });
 
@@ -129,7 +129,7 @@ test("ask・reject・fail の遷移と、状態違い・不明な ID の終了�
   run("submit", w.data, "-", "どれか分からない依頼"); run("claim", w.data, "R1");
   assert.equal(run("ask", w.data, "R1", "どのプロジェクトですか").out.status, "question");
   assert.equal(run("reject", w.data, "R1").out.status, "rejected");
-  run("submit", w.data, "A", "削除して"); run("claim", w.data, "R2");
+  run("submit", w.data, "AA", "削除して"); run("claim", w.data, "R2");
   assert.equal(run("fail", w.data, "R2", "削除は依頼できません").out.status, "failed");
   assert.equal(run("claim", w.data, "R1").status, 1, "rejected は claim できない");
   assert.equal(run("get", w.data, "R9").status, 1);
@@ -148,7 +148,7 @@ function startWait(w, extra = []) {
 
 test("wait: 起動時に pending の依頼を request イベントで出し、見ている印（watching.at）を書き、timeout で終わる", async () => {
   const w = work();
-  run("submit", w.data, "A", "先に届いていた依頼");
+  run("submit", w.data, "AA", "先に届いていた依頼");
   const ev = await startWait(w, ["--timeout", "2"]).done;
   assert.ok(ev.some((e) => e.event === "request" && e.id === "R1" && e.status === "pending"), JSON.stringify(ev));
   assert.equal(ev.at(-1).event, "end");
@@ -157,7 +157,7 @@ test("wait: 起動時に pending の依頼を request イベントで出し、�
 
 test("wait: 見ている印を書けない（検証に通らない）ときは、標準エラーに理由を 1 回だけ出し、依頼の検出は止めない", async () => {
   const w = work();
-  run("submit", w.data, "A", "先に届いていた依頼");
+  run("submit", w.data, "AA", "先に届いていた依頼");
   const d = w.json(); d.tasks[0].projectId = "ZZ"; writeTwo(w.data, d); // 検証に通らない
   const child = spawn(process.execPath, [CLI, "wait", w.data, "--interval", "150", "--timeout", "2"], { encoding: "utf8" });
   let out = "", err = "";
@@ -174,7 +174,7 @@ test("wait: 待っている間に届いた依頼を出す。提案の承認（de
   const { done } = startWait(w, ["--timeout", "5"]);
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await sleep(700);
-  assert.equal(run("submit", w.data, "A", "A3 が 45 日遅れた").status, 0);
+  assert.equal(run("submit", w.data, "AA", "AA-0003 が 45 日遅れた").status, 0);
   await sleep(600); // pending のまま、wait の確認の間隔（150ms）を越える
   assert.equal(run("claim", w.data, "R1").status, 0);
   assert.equal(run("propose", w.data, "R1", w.put("ops.json", OPS), "--cause", "ベンダー").status, 0);
@@ -187,10 +187,10 @@ test("wait: 待っている間に届いた依頼を出す。提案の承認（de
 
 test("submit --working: working の依頼ができ、businessDays 入りの propose → approve で登録される。wait は request として知らせない", async () => {
   const w = work();
-  const s = run("submit", w.data, "A", "文章の要約", "--working");
+  const s = run("submit", w.data, "AA", "文章の要約", "--working");
   assert.equal(s.status, 0, s.err);
   assert.equal(s.out.status, "working");
-  const ops = [{ op: "addTask", ref: "t1", projectId: "A", title: "文章から登録", businessDays: 10, predecessors: ["A4"] }];
+  const ops = [{ op: "addTask", ref: "t1", projectId: "AA", title: "文章から登録", businessDays: 10, predecessors: ["AA-0004"] }];
   const p = run("propose", w.data, "R1", w.put("ops.json", ops), "--summary", "仮日程の案");
   assert.equal(p.status, 0, p.err);
   const proposed = w.json().inbox.requests[0].proposal;
@@ -200,16 +200,16 @@ test("submit --working: working の依頼ができ、businessDays 入りの prop
   assert.equal(t.due, proposed.ops[0].due);
   assert.equal(t.due, "2026-12-11");
   const w2 = work();
-  run("submit", w2.data, "A", "横取りされない依頼", "--working");
+  run("submit", w2.data, "AA", "横取りされない依頼", "--working");
   const ev = await startWait(w2, ["--timeout", "1"]).done;
   assert.ok(!ev.some((e) => e.event === "request"), JSON.stringify(ev));
 });
 
 test("propose: addTask・moveDue 以外の操作（setStatus など）は終了コード 1 で、画面で行うよう伝え、データは変わらない", () => {
   const w = work();
-  run("submit", w.data, "-", "A3 を完了にして", "--working");
+  run("submit", w.data, "-", "AA-0003 を完了にして", "--working");
   const before = w.read();
-  for (const op of [{ op: "setStatus", taskId: "A3", status: "Done" }, { op: "addProject", ref: "p1", name: "x" }, { op: "removeTask", taskId: "A7" }]) {
+  for (const op of [{ op: "setStatus", taskId: "AA-0003", status: "Done" }, { op: "addProject", ref: "p1", name: "x" }, { op: "removeTask", taskId: "AA-0007" }]) {
     const r = run("propose", w.data, "R1", w.put("ops.json", [op]));
     assert.equal(r.status, 1, op.op);
     assert.match(r.err, new RegExp(`この操作は依頼では受けられません: ${op.op}（画面で行ってください）`));
@@ -219,8 +219,8 @@ test("propose: addTask・moveDue 以外の操作（setStatus など）は終了�
 
 test("propose は、提案済みの依頼にもう一度できる（直した ops で差し替わり、approve は直した方を反映する）", () => {
   const w = work();
-  run("submit", w.data, "A", "文章の要約", "--working");
-  const ops = (businessDays) => [{ op: "addTask", ref: "t1", projectId: "A", title: "再提案のタスク", businessDays, predecessors: ["A4"] }];
+  run("submit", w.data, "AA", "文章の要約", "--working");
+  const ops = (businessDays) => [{ op: "addTask", ref: "t1", projectId: "AA", title: "再提案のタスク", businessDays, predecessors: ["AA-0004"] }];
   assert.equal(run("propose", w.data, "R1", w.put("o1.json", ops(10))).status, 0);
   const again = run("propose", w.data, "R1", w.put("o2.json", ops(3)));
   assert.equal(again.status, 0, again.err);
@@ -230,9 +230,9 @@ test("propose は、提案済みの依頼にもう一度できる（直した op
 
 test("propose: moveDue と businessDays 指定の addTask の併用は、終了コード 1 で、データは変わらない", () => {
   const w = work();
-  run("submit", w.data, "A", "x"); run("claim", w.data, "R1");
+  run("submit", w.data, "AA", "x"); run("claim", w.data, "R1");
   const before = w.read();
-  const ops = [{ op: "moveDue", taskId: "A4", deltaDays: 10 }, { op: "addTask", ref: "t1", projectId: "A", title: "併用", businessDays: 3, predecessors: ["A4"] }];
+  const ops = [{ op: "moveDue", taskId: "AA-0004", deltaDays: 10 }, { op: "addTask", ref: "t1", projectId: "AA", title: "併用", businessDays: 3, predecessors: ["AA-0004"] }];
   const r = run("propose", w.data, "R1", w.put("both.json", ops));
   assert.equal(r.status, 1);
   assert.match(r.err, /moveDue.*businessDays/);
@@ -259,9 +259,9 @@ const runWith = (url, ...args) => new Promise((resolve) => {
 });
 const NEXT_BD = dueAfter(today(), 1); // 今日の次の平日（この日を祝日にする）
 const FAR = addDays(today(), 400); // 一覧の末尾（範囲が足りている状態にする）
-const BD_OPS = [{ op: "addTask", ref: "t1", projectId: "A", title: "営業日の登録", businessDays: 1 }]; // 前のタスクなし → 今日から 1 営業日
+const BD_OPS = [{ op: "addTask", ref: "t1", projectId: "AA", title: "営業日の登録", businessDays: 1 }]; // 前のタスクなし → 今日から 1 営業日
 const addDue = (r) => r.out.sections.find((s) => s.kind === "add").rows[0].due;
-const ready = (w) => { run("submit", w.data, "A", "x", "--working"); return w; };
+const ready = (w) => { run("submit", w.data, "AA", "x", "--working"); return w; };
 
 test("propose(businessDays): 祝日が未取得・取得から 30 日超・範囲外（今日の取得でない）なら取得して保存し、期限が祝日を飛ばす", async () => {
   const stale = { fetchedAt: addDays(today(), -31), source: "u", dates: [{ date: FAR, name: "x" }] };
@@ -310,11 +310,11 @@ test("propose: businessDays の無い提案は祝日を取得しない。今日�
 });
 
 test("propose(businessDays): 土日祝を営業日に数える設定がオンなら、祝日を取得せず（取得先が壊れていても注意なし）、土日を飛ばさず、手動の休みは飛ばす", async () => {
-  // 前のタスク A4 の期限は 2026-11-27（金）。実行する日に左右されないよう、この日から数える
-  const FRI_OPS = [{ op: "addTask", ref: "t1", projectId: "A", title: "営業日の登録", businessDays: 1, predecessors: ["A4"] }];
+  // 前のタスク AA-0004 の期限は 2026-11-27（金）。実行する日に左右されないよう、この日から数える
+  const FRI_OPS = [{ op: "addTask", ref: "t1", projectId: "AA", title: "営業日の登録", businessDays: 1, predecessors: ["AA-0004"] }];
   const s = await holidayServer(500);
   const w = ready(work());
-  assert.equal(w.json().tasks.find((t) => t.id === "A4").due, "2026-11-27");
+  assert.equal(w.json().tasks.find((t) => t.id === "AA-0004").due, "2026-11-27");
   w.write({ ...w.json(), settings: { ...w.json().settings, countWeekendsAndHolidays: true } });
   const r = await runWith(s.url, "propose", w.data, "R1", w.put("bd.json", FRI_OPS));
   assert.equal(r.status, 0, r.err);
@@ -331,9 +331,9 @@ test("propose(businessDays): 土日祝を営業日に数える設定がオンな
 });
 
 test("addTask の checklist: propose → approve で、項目つきでタスクが登録される", () => {
-  const ops = [{ op: "addTask", ref: "t1", projectId: "A", title: "疎通確認テスト", due: "2026-12-10", checklist: ["ping", "tracert"] }];
+  const ops = [{ op: "addTask", ref: "t1", projectId: "AA", title: "疎通確認テスト", due: "2026-12-10", checklist: ["ping", "tracert"] }];
   const w = work();
-  assert.equal(run("submit", w.data, "A", "疎通確認テストを登録して").status, 0);
+  assert.equal(run("submit", w.data, "AA", "疎通確認テストを登録して").status, 0);
   assert.equal(run("claim", w.data, "R1").status, 0);
   const p = run("propose", w.data, "R1", w.put("ops.json", ops), "--summary", "登録", "--reason", "依頼", "--cause", "社内");
   assert.equal(p.status, 0, p.err);
@@ -418,14 +418,14 @@ test("2 ファイル: 依頼（inbox）は personal.json、タスクの変更は
   const a = run("approve", w.data, "R1");
   assert.equal(a.status, 0, a.err);
   assert.equal(rdJson(pp).inbox.requests[0].status, "applied");
-  assert.equal(rdJson(w.data).tasks.find((t) => t.id === "A3").due, "2026-11-30");
+  assert.equal(rdJson(w.data).tasks.find((t) => t.id === "AA-0003").due, "2026-11-30");
   assert.ok(rdJson(w.data).changeLog.at(-1).source === "inbox");
 });
 
 test("--mine: 別の場所の個人ファイルが読み書きされ、既定の personal.json は変わらない", () => {
   const w = work(), pp = join(w.dir, "personal.json"), other = join(w.dir, "elsewhere.json");
   copyFileSync(pp, other); rmSync(pp);
-  const s = run("submit", w.data, "A", "別の場所へ", "--mine", other);
+  const s = run("submit", w.data, "AA", "別の場所へ", "--mine", other);
   assert.equal(s.status, 0, s.err);
   assert.equal(rdJson(other).inbox.requests[0].thread[0].text, "別の場所へ");
   assert.equal(run("list", w.data, "--mine", other).out.length, 1);
@@ -436,7 +436,7 @@ test("--mine: 別の場所の個人ファイルが読み書きされ、既定の
 test("--mine の指定先が無い: 終了コード 1 で理由を出し、何も作らない（wait も最初に止まる）", () => {
   const w = work(), pp = join(w.dir, "personal.json"), nope = join(w.dir, "nope.json");
   const before = w.read();
-  for (const args of [["submit", w.data, "A", "x"], ["list", w.data], ["claim", w.data, "R1"]]) {
+  for (const args of [["submit", w.data, "AA", "x"], ["list", w.data], ["claim", w.data, "R1"]]) {
     const r = run(...args, "--mine", nope);
     assert.equal(r.status, 1, args[0]);
     assert.match(r.err, /個人ファイル .*nope\.json がありません。--mine の指定を確かめてください/);

@@ -1,7 +1,7 @@
 // 1 つのデータ（メモリ上の形）と、共有ファイル（data.json）・個人ファイル（personal.json）の間の変換。純関数。
 // 入力は変えず、新しいオブジェクトを返す。
 
-export const PERSONAL_SETTINGS = ["workday", "holidays", "workdays", "selfEmails", "selfNames"];
+export const PERSONAL_SETTINGS = ["holidays", "workdays", "selfEmails", "selfNames"];
 export const SHARED_SETTINGS = ["countWeekendsAndHolidays", "nationalHolidays", "waitingLongDays", "projectRules", "labels", "wbsMappings", "wbsImports"];
 
 const pick = (obj, keys) => Object.fromEntries(keys.filter((k) => k in obj).map((k) => [k, obj[k]]));

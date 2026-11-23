@@ -115,6 +115,12 @@
   <div class="cell c">初期設定のスクリプトを実行する（この指示は Claude が自分の判断で呼ぶことはできず、あなたのコマンドでだけ動く）。<code>node</code> が見つからないときは、Node.js 24 以上の導入（<code>winget</code>）を案内する（未確認: 実際に <code>node</code> が無い環境では動かしていない）。<small class="src">skills/init/SKILL.md（disable-model-invocation）</small></div>
   <div class="cell empty"></div>
 
+  <div class="branch"><p class="bt"><code>--sample</code>・<code>--mine &lt;ファイル&gt;</code> 以外の引数がある（<code>--help</code> など）</p><div class="flow">
+    <div class="n"></div><div class="cell empty"></div>
+    <div class="cell c">出力の理由をそのまま伝える。<small class="src">skills/init/SKILL.md</small></div>
+    <div class="cell s"><span class="tag stop">止まる</span>何も書かずに終了コード 2。「使い方: node tools/init.js [--sample] [--mine &lt;個人ファイル&gt;]」。<code>--mine</code> に値が無いときも、何も書かずに終了コード 2。<code>--help</code> を付けて実行して確かめた（Claude の伝え方は未確認）。<small class="src">tools/init.js main()</small></div>
+  </div></div>
+
   <div class="n">2</div>
   <div class="cell empty"></div>
   <div class="cell empty"></div>
@@ -385,7 +391,7 @@
   <div></div><div class="head u">あなた</div><div class="head c">Claude</div><div class="head s">スクリプト</div>
 
   <div class="n">1</div>
-  <div class="cell u"><code>/project-lens:intake rules</code>、または <code>rules [A社] はプロジェクト A</code> のように伝える。</div>
+  <div class="cell u"><code>/project-lens:intake rules</code>、または <code>rules [A社] はプロジェクト AA</code> のように伝える。</div>
   <div class="cell c">現状の規則（件名のキーワード → プロジェクト）を見せる。<small class="src">agents/intake.md rules</small></div>
   <div class="cell s"><code>rules-list</code>（読み取りだけ）。</div>
 

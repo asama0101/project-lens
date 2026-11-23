@@ -59,6 +59,10 @@ export function syncSticky() {
   root.setProperty("--hh", `${topbar.offsetHeight}px`);
   const tool = view.querySelector(".ptool");
   root.setProperty("--th", `${tool ? tool.offsetHeight : 0}px`);
+  // スケジュールは、ヘッダーの下に、操作の行（.stop）・入力欄（#mtgslot）・週表示の日付の見出しを積んで固定する。それぞれの高さを測り、下の段の top に足す
+  root.setProperty("--stop-h", `${view.querySelector(".stop")?.offsetHeight ?? 0}px`);
+  root.setProperty("--slot-h", `${view.querySelector("#mtgslot")?.offsetHeight ?? 0}px`);
+  root.setProperty("--dh-h", `${view.querySelector(".cal.wk .week .dh")?.offsetHeight ?? 0}px`);
   // ガントの操作の帯(.gtop)の高さ(プロジェクトの見出し .pgstick の固定位置)と、プロジェクトごとの見出しの高さ(日付軸の複製の固定位置)。スクロールには連動させない
   root.setProperty("--gh", `${view.querySelector(".gtop")?.offsetHeight ?? 0}px`);
   for (const pg of view.querySelectorAll("section.pg")) pg.style.setProperty("--pgh", `${pg.querySelector(".pgstick").getBoundingClientRect().height}px`);

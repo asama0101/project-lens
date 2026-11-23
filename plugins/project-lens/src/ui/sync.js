@@ -3,12 +3,15 @@
 const CONFLICT ="他で更新されました。再読込してください。(再読込すると、保存できていない画面の変更は消えます)";
 
 /**
- * deps: { store, getData, setData, render, renderBar, banner, toast, visible, wantFast }
+ * deps: { store, getData, setData, render, renderBar, banner, toast, visible, wantFast, isEditing }
  *   visible: 画面が見えているか（隠れている間は読み直さない）/ wantFast: 帯が開いているか（4 秒ごとに読み直す。そうでなければ 16 秒ごと）
- * 戻り値: { persist(edit), pollInbox(force), whenIdle(), reset(), failed }。failed は保存に失敗したまま（バナーが出ている）か
+ *   isEditing: 入力欄で打ちかけ（まだ確定していない）か。真の間、読み直しはデータだけ取り込み、描き直しを flush まで待たせる（描き直すと打ちかけの文字が消えるため）
+ * 戻り値: { persist(edit), pollInbox(force), flush(), rendered(), whenIdle(), reset(), failed }。failed は保存に失敗したまま（バナーが出ている）か
  */
-export function createSync({ store, getData, setData, render, renderBar, banner, toast, visible, wantFast }) {
+export function createSync({ store, getData, setData, render, renderBar, banner, toast, visible, wantFast, isEditing = () => false }) {
   let chain = Promise.resolve();
+  let renderLater = false; // 打ちかけの間に待たせた描き直しがある
+  const renderOrWait = () => { if (isEditing()) renderLater = true; else render(); };
   let pending = []; // 保存がまだ済んでいない編集（data → data）。競合したとき、最新のファイルに当て直す
   let inflight = 0; // 保存・読み直しの待ち・実行中の数
   let tick = 0;
@@ -58,19 +61,23 @@ export function createSync({ store, getData, setData, render, renderBar, banner,
           const fresh = await store.reload();
           if (pending.length) { // 読んでいる間に、画面で編集があった。最新のファイルの上に重ねる（保存は、その編集の保存が行う）
             try { setData(pending.reduce((d, e) => e(d), fresh)); } catch { sync.failed = true; banner(CONFLICT, { reload: true, download: true }); return; }
-            render();
+            renderOrWait();
             return;
           }
           const bodyChanged = strip(fresh) !== strip(getData());
           setData(fresh);
-          if (bodyChanged) render(); else renderBar();
+          if (bodyChanged) renderOrWait(); else renderBar();
         } catch { /* 読めないときは、次の回に */ } finally { inflight--; }
       });
     },
+    /** 待たせた描き直しを、打ちかけでなくなっていれば行う（画面が、入力欄の確定・フォーカスが離れたときに呼ぶ） */
+    flush() { if (renderLater && !isEditing()) { renderLater = false; render(); } },
+    /** 画面がほかの理由で描き直した: 待たせた描き直しは要らない */
+    rendered() { renderLater = false; },
     /** 並んでいる保存・読み直しが終わるまで待つ */
     whenIdle: () => chain,
     /** ファイルを開き直したとき: 保存していない編集を捨て、失敗の印を消す */
-    reset() { pending = []; sync.failed = false; },
+    reset() { pending = []; sync.failed = false; renderLater = false; },
   };
   return sync;
 }

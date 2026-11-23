@@ -5,19 +5,19 @@ body{margin:0}
   --bg:#F0F3F7; --surface:#FFFFFF; --ink:#16202E; --muted:#5A6678; --line:#D6DDE8; --line-soft:#E8ECF3;
   --accent:#0B6E8A; --accent-soft:#DCEEF4; --pre:#C2670A; --next:#2E7D32;
   --ok:#2E7D5B; --warn:#B26B00; --warn-soft:#FBEBD0; --bad:#C23A3A; --bad-soft:#F9DEDE;
-  --todo:#8794A8; --meeting:#EBE4F7; --meeting-ink:#43346F; --meeting-edge:#7B5CC4; --free:#E9F4EC;
+  --todo:#8794A8; --meeting:#EBE4F7; --meeting-ink:#43346F; --meeting-edge:#7B5CC4; --free:#E9F4EC; --on-accent:#FFFFFF;
   --f-body:"BIZ UDPGothic","Yu Gothic UI","Meiryo",sans-serif; --f-mono:ui-monospace,Consolas,monospace;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#0E1520; --surface:#162030; --ink:#E5EBF3; --muted:#9AA7B9; --line:#2A3850; --line-soft:#1F2C40;
   --accent:#55B8D4; --accent-soft:#17323D; --pre:#E8963F; --next:#6CC070;
   --ok:#5CC08F; --warn:#E3A94B; --warn-soft:#3A2D14; --bad:#EE7B7B; --bad-soft:#3B1D1F;
-  --todo:#7B889C; --meeting:#2D2548; --meeting-ink:#D3C9F0; --meeting-edge:#9C84E0; --free:#14301F; color-scheme:dark}}
+  --todo:#7B889C; --meeting:#2D2548; --meeting-ink:#D3C9F0; --meeting-edge:#9C84E0; --free:#14301F; --on-accent:#0E1520; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0E1520; --surface:#162030; --ink:#E5EBF3; --muted:#9AA7B9; --line:#2A3850; --line-soft:#1F2C40;
   --accent:#55B8D4; --accent-soft:#17323D; --pre:#E8963F; --next:#6CC070;
   --ok:#5CC08F; --warn:#E3A94B; --warn-soft:#3A2D14; --bad:#EE7B7B; --bad-soft:#3B1D1F;
-  --todo:#7B889C; --meeting:#2D2548; --meeting-ink:#D3C9F0; --meeting-edge:#9C84E0; --free:#14301F; color-scheme:dark}
+  --todo:#7B889C; --meeting:#2D2548; --meeting-ink:#D3C9F0; --meeting-edge:#9C84E0; --free:#14301F; --on-accent:#0E1520; color-scheme:dark}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.6;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 40px}
 *{box-sizing:border-box}
@@ -82,15 +82,12 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 .rank .t{font-weight:700;line-height:1.4;overflow-wrap:anywhere}
 .rank .why{grid-column:2;color:var(--muted);font-size:12px;line-height:1.5}
 .rank .act{display:inline-block;font-size:11px;padding:0 6px;border-radius:4px;background:var(--warn-soft);color:var(--warn);margin-right:6px}
-.rank li[data-pick]{cursor:pointer;border-radius:6px}
+.rank li[data-dragtask]{cursor:grab;border-radius:6px}
 .rank .t .pill{vertical-align:1px}
-.rank .bb{display:flex;flex-direction:row;gap:6px;flex-wrap:wrap}
-.rank .bb .btn{padding:0 10px;font-size:12px}
 .rank.tl li{grid-template-columns:minmax(0,1fr)}
-.rank.tl .pj,.rank.tl .why,.rank.tl .bb,.rank.tl .ask{grid-column:1}
+.rank.tl .pj,.rank.tl .why,.rank.tl .ask{grid-column:1}
 .rank li.closed{opacity:.55}
 .blk .stt{font-size:11px;opacity:.85;margin-left:4px}
-.rank li.picked{background:var(--accent-soft);outline:2px solid var(--accent);outline-offset:-2px}
 /* テーブル */
 .tbl{width:100%;border-collapse:collapse;font-size:13px}
 .tbl th{font-weight:400;color:var(--muted);text-align:left;padding:6px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
@@ -105,8 +102,7 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 .kv{display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
 .kv b{color:var(--ink);font-weight:700}
 /* 日・週カレンダー */
-.cal{position:relative;--calh:clamp(340px,calc(100vh - 400px),1000px);--calh:clamp(340px,calc(100dvh - 400px),1000px)}
-.cal.wk{--calh:clamp(340px,calc(100vh - 500px),1000px);--calh:clamp(340px,calc(100dvh - 500px),1000px)}
+.cal{position:relative;--calh:2112px} /* 時間の軸は 00:00〜24:00。日・週とも 1 時間 88px（15 分 22px）で、1 日分をページの縦スクロールで見る */
 .cal-grid{position:relative;height:var(--calh)}
 .hour{position:absolute;left:0;right:0;border-top:1px solid var(--line-soft);font-family:var(--f-mono);font-size:11px;color:var(--muted)}
 .hour span{position:absolute;left:0;top:-9px;background:var(--surface);padding-right:4px}
@@ -116,9 +112,6 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 .blk.task{background:var(--accent-soft);color:var(--ink);border:1px solid var(--accent);border-left-width:4px}
 .blk .tm{font-family:var(--f-mono);font-size:10px;opacity:.8;display:block}
 .week .blk .tm{white-space:nowrap}
-button.free{position:absolute;left:2px;right:2px;border:1px dashed var(--ok);background:var(--free);border-radius:5px;color:var(--ok);font:inherit;font-size:12px;cursor:default;padding:0 6px;text-align:left}
-body.picking button.free{cursor:copy}
-body.picking button.free:hover{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
 .summary{display:flex;flex-wrap:wrap;gap:6px 20px;margin-bottom:12px;color:var(--muted);font-size:13px}
 .summary b{color:var(--ink)}
 .week{display:grid;grid-template-columns:44px repeat(7,minmax(120px,1fr));min-width:44px}
@@ -126,7 +119,7 @@ body.picking button.free:hover{background:var(--accent-soft);border-color:var(--
 .week .dh small{display:block;color:var(--muted);font-size:11px}
 .week .dh.t{color:var(--accent);font-weight:700}
 .week .col{position:relative;border-left:1px solid var(--line-soft);height:var(--calh)}
-.week .col.today{background:linear-gradient(var(--accent-soft),var(--accent-soft));background-blend-mode:normal}
+.week .col.today{box-shadow:inset 0 3px 0 var(--accent)} /* 今日の列は、日付の見出しとこの線だけで示す（背景色は付けない） */
 .week .col.weekend{background:var(--line-soft);opacity:.55}
 .week .hrs{position:relative;height:var(--calh)}
 .week .blk{left:3px;right:3px;font-size:11px}
@@ -168,7 +161,7 @@ body.picking button.free:hover{background:var(--accent-soft);border-color:var(--
 .tscroll{overflow-x:auto}
 /* 列見出しは、スクロール中も上端に付ける。リストは、表を包む枠の先頭の複製で固定する（下の「固定表示」の節）。設定・稼働の表は、sticky が効かないので、app.js の pinTableHeads が見出しのセルをずらす */
 .tbl.edit thead th{position:relative;z-index:2;background:var(--surface);box-shadow:inset 0 -1px 0 var(--line)}
-.hrs{background:var(--accent-soft);color:var(--ink);border-radius:4px;padding:0 8px}
+.mono.hrs{background:var(--accent-soft);color:var(--ink);border-radius:4px;padding:0 8px}
 .wl-tbl .num{text-align:right;white-space:nowrap}
 .wl-tbl tfoot td{font-weight:700;border-top:1px solid var(--line)}
 .wl-bar{display:flex;height:12px;min-width:2px}
@@ -242,7 +235,7 @@ tr.drop-after>td,.g-row.drop-after>.g-label,.g-row.drop-after>.g-lane{box-shadow
 .pg-head{width:100cqw}
 .g-lane{min-width:0}
 .week{grid-template-columns:44px repeat(7,minmax(0,1fr))}
-.week .dh{font:inherit;background:transparent;border:0;border-bottom:1px solid var(--line);text-align:left;cursor:pointer;color:var(--ink);min-width:0}
+.week .dh{font:inherit;background:var(--surface);border:0;border-bottom:1px solid var(--line);text-align:left;cursor:pointer;color:var(--ink);min-width:0;position:sticky;top:var(--hh,0px);z-index:7} /* 時間の軸が 24 時間で長いので、日付の見出しはヘッダーの下に固定する */
 .week .dh:hover{background:var(--accent-soft)}
 .week .blk{overflow:hidden;text-overflow:ellipsis}
 .duecell{padding:6px;border-left:1px solid var(--line-soft);font-size:12px;min-height:34px;min-width:0;overflow-wrap:anywhere}
@@ -318,7 +311,6 @@ tr.hl td{transition:background .3s}
 .sw.plan{background:var(--accent-soft);border:1px solid var(--accent);border-left-width:4px}
 .sw.act{background:color-mix(in srgb,var(--ok) 22%,var(--surface));border:1px solid var(--ok);border-left-width:4px}
 .sw.unconf{background:var(--warn-soft);border:1px dashed var(--warn);border-left:4px dashed var(--warn)}
-.sw.free{background:var(--free);border:1px dashed var(--ok)}
 .sw.now{height:0;border-radius:0;border-top:2px solid var(--bad)}
 .sw.sel{background:transparent;outline:2px solid var(--ink);outline-offset:-1px}
 .btn:disabled{opacity:.5;cursor:default;border-color:var(--line);color:var(--muted)}
@@ -359,7 +351,8 @@ tr.hl td{transition:background .3s}
 .note.err{color:var(--bad)}
 .btn.warm{background:var(--warn-soft);border-color:var(--warn);color:var(--ink);font-weight:700}
 .btn.warm:hover{border-color:var(--warn);color:var(--ink);filter:brightness(.95)}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:700}
+.btn.primary:hover,.btn.primary:focus-visible{border-color:var(--ink);color:var(--on-accent);filter:brightness(1.12)}
 .g-row.g-grp{background:var(--line-soft);min-height:26px;align-items:center}
 .g-row.g-grp .g-label{background:var(--line-soft)}
 .g-grp-t{grid-column:1/-1;font-size:12px;padding-left:6px}
@@ -374,11 +367,12 @@ tr.hl td{transition:background .3s}
 code{font-family:var(--f-mono);font-size:12px;background:var(--line-soft);padding:0 4px;border-radius:3px}
 
 /* 狭い画面では、週表示のカレンダーの中だけを横スクロールにする(ページ全体は横スクロールさせない) */
-.cal.wk{overflow-x:auto}
+.cal.wk{overflow-x:clip} /* clip はスクロールの枠を作らないので、日付の見出し（.dh）の sticky がページの縦スクロールに効く */
+@media (max-width:640px){#view .cal.wk{overflow-x:auto}} /* 狭い画面だけ横スクロール（この幅では、日付の見出しは固定しない）。末尾の節は @media を置かない規則なので、ここに #view 付きで置く */
 .cal.wk .week{min-width:560px}
 
 /* 画面下端の「Claude Code に依頼する」の帯と引き出し（帯は常に出し、引き出しは開いたときだけ） */
-body{padding-block:16px 76px}
+body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（-8px）と合わせて、ヘッダーをどの画面でもページの先頭から上端 0 に置く（スクロールの始めにヘッダーが動かない） */
 .toast{bottom:72px}
 .ib{position:fixed;left:0;right:0;bottom:0;z-index:40;background:#16202E;color:#E5EBF3;box-shadow:0 -4px 14px rgba(20,30,50,.18)}
 .ib.open{background:var(--surface);color:var(--ink);border-top:1px solid var(--line);border-radius:14px 14px 0 0;box-shadow:0 -10px 30px rgba(20,30,50,.28)}
@@ -470,13 +464,13 @@ body{padding-block:16px 76px}
 #view .thstrip:empty{display:none}
 #view .thstrip .thin{display:flex;white-space:nowrap}
 #view .thstrip .thc{flex:none;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;font-size:13px;color:var(--muted);text-align:left}
-/* ページの先頭でも、固定の行が、固定したときと同じ位置にあるようにする（スクロールの始めに、固定の行が数 px 動かない）。ガント・リスト（.ptool がある画面）とアプリだけ。ほかの画面は変えない */
-body:has(.ptool){padding-block-start:8px}
-.wrap:has(.ptool){gap:0}
+/* ページの先頭でも、固定の行が、固定したときと同じ位置にあるようにする（スクロールの始めに、固定の行が数 px 動かない）。ヘッダーの上の余白（body の 8px。ヘッダーの負の margin で上端 0）は、依頼の帯の節の body の規則で、どの画面にも当てる。下は、ガント・リスト（.ptool がある画面）とスケジュール（.stop がある画面）の、ヘッダーとフィルタ行・カードの間と、カードの上の余白 */
+.wrap:has(.ptool),.wrap:has(.stop){gap:0}
 #banner:not(:empty){margin-block:8px}
-#view section.panel:has(> .gtop),#view section.panel:has(> .pstick){padding-top:0} /* カードの上の余白は、固定の行の中に持たせる（先頭でも固定したときと同じ位置にしつつ、カードの上端の線・角丸・余白は残す） */
+#view section.panel:has(> .gtop),#view section.panel:has(> .pstick),#view section.panel:has(> .stop){padding-top:0} /* カードの上の余白は、固定の行の中に持たせる（先頭でも固定したときと同じ位置にしつつ、カードの上端の線・角丸・余白は残す） */
 #view section.panel > .pstick{padding-top:20px}
 #view section.panel > .gtop{padding-top:22px}
+#view section.panel > .stop{padding-top:16px}
 #view .cols>.side,#view .side-toggle{margin-top:8px}
 /* チェックリストの進み具合（細い線と「済み/全体」）。今日の優先・今日のタスク・ガントのラベルが使う */
 #view .ck-meter{display:flex;align-items:center;gap:6px}
@@ -522,18 +516,65 @@ body:has(.ptool){padding-block-start:8px}
 #view .tbl tr.imp{background:var(--bad-soft)}
 
 /* 今日の優先・今日のタスクの「重要」バッジ */
-#view .impbadge{background:var(--bad);color:#fff;font-size:10px;font-weight:700;border-radius:8px;padding:0 6px;margin-left:4px}
+#view .impbadge{display:inline-block;background:var(--bad);color:#fff;font-size:12px;font-weight:700;line-height:1.4;border-radius:999px;padding:2px 9px;margin-left:4px;white-space:nowrap}
 
-/* スケジュールの重要の印: 枠は左に赤い線と赤い太字の件名、期限の行は赤い太字の件名 */
-#view .blk.imp{box-shadow:inset 5px 0 0 var(--bad)}
+/* スケジュールの重要の印: 枠も期限の行も、赤い太字の件名だけ（線は付けない） */
 #view .blk.imp .ttl{color:var(--bad);font-weight:700}
 #view .impt{color:var(--bad);font-weight:700}
 
-/* スケジュールのタスク編集欄（#mtgslot）。窓（.tpop）と同じ項目を、横に並べて出す */
-#view .tedit{flex-direction:column;align-items:stretch;max-width:640px}
-#view .tedit .tp-h{display:flex;align-items:center;gap:8px}
-#view .tedit .tp-h .muted{flex:1;font-size:12px}
-#view .tedit .tp-f{display:flex;flex-direction:column;gap:2px;font-size:12px}
-#view .tedit .tp-f .in{width:100%;box-sizing:border-box;min-width:0}
-#view .tedit .tp-r{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
-#view .tedit .tp-a{display:flex;gap:8px;align-items:center}
+/* スケジュールのタスク編集欄（#mtgslot）。会議の入力欄（.mtgform）と同じ、ラベル付きの項目が折り返して並ぶ形。窓（.tpop）は縦のまま */
+#view .tedit .tp-h{display:flex;align-items:baseline;gap:6px;font-size:13px;color:var(--ink);align-self:flex-end}
+#view .tedit .tp-h .muted{font-size:12px}
+#view .tedit .tp-title{flex:2 1 220px;min-width:220px}
+#view .tedit .tp-memo{flex:1 1 160px;min-width:120px}
+#view .tedit .tp-title .in,#view .tedit .tp-memo .in{width:100%;box-sizing:border-box;min-width:0}
+#view .tedit .tp-st{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted)}
+#view .tedit .tp-st:has(.ask){flex-basis:100%}
+#view .tedit .tp-a{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+#view .tedit .ckedit,#view .tedit .tp-wide{flex-basis:100%}
+#view .tedit .tp-wide{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted)}
+/* スケジュールは、ページを下へスクロールしても、日付の見出しより上を動かさない: ページの先頭でも同じ位置にあるよう、カードの上の余白は .stop の padding に持たせる（ページの先頭の節）。ヘッダーの下に、操作の行とサマリー（.stop）・カレンダーの上の入力欄（会議・突発タスク・タスクの編集欄。#mtgslot）・週表示の日付の見出しを積んで固定する（高さは sticky.js が測る）。
+   入力欄は、積んだ高さが画面の 55% を超えないよう（下端の依頼の帯があっても、カレンダーに約 40% 残す）、高いときは欄の中でスクロールする */
+#view .stop{position:sticky;top:var(--hh,0px);z-index:9;background:var(--surface);display:flow-root}
+#view .stop>.toolbar{margin-bottom:10px}
+#view .stop>.summary{margin-bottom:8px}
+#view #mtgslot:not(:empty){position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px));z-index:9;max-height:max(120px,calc(55vh - var(--hh,0px) - var(--stop-h,0px) - var(--dh-h,0px)));overflow-y:auto;background:var(--surface);padding-top:4px}
+/* 作業枠・会議のブロックは、短い枠でも押せるよう、最低 14px の高さで描く（データは変えない） */
+#view .cal .blk{min-height:14px}
+/* 週表示の日付の見出しの行は、ヘッダー・操作の行（--stop-h）・カレンダーの上の入力欄（--slot-h）の下に固定する。左端のセル（時刻の列の上）も固定し、時刻の文字が透けないようにする */
+#view .cal.wk .week .dh{top:calc(var(--hh,0px) + var(--stop-h,0px) + var(--slot-h,0px))}
+#view .cal.wk .week:first-child>div:first-child{position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px) + var(--slot-h,0px));z-index:7;background:var(--surface)}
+/* 今日のタスクの枠の時間。枠ごとに、時間と「実績にする」のボタン（予定・未確認の枠だけ）を並べ、折り返す */
+#view .rank.tl .tss{display:flex;flex-wrap:wrap;gap:4px 12px}
+#view .rank.tl .ts{display:inline-flex;align-items:center;gap:6px}
+#view .rank.tl .ts .btn{padding:0 8px;font-size:12px;min-height:24px}
+/* 今日のタスクの枠の札（予定・実績・未確認）。色はカレンダーの凡例（.sw.plan・.sw.act・.sw.unconf）と同じ */
+#view .ktag{display:inline-block;font-family:var(--f-body);font-size:11px;font-weight:700;line-height:1.4;border-radius:4px;padding:0 6px;margin-right:4px;color:var(--ink);white-space:nowrap}
+#view .ktag.plan{background:var(--accent-soft);border:1px solid var(--accent)}
+#view .ktag.act{background:color-mix(in srgb,var(--ok) 22%,var(--surface));border:1px solid var(--ok)}
+#view .ktag.unconf{background:var(--warn-soft);border:1px dashed var(--warn);color:var(--warn)}
+/* スケジュールの色の凡例は、上の操作の行（週・日の見出しの横）に小さく並べる。入らないときだけ次の行へ折り返す */
+#view .toolbar .slegend{margin:0 0 0 10px;gap:2px 10px;font-size:11px}
+#view .toolbar .slegend .sw{width:14px;height:10px;margin-right:4px}
+/* 30 分未満の枠・会議（short）は、時刻と件名を 1 行に並べ、上下の余白を詰める（15 分は 22px） */
+#view .cal .blk.short{padding-top:1px;padding-bottom:1px;white-space:nowrap;text-overflow:ellipsis}
+#view .cal .blk.short .tm{display:inline;margin-right:4px}
+/* 日付の欄: 文字の欄（2026/10/20 を打てる）と「📅」（ブラウザの日付の選択を開く）。選ぶための日付の欄（.dpick-in）は見せず、ボタンの位置に置く */
+#view .dfield{display:inline-flex;align-items:center;gap:2px;position:relative;vertical-align:middle}
+#view .dfield .din{width:11.5ch;min-width:0}
+#view .dpick{font:inherit;font-size:13px;line-height:1;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);padding:4px 4px;cursor:pointer}
+#view .dpick:disabled{opacity:.4;cursor:default}
+#view .dpick-in{position:absolute;right:0;bottom:0;width:1px;height:1px;opacity:0;border:0;padding:0;pointer-events:none}
+#view .din.bad{outline:2px solid var(--bad);outline-offset:1px}
+/* ガントも、リストと同じく、プロジェクトごとに 1 枚のカード（section.pg。リストの section.panel と同じ線・角丸・背景・余白）に分け、カードの間を 16px 空ける。操作の帯（.gtop）も 1 枚のカード。
+   外側の panel は枠を持たず、.gtop の sticky の範囲（全プロジェクト）としてだけ残す。カードの上の余白は .pgstick の中に持たせる（固定したとき、見出しの上にも同じ余白） */
+#view section.panel:has(> .gtop){background:none;border:0;border-radius:0;padding:0}
+#view section.panel > .gtop{padding-inline:16px;margin-bottom:16px;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+#view section.pg{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:0 16px 16px}
+#view section.pg + section.pg{margin-top:16px}
+#view section.pg > .pgstick{padding-top:18px}
+/* スケジュールのタスク編集欄の「詳細を開く」: 詳細の項目（繰り返し・複製・削除・チェックリスト・前のタスク）は、軽い欄のあとの別の入れ物（全幅の行）に出し、その中で折り返して並べる。
+   軽い欄とボタンの行は、詳細の開閉で位置も大きさも変わらない。開閉のボタンは、長い方の文字（詳細を閉じる、6 字）の幅を最小にし、文字が変わっても隣を押さない */
+#view .tedit .tedit-detail{flex-basis:100%;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:flex-end;border-top:1px dashed var(--line);padding-top:8px}
+#view .tedit [data-tedit-full]{min-width:calc(6em + 26px)}
+#view #mtgslot:not(:empty){scrollbar-gutter:stable} /* 詳細を開いて欄の中のスクロールバーが出ても、軽い欄の幅が変わらない（出ると 15px 狭まった。実測） */

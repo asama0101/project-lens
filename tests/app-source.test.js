@@ -13,12 +13,11 @@ test("app.js: apply の編集は、必ず引数のデータを受け取る（決
   assert.doesNotMatch(src, /next: \(\) =>/);
 });
 
-test("app.js: 状態の変更は changeStatus に集め、select とスケジュールのボタンが共用する。ボタンは data-pick より先に処理する", () => {
+test("app.js: 状態の変更は changeStatus に集める（リストの select・編集欄）。今日のタスクに着手・完了のボタンは無い", () => {
   assert.match(src, /function changeStatus\(/);
   const onChangeStatus = src.slice(src.indexOf('if (f === "status")'), src.indexOf('if (f === "party")'));
   assert.match(onChangeStatus, /changeStatus\(/);
-  assert.ok(src.includes("[data-setstatus]"));
-  assert.ok(src.indexOf('q("[data-setstatus]")') < src.indexOf('q("[data-pick]")'), "ボタンの分岐が data-pick より前");
+  assert.ok(!src.includes("data-setstatus"), "今日のタスクの着手・完了のボタンは無い");
   assert.match(src, /const scheduleOpts = \(\) => \(\{[^\n]*pendingDone: S\.pendingDone/);
 });
 
@@ -32,10 +31,8 @@ test("app.js・index.html: 開始画面の案内、帯の対象の引き継ぎ�
   assert.match(html, /<div id="toast"[^>]*role="status"/);
 });
 
-test("app.js: 設定タブの data-set は updateSettings で保存し（勤務時間は開始・終了を組で）、data-rmove は moveProjectRule、focusSelector も data-set を扱う", () => {
+test("app.js: 設定タブの data-set は updateSettings で保存し、data-rmove は moveProjectRule、focusSelector も data-set を扱う", () => {
   assert.match(src, /updateSettings\(/);
-  const set = src.slice(src.indexOf("el.dataset.set"), src.indexOf("el.dataset.set") + 900);
-  assert.match(set, /workday:\s*\{\s*start:\s*val\("workday-start"\),\s*end:\s*val\("workday-end"\)\s*\}/, "開始・終了を DOM から組で読む");
   assert.match(src, /moveProjectRule\(/);
   assert.match(src, /data-rmove/);
   const fs = src.slice(src.indexOf("function focusSelector"), src.indexOf("function focusSelector") + 900);
@@ -118,23 +115,11 @@ test("app.js: 設定タブの入力の保存は、成功しても描き直さな
   assert.match(fn, /\.note\.err/);
 });
 
-test("app.js: 勤務時間の入力は、打っている途中の値（開始 > 終了など）で保存せず、打ち終わる（少し止まる）か入力欄を離れてから保存する", () => {
-  assert.match(src, /function changeSettingSoon\(el\)/);
-  const soon = src.slice(src.indexOf("function changeSettingSoon"), src.indexOf("function changeSettingSoon") + 700);
-  assert.match(soon, /setTimeout\(/);
-  assert.match(soon, /clearTimeout\(/);
-  assert.match(src, /el\.dataset\.set\.startsWith\("workday-"\) \? changeSettingSoon\(el\) : changeSetting\(el\)/);
-  const out = src.slice(src.indexOf('addEventListener("focusout"'), src.indexOf('addEventListener("focusout"') + 400);
-  assert.match(out, /workday-/);
-  assert.match(out, /changeSetting\(/);
+test("app.js: 勤務時間（workday）の入力・保存待ちのタイマーを持たない", () => {
+  for (const x of ["workday", "changeSettingSoon", "settingTimer", "DEFAULT_WORKDAY", "wdOf"]) assert.ok(!src.includes(x), x);
 });
 
-test("app.js: render の先頭で、保存待ちの勤務時間のタイマーを止める（描き直しの途中で focusout が走り、入れ子の描き直しになるのを防ぐ）", () => {
-  const head = src.slice(src.indexOf("function render() {"), src.indexOf("function render() {") + 200);
-  assert.match(head, /clearTimeout\(settingTimer\); settingTimer = null;/);
-});
-
-test("app.js: 設定タブの入力の保存後、古い注意を消すのは勤務時間と待ち長期化の日数だけ（呼び名は片方だけ直しても、もう片方の注意を残す）。呼び名は保存された値（空なら既定）を入力欄に出す", () => {
+test("app.js: 設定タブの入力の保存後、古い注意を消すのは待ち長期化の日数だけ（呼び名は片方だけ直しても、もう片方の注意を残す）。呼び名は保存された値（空なら既定）を入力欄に出す", () => {
   const fn = src.slice(src.indexOf("function changeSetting(el)"), src.indexOf("function changeSetting(el)") + 1500);
   assert.match(fn, /k\.startsWith\("label-"\)/);
   assert.match(fn, /groupLabels\(S\.data\.settings\)/);
@@ -158,11 +143,11 @@ test("app.js: 帯の対象は、利用者が選び直したあとは、画面の
   assert.ok(src.includes('!S.ib.projectTouched && !S.ib.projectId && S.filter !== "all"'));
 });
 
-test("app.js: 設定タブの保存の編集は updateSettings(d, patch)。不正な入力の復元は、不正になりうる勤務時間と待ち長期化の日数だけ（呼び名は不正にならない）", () => {
+test("app.js: 設定タブの保存の編集は updateSettings(d, patch)。不正な入力の復元は、不正になりうる待ち長期化の日数だけ（呼び名は不正にならない）", () => {
   const fn = src.slice(src.indexOf("function changeSetting(el)"), src.indexOf("function changeSetting(el)") + 2000);
   assert.ok(fn.includes("const edit = (d) => updateSettings(d, patch);"));
   const rs = src.slice(src.indexOf("function restoreSettingInputs()"), src.indexOf("function restoreSettingInputs()") + 600);
-  assert.ok(rs.includes('set("workday-start"') && rs.includes('set("waitingLongDays"'));
+  assert.ok(rs.includes('set("waitingLongDays"') && !rs.includes("workday"));
   assert.ok(!rs.includes("label-"));
 });
 
@@ -305,12 +290,14 @@ test("app.js: 複製は .twrap の子で、syncThStrips が --ph（固定の行�
 
 
 // ---- ページの先頭でも、固定の行が、固定したときと同じ位置にある（スクロールの始めに、固定の行が動かない） ----
-test("theme.css: ガント・リスト（.ptool がある画面）では、上部の余白を詰めて、先頭の位置が固定したときの位置と同じになる。規則は、その画面とアプリだけに効く（ほかの画面は変えない）", () => {
+test("theme.css: ヘッダーは、どの画面でも、ページの先頭で固定したときと同じ位置（上端 0）にある（body の上の余白 8px = ヘッダーの負の margin）。ガント・リスト（.ptool がある画面）では、ヘッダーとフィルタ行の間も詰める", () => {
+  assert.ok(css.includes("body{padding-block:8px 76px}") && !css.includes("padding-block:16px 76px"), "body の上の余白は、どの画面でも 8px（下は依頼の帯の分）");
+  assert.ok(css.includes("header.top{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;margin-block:-8px 0}"));
+  assert.ok(!css.includes("body:has(.ptool)"), "画面ごとに余白を変えない");
   for (const rule of [
-    "body:has(.ptool){padding-block-start:8px}",
-    ".wrap:has(.ptool){gap:0}",
+    ".wrap:has(.ptool),.wrap:has(.stop){gap:0}",
     "#banner:not(:empty){margin-block:8px}",
-    "#view section.panel:has(> .gtop),#view section.panel:has(> .pstick){padding-top:0}",
+    "#view section.panel:has(> .gtop),#view section.panel:has(> .pstick),#view section.panel:has(> .stop){padding-top:0}",
     "#view section.panel > .pstick{padding-top:20px}",
     "#view section.panel > .gtop{padding-top:22px}",
     "#view .cols>.side,#view .side-toggle{margin-top:8px}",
@@ -318,7 +305,25 @@ test("theme.css: ガント・リスト（.ptool がある画面）では、上�
   const section = css.slice(css.indexOf("/* ページの先頭でも"));
   assert.ok(section.length > 100, "節がある");
   assert.ok(!section.includes("border-top-width:0") && !section.includes("border-top-left-radius:0"), "カードの上端の線と角丸は消さない");
-  for (const line of section.split(/\r?\n/).filter((l) => l.includes("{") && !l.startsWith("/*"))) assert.match(line, /^(body:has\(\.ptool\)|\.wrap:has\(\.ptool\)|#banner|#view)/, line);
+  for (const line of section.split(/\r?\n/).filter((l) => l.includes("{") && !l.startsWith("/*"))) assert.match(line, /^(\.wrap:has\(\.ptool\)|#banner|#view)/, line);
+});
+
+test("theme.css: ガントは、リストと同じく、プロジェクトごとに 1 枚のカード（section.pg）に分け、カードの間を 16px 空ける。操作の帯（.gtop）も 1 枚のカード。外側の panel は枠を持たず、.gtop の sticky の範囲としてだけ残す", () => {
+  for (const rule of [
+    "#view section.panel:has(> .gtop){background:none;border:0;border-radius:0;padding:0}",
+    "#view section.panel > .gtop{padding-inline:16px;margin-bottom:16px;background:var(--surface);border:1px solid var(--line);border-radius:10px}",
+    "#view section.pg{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:0 16px 16px}",
+    "#view section.pg + section.pg{margin-top:16px}",
+    "#view section.pg > .pgstick{padding-top:18px}",
+  ]) assert.ok(css.includes(rule), rule);
+});
+
+test("theme.css: スケジュールの編集欄の詳細は、全幅の別の入れ物（.tedit-detail）で折り返す。開閉のボタンは長い方の文字の幅を最小にし、欄のスクロールバーの分の幅を常に取る（詳細の開閉で軽い欄が動かない）", () => {
+  for (const rule of [
+    "#view .tedit .tedit-detail{flex-basis:100%;display:flex;flex-wrap:wrap;",
+    "#view .tedit [data-tedit-full]{min-width:calc(6em + 26px)}",
+    "#view #mtgslot:not(:empty){scrollbar-gutter:stable}",
+  ]) assert.ok(css.includes(rule), rule);
 });
 
 // ---- 固定表示（ガント）: 日付軸の複製（.gstrip）----
@@ -414,28 +419,61 @@ test("theme.css: 幅 860px 以下で、リストのチェックリストの展�
   assert.match(css, /\.tbl\.edit tr\.ck-tr>td\{grid-column:1\/-1;padding-left:0\}/);
 });
 
-// 日付欄は、年・月・日の一部を消した入力の途中でも値が空文字になる。そのまま保存すると、保存済みの回答予定日が消える。
-test("app.js: 回答予定日の欄は、入力の途中（validity.badInput）では保存しない", () => {
-  const line = src.slice(src.indexOf('if (f === "expected")'), src.indexOf('if (f === "group"'));
-  assert.match(line, /validity\.badInput/);
+test("app.js: 日付の欄（data-date）は、キャプチャ段階の change で parseDateInput により YYYY-MM-DD に直し、読めないときは元の値に戻して通知し、ほかの処理に渡さない。Enter の確定も先に直す。「📅」は showPicker（使えないときは focus・click）", () => {
+  const fn = src.slice(src.indexOf("function normalizeDateField(el)"), src.indexOf("function normalizeDateField(el)") + 600);
+  assert.ok(fn.includes("parseDateInput(v)") && fn.includes("el.value = iso") && fn.includes("el.value = el.defaultValue") && fn.includes("日付は 2026/10/20 の形で入力してください"), fn);
+  assert.match(src, /if \(el\.matches\?\.\("\[data-date\]"\) && !normalizeDateField\(el\)\) e\.stopImmediatePropagation\(\);\r?\n\}, true\);/);
+  assert.match(src, /if \(!normalizeDateField\(e\.target\)\) \{ e\.preventDefault\(\); e\.stopImmediatePropagation\(\); \}\r?\n\}, true\);/);
+  assert.ok(src.includes("try { pick.showPicker(); } catch { pick.focus(); pick.click(); }"));
+  assert.ok(src.includes('field.dispatchEvent(new Event("change", { bubbles: true }))'), "選んだ日は、文字の欄の change として流す");
+  assert.ok(src.indexOf("function normalizeDateField") < src.indexOf('view.addEventListener("change", (e) => { const el = e.target; setTimeout(() => onChange(el), 0); });'), "ほかの change の処理より前に登録する");
+  assert.ok(!src.includes("validity.badInput"), "日付の欄の部分入力の判定は持たない（文字の欄のため）");
 });
 
-test("app.js: 空き時間を押すと、タスク未選択なら突発タスクの入力欄を開き、addUrgentTask で確定する。Enter は変換確定中は確定しない", () => {
-  const fr = src.slice(src.indexOf('const fr = q("[data-free]")'));
-  assert.match(fr.slice(0, 700), /urgentDraft = \{/);
-  assert.ok(!fr.slice(0, 400).includes("先にタスクを選んでください"));
+test("app.js: 突発タスクの入力欄は、ヘッダーのボタンからだけ開く（空き時間を押す経路 data-free・data-freedate を持たない）。addUrgentTask で確定し、Enter は変換確定中は確定しない", () => {
+  for (const s of ["data-free", "freedate", "snapFreeStart"]) assert.ok(!src.includes(s), s);
   assert.ok(src.includes("addUrgentTask(d,"));
   assert.ok(src.includes('e.key === "Enter" && !e.isComposing && e.target.matches("[data-ug=\\"title\\"]")'));
   assert.match(src, /e\.key === "Escape" && S\.screen === "schedule" && \([^)]*S\.urgentDraft/);
 });
 
-test("app.js: ヘッダーの「＋ 突発タスク」は、clearSel() で選択を外し、スケジュール画面へ移り、firstFreeStart で開始を決めて件名にフォーカスする", () => {
+test("app.js: タスクを押して選ぶ状態（S.picked・data-pick・body.picking）を持たない。右の列の行は data-dragtask でドラッグする", () => {
+  for (const s of ["picked", "data-pick]", "dataset.pick", "picking"]) assert.ok(!src.includes(s), s);
+  assert.ok(src.includes('e.target.closest("[data-dragtask]")'));
+  assert.ok(!css.includes("picked") && !css.includes("picking") && !css.includes("data-pick"), "theme.css にも残さない");
+});
+
+test("app.js・theme.css: ヘッダーの「＋ 突発タスク」は、塗りの強調ボタン（btn primary）。hover でも文字が背景と同じ色にならない。暗い配色でも読める文字色", () => {
+  assert.ok(src.includes('<button class="btn primary" data-urgent-open'));
+  const rule = (sel) => css.slice(css.indexOf(sel + "{"), css.indexOf("}", css.indexOf(sel + "{")));
+  assert.ok(rule(".btn.primary").includes("background:var(--accent)") && rule(".btn.primary").includes("color:var(--on-accent)"), rule(".btn.primary"));
+  assert.ok(rule(".btn.primary:hover,.btn.primary:focus-visible").includes("color:var(--on-accent)"), "hover の .btn:hover（文字が accent）で、塗りと文字が同じ色にならない");
+  assert.equal(css.split("--on-accent:").length - 1, 3, "明るい配色と、暗い配色の 2 か所");
+});
+
+test("theme.css: 週表示の今日の列は背景色を持たず、上端の線（--accent）だけで示す", () => {
+  const rule = (sel) => css.slice(css.indexOf(sel + "{"), css.indexOf("}", css.indexOf(sel + "{")));
+  const today = rule(".week .col.today");
+  assert.ok(!today.includes("background") && today.includes("inset 0 3px 0 var(--accent)"), today);
+  assert.ok(!css.includes("--today-col"));
+});
+
+test("theme.css: 空き時間のボタン（button.free）と凡例の空き時間（.sw.free）の規則を持たない", () => {
+  assert.ok(!css.includes("button.free") && !css.includes(".sw.free"));
+});
+
+test("theme.css: 重要のバッジは 12px の太字、角の丸い帯（pill）", () => {
+  const r = css.slice(css.indexOf("#view .impbadge{"), css.indexOf("}", css.indexOf("#view .impbadge{")));
+  for (const s of ["font-size:12px", "font-weight:700", "border-radius:999px", "padding:2px 9px"]) assert.ok(r.includes(s), s);
+});
+
+test("app.js: ヘッダーの「＋ 突発タスク」は、clearSel() で選択を外し、スケジュール画面へ移り、urgentDefaultStart で開始を決めて件名にフォーカスする", () => {
   assert.ok(src.includes("data-urgent-open") && src.includes("＋ 突発タスク"));
   const h = src.slice(src.indexOf('e.target.closest("[data-urgent-open]")'));
   const body = h.slice(0, 900);
   assert.match(body, /clearSel\(\)/);
   assert.match(body, /S\.screen = "schedule"/);
-  assert.match(body, /firstFreeStart\(/);
+  assert.match(body, /urgentDefaultStart\(date, clock\(\)\)/);
   assert.match(body, /\[data-ug="title"\]'?\)?\??\.focus/);
 });
 
@@ -500,4 +538,142 @@ test("app.js: 直接保存できないブラウザの書き出しは exportFiles
 test("app.js: 開いた画面で別のファイルを選べなかったときは、通知で知らせる。読み直せない案内は、画面が古い可能性を伝える", () => {
   assert.match(src, /if \(S\.data\) toast\(S\.openError\)/);
   assert.match(src, /読み直せません: \$\{err\.message\}（画面の内容は、まだファイルと違う可能性があります）/);
+});
+
+test("app.js: 読み直しの描き直しを、打ちかけの入力の間は待たせる（isEditing → flush・rendered）。突発タスクの入力は、確定（change）で下書きに残す", () => {
+  const editing = src.slice(src.indexOf("function isEditing("), src.indexOf("function isEditing(") + 500);
+  assert.match(editing, /document\.activeElement/);
+  assert.match(editing, /view\.contains\(/);
+  assert.match(editing, /\.value !== [^\n]*\.defaultValue/);
+  assert.match(src, /createSync\(\{[\s\S]{0,400}isEditing[,\s}]/, "createSync に isEditing を渡す");
+  const render = src.slice(src.indexOf("function render() {"), src.indexOf("function render() {") + 300);
+  assert.match(render, /sync\.rendered\(\)/, "ほかの理由の描き直しで、待たせた描き直しを捨てる");
+  assert.match(src, /const flushSoon = \(\) => setTimeout\(\(\) => \{ if \(!pressing\) sync\.flush\(\); \}, 0\);/, "setTimeout で、change の処理・フォーカスの移動のあとに flush。押している間はしない");
+  assert.match(src, /view\.addEventListener\("focusout", flushSoon\)/, "フォーカスが移り終わってから flush");
+  assert.match(src, /view\.addEventListener\("change", flushSoon\)/, "change の処理（setTimeout）のあとで flush");
+  assert.ok(src.indexOf('view.addEventListener("change", (e) => { const el = e.target; setTimeout(() => onChange(el), 0); });') < src.indexOf('view.addEventListener("change", flushSoon)'), "onChange の登録が先（同じ change で onChange のあとに flush が走る）");
+  // マウスで押したボタンを、描き直しで消さない（押す → change・focusout → 描き直し → 離す、だとクリックが届かない）。離したあと（click の処理のあと）に flush
+  assert.match(src, /document\.addEventListener\("pointerdown", [^\n]*pressing = true[^\n]*, true\)/);
+  assert.match(src, /document\.addEventListener\("pointerup", release, true\)/);
+  assert.match(src, /document\.addEventListener\("pointercancel", release, true\)/);
+  assert.match(src, /const release = \(\) => \{ if \(!pressing\) return; pressing = false;[^\n]*flushSoon\(\); \};/);
+  assert.match(src, /pointerdown[^\n]*setTimeout\(release, \d+\)/, "離した知らせが来なくても、待たせた描き直しを失わない");
+  const onChange = src.slice(src.indexOf("function onChange(el) {"), src.indexOf("function onChange(el) {") + 1500);
+  assert.match(onChange, /el\.dataset\.ug !== undefined[^\n]*S\.urgentDraft = \{ \.\.\.S\.urgentDraft/, "突発タスクの欄は change で下書きへ");
+  assert.match(src, /if \(d\.ug\) return q\("data-ug", d\.ug\)/, "欄を移ったときの描き直しでも、フォーカスを保つ");
+});
+
+test("app.js: スケジュールを開いたとき（resetScroll）は、今の時刻によらず、08:00 が固定の段（stackBottom）のすぐ下に来るまでページを縦にスクロールする", () => {
+  const r = src.slice(src.indexOf("function render() {"), src.indexOf("function render() {") + 5000);
+  assert.ok(r.includes('if (reset && S.screen === "schedule") scrollToMorning();'), r);
+  const fn = src.slice(src.indexOf("function scrollToMorning()"), src.indexOf("function scrollToMorning()") + 700);
+  assert.ok(fn.includes("pc(MORNING)") && fn.includes("stackBottom()") && !fn.includes("clock()"), fn);
+  assert.match(src, /const MORNING = 8 \* 60;/);
+  assert.ok(!src.includes("scrollToNow"));
+});
+
+test("theme.css: カレンダーの高さは固定（日・週とも 1 時間 88px・15 分 22px で 2112px）。画面の高さに合わせて縮めない。15 分・30 分未満の枠は、時刻と件名を 1 行に並べる", () => {
+  assert.ok(css.includes(".cal{position:relative;--calh:2112px}") && !css.includes(".cal.wk{--calh:"));
+  assert.ok(css.includes("#view .cal .blk.short .tm{display:inline;margin-right:4px}"));
+});
+
+test("app.js: 作業枠を押して選ぶと（selectSession）、そのタスクの編集欄を開く。選び直すと切り替わり（詳細の開閉は引き継ぐ）、外すと閉じる。「閉じる」は選択も外す", () => {
+  assert.ok(!src.includes("data-tedit-open") && !src.includes("teditOpen"), "「タスクを編集」のボタンは持たない");
+  const fn = src.slice(src.indexOf("const selectSession = "), src.indexOf("const selectSession = ") + 400);
+  assert.ok(fn.includes("S.taskEdit = s ? { id: s.taskId, full: S.taskEdit?.full ?? false, askDel: false } : null"), fn);
+  assert.match(src, /if \(sb && !q\("\[data-rz\]"\)\) \{ selectSession\(S\.selSess === sb\.dataset\.dragsess \? null : sb\.dataset\.dragsess\);/);
+  assert.match(src, /if \(q\("\[data-tedit-close\]"\)\) \{ clearSel\(\); render\(\); return; \}/);
+});
+
+test("theme.css: カレンダーの上の入力欄（#mtgslot）は、中身があるとき、ヘッダーと操作の行の下に固定する（#view の中だけ）", () => {
+  assert.ok(css.includes("#view #mtgslot:not(:empty){position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px));"));
+});
+
+test("app.js: 今日のタスクの「実績にする」（data-session-actual）は、confirmTodaySession を 1 回の apply で保存し（枠と状態を一緒に）、状態を変えたら通知で言う。プロジェクト画面にも now を渡す", () => {
+  const a = src.slice(src.indexOf('q("[data-session-actual]")'), src.indexOf('q("[data-session-actual]")') + 700);
+  assert.ok(a.includes("confirmTodaySession(d, sid, now)") && a.includes("apply("), a);
+  assert.equal(a.match(/apply\(/g).length, 1, "apply は 1 回");
+  assert.ok(a.includes("を実績にしました") && a.includes("状態を In Progress にしました") && a.includes("待ち先の記録は外しました"), a);
+  assert.match(src, /renderProjects\(S\.data, today, \{[^}]*now: clock\(\)/);
+  assert.ok(!src.includes("data-rec-start") && !src.includes("data-rec-end") && !src.includes("startActual") && !src.includes("stopActual"), "「開始」「終了」は持たない");
+});
+
+test("theme.css: 作業枠・会議のブロックは、短い枠でも 14px の高さで描く（#view の中だけ）", () => {
+  assert.ok(css.includes("#view .cal .blk{min-height:14px}"));
+});
+
+// ---- 24 時間の軸と、カレンダーの上の入力欄の固定（レビューの指摘） ----
+test("sticky.js・theme.css: スケジュールは、ヘッダー・操作の行（.stop）・入力欄（#mtgslot）・週表示の日付の見出し（と左端のセル）を積んで固定する。高さは --stop-h・--slot-h・--dh-h に測る。規則は #view の中だけ", () => {
+  assert.match(stk, /root\.setProperty\("--stop-h", `\$\{view\.querySelector\("\.stop"\)\?\.offsetHeight \?\? 0\}px`\)/);
+  assert.match(stk, /root\.setProperty\("--slot-h", `\$\{view\.querySelector\("#mtgslot"\)\?\.offsetHeight \?\? 0\}px`\)/);
+  assert.match(stk, /root\.setProperty\("--dh-h", `\$\{view\.querySelector\("\.cal\.wk \.week \.dh"\)\?\.offsetHeight \?\? 0\}px`\)/);
+  assert.ok(css.includes("#view .stop{position:sticky;top:var(--hh,0px);z-index:9;"));
+  assert.ok(css.includes("#view #mtgslot:not(:empty){position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px));z-index:9;max-height:max(120px,calc(55vh - var(--hh,0px) - var(--stop-h,0px) - var(--dh-h,0px)));overflow-y:auto;"), "入力欄は、積んだ高さが画面の 55% を超えないよう、欄の中でスクロールする（下端の帯があっても、カレンダーに約 40% 残す）");
+  assert.ok(css.includes("#view .cal.wk .week .dh{top:calc(var(--hh,0px) + var(--stop-h,0px) + var(--slot-h,0px))}"));
+  assert.ok(css.includes("#view .cal.wk .week:first-child>div:first-child{position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px) + var(--slot-h,0px));"));
+  assert.ok(css.includes("@media (max-width:640px){#view .cal.wk{overflow-x:auto}}"));
+  assert.ok(!/\n\.cal\.wk \.week:first-child/.test(css) && !css.includes("@media (max-width:640px){.cal.wk{"), "#view の外の規則として残さない");
+});
+
+test("app.js: 枠を選んで固定の段（編集欄など）が高くなり、選んだ枠が段の下に隠れたら、その下へページを動かす（stackBottom は --hh・--stop-h・--slot-h・--dh-h の和）", () => {
+  const r = src.slice(src.indexOf("function render() {"), src.indexOf("function render() {") + 5000);
+  assert.ok(r.includes('const selKey = S.screen === "schedule" ? selectionKey(S.selSess, S.taskEdit) : null;'), r);
+  assert.ok(r.includes('if (revealSelection(lastSelKey, selKey)) { const b = view.querySelector(".blk.sel")?.getBoundingClientRect(), top = stackBottom(); if (b && b.top < top) window.scrollBy(0, b.top - top - 8); }'), "選択・編集欄が変わった描き直しだけ");
+  assert.ok(r.includes("lastSelKey = selKey;"));
+  const fn = src.slice(src.indexOf("function stackBottom()"), src.indexOf("function stackBottom()") + 400);
+  for (const k of ["--hh", "--stop-h", "--slot-h", "--dh-h"]) assert.ok(fn.includes(`"${k}"`), k);
+});
+
+test("app.js: スケジュールの描き直しでは、カレンダー（#calslot）の画面上の位置を保つ（入力欄が開いて上に高さが足されても、押した枠が動かない）", () => {
+  const r = src.slice(src.indexOf("function render() {"), src.indexOf("function render() {") + 5000);
+  assert.match(r, /const calTop = S\.screen === "schedule" \? view\.querySelector\("#calslot"\)\?\.getBoundingClientRect\(\)\.top : null;/);
+  assert.match(r, /if \(calTop != null && !reset && S\.screen === "schedule"\)/);
+});
+
+test("app.js: 右の列の開け閉めで今日の位置へ戻すのは、ガントのときだけ（スケジュールでは scrollToMorning で跳ばない）", () => {
+  const fn = src.slice(src.indexOf("function togglePref(key)"), src.indexOf("function togglePref(key)") + 400);
+  assert.match(fn, /if \(key === "showPrio" && S\.screen === "gantt"\) S\.resetScroll = true;/);
+});
+
+test("app.js: Delete・Backspace は、編集欄・入力欄（[data-tedit]・.mtgform）の中のボタンにフォーカスがあるときは枠を消さない", () => {
+  assert.ok(src.includes('const typing = e.target.matches?.("input,select,textarea") || !!e.target.closest?.("[data-tedit], .mtgform");'));
+});
+
+test("app.js: 読み直しなどで選択中の枠が無くなったら、選択と編集欄を外す", () => {
+  assert.ok(src.includes("if (S.selSess && !allSessions(S.data).some((s) => s.id === S.selSess)) { S.selSess = null; S.taskEdit = null; }"));
+});
+
+test("app.js: 書式（filebar の行の renderBar、keydown の閉じ）", () => {
+  assert.ok(!src.includes('` : "";  renderBar();') && !src.includes("return; }});"));
+});
+
+test("app.js: 一括の「実績にする」は、重なって実績にできない枠を飛ばして件数を言う。setStatus は実行中の枠を扱わない", () => {
+  const fn = src.slice(src.indexOf("function setStatus("), src.indexOf("function setStatus(") + 1500);
+  assert.ok(!fn.includes("stopRunningIfClosed") && !fn.includes("実行中"), fn);
+  const all = src.slice(src.indexOf('q("[data-confirmall]")'), src.indexOf('q("[data-confirmall]")') + 900);
+  assert.ok(all.includes("skipped") && all.includes("ほかの実績の枠と重なる"), all);
+});
+
+test("theme.css: スケジュールの重要の枠は、件名の赤い太字だけ（左の赤い線は付けない）", () => {
+  assert.ok(css.includes("#view .blk.imp .ttl{color:var(--bad);font-weight:700}"));
+  assert.ok(!/\.blk\.imp\{[^}]*box-shadow/.test(css), "左の線（box-shadow）は持たない");
+});
+
+test("theme.css: プロジェクトの稼働の札（.mono.hrs）の塗りは、週表示の時刻の列（.week .hrs）に効かない。使わなくなった今日のタスクのボタンの箱（.rank .bb）の規則は持たない", () => {
+  assert.ok(css.includes(".mono.hrs{background:var(--accent-soft);"));
+  assert.ok(!/(^|\n)\.hrs\{/.test(css), "素の .hrs に塗りを付けない");
+  assert.ok(!css.includes(".rank .bb") && !css.includes(".rank.tl .bb"));
+});
+
+test("app.js: スケジュールから届く通知（今日のタスクの「実績にする」・状態の変更・待ち先・タスクの削除・定例の次回）は、タスクの ID でなく件名で言う", () => {
+  for (const bad of ["${r.taskId} の ${s.start}", "${id} の状態を ${status}", "${id} を Waiting にしました", "${id} を削除しました", "次回 ${sp.id}"]) assert.ok(!src.includes(bad), bad);
+  assert.ok(src.includes("taskTitle("), "件名を引く");
+});
+
+test("theme.css: スケジュールも、ガント・リストと同じく、ページの先頭で、固定の段（操作の行 .stop・入力欄・日付の見出し・右の列）が固定したときと同じ位置にある（ヘッダーとの間を詰め、カードの上の余白は .stop の中に持たせる）", () => {
+  for (const rule of [
+    ".wrap:has(.ptool),.wrap:has(.stop){gap:0}",
+    "#view section.panel:has(> .gtop),#view section.panel:has(> .pstick),#view section.panel:has(> .stop){padding-top:0}",
+    "#view section.panel > .stop{padding-top:16px}",
+  ]) assert.ok(css.includes(rule), rule);
 });
