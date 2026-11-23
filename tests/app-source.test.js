@@ -548,3 +548,15 @@ test("app.js: スケジュールを開いたとき（resetScroll）は、今の�
 test("theme.css: カレンダーの高さは固定（日 1320px・週 1056px）。画面の高さに合わせて縮めない", () => {
   assert.ok(css.includes(".cal{position:relative;--calh:1320px}") && css.includes(".cal.wk{--calh:1056px}"));
 });
+
+test("app.js: 作業枠を押して選ぶと（selectSession）、そのタスクの編集欄を開く。選び直すと切り替わり（詳細の開閉は引き継ぐ）、外すと閉じる。「閉じる」は選択も外す", () => {
+  assert.ok(!src.includes("data-tedit-open") && !src.includes("teditOpen"), "「タスクを編集」のボタンは持たない");
+  const fn = src.slice(src.indexOf("const selectSession = "), src.indexOf("const selectSession = ") + 400);
+  assert.ok(fn.includes("S.taskEdit = s ? { id: s.taskId, full: S.taskEdit?.full ?? false, askDel: false } : null"), fn);
+  assert.match(src, /if \(sb && !q\("\[data-rz\]"\)\) \{ selectSession\(S\.selSess === sb\.dataset\.dragsess \? null : sb\.dataset\.dragsess\);/);
+  assert.match(src, /if \(q\("\[data-tedit-close\]"\)\) \{ clearSel\(\); render\(\); return; \}/);
+});
+
+test("theme.css: カレンダーの上の入力欄（#mtgslot）は、中身があるときヘッダーの下に固定する（#view の中だけ）", () => {
+  assert.ok(css.includes("#view #mtgslot:not(:empty){position:sticky;top:var(--hh,0px);"));
+});

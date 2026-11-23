@@ -538,3 +538,5 @@ body:has(.ptool){padding-block-start:8px}
 #view .tedit .tp-a{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 #view .tedit .ckedit,#view .tedit .tp-wide{flex-basis:100%}
 #view .tedit .tp-wide{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted)}
+/* カレンダーの上の入力欄（会議・突発タスク・タスクの編集欄）は、時間の軸（00:00〜24:00）が長くページを下へスクロールしていても見えるよう、ヘッダーの下に固定する。高いときは欄の中でスクロールする */
+#view #mtgslot:not(:empty){position:sticky;top:var(--hh,0px);z-index:9;max-height:calc(100vh - var(--hh,0px) - 160px);overflow-y:auto;background:var(--surface);padding-top:4px}

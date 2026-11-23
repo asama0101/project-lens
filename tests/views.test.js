@@ -1582,12 +1582,13 @@ test("日程変更の履歴: 原因の選択欄（data-logcause）は出さず�
   assert.ok(html.includes("ベンダーX の納期回答が遅れたため"));
 });
 
-test("スケジュールの編集欄: 枠を選ぶと「タスクを編集」が出る。編集欄は軽い欄だけ、full で全項目", () => {
+test("スケジュールの編集欄: 枠を選ぶと（selSess と taskEdit）編集欄が出る。「タスクを編集」のボタンは無い。編集欄は軽い欄だけ、full で全項目", () => {
   const d = load();
   d.tasks.find((t) => t.id === "AA-0007").sessions.push({ id: "S10", date: TODAY, start: "14:00", end: "15:00", kind: "planned" });
-  assert.ok(!sched(d).includes("data-tedit-open"), "選んでいないときは出ない");
-  assert.ok(sched(d, { selSess: "S10" }).includes('data-tedit-open="AA-0007"'), "選んだ枠のタスクの ID");
   const slot = (html) => html.match(/<div id="mtgslot">([\s\S]*?)<\/div><div id="calslot">/)[1];
+  assert.ok(!sched(d, { selSess: "S10" }).includes("data-tedit-open") && !sched(d, { selSess: "S10" }).includes("タスクを編集"), "ボタンは無い");
+  assert.ok(sched(d, { selSess: "S10" }).includes("「本番切替」の枠を削除"), "枠の削除のボタンは残る");
+  assert.equal(slot(sched(d, { taskEdit: { id: "AA-0007", full: false } })), "", "枠を選んでいない（表示中の枠でない）ときは出さない");
   const light = slot(sched(d, { selSess: "S10", taskEdit: { id: "AA-0007", full: false } }));
   for (const f of ["title", "due", "start", "status", "important", "projectId", "memo"]) assert.ok(light.includes(`data-f="${f}" data-id="AA-0007"`), f);
   assert.ok(light.includes("data-tedit-full") && light.includes("data-tedit-close"));
@@ -1595,7 +1596,7 @@ test("スケジュールの編集欄: 枠を選ぶと「タスクを編集」が
   const full = slot(sched(d, { selSess: "S10", taskEdit: { id: "AA-0007", full: true } }));
   for (const x of ['data-f="repeat"', 'data-dup="AA-0007"', 'data-tedit-del="AA-0007"', "前のタスク"]) assert.ok(full.includes(x), `full: ${x}`);
   assert.ok(/data-f="important" data-id="AA-0007"/.test(light));
-  assert.equal(slot(sched(d, { taskEdit: { id: "ZZ", full: false } })), "", "対象のタスクが無いときは空");
+  assert.equal(slot(sched(d, { selSess: "S10", taskEdit: { id: "ZZ", full: false } })), "", "対象のタスクが無いときは空");
   assert.equal(renderTaskEditPanel(d, { id: "ZZ", full: false }, ""), "");
 });
 
