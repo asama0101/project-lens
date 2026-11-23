@@ -13,7 +13,7 @@ import {
   updateTask, updateProject, addMilestone, updateMilestone, deleteMilestone, moveTaskDates, moveProjectDates, moveMilestone,
   addTaskQuick, predecessorCandidates, addTask, deleteTask, addProject, deleteProject,
   addHoliday, addHolidayRange, holidayRangeDays, removeHoliday, addWorkday, removeWorkday, addPredecessor, moveTask,
-  nextTaskId, addUrgentTask, moveToProject,
+  nextTaskId, nextProjectId, addUrgentTask, moveToProject,
 } from "../plugins/project-lens/src/ui/edit.js";
 
 import { addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist } from "../plugins/project-lens/src/ui/edit.js";
@@ -53,7 +53,15 @@ test("updateTask: 不正な値は例外（件名・日付・開始>期限・循�
   assert.throws(() => updateTask(d, "A5", { start: "2027-01-10" }, TODAY), "前のタスクなしで開始>期限");
   assert.throws(() => updateTask(d, "A4", { predecessors: ["A7"] }, TODAY), "次のタスクを前のタスクにすると循環");
   assert.throws(() => updateTask(d, "ZZ", { memo: "x" }, TODAY));
-  assert.equal(task(updateTask(d, "A4", { importance: "high", memo: "m", title: " 新件名 " }, TODAY), "A4").title, "新件名");
+  assert.equal(task(updateTask(d, "A4", { important: true, memo: "m", title: " 新件名 " }, TODAY), "A4").title, "新件名");
+});
+
+test("updateTask: important は true で付き、false で項目が消える", () => {
+  const d = load();
+  const on = updateTask(d, "A3", { important: true }, TODAY);
+  assert.equal(task(on, "A3").important, true);
+  const off = updateTask(on, "A3", { important: false }, TODAY);
+  assert.equal("important" in task(off, "A3"), false);
 });
 
 test("updateProject: 状態・期限・開始日。開始>期限と空の名前は例外", () => {
@@ -152,7 +160,7 @@ test("addTask: ID を採番し、追加後も validate が通る", () => {
   const d = load();
   const a = addTask(d, { projectId: "B", title: "追加", due: "2026-11-30", predecessors: ["B2"] });
   const t = a.tasks.find((x) => x.title === "追加");
-  assert.match(t.id, /^B\d+$/);
+  assert.match(t.id, /^B-\d{4}$/);
   assert.equal(t.status, "To Do");
   ok(a);
   assert.throws(() => addTask(d, { projectId: "ZZ", title: "x", due: "2026-11-30" }));
@@ -186,7 +194,7 @@ test("addProject / deleteProject", () => {
   const d = load();
   const a = addProject(d, { name: "新規", type: "改善" }, TODAY);
   const p = a.projects[a.projects.length - 1];
-  assert.deepEqual([p.id, p.status, p.start], ["D", "計画中", TODAY]);
+  assert.deepEqual([p.id, p.status, p.start], ["AA", "計画中", TODAY]);
   ok(a);
   const del = deleteProject(d, "C");
   assert.ok(!del.projects.some((x) => x.id === "C") && !del.tasks.some((t) => t.projectId === "C"));
@@ -494,35 +502,49 @@ test("updateTask: すでに Done のタスクに Done を渡しても、元の�
   assert.equal(task(b, "A5").doneAt, "2026-10-01");
 });
 
-test("nextTaskId: projectId が null なら X + 連番。タスクと変更履歴の最大番号 + 1", () => {
-  const d = load();
-  d.tasks = d.tasks.filter((t) => t.projectId !== null);
-  d.changeLog = [];
-  assert.equal(nextTaskId(d, null), "X1");
-  d.tasks.push({ ...task(d, "C1"), id: "X1", projectId: null });
-  assert.equal(nextTaskId(d, null), "X2");
-  d.tasks = d.tasks.filter((t) => t.id !== "X1");
-  d.changeLog = [{ taskIds: ["X1"] }];
-  assert.equal(nextTaskId(d, null), "X2");
+test("nextProjectId: AA から、使われていない最初の 2 文字。ZZ は返さない", () => {
+  const withIds = (ids) => ({ projects: ids.map((id) => ({ id })), tasks: [] });
+  assert.equal(nextProjectId(withIds([])), "AA");
+  assert.equal(nextProjectId(withIds(["AA"])), "AB");
+  assert.equal(nextProjectId(withIds(["AA", "AB", "AC", "AD", "AE", "AF", "AG", "AH", "AI", "AJ", "AK", "AL", "AM", "AN", "AO", "AP", "AQ", "AR", "AS", "AT", "AU", "AV", "AW", "AX", "AY", "AZ"])), "BA");
+  assert.equal(nextProjectId(withIds(["AA", "AC"])), "AB");
+  assert.equal(nextProjectId(withIds(["A", "B"])), "AA");
+  assert.equal(addProject(withIds(["XA", "XB"]), { name: "x", type: "y" }, TODAY).projects.at(-1).id, "AA");
+  const all = [];
+  for (const a of "ABCDEFGHIJKLMNOPQRSTUVWXYZ") for (const b of "ABCDEFGHIJKLMNOPQRSTUVWXYZ") if (a + b !== "ZZ") all.push(a + b);
+  assert.equal(all.length, 675);
+  assert.equal(nextProjectId(withIds(all.slice(0, -1))), "ZY");
+  assert.throws(() => nextProjectId(withIds(all)), /プロジェクトは 675 個までです/);
+  assert.throws(() => addProject(withIds(all), { name: "x", type: "y" }, TODAY), /プロジェクトは 675 個までです/);
+  assert.equal(nextProjectId(withIds(all.filter((x) => x !== "XX"))), "XX");
 });
 
-// サンプルの X1 と、その変更履歴を外した、X の ID が空の状態
-const noX = () => {
-  const d = load();
-  return { ...d, tasks: d.tasks.filter((t) => !t.id.startsWith("X")), changeLog: (d.changeLog ?? []).filter((c) => !(c.taskIds ?? []).some((i) => i.startsWith("X"))) };
-};
+test("nextTaskId: 接頭辞-4 桁。null は ZZ。タスクと変更履歴の最大番号 + 1", () => {
+  const mk = (ids, log = []) => ({ tasks: ids.map((id) => ({ id })), changeLog: log });
+  assert.equal(nextTaskId(mk([]), "AA"), "AA-0001");
+  assert.equal(nextTaskId(mk(["AA-0007", "AA-0003"]), "AA"), "AA-0008");
+  assert.equal(nextTaskId(mk([]), null), "ZZ-0001");
+  assert.equal(nextTaskId(mk(["ZZ-0001"]), null), "ZZ-0002");
+  assert.equal(nextTaskId(mk([], [{ taskIds: ["AA-0005"] }]), "AA"), "AA-0006");
+  assert.equal(nextTaskId(mk(["P1-0011", "P11-0001", "AA-0002"]), "P1"), "P1-0012");
+  assert.equal(nextTaskId(mk(["P1-0011", "P11-0001"]), "P11"), "P11-0002");
+  assert.equal(nextTaskId(mk(["A1", "AA-12"]), "AA"), "AA-0001");
+  assert.equal(nextTaskId(mk(["AA-9998"]), "AA"), "AA-9999");
+  assert.throws(() => nextTaskId(mk(["AA-9999"]), "AA"), /タスクの番号が 9999 を超えます/);
+});
+
 const URGENT = { title: " 障害対応 ", projectId: null, date: TODAY, start: "13:00", minutes: 30 };
 
 test("addUrgentTask: プロジェクトなしのタスクと枠を 1 操作で作る（未来の枠は planned）", () => {
-  const d = noX();
+  const d = load();
   const r = addUrgentTask(d, URGENT, { date: TODAY, time: "12:00" });
-  const t = task(r.data, "X1");
-  assert.equal(r.id, "X1");
+  const t = task(r.data, "ZZ-0001");
+  assert.equal(r.id, "ZZ-0001");
   assert.deepEqual([t.projectId, t.title, t.due, t.start, t.status], [null, "障害対応", TODAY, TODAY, "In Progress"]);
   assert.equal(t.sessions.length, 1);
   assert.match(t.sessions[0].id, /^S\d+$/);
   assert.deepEqual({ ...t.sessions[0], id: undefined }, { id: undefined, date: TODAY, start: "13:00", end: "13:30", kind: "planned" });
-  assert.equal(d.tasks.some((x) => x.id === "X1"), false);
+  assert.equal(d.tasks.some((x) => x.id === "ZZ-0001"), false);
 });
 
 test("addUrgentTask: 1 時間より短い最後の空き枠（サンプル 10/19 の 17:30-18:00）の開始に、30 分の枠を置ける", () => {
@@ -532,24 +554,24 @@ test("addUrgentTask: 1 時間より短い最後の空き枠（サンプル 10/19
   assert.equal(free.start, "17:30");
   const start = toHHMM(snapFreeStart(toMin(free.start), wd));
   assert.equal(start, "17:30");
-  const r = addUrgentTask(noX(), { title: "x", projectId: null, date: "2026-10-19", start, minutes: 30 }, { date: "2026-10-19", time: "12:00" });
-  assert.deepEqual(task(r.data, "X1").sessions.map((s) => [s.start, s.end]), [["17:30", "18:00"]]);
+  const r = addUrgentTask(load(), { title: "x", projectId: null, date: "2026-10-19", start, minutes: 30 }, { date: "2026-10-19", time: "12:00" });
+  assert.deepEqual(task(r.data, "ZZ-0001").sessions.map((s) => [s.start, s.end]), [["17:30", "18:00"]]);
 });
 
 test("addUrgentTask: 枠が過去なら actual", () => {
-  const r = addUrgentTask(noX(), URGENT, { date: TODAY, time: "14:00" });
-  assert.equal(task(r.data, "X1").sessions[0].kind, "actual");
+  const r = addUrgentTask(load(), URGENT, { date: TODAY, time: "14:00" });
+  assert.equal(task(r.data, "ZZ-0001").sessions[0].kind, "actual");
 });
 
 test("addUrgentTask: 会議と重なると warning が付き、タスクと枠は作られる", () => {
-  const r = addUrgentTask(noX(), URGENT, { date: TODAY, time: "12:00" });
+  const r = addUrgentTask(load(), URGENT, { date: TODAY, time: "12:00" });
   assert.match(r.warning, /ベンダーX 打合せ/);
-  assert.equal(task(r.data, "X1").sessions.length, 1);
-  assert.equal(addUrgentTask(noX(), { ...URGENT, start: "15:00" }, { date: TODAY, time: "12:00" }).warning, undefined);
+  assert.equal(task(r.data, "ZZ-0001").sessions.length, 1);
+  assert.equal(addUrgentTask(load(), { ...URGENT, start: "15:00" }, { date: TODAY, time: "12:00" }).warning, undefined);
 });
 
 test("addUrgentTask: 他の枠と重なると Error で、データは変わらない", () => {
-  const d = noX();
+  const d = load();
   const n = d.tasks.length;
   assert.throws(() => addUrgentTask(d, { ...URGENT, date: "2026-10-21", start: "14:30" }, { date: TODAY, time: "12:00" }), /他の枠/);
   assert.equal(d.tasks.length, n);
@@ -557,8 +579,8 @@ test("addUrgentTask: 他の枠と重なると Error で、データは変わら�
 
 test("addUrgentTask: 件名が空白だけ・プロジェクトが不明は Error", () => {
   const now = { date: TODAY, time: "12:00" };
-  assert.throws(() => addUrgentTask(noX(), { ...URGENT, title: "  " }, now), /件名を入力してください/);
-  assert.throws(() => addUrgentTask(noX(), { ...URGENT, projectId: "ZZ" }, now), /プロジェクト ZZ がありません/);
+  assert.throws(() => addUrgentTask(load(), { ...URGENT, title: "  " }, now), /件名を入力してください/);
+  assert.throws(() => addUrgentTask(load(), { ...URGENT, projectId: "ZZ" }, now), /プロジェクト ZZ がありません/);
 });
 
 test("addUrgentTask: projectId を指定すると、そのプロジェクトの採番になる", () => {
@@ -602,4 +624,21 @@ test("moveToProject: 前のタスクがある・次のタスクがある・不�
   assert.throws(() => moveToProject(d, "ZZ", "B"), /ZZ がありません/);
   assert.throws(() => moveToProject(d, "X1", "ZZ"), /プロジェクト ZZ がありません/);
   assert.equal(JSON.stringify(d), snap);
+});
+
+test("updateTask: 画面で期限を動かしても、履歴（changeLog）は増えない", async () => {
+  const { updateTask } = await import("../plugins/project-lens/src/ui/edit.js");
+  const d = load();
+  const n = updateTask(d, "A3", { due: addDays(d.tasks.find((t) => t.id === "A3").due, 3) }, TODAY);
+  assert.equal(n.changeLog.length, d.changeLog.length);
+});
+
+test("removeOrphanSessions: orphanSessions だけを空にし、タスクと枠は変えない", async () => {
+  const { removeOrphanSessions } = await import("../plugins/project-lens/src/core/split.js");
+  const d = load();
+  d.orphanSessions = [{ id: "SX1", taskId: "ZZ9", date: TODAY, start: "13:00", end: "14:00", kind: "planned" }];
+  const n = removeOrphanSessions(d);
+  assert.deepEqual(n.orphanSessions, []);
+  assert.deepEqual(n.tasks, d.tasks);
+  assert.equal(validate(n, { date: TODAY, time: "10:15" }).warnings.some((w) => w.includes("共有ファイルに無い")), false);
 });

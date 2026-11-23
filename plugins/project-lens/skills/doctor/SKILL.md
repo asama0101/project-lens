@@ -1,6 +1,6 @@
 ---
 name: doctor
-description: project-lens が動く環境かを診断し、足りないものと対処の手順を出す。別の PC で使い始めるときや、動かないときに使う。何も変更しない。Excel の取り込みそのもの（/project-lens:intake）や、予定表の MCP の指定（/project-lens:mcp）には使わない
+description: project-lens が動く環境かを診断し、足りないものと対処の手順を出す。別の PC で使い始めるときや、動かないときに使う。データは共有の `data.json` と個人の `personal.json`（同じフォルダ。別の場所なら `--mine <ファイル>`）の 2 つだが、診断は保存先のフォルダだけを見る。何も変更しない。Excel の取り込みそのもの（/project-lens:intake）や、予定表の MCP の指定（/project-lens:mcp）には使わない
 allowed-tools: 'Bash(node "${CLAUDE_PLUGIN_ROOT}/tools/doctor.js" --data "${CLAUDE_PLUGIN_DATA}")'
 disable-model-invocation: true
 ---

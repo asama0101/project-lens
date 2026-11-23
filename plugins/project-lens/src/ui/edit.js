@@ -6,7 +6,7 @@ import { groupSections } from "../core/groups.js";
 import { addSession } from "../core/sessions.js";
 import { nextChecklistId } from "../core/checklist.js";
 import { isRepeat, nextRepeatDue } from "../core/repeat.js";
-import { HOLIDAY_KINDS, CAUSES } from "../core/schema.js";
+import { HOLIDAY_KINDS } from "../core/schema.js";
 
 const mapTask = (data, id, fn) => {
   if (!data.tasks.some((t) => t.id === id)) throw new Error(`タスク ${id} がありません`);
@@ -42,7 +42,7 @@ export function predecessorCandidates(data, taskId) {
 }
 
 /**
- * patch: title / status / due / start / importance / memo / group / subgroup / predecessors / waitingOn
+ * patch: title / status / due / start / important / memo / group / subgroup / predecessors / waitingOn
  * 状態を Done にすると doneAt に today、他へ戻すと null。Waiting は待ち先が必須で、外れると waitingOn は null。
  */
 export function updateTask(data, taskId, patch, today = nowLocal().date) {
@@ -61,7 +61,7 @@ export function updateTask(data, taskId, patch, today = nowLocal().date) {
       if (patch.start != null && patch.start !== "" && !isDate(patch.start)) throw new Error("開始日は YYYY-MM-DD の形式で入力してください");
       n.start = patch.start || null;
     }
-    if ("importance" in patch) n.importance = patch.importance ?? null;
+    if ("important" in patch) { if (patch.important) n.important = true; else delete n.important; }
     if ("repeat" in patch) {
       const r = patch.repeat;
       if (r == null) delete n.repeat;
@@ -101,36 +101,6 @@ export function updateTask(data, taskId, patch, today = nowLocal().date) {
     if (n.start && n.start > n.due) throw new Error("開始日は期限以前にしてください");
     return n;
   });
-}
-
-// ---- 画面での期限変更の記録 ----
-const isScreenLog = (l, at, taskId) => l.source === "screen" && l.at === at && l.taskIds?.length === 1 && l.taskIds[0] === taskId;
-
-/**
- * before と after で期限が変わったタスクを、changeLog に残す（source: "screen"）。同じ日・同じタスクの記録は 1 件にまとめ、
- * 合計が 0 日になったら消す。画面の保存だけが使う（依頼・WBS の取り込みは、それぞれ自分で記録する）。
- */
-export function recordDueChanges(before, after, today = nowLocal().date) {
-  const prev = new Map(before.tasks.map((t) => [t.id, t.due]));
-  let log = after.changeLog ?? [];
-  let changed = false;
-  for (const t of after.tasks) {
-    if (!prev.has(t.id) || prev.get(t.id) === t.due) continue;
-    const delta = diffDays(t.due, prev.get(t.id));
-    const i = log.findIndex((l) => isScreenLog(l, today, t.id));
-    changed = true;
-    if (i < 0) { log = [...log, { at: today, taskIds: [t.id], reason: "画面で期限を変更", cause: null, deltaDays: delta, source: "screen" }]; continue; }
-    const sum = log[i].deltaDays + delta;
-    log = sum === 0 ? log.filter((_, k) => k !== i) : log.map((l, k) => (k === i ? { ...l, deltaDays: sum } : l));
-  }
-  return changed ? { ...after, changeLog: log } : after;
-}
-
-/** 画面の変更の行（key: { at, taskId }）の原因を変える。cause は CAUSES のいずれか、または null */
-export function setLogCause(data, { at, taskId }, cause) {
-  if (cause != null && !CAUSES.includes(cause)) throw new Error(`不明な原因 "${cause}"`);
-  if (!(data.changeLog ?? []).some((l) => isScreenLog(l, at, taskId))) throw new Error("該当する履歴がありません");
-  return { ...data, changeLog: data.changeLog.map((l) => (isScreenLog(l, at, taskId) ? { ...l, cause } : l)) };
 }
 
 // ---- チェックリスト（task.checklist = [{ id, text, done }]） ----
@@ -322,21 +292,38 @@ export function moveProjectDates(data, projectId, edge, days) {
 }
 
 // ---- 追加・削除 ----
-/** ID の末尾の番号（「A3」→ 3）。このプロジェクトの ID でなければ 0。プロジェクトなし（null）の接頭辞は X */
-const idNumber = (id, projectId) => (String(id).startsWith(projectId) && /^\d+$/.test(String(id).slice(projectId.length)) ? Number(String(id).slice(projectId.length)) : 0);
+const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** 「<接頭辞>-<4 桁>」の番号（「AA-0003」→ 3）。この接頭辞の ID でなければ 0 */
+const idNumber = (id, prefix) => {
+  const m = new RegExp(`^${escapeRegExp(prefix)}-(\\d{4})$`).exec(String(id));
+  return m ? Number(m[1]) : 0;
+};
+
+const LETTERS = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
+
+/** 使われていない最初のプロジェクト ID（AA〜ZY）。ZZ はプロジェクトなしのタスクの接頭辞なので、プロジェクトには付けない */
+export function nextProjectId(data) {
+  const used = new Set(data.projects.map((p) => p.id));
+  for (const a of LETTERS) for (const b of LETTERS) {
+    const id = a + b;
+    if (id !== "ZZ" && !used.has(id)) return id;
+  }
+  throw new Error("プロジェクトは 675 個までです");
+}
 
 /** いまのタスクと変更履歴（消したタスクの ID も残る）の最大番号 + 1。消したタスクの ID を使い回すと、変更履歴が別のタスクのものとして出る */
 export function nextTaskId(data, projectId) {
-  const prefix = projectId ?? "X";
+  const prefix = projectId ?? "ZZ";
   const ids = [...data.tasks.map((t) => t.id), ...(data.changeLog ?? []).flatMap((c) => c.taskIds ?? [])];
-  let n = ids.reduce((m, id) => Math.max(m, idNumber(id, prefix)), 0) + 1;
-  while (data.tasks.some((t) => t.id === `${prefix}${n}`)) n++;
-  return `${prefix}${n}`;
+  const n = ids.reduce((m, id) => Math.max(m, idNumber(id, prefix)), 0) + 1;
+  if (n > 9999) throw new Error("タスクの番号が 9999 を超えます");
+  return `${prefix}-${String(n).padStart(4, "0")}`;
 }
 
 const newTask = (data, projectId, title, due, extra = {}) => ({
   id: nextTaskId(data, projectId), projectId, title, due, start: null, status: "To Do", memo: "",
-  predecessors: [], waitingOn: null, importance: null, doneAt: null, sessions: [], ...extra,
+  predecessors: [], waitingOn: null, doneAt: null, sessions: [], ...extra,
 });
 
 /** 元のタスクの直後（同じ大項目・中項目の並びの中）にタスクを入れる */
@@ -345,9 +332,10 @@ const insertAfter = (data, afterId, task) => {
   return { ...data, tasks: [...data.tasks.slice(0, i + 1), task, ...data.tasks.slice(i + 1)] };
 };
 
-/** 引き継ぐ項目（件名のほかに、大項目・中項目・重要度・メモ・チェックリスト。チェックリストは全項目を未チェックに戻す） */
+/** 引き継ぐ項目（件名のほかに、大項目・中項目・重要・メモ・チェックリスト。チェックリストは全項目を未チェックに戻す） */
 const carriedFields = (t) => {
-  const extra = { importance: t.importance ?? null, memo: t.memo ?? "" };
+  const extra = { memo: t.memo ?? "" };
+  if (t.important === true) extra.important = true;
   for (const k of ["group", "subgroup"]) if (t[k] != null) extra[k] = t[k];
   if (t.checklist?.length) extra.checklist = newChecklist(t.checklist.map((c) => c.text));
   return extra;
@@ -501,10 +489,7 @@ export const addWorkday = (data, { date, note }) => withSetting(data, "workdays"
 export const removeWorkday = (data, date) => withSetting(data, "workdays", removeByDate(data.settings?.workdays, date));
 
 export function addProject(data, { name, type }, today = nowLocal().date) {
-  const used = new Set(data.projects.map((p) => p.id));
-  let id = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"].find((c) => !used.has(c));
-  for (let i = 1; !id; i++) if (!used.has(`P${i}`)) id = `P${i}`;
-  const p = { id, name, type, status: "計画中", start: today, due: addDays(today, 30), milestones: [] };
+  const p = { id: nextProjectId(data), name, type, status: "計画中", start: today, due: addDays(today, 30), milestones: [] };
   return { ...data, projects: [...data.projects, p] };
 }
 

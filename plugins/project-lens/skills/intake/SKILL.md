@@ -32,7 +32,7 @@ Excel の WBS・予定表の会議・会議のプロジェクト規則を、デ�
 
 ## 始める前の確認
 1. 依頼が空のときは、取り込みたいもの（`wbs <ファイル>`、`calendar`、`rules`）を利用者に聞きます。日程の見直しとタスクの登録は、HTML の「Claude Code に依頼する」で頼むよう伝えます。
-2. データは `.project-lens/data.json`。見つからないときは、先に `/project-lens:init` を実行するよう利用者に伝えます。
+2. データは `.project-lens/data.json`。見つからないときは、先に `/project-lens:init` を実行するよう利用者に伝えます。個人ファイルは、同じフォルダの `personal.json`。別の場所なら `--mine <ファイル>` を付けます。
 3. `calendar` は、先に `/project-lens:mcp` で予定表の MCP を指定しておく必要があります。
 4. エージェントが、起動コマンド `node` が見つからない（または構文エラーで起動に失敗する）と報告したとき（`calendar` の取得で、この会話が `mcpconf.js` を実行して同じ失敗をしたときも含む）は、Node.js 24 以上が入っていません。`winget install OpenJS.NodeJS.LTS` を案内し、ターミナルを開き直してからもう一度実行してもらってください。
 

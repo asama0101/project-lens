@@ -58,7 +58,20 @@ test("B3: init は $ARGUMENTS を Bash に埋め込まず、allowed-tools は引
   const text = read("init");
   assert.ok(!text.includes("$ARGUMENTS"));
   const line = /^allowed-tools: (.+)$/m.exec(front(text))?.[1] ?? "";
-  assert.ok(!line.includes("*"), line);
+  assert.ok(!line.replaceAll("--mine *)", "").includes("*"), line); // * は --mine の値だけ
+});
+
+test("init: allowed-tools が --mine の形（単独・--sample つき）を事前承認し、argument-hint に --mine がある", () => {
+  const fm = front(read("init"));
+  const line = /^allowed-tools: (.+)$/m.exec(fm)?.[1] ?? "";
+  const init = 'node "${CLAUDE_PLUGIN_ROOT}/tools/init.js"';
+  for (const form of [`${init} --mine *`, `${init} --sample --mine *`]) assert.ok(line.includes(`Bash(${form})`), form);
+  assert.match(/^argument-hint: (.+)$/m.exec(fm)?.[1] ?? "", /--sample.*--mine/);
+});
+
+test("watch: --mine を後ろに足しても、allowed-tools の * が覆う（data.json 以降が * のコマンドだけ）", () => {
+  const line = /^allowed-tools: (.+)$/m.exec(front(read("watch")))?.[1] ?? "";
+  for (const c of ["inbox.js\" wait", "inbox.js\" get", "inbox.js\" reject", "holidays.js\" ensure"]) assert.ok(line.includes(`${c} *)`), c);
 });
 
 test("doctor: 自動起動しない。doctor.js だけを、引数つきの完全一致で事前承認し、使わない場面を description に書く", () => {

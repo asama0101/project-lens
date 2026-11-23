@@ -1,5 +1,5 @@
 // ダッシュボード本体: 状態の保持、描画、保存、イベントの結線。判断ロジックは src/core、見た目は src/ui/views、データ編集は src/ui/edit.js。
-const store = createStore({ check: checkShape });
+const store = createPairStore();
 let settingTimer = null; // 勤務時間の保存待ちのタイマー（changeSettingSoon）。render が最初に呼ばれる前に宣言しておく
 const params = new URLSearchParams(location.search);
 // ?today=2026-10-20&time=10:15 で「現在」を固定できる(デモ・動作確認用)
@@ -10,7 +10,7 @@ const S = {
   screen: "gantt",
   filter: "all", gwin: "m6", hideDone: false,
   askDel: null, askDelProject: null, pendingWait: null, pendingDone: null, checkOpen: new Set(),
-  sview: "week", sdate: clock().date, selSess: null, selMtg: null, mtgDraft: null, urgentDraft: null, picked: null,
+  sview: "week", sdate: clock().date, selSess: null, selMtg: null, mtgDraft: null, urgentDraft: null, taskEdit: null, picked: null,
   prefs: loadPrefs(), settingsClosed: loadSettingsClosed(), tpop: null, addAt: null, last: null, ruleError: "",
   ib: { open: false, text: loadInboxDraft(), projectId: "", replies: {}, reasons: {}, causes: {} },
   wperiod: "week", wdate: clock().date,
@@ -27,16 +27,24 @@ function toast(msg) {
 }
 
 /* ---------- 描画 ---------- */
+/** 開始画面の、まだ開いていないファイルごとの案内と選ぶボタン */
+const PICK = {
+  shared: `<p><b>共有ファイルを選んでください。</b>プロジェクトとタスク（<code>/project-lens:init</code> が作った <code>.project-lens/data.json</code>）です。</p><button class="btn" data-open="shared">共有ファイルを選ぶ</button>`,
+  personal: `<p><b>個人ファイルを選んでください。</b>自分の作業枠・予定・勤務時間（既定は <code>.project-lens/personal.json</code>）です。</p><button class="btn" data-open="personal">個人ファイルを選ぶ</button>`,
+};
 function startScreen() {
   const canPick = typeof window.showOpenFilePicker === "function";
+  const miss = store.missing();
+  const names = miss.map((w) => S.last?.[w]?.name).filter(Boolean); // 前回のファイルを開くは、足りない方に記憶があるときだけ
+  const errs = miss.map((w) => S.last?.[w]?.error).filter(Boolean);
   return `<section class="panel"><h2>データファイルを開いてください</h2>
-    <p>プロジェクトとタスクのデータ(JSON)を選びます。初めてのときは、<code>/project-lens:init</code> が作った <code>.project-lens/data.json</code> を選んでください。</p>
-    ${canPick ? `${S.last?.name ? `<button class="btn primary" data-reopen>前回のファイル（${esc(S.last.name)}）を開く</button> <button class="btn" data-openfile>別のファイルを開く</button>` : `<button class="btn" data-openfile>ファイルを開く</button>`}${S.last?.error ? `<p class="note">前回のファイルの記憶を読めませんでした（${esc(S.last.error)}）。毎回ファイルを選ぶ必要があります。</p>` : ""}`
-      : `<p class="note">このブラウザはファイルへの直接保存に対応していません。読み込みだけできます。変更したときは、画面上部の「JSON を書き出す」で保存してください(Edge か Chrome なら直接保存できます)。</p><input type="file" accept=".json,application/json" data-fileinput aria-label="データファイルを選ぶ">`}
+    <p>共有ファイル（data.json）と個人ファイル（personal.json）の 2 つを選ぶと、画面が開きます。</p>
+    ${canPick ? `${names.length ? `<p><button class="btn primary" data-reopen>前回のファイル（${esc(names.join("・"))}）を開く</button></p>` : ""}${miss.map((w) => PICK[w]).join("")}${miss.length === 1 ? `<p class="note">${miss[0] === "shared" ? "個人" : "共有"}ファイルは選びました。</p>` : ""}${errs.length ? `<p class="note">前回のファイルの記憶を読めませんでした（${esc(errs[0])}）。毎回ファイルを選ぶ必要があります。</p>` : ""}`
+      : `<p class="note">このブラウザはファイルへの直接保存に対応していません。読み込みだけできます。共有ファイルと個人ファイルを、一度に 2 つ選んでください。変更したときは、画面上部の「JSON を書き出す」で、2 つのファイルを保存してください(Edge か Chrome なら直接保存できます)。</p><input type="file" multiple accept=".json,application/json" data-fileinput aria-label="共有ファイルと個人ファイルを選ぶ">`}
     ${S.openError ? `<p class="ask" style="max-width:none" role="alert">${esc(S.openError)}</p>` : ""}</section>`;
 }
 
-const scheduleOpts = () => ({ view: S.sview, date: S.sdate, now: clock(), selSess: S.selSess, selMtg: S.selMtg, mtgDraft: S.mtgDraft, urgentDraft: S.urgentDraft, picked: S.picked, showPrio: S.prefs.showPrio, showSkipped: S.prefs.showSkipped, pendingDone: S.pendingDone });
+const scheduleOpts = () => ({ view: S.sview, date: S.sdate, now: clock(), selSess: S.selSess, selMtg: S.selMtg, mtgDraft: S.mtgDraft, urgentDraft: S.urgentDraft, taskEdit: S.taskEdit, pendingWait: S.pendingWait, picked: S.picked, showPrio: S.prefs.showPrio, showSkipped: S.prefs.showSkipped, pendingDone: S.pendingDone });
 
 function renderBody() {
   const { date: today } = clock();
@@ -74,10 +82,11 @@ function render() {
   hideTip();
   clearTimeout(settingTimer); settingTimer = null; // 描き直しで入力欄を取り除くときに focusout が走り、保存が入れ子の描き直しになるのを防ぐ（待っていた入力は、描き直しで消えるのと同じ）
   if (S.tpop && !S.data.tasks.some((t) => t.id === S.tpop.id)) S.tpop = null; // 読み直しで対象のタスクが消えたら、窓も閉じる
+  if (S.taskEdit && (S.screen !== "schedule" || !S.data.tasks.some((t) => t.id === S.taskEdit.id))) S.taskEdit = null; // スケジュールの編集欄も同じ
   const c = clock();
   $("todaylabel").textContent = `${c.date.replace(/-/g, "/")}(${wdJa(c.date)})`;
   document.querySelectorAll("nav [role=tab]").forEach((b) => b.setAttribute("aria-selected", String(b.id === "tab-" + S.screen)));
-  $("filebar").innerHTML = S.data ? `<button class="chip-btn pref" data-pref="actual" aria-pressed="${S.prefs.showActual}" title="ガントの実績の線を出したり隠したりします">ガント実績</button><span class="fsep" aria-hidden="true"></span><button class="btn" data-refresh title="ファイルを読み直します(Claude Code などが更新した内容を反映)">更新</button><button class="btn" data-openfile>別のファイルを開く</button>${typeof window.showOpenFilePicker === "function" ? "" : `<button class="btn" data-download>JSON を書き出す</button>`}` : "";
+  $("filebar").innerHTML = S.data ? `<button class="chip-btn pref" data-pref="actual" aria-pressed="${S.prefs.showActual}" title="ガントの実績の線を出したり隠したりします">ガント実績</button><span class="fsep" aria-hidden="true"></span><button class="btn" data-urgent-open title="空き時間を押さずに、突発タスクの入力欄を開きます">＋ 突発タスク</button><button class="btn" data-refresh title="ファイルを読み直します(Claude Code などが更新した内容を反映)">更新</button><button class="btn" data-open="shared" title="別の共有ファイル（data.json）を選びます">別の共有ファイル</button><button class="btn" data-open="personal" title="別の個人ファイル（personal.json）を選びます">別の個人ファイル</button>${typeof window.showOpenFilePicker === "function" ? "" : `<button class="btn" data-download>JSON を書き出す</button>`}` : "";
   document.body.classList.toggle("picking", !!S.picked && S.screen === "schedule" && S.sview === "day");
   renderBar();
   // ガントの横スクロール位置(全プロジェクトで同じ)とページの縦の位置は、編集で描き直しても保つ(表示期間・絞り込みなどを変えたときだけ今日の位置へ戻す)。
@@ -165,21 +174,33 @@ function scrollToday(smooth) {
 
 /* ---------- 保存 ---------- */
 function banner(msg, actions = {}) {
-  $("banner").innerHTML = msg ? `<div class="banner">${esc(msg)}${actions.reload ? ` <button class="btn" data-reload>再読込(画面の未保存の変更は破棄)</button>` : ""}${actions.download ? ` <button class="btn" data-download>変更を JSON で書き出す</button>` : ""}</div>` : "";
+  if (!msg && !actions.validated && S.data) { refreshBanner(); return; } // 空の文＝失敗の案内を下ろす。検証の結果を出し直す
+  S.banner = { msg, actions };
+  // 共有に無い枠の削除は、検証の注意に添える（失敗の案内には付けない）
+  const orphans = actions.validated ? (S.data?.orphanSessions?.length ?? 0) : 0;
+  if (!orphans) S.pendingOrphan = false;
+  $("banner").innerHTML = bannerHtml(msg, actions, orphans, S.pendingOrphan);
+}
+/** データの検証結果（問題・注意）をバナーに出し直す。ファイルを読み直したあと・他の更新を取り込んだあとも、これで出す */
+function refreshBanner() {
+  const { errors, warnings } = validate(S.data, clock());
+  banner(errors.length ? `データに問題があります: ${errors.slice(0, 3).join(" / ")}` : warnings.length ? `注意: ${warnings.slice(0, 2).join(" / ")}` : "", { validated: true });
 }
 
+/** 共有・個人の 2 つのファイルを、続けてダウンロードする（ブラウザが連続のダウンロードを確認することがある） */
 function downloadJson() {
-  const blob = new Blob([JSON.stringify(S.data, null, 2) + "\n"], { type: "application/json" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "data.json";
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  exportFiles(S.data).forEach(({ name, text }, i) => setTimeout(() => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }, i * 300));
 }
 
 /** 保存と読み直し（競合の当て直しを含む）。中身は ui/sync.js */
 const sync = createSync({
-  store, getData: () => S.data, setData: (d) => { S.data = d; }, render, renderBar, banner, toast,
+  store, getData: () => S.data, setData: (d) => { S.data = d; if (!sync.failed) refreshBanner(); }, render, renderBar, banner, toast,
   visible: () => document.visibilityState !== "hidden", wantFast: () => S.ib.open,
 });
 
@@ -206,19 +227,21 @@ function loaded(data) {
   sync.reset();
   S.ruleError = "";
   S.openError = "";
-  const { errors, warnings } = validate(data, clock());
-  banner(errors.length ? `データに問題があります: ${errors.slice(0, 3).join(" / ")}` : warnings.length ? `注意: ${warnings.slice(0, 2).join(" / ")}` : "");
+  S.pendingOrphan = false;
+  refreshBanner();
 }
 
-/** mode: "choose"＝ファイル選択を出す / "reopen"＝前回のファイルを、権限の確認だけで開く */
-async function openFile(mode) {
+/** mode: "choose"＝which（"shared" | "personal"）のファイル選択を出す / "reopen"＝前回のファイルを、権限の確認だけで開く。
+ *  2 つとも開いたときだけデータが返り、画面を開く。片方だけなら、開始画面のまま、足りない方の案内を出す */
+async function openFile(mode, which) {
   try {
-    loaded(await (mode === "reopen" ? store.reopen() : store.choose()));
-    S.resetScroll = true;
+    const data = await (mode === "reopen" ? store.reopen() : store.choose(which));
+    if (data) { loaded(data); S.resetScroll = true; } else S.openError = "";
     if (store.rememberFailed) toast("このブラウザでは、選んだファイルを記憶できません。次回もファイルを選ぶ必要があります");
   } catch (e) {
     if (e?.name === "AbortError") return;
     S.openError = `開けません: ${e.message}`;
+    if (S.data) toast(S.openError); // 開始画面は無いので、画面上部の案内ではなく、通知で知らせる
   }
   render();
 }
@@ -324,7 +347,7 @@ function submitGAdd(input) {
 }
 
 /* ---------- 選択と削除 ---------- */
-const clearSel = () => { S.selSess = null; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; };
+const clearSel = () => { S.selSess = null; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.taskEdit = null; };
 
 function deleteSelected() {
   if (S.selMtg) {
@@ -334,7 +357,7 @@ function deleteSelected() {
   }
   const s = S.data.tasks.flatMap((t) => (t.sessions ?? []).map((x) => ({ ...x, task: t }))).find((x) => x.id === S.selSess);
   if (!s) { toast("削除する枠を選んでください"); return; }
-  S.selSess = null;
+  S.selSess = null; S.taskEdit = null;
   apply((d) => removeSession(d, s.id), `${s.task.title} の${s.kind === "actual" ? "実績" : "予定"}の枠を削除しました`);
 }
 
@@ -345,6 +368,18 @@ function togglePref(key) {
   S.prefs = { ...S.prefs, [key]: !S.prefs[key] };
   savePrefs(S.prefs);
   render();
+}
+
+/** 「更新」・バナーの再読込。読み直せなくても、保存していない編集を捨てる（sync.reset）。
+ *  捨てると伝えた編集を残すと、次の保存で、最新のファイルに当て直されてしまう。失敗したときは、再読込のボタンつきのバナーを出す */
+async function reloadFile(okMsg) {
+  let err = null;
+  try { S.data = await store.reload(); } catch (e) { err = e; }
+  sync.reset();
+  S.ruleError = "";
+  if (err) banner(`読み直せません: ${err.message}（画面の内容は、まだファイルと違う可能性があります）`, { reload: true, download: true }); else { S.pendingOrphan = false; refreshBanner(); }
+  render();
+  toast(err ? err.message : okMsg);
 }
 
 /* ---------- クリック ---------- */
@@ -362,20 +397,36 @@ document.querySelector("nav").addEventListener("click", (e) => {
 $("filebar").addEventListener("click", async (e) => {
   const pf = e.target.closest("[data-pref]");
   if (pf) { togglePref("showActual"); return; }
+  if (e.target.closest("[data-urgent-open]")) {
+    clearSel(); S.tpop = null; S.pendingDone = null; S.ruleError = "";
+    const date = S.screen === "schedule" ? S.sdate : clock().date;
+    S.screen = "schedule"; S.sdate = date; S.resetScroll = true;
+    S.urgentDraft = { date, start: firstFreeStart(S.data, date, clock()), title: "", projectId: "", minutes: 30 };
+    render(); view.querySelector('[data-ug="title"]')?.focus();
+    return;
+  }
   if (e.target.closest("[data-refresh]")) {
     await sync.whenIdle();
     if (sync.failed && !S.confirmRefresh) { S.confirmRefresh = true; toast("保存できていない変更があります。もう一度「更新」を押すと破棄して読み直します"); return; }
     S.confirmRefresh = false;
-    try { S.data = await store.reload(); sync.reset(); S.ruleError = ""; banner(""); render(); toast("ファイルから読み直しました"); } catch (err) { toast(err.message); }
+    reloadFile("ファイルから読み直しました");
     return;
   }
-  if (e.target.closest("[data-openfile]")) openFile("choose");
+  const pick = e.target.closest("[data-open]");
+  if (pick) openFile("choose", pick.dataset.open);
   if (e.target.closest("[data-download]")) downloadJson();
 });
 $("banner").addEventListener("click", async (e) => {
   if (e.target.closest("[data-download]")) downloadJson();
-  if (e.target.closest("[data-reload]")) {
-    try { S.data = await store.reload(); sync.reset(); S.ruleError = ""; banner(""); render(); toast("再読込しました"); } catch (err) { toast(err.message); }
+  if (e.target.closest("[data-reload]")) reloadFile("再読込しました");
+  const again = () => banner(S.banner.msg, S.banner.actions); // いま出している案内のまま、確認の状態だけ変えて描く
+  if (e.target.closest("[data-orphan-clear]")) { S.pendingOrphan = true; again(); }
+  if (e.target.closest("[data-orphan-cancel]")) { S.pendingOrphan = false; again(); }
+  if (e.target.closest("[data-orphan-ok]")) {
+    S.pendingOrphan = false;
+    const n = S.data.orphanSessions?.length ?? 0;
+    apply((d) => removeOrphanSessions(d), `共有ファイルに無いタスクの作業枠 ${n} 件を削除しました`);
+    if (!sync.failed) refreshBanner(); else again();
   }
 });
 
@@ -383,7 +434,7 @@ $("banner").addEventListener("click", async (e) => {
  *  画面の描き直しで target が DOM から外れる前に判定するため、キャプチャ段階で処理する */
 document.addEventListener("click", (e) => {
   if (S.tpop && !view.contains(e.target)) { S.tpop = null; render(); return; } // ガントの編集の窓は、画面の外のクリックでも閉じる
-  if (view.contains(e.target) || !(S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft)) return;
+  if (view.contains(e.target) || !(S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.taskEdit)) return;
   if (e.target.closest("[data-delsel]")) return;
   clearSel();
   render();
@@ -403,7 +454,7 @@ view.addEventListener("click", (e) => {
   if (S.tpop && !q(".tpop,[data-gt],[data-gh]")) { S.tpop = null; render(); } // 閉じたあと、押したものの操作もそのまま行う
   let cleared = false;
   // 欄外のクリックで、枠・会議の選択と追加中の下書きを外す
-  if ((S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft) && !q("[data-dragsess],[data-mtg],[data-delsel],.mtgform,[data-mtgadd],[data-confirm],[data-confirmmtg],[data-confirmall]")) { clearSel(); cleared = true; }
+  if ((S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.taskEdit) && !q("[data-dragsess],[data-mtg],[data-delsel],[data-tedit-open],.mtgform,[data-mtgadd],[data-confirm],[data-confirmmtg],[data-confirmall]")) { clearSel(); cleared = true; }
   const { date: today, time } = clock();
   const now = clock();
 
@@ -423,7 +474,8 @@ view.addEventListener("click", (e) => {
   const rdel = q("[data-rdel]");
   if (rdel) { ruleApply((d) => removeProjectRule(d, rdel.dataset.rdel), "規則を削除しました"); return; }
   if (q("[data-reopen]")) { openFile("reopen"); return; }
-  if (q("[data-openfile]")) { openFile("choose"); return; }
+  const pick = !S.data && q("[data-open]"); // 開始画面の「共有／個人ファイルを選ぶ」。データがあるときの data-open は、プロジェクトの絞り込み（下）
+  if (pick) { openFile("choose", pick.dataset.open); return; }
   /* プロジェクト画面 */
   const gw = q("[data-gwin]"); if (gw) { S.gwin = gw.dataset.gwin; S.resetScroll = true; render(); return; }
   if (q("[data-hidedone]")) { S.hideDone = !S.hideDone; render(); return; }
@@ -518,9 +570,9 @@ view.addEventListener("click", (e) => {
   }
   if (q("[data-delsel]")) { deleteSelected(); return; }
   const sb = q("[data-dragsess]");
-  if (sb && !q("[data-rz]")) { S.selSess = S.selSess === sb.dataset.dragsess ? null : sb.dataset.dragsess; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; render(); return; }
+  if (sb && !q("[data-rz]")) { S.selSess = S.selSess === sb.dataset.dragsess ? null : sb.dataset.dragsess; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.taskEdit = null; render(); return; }
   const mb = q("[data-mtg]");
-  if (mb && !q("[data-rzm]")) { S.selMtg = S.selMtg === mb.dataset.mtg ? null : mb.dataset.mtg; S.selSess = null; S.mtgDraft = null; S.urgentDraft = null; render(); return; }
+  if (mb && !q("[data-rzm]")) { S.selMtg = S.selMtg === mb.dataset.mtg ? null : mb.dataset.mtg; S.selSess = null; S.mtgDraft = null; S.urgentDraft = null; S.taskEdit = null; render(); return; }
   if (q("[data-mtgadd]")) {
     const wd = S.data.settings?.workday ?? DEFAULT_WORKDAY;
     const base = S.sdate === today ? Math.ceil((toMin(time) + 1) / 60) * 60 : 10 * 60;
@@ -537,6 +589,12 @@ view.addEventListener("click", (e) => {
   if (q("[data-mtgcancel]")) { S.mtgDraft = null; render(); return; }
   if (q("[data-mtgclose]")) { S.selMtg = null; render(); return; }
   if (q("[data-urgsave]")) { submitUrgent(); return; }
+  const to = q("[data-tedit-open]");
+  if (to) { S.mtgDraft = null; S.urgentDraft = null; S.pendingDone = null; S.taskEdit = { id: to.dataset.teditOpen, full: false, askDel: false }; render(); view.querySelector('[data-tedit] [data-f="title"]')?.focus(); return; }
+  if (q("[data-tedit-full]")) { S.taskEdit = { ...S.taskEdit, full: !S.taskEdit.full, askDel: false }; render(); return; }
+  if (q("[data-tedit-close]")) { S.taskEdit = null; render(); return; }
+  if (q("[data-tedit-del]")) { S.taskEdit = { ...S.taskEdit, askDel: true }; render(); return; }
+  if (q("[data-tedit-delno]")) { S.taskEdit = { ...S.taskEdit, askDel: false }; render(); return; }
   if (q("[data-urgcancel]")) { S.urgentDraft = null; render(); return; }
   const fr = q("[data-free]");
   if (fr) {
@@ -559,14 +617,15 @@ view.addEventListener("click", (e) => {
 /** 突発タスクの入力欄の確定。件名が空なら何もしない。Error のときは通知だけで、入力欄を残す */
 function submitUrgent() {
   const u = S.urgentDraft, f = (k) => view.querySelector(`[data-ug="${k}"]`).value;
-  const title = f("title").trim();
-  if (!u || !title) return;
-  const input = { title, projectId: f("projectId") || null, date: u.date, start: u.start, minutes: +f("minutes") };
-  S.urgentDraft = { ...u, title, projectId: f("projectId"), minutes: input.minutes }; // Error で描き直しても、入力を残す
+  if (!u) return;
+  const r = urgentInput({ title: f("title"), projectId: f("projectId"), minutes: f("minutes"), date: f("date"), start: f("start") });
+  S.urgentDraft = { ...u, title: f("title").trim(), projectId: f("projectId"), minutes: +f("minutes"), date: f("date"), start: f("start") }; // 空・Error で描き直しても、入力を残す
+  if (!r) return;
+  const { input } = r, title = input.title;
   let warning;
   if (apply((d) => { const r = addUrgentTask(d, input, clock()); warning = r.warning; return r.data; }, null, { quiet: true })) {
-    S.urgentDraft = null; S.sdate = u.date; render();
-    toast(`${title} を ${u.start} に ${input.minutes} 分で登録しました${warning ? `(${warning})` : ""}`);
+    S.urgentDraft = null; S.sdate = input.date; render();
+    toast(`${title} を ${input.start} に ${input.minutes} 分で登録しました${warning ? `(${warning})` : ""}`);
   }
 }
 
@@ -667,9 +726,8 @@ view.addEventListener("focusout", (e) => {
 function onChange(el) {
   const { date: today } = clock();
   if (el.dataset.fileinput !== undefined) {
-    const file = el.files?.[0];
-    if (!file) return;
-    file.text().then((text) => { try { loaded(JSON.parse(text)); } catch (err) { S.openError = `開けません: ${err.message}`; } render(); });
+    if (!el.files?.length) return;
+    Promise.all([...el.files].map((f) => f.text())).then((texts) => { try { loaded(dataFromTexts(texts, [...el.files].map((f) => f.name))); } catch (err) { S.openError = `開けません: ${err.message}`; } render(); });
     return;
   }
   if (el.dataset.mt) {
@@ -724,11 +782,6 @@ function onChange(el) {
     apply((d) => updateChecklistItem(d, tid, iid, { text })); // 空にすると例外のトーストが出て、描き直しで元に戻る
     return;
   }
-  if (el.dataset.logcause !== undefined) {
-    const [at, taskId] = el.dataset.logcause.split("|");
-    apply((d) => setLogCause(d, { at, taskId }, el.value || null), "原因を保存しました");
-    return;
-  }
   if (el.dataset.addpre !== undefined) {
     if (el.value) {
       const id = el.dataset.addpre, pre = el.value;
@@ -749,7 +802,7 @@ function onChange(el) {
     }
     if (f === "expected") { if (el.validity.badInput) return; apply((d) => updateTask(d, id, { waitingOn: { party: t.waitingOn.party, since: t.waitingOn.since, expected: el.value } }, today), "変更を保存しました"); return; }
     if (f === "group" || f === "subgroup") S.hlId = id; // 該当グループへ移った行を強調して見失わないようにする
-    apply((d) => { const n = updateTask(d, id, { [f]: f === "importance" ? el.value || null : el.value }, today); return f === "due" ? recordDueChanges(d, n, today) : n; }, "変更を保存しました");
+    apply((d) => updateTask(d, id, { [f]: f === "important" ? el.checked : el.value }, today), "変更を保存しました");
   }
 }
 
@@ -1005,7 +1058,7 @@ view.addEventListener("mousedown", (e) => {
       const m = mode === "l" ? "start" : mode === "r" ? "due" : "both";
       const amt = m === "start" ? ns - s : m === "due" ? ne - en : dd;
       result = moveTaskDates(S.data, t.id, m, amt);
-      dragEdit = (d) => { const r = moveTaskDates(d, t.id, m, amt); if (r.error) throw new Error(r.error); return recordDueChanges(d, r.data, clock().date); };
+      dragEdit = (d) => { const r = moveTaskDates(d, t.id, m, amt); if (r.error) throw new Error(r.error); return r.data; };
       msg = `${t.id}: ${fmtMD(addDays(s0, ns))}〜${fmtMD(addDays(s0, ne))}`;
     } else if (kind === "p") {
       const edge = mode === "l" ? "start" : "due", amt = mode === "l" ? ns - s : ne - en, pid = p.id;
@@ -1030,7 +1083,7 @@ document.addEventListener("keydown", (e) => {
   const typing = e.target.matches?.("input,select,textarea");
   if ((e.key === "Delete" || e.key === "Backspace") && S.screen === "schedule" && (S.selSess || S.selMtg) && !typing) { e.preventDefault(); deleteSelected(); }
   if (e.key === "Escape" && S.tpop) { S.tpop = null; render(); return; }
-  if (e.key === "Escape" && S.screen === "schedule" && (S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft)) { clearSel(); render(); }
+  if (e.key === "Escape" && S.screen === "schedule" && (S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.taskEdit)) { clearSel(); render(); }
 });
 view.addEventListener("keydown", (e) => {
   // 日本語入力の変換確定の Enter(isComposing)では追加しない

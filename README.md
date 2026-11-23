@@ -8,7 +8,7 @@
 
 <img src="docs/images/overview.svg" alt="project-lens の全体図。画面（project-lens.html）と Claude Code が、同じ data.json を読み書きする" width="800">
 
-*図 1: 全体図。画面と Claude Code が、同じ `data.json` を読み書きします。*
+*図 1: 全体図。画面と Claude Code が、同じデータ（共有の `data.json` と個人の `personal.json`）を読み書きします。*
 
 ## 機能
 
@@ -30,9 +30,9 @@
 /project-lens:init
 ```
 
-そのあと、Edge か Chrome で `project-lens.html` を開き、「ファイルを開く」で `.project-lens/data.json` を選びます。
+そのあと、Edge か Chrome で `project-lens.html` を開き、共有ファイル（`.project-lens/data.json`）と個人ファイル（`.project-lens/personal.json`）を選びます。複数人では、共有ファイルを全員で使い、個人ファイルは各自で持ちます（[利用ガイド](docs/guide.md)）。
 
-**すでに `project-lens.html` があると、`init` は新しい版に置き換えます。** 手で直していたときは、先に別の名前でコピーします（`data.json` は変わりません）。オフラインでの導入、更新、アンインストール、動作環境の確認（`/project-lens:doctor`）は、[利用ガイド](docs/guide.md)を見てください。
+**すでに `project-lens.html` があると、`init` は新しい版に置き換えます。** 手で直していたときは、先に別の名前でコピーします（`data.json`・`personal.json` は変わりません）。オフラインでの導入、更新、アンインストール、動作環境の確認（`/project-lens:doctor`）は、[利用ガイド](docs/guide.md)を見てください。
 
 ## 使い方
 
@@ -46,14 +46,14 @@
 
 <img src="docs/images/priority-score.svg" alt="点数の計算例の棒グラフ。突発タスク（期限は今日）は 45、期限 5 日後で項目なしは 37.5、期限 5 日後で未チェック 3 件は 48.75、3 日超過で未チェック 10 件は 199" width="800">
 
-*図 3: 点数の計算例（重要度なし）。前のタスクがすべて完了しているタスクだけが載ります。*
+*図 3: 点数の計算例（重要なし）。前のタスクがすべて完了しているタスクだけが載ります。*
 
 | 項目 | 点数 |
 |---|---|
 | 期限超過 | +100 |
 | 期限点 | 残り 30 日以内は (30 − 残り日数) × 1.5 |
 | 未チェックの項目 | 期限点を最大 2.0 倍（`Waiting` は 1 倍） |
-| 重要度 `high` | +12 |
+| 重要 | +12 |
 | `Waiting` の回答予定日の超過 | +40 |
 
 ### 突発タスクの登録
@@ -100,7 +100,7 @@ Claude Code で `/project-lens:watch` を 1 回実行し、画面下端の帯に
 | 「直接保存に対応していません」と出る | Edge か Chrome で開きます。 |
 | `/project-lens:doctor` に `[NG]` と出る | `→` で始まる手順に、上から従います。 |
 
-ほかの症状と、`data.json` を戻す手順は、[利用ガイド](docs/guide.md#困ったとき)を見てください。設定タブの項目は、[利用ガイド](docs/guide.md#設定)にあります。
+ほかの症状と、データファイルを戻す手順は、[利用ガイド](docs/guide.md#困ったとき)を見てください。設定タブの項目は、[利用ガイド](docs/guide.md#設定)にあります。
 
 ## ライセンス
 

@@ -1,4 +1,5 @@
-// 使い方: node tools/intake.js <コマンド> <data.json> ...   （コマンドの一覧は引数なしで実行すると出る）
+// 使い方: node tools/intake.js <コマンド> <data.json> [--mine <個人ファイル>] ...   （コマンドの一覧は引数なしで実行すると出る）
+// 個人ファイルは、同じフォルダの personal.json（別の場所なら --mine）。予定表の会議（events）は個人ファイル、タスク・規則は data.json に入る。
 // 取り込み（WBS・予定表）と、会議のプロジェクト規則、WBS の列の対応を扱う。結果は JSON で標準出力へ。
 // *-plan・*-list・*-get は data.json を書かない。*-apply・*-set・*-remove は検証に通ったときだけ書く。
 import { createHash } from "node:crypto";
@@ -6,14 +7,14 @@ import { realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, resolve, join, relative, isAbsolute } from "node:path";
 import { today, isDate, nowLocal } from "../src/core/dates.js";
-import { readJson, out, save } from "./cli.js";
+import { readJson, readData, saveData, takeMineOrExit, out } from "./cli.js";
 import { assignMeetingProjects, setProjectRule, removeProjectRule } from "../src/core/rules.js";
 import { planWbsImport, applyWbsImport, getWbsMapping, setWbsMapping } from "../src/import/wbs.js";
 import { planCalendarSync, planAutoSync } from "../src/import/calendar.js";
 import { readMcpConfig, validateMcpConfig } from "../src/import/mcpconf.js";
 import { takeData, pickHome } from "./home.js";
 
-const USAGE = `使い方: node tools/intake.js <コマンド> <data.json> ...
+const USAGE = `使い方: node tools/intake.js <コマンド> <data.json> ...   （個人ファイルは同じフォルダの personal.json。別の場所なら --mine <ファイル> を付ける）
   wbs-plan | wbs-apply   <data.json> <projectId> <rows.json> [--source <取り込んだファイル名>] [--plan-key <planKey>]   (--source は wbs-apply の取り込み記録用。--plan-key は wbs-apply だけ。wbs-plan が出す planKey を渡すと、承認した変更案と違うとき、書かずに止める)
   calendar-auto                  <data.json> <fetched.json> <開始日> <終了日> [--data <置き場>]   (自動更新。見張りと /project-lens:intake calendar が使う。承認の確認なしで書く。終わった会議・確認済みの会議は変えず、取得が 0 件、または取得に無い会議が多すぎる（3 件以上で、終わっていない取り込み済みの半数超）なら消さない)
   calendar-plan | calendar-apply <data.json> <fetched.json> <開始日> <終了日> [--data <置き場>] [--plan-key <planKey>]   (--data は、自分のメールアドレスなどの設定（project-lens-mcp.json）の置き場。環境変数 PROJECT_LENS_HOME が優先。--plan-key は calendar-apply で必須。calendar-plan が出す planKey（消える会議の ID の指紋）を渡すと、確認した削除の一覧と違うとき、書かずに止める)
@@ -50,7 +51,7 @@ const COMMANDS = {
   "wbs-apply": [3, (d, [path, pid, rows], o) => {
     const plan = planWbsImport(d, pid, readJson(rows));
     if (o.planKey != null && o.planKey !== planKey(plan)) throw new Error("承認した変更案と、いまのデータでの変更案が違います（承認を待つ間に、データか rows.json が変わりました）。何も書いていません。wbs-plan をやり直して、確認を取ってください");
-    save(path, applyWbsImport(d, pid, plan, { today: today(), source: o.source }));
+    saveData(path, applyWbsImport(d, pid, plan, { today: today(), source: o.source }), undefined, { mine: o.mine });
     out({ ok: true, summary: { added: plan.add.length, updated: plan.update.length }, rejected: plan.rejected, warnings: plan.warnings });
   }],
   "calendar-plan": [4, (d, [, f, s, e], o) => {
@@ -63,27 +64,28 @@ const COMMANDS = {
     const plan = planCalendarSync(d, readJson(f), { start: s, end: e }, o.calendar);
     if (o.planKey == null) throw new Error("--plan-key がありません。calendar-plan が出す planKey を渡してください。何も書いていません");
     if (o.planKey !== removedKey(plan.removed)) throw new Error("確認した削除の一覧と、いまの削除の対象が違います（確認を待つ間に、データか fetched.json が変わりました）。何も書いていません。calendar-plan をやり直して、確認を取ってください");
-    save(path, plan.data); // 検証は save が行う
+    saveData(path, plan.data, undefined, { mine: o.mine }); // 検証は saveData が行う
     out({ ok: true, summary: { added: plan.added.length, updated: plan.updated.length, removed: plan.removed.length, excluded: plan.excluded.length }, warnings: plan.warnings });
   }],
   "calendar-auto": [4, (d, [path, f, s, e], o) => {
     const plan = planAutoSync(d, readJson(f), { start: s, end: e }, o.calendar, nowLocal());
-    save(path, plan.data); // 検証は save が行う
+    saveData(path, plan.data, undefined, { mine: o.mine }); // 検証は saveData が行う
     out({ ok: true, summary: { added: plan.added.length, updated: plan.updated.length, removed: plan.removed.length, excluded: plan.excluded.length, held: plan.held.length }, held: plan.held, blocked: plan.blocked, warnings: plan.warnings });
   }],
   "rules-list": [1, (d) => out(d.settings?.projectRules ?? [])],
-  "rules-apply": [1, (d, [path]) => { save(path, assignMeetingProjects(d)); out({ ok: true }); }],
-  "rules-set": [3, (d, [path, k, pid]) => { save(path, setProjectRule(d, k, pid)); out({ ok: true }); }],
-  "rules-remove": [2, (d, [path, k]) => { save(path, removeProjectRule(d, k)); out({ ok: true }); }],
+  "rules-apply": [1, (d, [path], o) => { saveData(path, assignMeetingProjects(d), undefined, { mine: o.mine }); out({ ok: true }); }],
+  "rules-set": [3, (d, [path, k, pid], o) => { saveData(path, setProjectRule(d, k, pid), undefined, { mine: o.mine }); out({ ok: true }); }],
+  "rules-remove": [2, (d, [path, k], o) => { saveData(path, removeProjectRule(d, k), undefined, { mine: o.mine }); out({ ok: true }); }],
   "mapping-get": [2, (d, [, pid]) => out(getWbsMapping(d, pid))],
-  "mapping-set": [3, (d, [path, pid, m]) => { save(path, setWbsMapping(d, pid, readJson(m))); out({ ok: true }); }],
+  "mapping-set": [3, (d, [path, pid, m], o) => { saveData(path, setWbsMapping(d, pid, readJson(m)), undefined, { mine: o.mine }); out({ ok: true }); }],
 };
 
-const { data: dataArg, rest: argv } = takeData(process.argv.slice(2));
+const { mine, rest: minefree } = takeMineOrExit(process.argv.slice(2));
+const { data: dataArg, rest: argv } = takeData(minefree);
 const take = (flag) => { const i = argv.indexOf(flag); if (i < 0) return undefined; const v = argv[i + 1] ?? null; argv.splice(i, 2); return v; }; // 無ければ undefined、値が無ければ null
 const planKeyArg = take("--plan-key");
 if (planKeyArg === null) usage(); // 値の取り損ねで、照合を黙って省かない
-const opts = { source: take("--source") ?? null, planKey: planKeyArg ?? null }; // source: wbs-apply の取り込み記録に残す、取り込んだファイル名
+const opts = { mine, source: take("--source") ?? null, planKey: planKeyArg ?? null }; // source: wbs-apply の取り込み記録に残す、取り込んだファイル名
 const [cmd, ...args] = argv;
 if (cmd === "fetched-remove") { // data.json を読まない
   if (args.length !== 1) usage();
@@ -100,7 +102,7 @@ try {
     const errors = opts.calendar ? validateMcpConfig({ calendar: opts.calendar }) : [];
     if (errors.length) throw new Error(`project-lens-mcp.json の指定が正しくありません: ${errors.join(" / ")}`);
   }
-  spec[1](readJson(args[0]), args, opts);
+  spec[1](readData(args[0], opts.mine), args, opts);
 } catch (e) {
   console.error(e.message);
   process.exit(1);

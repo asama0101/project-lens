@@ -12,14 +12,14 @@ const STATUS = {
 };
 const EXAMPLES = [["due", "期限が動いた"], ["add", "タスクを登録"]];
 
-/** 「書き方の例」で入る文。対象のプロジェクト（空なら先頭のタスクのプロジェクト）の、終わっていないタスクの ID を使う（なければ終わったもの、タスクが 0 件のときだけ A1）。
+/** 「書き方の例」で入る文。対象のプロジェクト（空なら先頭のタスクのプロジェクト）の、終わっていないタスクの ID を使う（なければ終わったもの、タスクが 0 件のときだけ AA-0001）。
  *  別のプロジェクトの ID を混ぜない（依頼が「別のプロジェクトです」で失敗する）。登録の期限の例は、今日の 14 日後 */
 export function ibExamples(data, projectId, today) {
   const all = data?.tasks ?? [];
   const pid = projectId || all[0]?.projectId;
   const pool = all.filter((t) => t.projectId === pid);
   const ids = [...pool.filter((t) => t.status !== "Done"), ...pool.filter((t) => t.status === "Done")].map((t) => t.id);
-  const a = ids[0] ?? "A1";
+  const a = ids[0] ?? "AA-0001";
   return {
     due: `${a} が 5 日遅れた（原因: ベンダー）。`,
     add: `次を登録して: 結合テスト ${addDays(today, 14)} 大項目▸中項目 前のタスク ${a}`,

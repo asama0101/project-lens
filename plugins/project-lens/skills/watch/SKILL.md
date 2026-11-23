@@ -9,7 +9,7 @@ disable-model-invocation: true
 
 HTML の「Claude Code に依頼する」の受信箱を見張ります。依頼が届いたら、`project-lens:inbox` エージェントで 1 件ずつ処理し、提案を作ります（承認は、HTML か、ここで「R3 を承認」と伝えたとき）。見張っている間、予定表の会議も最新に保ちます。見張りが動いている間、HTML に「Claude Code が見ています」と出ます。「見張りをやめて」と言われたら止めます。
 
-データは `.project-lens/data.json` です。見つからないときは、先に `/project-lens:init` を実行するよう利用者に伝えてください。
+データは `.project-lens/data.json` です。見つからないときは、先に `/project-lens:init` を実行するよう利用者に伝えてください。個人ファイルは、同じフォルダの `personal.json`。別の場所なら `--mine <ファイル>` を付ける。以下のコマンドで、個人ファイルが別の場所のときは、どれにも同じ `--mine` を付けます。
 
 起動コマンド `node` が見つからないとき、または構文エラーで起動に失敗するときは、Node.js 24 以上が入っていない。`winget install OpenJS.NodeJS.LTS` を案内し、ターミナルを開き直してからもう一度実行してもらう。
 

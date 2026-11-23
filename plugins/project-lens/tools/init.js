@@ -1,15 +1,19 @@
-// 使い方: node tools/init.js [--sample]
-// 作業フォルダ(利用者のプロジェクト)に、ダッシュボード(project-lens.html)とデータ(.project-lens/data.json)を用意する。何度実行しても同じ結果になる。
+// 使い方: node tools/init.js [--sample] [--mine <個人ファイル>]
+// 作業フォルダ(利用者のプロジェクト)に、ダッシュボード(project-lens.html)と、データ2つ(共有の .project-lens/data.json、個人の .project-lens/personal.json。--mine で個人の置き場を変える)を用意する。何度実行しても同じ結果になる。
+// 2 ファイルは saveData を通さず直接書く（--mine で指した個人ファイルは、まだ無いため）。
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DEFAULT_WORKDAY } from "../src/core/schema.js";
+import { splitData, emptyPersonal, isOldShared } from "../src/core/split.js";
+import { takeMineOrExit } from "./cli.js";
 
 /** この目印があるファイルだけを、project-lens が作ったものとみなして更新する */
 export const MARKER = '<meta name="generator" content="project-lens">';
 
 const HTML = "project-lens.html";
 const DATA = ".project-lens/data.json";
+const PERSONAL = ".project-lens/personal.json";
 const IGNORE = ".project-lens/";
 
 const SKELETON = {
@@ -26,13 +30,21 @@ function inGitRepo(dir) {
   }
 }
 
+/** 読めて tasks が配列の旧形式のときだけ真（読めない・形の違うファイルは、これまでどおり変えずに残す） */
+function oldShared(p) {
+  try {
+    const x = JSON.parse(readFileSync(p, "utf8").replace(/^﻿/, ""));
+    return Array.isArray(x?.tasks) && isOldShared(x);
+  } catch { return false; }
+}
+
 const lineOf = (s) => s.split(/\r?\n/).some((l) => l.trim() === IGNORE || l.trim() === ".project-lens");
 
 /**
  * 結果は { ok, results: [{ path, status, note? }], error? }。ok が false のときは何も書き込んでいない。
  * status は created / updated / unchanged / appended / skipped
  */
-export function init({ cwd, pluginRoot, sample = false }) {
+export function init({ cwd, pluginRoot, sample = false, mine = null }) {
   const bundled = readFileSync(join(pluginRoot, "assets", HTML), "utf8");
   const htmlPath = join(cwd, HTML);
   const current = existsSync(htmlPath) ? readFileSync(htmlPath, "utf8") : null;
@@ -41,16 +53,34 @@ export function init({ cwd, pluginRoot, sample = false }) {
     return { ok: false, results: [], error: `${HTML} が既にあり、project-lens が作ったものではないため、何も変更せずに止めました。名前を変えるか移動してから、もう一度実行してください` };
   }
 
+  const dataPath = join(cwd, DATA);
+  // 既存の data.json が、作業枠・予定を含む旧形式なら、空の個人ファイルを隣に足さずに止める（読むと、枠・予定が空のデータになる）
+  if (existsSync(dataPath) && oldShared(dataPath)) {
+    return { ok: false, results: [], error: `${DATA} は、作業枠・予定を含む 1 ファイルの旧形式の data.json です。personal.json へ手で分けてください。何も変更せずに止めました` };
+  }
+
   const results = [];
 
-  const dataPath = join(cwd, DATA);
-  if (existsSync(dataPath)) {
-    results.push({ path: DATA, status: "unchanged" });
-  } else {
-    mkdirSync(dirname(dataPath), { recursive: true });
-    writeFileSync(dataPath, sample ? readFileSync(join(pluginRoot, "data", "sample.json"), "utf8") : JSON.stringify(SKELETON, null, 2) + "\n");
+  const personalPath = mine ? resolve(cwd, mine) : join(cwd, PERSONAL);
+  const personalLabel = mine || PERSONAL;
+  const write = (p, v) => { mkdirSync(dirname(p), { recursive: true }); writeFileSync(p, JSON.stringify(v, null, 2) + "\n"); };
+  const parts = splitData(sample ? JSON.parse(readFileSync(join(pluginRoot, "data", "sample.json"), "utf8")) : SKELETON);
+  const dataNew = !existsSync(dataPath);
+  if (dataNew) {
+    write(dataPath, parts.shared);
     results.push({ path: DATA, status: "created", ...(sample && { note: "サンプルデータ" }) });
+  } else {
+    results.push({ path: DATA, status: "unchanged" });
   }
+  const personalExisted = existsSync(personalPath);
+  if (personalExisted) {
+    results.push({ path: personalLabel, status: "unchanged" });
+  } else {
+    // 共有ファイルが既にあるときは、その作業枠・予定と合わないサンプルの個人データを足さず、空の個人ファイルにする
+    write(personalPath, dataNew ? parts.personal : emptyPersonal());
+    results.push({ path: personalLabel, status: "created", ...(sample && dataNew && { note: "サンプルデータ" }) });
+  }
+  if (sample && dataNew && personalExisted) results.push({ path: personalLabel, status: "unchanged", note: "既にある個人ファイルは変えていません。サンプルの作業枠・予定は入っていません" });
 
   if (current === null) {
     writeFileSync(htmlPath, bundled);
@@ -88,12 +118,13 @@ const LABEL = { created: "作りました", updated: "更新しました", uncha
 
 function main() {
   const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+  const { mine, rest } = takeMineOrExit(process.argv.slice(2));
   let r;
-  try { r = init({ cwd: process.cwd(), pluginRoot, sample: process.argv.includes("--sample") }); }
+  try { r = init({ cwd: process.cwd(), pluginRoot, sample: rest.includes("--sample"), mine }); }
   catch (e) { console.error(`失敗しました: ${e.message}`); process.exit(1); }
   if (!r.ok) { console.error(r.error); process.exit(1); }
   for (const x of r.results) console.log(`${x.path}: ${LABEL[x.status]}${x.note ? `（${x.note}）` : ""}`);
-  console.log(`\n次の手順: ブラウザで ${HTML} を開き、「ファイルを開く」で ${DATA} を選びます。`);
+  console.log(`\n次の手順: ブラウザで ${HTML} を開き、「共有ファイルを選ぶ」で ${DATA}、「個人ファイルを選ぶ」で ${mine ?? PERSONAL} を選びます。`);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();

@@ -31,8 +31,9 @@ export function createSync({ store, getData, setData, render, renderBar, banner,
               try { setData(pending.reduce((acc, e) => e(acc), r.data)); } catch { pending = []; toast("他の更新と重なったため、直前の操作は反映されませんでした"); }
               render();
             }
-            if (sync.failed) banner("");
+            const recovered = sync.failed;
             sync.failed = false;
+            if (recovered) banner(""); // 失敗の印を下ろしてから。画面は、空の文を「検証の結果を出し直す」と読む
             return;
           }
           sync.failed = true;

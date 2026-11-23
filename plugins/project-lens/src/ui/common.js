@@ -46,3 +46,12 @@ export function checkMeterHtml(t, { remain = false } = {}) {
 
 /** 「プロジェクトなし」の区切り（絞り込みの値は "none"）。id が null で、プロジェクトの見出し・進捗・マイルストーンは持たない */
 export const NO_PROJECT = { id: null, name: "プロジェクトなし" };
+
+/** バナーの HTML。orphans＝共有ファイルに無いタスクの作業枠の件数（あれば削除のボタン、pending なら確認） */
+export function bannerHtml(msg, actions = {}, orphans = 0, pending = false) {
+  const orphan = !orphans ? "" : pending
+    ? ` ${esc(`${orphans} 件の作業枠を削除します。タスクが戻っていないか、少し待ってから確認してください`)} <button class="btn" data-orphan-ok>削除する</button> <button class="btn" data-orphan-cancel>やめる</button>`
+    : ` <button class="btn" data-orphan-clear>該当の枠を削除</button>`;
+  if (!msg && !orphan) return "";
+  return `<div class="banner">${esc(msg)}${actions.reload ? ` <button class="btn" data-reload>再読込(画面の未保存の変更は破棄)</button>` : ""}${actions.download ? ` <button class="btn" data-download>変更を JSON で書き出す</button>` : ""}${orphan}</div>`;
+}

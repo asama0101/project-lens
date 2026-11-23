@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createStore } from "../plugins/project-lens/src/ui/store.js";
+import { createStore, createPairStore } from "../plugins/project-lens/src/ui/store.js";
 import { createSync } from "../plugins/project-lens/src/ui/sync.js";
 
 // 偽のファイルハンドル（store.test.js と同じ。File System Access API の必要部分だけ）
@@ -70,4 +70,41 @@ test("pollInbox: 保存していない編集がある間は読み直さず、編
   assert.equal(ui.data.inbox.watching.at, "2026-10-31T00:00:00Z", "他の更新を取り込む");
   assert.equal(ui.render, renders, "受信箱だけの変化では画面全体を描き直さない");
   assert.ok(ui.renderBar >= 1);
+});
+
+test("pollInbox: 2 ファイルのストア（createPairStore）でも、他が個人ファイルに足した予定を、結合したデータで取り込む", async () => {
+  const shared = { version: 1, projects: [], tasks: [{ id: "A1", title: "a" }], changeLog: [], settings: {} };
+  const personal = { version: 1, sessions: [{ taskId: "A1", id: "S1", date: "2026-10-20", start: "09:00", end: "10:00", kind: "planned" }], events: [], settings: {}, inbox: { watching: null, requests: [] } };
+  const sh = fakeHandle(shared), pe = fakeHandle(personal);
+  const queue = [sh, pe];
+  const store = createPairStore({ showOpenFilePicker: async () => [queue.shift()], idb: memIdb() });
+  assert.equal(await store.choose("shared"), null);
+  const ui = { data: await store.choose("personal"), render: 0, renderBar: 0 };
+  assert.equal(ui.data.tasks[0].sessions[0].id, "S1", "結合したデータ");
+  const sync = createSync({
+    store, getData: () => ui.data, setData: (d) => { ui.data = d; },
+    render: () => { ui.render++; }, renderBar: () => { ui.renderBar++; }, banner: () => {}, toast: () => {},
+    visible: () => true, wantFast: () => false,
+  });
+  external(pe, { events: [{ id: "E1", title: "外の予定" }] });
+  sync.pollInbox(true);
+  await sync.whenIdle();
+  assert.equal(ui.data.events[0]?.id, "E1", "個人ファイルの更新を取り込む");
+  assert.equal(ui.data.tasks[0].title, "a", "共有の内容も残る（結合した形）");
+  assert.equal(ui.data.tasks[0].sessions[0].id, "S1");
+  assert.equal(ui.render, 1);
+});
+
+test("persist: 保存の失敗から戻ったとき、バナーを消す呼び出しの時点で failed は下りている（画面が、検証の注意を出し直せる）", async () => {
+  const results = [{ ok: false, reason: "write", message: "書けません" }, { ok: true, data: null }];
+  const store = { hasFile: true, saveMerged: async (_f, cur) => { const r = results.shift(); return r.ok ? { ok: true, data: cur } : r; } };
+  const calls = [];
+  let sync;
+  sync = createSync({ store, getData: () => ({}), setData() {}, render() {}, renderBar() {}, banner: (m) => calls.push([m, sync.failed]), toast() {}, visible: () => true, wantFast: () => false });
+  sync.persist((d) => d);
+  await sync.whenIdle();
+  assert.equal(sync.failed, true);
+  sync.persist((d) => d);
+  await sync.whenIdle();
+  assert.deepEqual(calls.at(-1), ["", false]);
 });

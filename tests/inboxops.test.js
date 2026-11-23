@@ -309,7 +309,7 @@ test("planOps・applyProposal: addTask・moveDue 以外の操作は、画面で�
 });
 
 test("planOps・applyProposal: 前のタスクの期限に合わせて引き上げられた次のタスクも、変更履歴の taskIds に載る（表に出た期限変更が、履歴に残る）", () => {
-  const T = (id, due, preds = []) => ({ id, projectId: "A", title: id, due, start: null, status: "To Do", memo: "", predecessors: preds, waitingOn: null, importance: null, doneAt: null, checklist: [], sessions: [] });
+  const T = (id, due, preds = []) => ({ id, projectId: "A", title: id, due, start: null, status: "To Do", memo: "", predecessors: preds, waitingOn: null, doneAt: null, checklist: [], sessions: [] });
   const d = { version: 1, settings: { workday: { start: "09:00", end: "18:00" }, projectRules: [] }, projects: [{ id: "A", name: "A", type: "更改", status: "進行中", start: "2026-01-01", due: "2026-12-31", milestones: [] }], tasks: [T("P", "2026-10-30"), T("T", "2026-11-05", ["P"]), T("U", "2026-11-01", ["T"])], events: [], changeLog: [] };
   const ops = [{ op: "moveDue", taskId: "P", deltaDays: 3 }, { op: "moveDue", taskId: "T", deltaDays: -4 }];
   const plan = planOps(d, ops, { today: "2026-10-20" });
@@ -321,7 +321,7 @@ test("planOps・applyProposal: 前のタスクの期限に合わせて引き上�
 });
 
 test("planOps: プロジェクト期限の超過の警告は、後ろへ動かすときだけ。前倒しは、まだ超えていても出さない", () => {
-  const T = (id, due) => ({ id, projectId: "A", title: id, due, start: null, status: "To Do", memo: "", predecessors: [], waitingOn: null, importance: null, doneAt: null, checklist: [], sessions: [] });
+  const T = (id, due) => ({ id, projectId: "A", title: id, due, start: null, status: "To Do", memo: "", predecessors: [], waitingOn: null, doneAt: null, checklist: [], sessions: [] });
   const d = { version: 1, settings: { workday: { start: "09:00", end: "18:00" }, projectRules: [] }, projects: [{ id: "A", name: "A", type: "更改", status: "進行中", start: "2026-01-01", due: "2026-11-10", milestones: [] }], tasks: [T("X", "2026-11-20")], events: [], changeLog: [] };
   const warn = (delta) => planOps(d, [{ op: "moveDue", taskId: "X", deltaDays: delta }], { today: "2026-10-20" }).warnings.filter((w) => /を超えます/.test(w));
   assert.deepEqual(warn(-1), [], "前倒し（まだ超えている）");

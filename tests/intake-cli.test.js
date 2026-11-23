@@ -6,6 +6,8 @@ import { join, basename, relative, dirname } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+import { writeTwo, readTwo, rawTwo } from "./twofiles.js";
+
 const REPO = fileURLToPath(new URL("../plugins/project-lens/", import.meta.url));
 const base = mkdtempSync(join(tmpdir(), "project-lens-intake-"));
 after(() => rmSync(base, { recursive: true, force: true }));
@@ -17,9 +19,9 @@ function work() {
   rmSync(dir, { recursive: true, force: true });
   const data = join(dir, "data.json");
   mkdirP(dir);
-  copyFileSync(join(REPO, "data/sample.json"), data);
+  writeTwo(data, JSON.parse(readFileSync(join(REPO, "data/sample.json"), "utf8")));
   const put = (name, obj) => { const p = join(dir, name); writeFileSync(p, JSON.stringify(obj)); return p; };
-  return { data, put, read: () => readFileSync(data, "utf8"), json: () => JSON.parse(readFileSync(data, "utf8")) };
+  return { data, put, read: () => rawTwo(data), json: () => readTwo(data), dir };
 }
 import { mkdirSync } from "node:fs";
 const mkdirP = (d) => mkdirSync(d, { recursive: true });
@@ -93,7 +95,7 @@ test("calendar-apply: 反映後のデータが検証に通らないときは、�
   const w = work();
   const d = w.json();
   d.events.push({ id: "mz", date: "2026-10-22", start: "09:00", end: "10:00", title: "x", source: "mcp", skip: false, externalId: "ext-z", projectId: "ZZ" });
-  writeFileSync(w.data, JSON.stringify(d));
+  writeTwo(w.data, d);
   const before = w.read();
   const fetched = w.put("fetched.json", [{ externalId: "ext-z", title: "x", date: "2026-10-22", start: "09:00", end: "10:00" }]);
   const key = run("calendar-plan", w.data, fetched, "2026-10-19", "2026-10-25").out.planKey;
@@ -108,7 +110,7 @@ test("calendar-apply: 確認した削除の一覧（planKey）と同じときだ
   const d = w.json();
   const ev = (i) => ({ id: `cm${i}`, date: "2026-10-22", start: `0${i + 4}:00`, end: `0${i + 4}:30`, title: `会議${i}`, source: "mcp", skip: false, externalId: `ext-${i}` });
   d.events.push(...[1, 2, 3, 4, 5].map(ev));
-  writeFileSync(w.data, JSON.stringify(d));
+  writeTwo(w.data, d);
   const all = [1, 2, 3, 4, 5].map((i) => ({ externalId: `ext-${i}`, title: `会議${i}`, date: "2026-10-22", start: `0${i + 4}:00`, end: `0${i + 4}:30` }));
   const two = w.put("two.json", all.slice(0, 2)), none = w.put("none.json", []);
   const R = ["2026-10-19", "2026-10-25"];
@@ -157,7 +159,7 @@ test("fetched-remove: 一時フォルダの下（深さは問わない）の pro
 test("rules-apply: manual のひも付けは変わらない", () => {
   const w = work();
   const d = w.json(); d.events.find((e) => e.id === "m3").projectId = "B"; d.events.find((e) => e.id === "m3").projectBy = "manual";
-  writeFileSync(w.data, JSON.stringify(d));
+  writeTwo(w.data, d);
   assert.equal(run("rules-apply", w.data).status, 0);
   const e = w.json().events;
   assert.equal(e.find((x) => x.id === "m3").projectId, "B");
@@ -278,7 +280,7 @@ test("calendar-plan: 取り込み済みの会議が対象外になって削除�
   d.events.push({ id: "m90", date: "2026-10-22", start: "09:00", end: "10:00", title: "作業ブロック", source: "mcp", skip: false, externalId: "solo1", confirmed: true });
   d.events.push({ id: "m91", date: "2026-10-22", start: "10:00", end: "11:00", title: "ひとりで会議室", source: "mcp", skip: true, externalId: "solo2" });
   d.events.push({ id: "m92", date: "2026-10-23", start: "10:00", end: "11:00", title: "予定表から消えた会議", source: "mcp", skip: false, externalId: "gone" });
-  writeFileSync(w.data, JSON.stringify(d));
+  writeTwo(w.data, d);
   const fetched = w.put("fetched.json", fetchedSolo());
   const p = runEnv({ PROJECT_LENS_HOME: homeWith({ selfEmails: [SELF] }) }, "calendar-plan", w.data, fetched, "2026-10-19", "2026-10-25");
   assert.equal(p.status, 0, p.err);
@@ -301,7 +303,7 @@ const autoWork = () => {
     { id: "m2", date: FAR, start: "09:00", end: "10:00", title: "予定表から消えた会議", source: "mcp", skip: false, externalId: "gone" },
     { id: "m3", date: FAR, start: "11:00", end: "12:00", title: "手入力", source: "manual", skip: false },
   ];
-  writeFileSync(w.data, JSON.stringify(d));
+  writeTwo(w.data, d);
   return w;
 };
 
@@ -342,8 +344,8 @@ test("wbs-plan は planKey を出す。wbs-apply --plan-key が一致すれば�
   assert.match(plan.out.planKey, /^[0-9a-f]{16}$/);
   // 承認待ちの間に、同じ件名のタスクが手で足された（wbsKey なし）。いまの案は「追加」でなく「更新」になる
   const d = w.json();
-  d.tasks.push({ id: "ZZ1", projectId: pid, title: "承認後にずれる新規項目", due: "2026-11-30", start: null, status: "To Do", memo: "", predecessors: [], waitingOn: null, importance: null, doneAt: null, checklist: [], sessions: [] });
-  writeFileSync(w.data, JSON.stringify(d, null, 2));
+  d.tasks.push({ id: "ZZ1", projectId: pid, title: "承認後にずれる新規項目", due: "2026-11-30", start: null, status: "To Do", memo: "", predecessors: [], waitingOn: null, doneAt: null, checklist: [], sessions: [] });
+  writeTwo(w.data, d);
   const before = w.read();
   const bad = run("wbs-apply", w.data, pid, rows, "--plan-key", plan.out.planKey);
   assert.equal(bad.status, 1);
@@ -362,5 +364,40 @@ test("wbs-apply: --plan-key に値が無いときは、照合を黙って省か�
   const rows = w.put("rows.json", [{ title: "x", due: "2026-12-01" }]);
   const r = run("wbs-apply", w.data, "A", rows, "--plan-key");
   assert.equal(r.status, 2);
+  assert.equal(w.read(), before);
+});
+
+// ---- 共有ファイル（data.json）と個人ファイル（personal.json） ----
+const rdJson = (p) => JSON.parse(readFileSync(p, "utf8"));
+
+test("2 ファイル: calendar-apply は personal.json の events だけ、wbs-apply は data.json の tasks だけを変える", () => {
+  const w = work(), pp = join(w.dir, "personal.json");
+  const fetched = w.put("fetched.json", [{ externalId: "x1", title: "新しい会議", date: "2026-10-20", start: "10:00", end: "11:00" }]);
+  const p = run("calendar-plan", w.data, fetched, "2026-10-19", "2026-10-25");
+  const sharedBefore = readFileSync(w.data, "utf8"), personalBefore = readFileSync(pp, "utf8");
+  assert.equal(run("calendar-apply", w.data, fetched, "2026-10-19", "2026-10-25", "--plan-key", p.out.planKey).status, 0);
+  assert.equal(readFileSync(w.data, "utf8"), sharedBefore, "共有は変わらない");
+  assert.ok(rdJson(pp).events.some((e) => e.title === "新しい会議"));
+  const mid = readFileSync(pp, "utf8");
+  assert.equal(run("wbs-apply", w.data, "A", w.put("rows.json", ROWS)).status, 0);
+  assert.equal(readFileSync(pp, "utf8"), mid, "個人は変わらない");
+  assert.ok(rdJson(w.data).tasks.some((t) => t.title === "基本設計"));
+  assert.notEqual(readFileSync(w.data, "utf8"), sharedBefore);
+  assert.notEqual(mid, personalBefore);
+});
+
+test("--mine: 別の場所の個人ファイルへ events が書かれる。指定先が無ければ、終了コード 1 で何も書かない", () => {
+  const w = work(), pp = join(w.dir, "personal.json"), other = join(w.dir, "elsewhere.json");
+  copyFileSync(pp, other); rmSync(pp);
+  const fetched = w.put("fetched.json", [{ externalId: "x1", title: "別の場所の会議", date: "2026-10-20", start: "10:00", end: "11:00" }]);
+  const p = run("calendar-plan", w.data, fetched, "2026-10-19", "2026-10-25", "--mine", other);
+  assert.equal(run("calendar-apply", "--mine", other, w.data, fetched, "2026-10-19", "2026-10-25", "--plan-key", p.out.planKey).status, 0);
+  assert.ok(rdJson(other).events.some((e) => e.title === "別の場所の会議"));
+  assert.equal(existsSync(pp), false);
+  const nope = join(w.dir, "nope.json"), before = w.read();
+  const r = run("rules-set", w.data, "週次", "A", "--mine", nope);
+  assert.equal(r.status, 1);
+  assert.match(r.err, /個人ファイル .*nope\.json がありません。--mine の指定を確かめてください/);
+  assert.equal(existsSync(nope), false);
   assert.equal(w.read(), before);
 });

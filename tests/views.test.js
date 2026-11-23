@@ -8,12 +8,15 @@ import { renderPrio, renderTodayTasks, todayTaskIds, doneAskHtml } from "../plug
 import { renderSettings } from "../plugins/project-lens/src/ui/views/settings.js";
 import { checkMeterHtml } from "../plugins/project-lens/src/ui/common.js";
 import { checklistEditorHtml } from "../plugins/project-lens/src/ui/views/checklist.js";
-import { renderTaskPop } from "../plugins/project-lens/src/ui/views/taskpop.js";
+import { renderTaskPop, renderTaskEditPanel } from "../plugins/project-lens/src/ui/views/taskpop.js";
 import { renderInboxBar, ibExamples } from "../plugins/project-lens/src/ui/views/inboxpanel.js";
 import { ruleMeetingCounts } from "../plugins/project-lens/src/core/rules.js";
-import { renderSchedule, snapStart, snapFreeStart } from "../plugins/project-lens/src/ui/views/schedule.js";
+import { renderSchedule, snapStart, snapFreeStart, firstFreeStart, urgentInput } from "../plugins/project-lens/src/ui/views/schedule.js";
 import { taskActual } from "../plugins/project-lens/src/core/sessions.js";
 import { rankTasks } from "../plugins/project-lens/src/core/schedule.js";
+import { bannerHtml } from "../plugins/project-lens/src/ui/common.js";
+import { validate } from "../plugins/project-lens/src/core/schema.js";
+import { renderWorkload } from "../plugins/project-lens/src/ui/views/workload.js";
 
 
 const load = () => JSON.parse(readFileSync(new URL("../plugins/project-lens/data/sample.json", import.meta.url), "utf8"));
@@ -287,10 +290,17 @@ test("renderSchedule: 優先リストはドラッグ可で、置いた回数と�
   assert.ok(!html.includes("早朝作業"));
 });
 
-test("リスト: 重要度とメモを編集できる", () => {
-  const html = renderProjects(load(), TODAY, { filter: "A", view: "list" });
-  assert.ok(html.includes('data-f="importance" data-id="A3"'));
-  assert.ok(/<option value="high" selected>高<\/option>/.test(html), "A3 は重要度 高");
+test("リスト: 「重要」のチェックボックスとメモを編集できる。重要で未完了の行にだけ印（imp）が付く", () => {
+  const d = load();
+  for (const [id, imp, st] of [["A1", true, "Done"], ["A2", true, "Cancelled"], ["A3", true, "Waiting"], ["A4", false, "To Do"]]) {
+    const t = d.tasks.find((x) => x.id === id); if (imp) t.important = true; else delete t.important; t.status = st;
+  }
+  const html = renderProjects(d, TODAY, { filter: "A", view: "list" });
+  assert.ok(html.includes('<tr class="imp" data-row="A3"'));
+  for (const id of ["A1", "A2", "A4"]) assert.ok(!html.includes(`<tr class="imp" data-row="${id}"`), id);
+  assert.ok(/<input type="checkbox" data-f="important" data-id="A3" checked/.test(html), "A3 は重要");
+  assert.ok(/<input type="checkbox" data-f="important" data-id="A4"(?! checked)/.test(html), "A4 は重要でない");
+  assert.ok(!html.includes("重要度") && !html.includes('data-f="importance"'));
   assert.ok(html.includes('data-f="memo" data-id="A3" value="納期回答待ち"'));
 });
 
@@ -977,13 +987,13 @@ test("renderGantt: タスクのバー・プロジェクト全体のバー・実�
   near(+/class="g-due mono" style="left:([\d.]+)%/.exec(sumRow)[1], edge(P.due), "プロジェクト全体の期限の表示");
 });
 
-test("renderGantt: 重要度が高の未完了タスクのラベルにだけ印（imp-high）が付き、中・低・未設定・完了したタスクには付かない", () => {
+test("renderGantt: 重要で未完了のタスクのラベルにだけ印（imp-high）が付き、重要でない・完了したタスクには付かない", () => {
   const d = load();
-  const set = (id, imp, status) => { const t = d.tasks.find((x) => x.id === id); t.importance = imp; if (status) t.status = status; };
-  set("A1", "high", "Done"); set("A2", "mid", "Cancelled"); set("A3", "high", "Waiting"); set("A4", "mid", "To Do"); set("A5", "low", "In Progress"); set("A6", null, "To Do");
+  const set = (id, imp, status) => { const t = d.tasks.find((x) => x.id === id); if (imp) t.important = true; else delete t.important; t.status = status; };
+  set("A1", true, "Done"); set("A2", true, "Cancelled"); set("A3", true, "Waiting"); set("A4", false, "To Do"); set("A5", true, "In Progress"); set("A6", false, "To Do");
   const html = gantt(d, ["A"]);
   const label = (id) => /<div class="g-label([^"]*)"/.exec(html.split('<div class="g-row">').find((r) => r.includes(`data-gt="${id}"`)))[1];
-  assert.deepEqual(["A1", "A2", "A3", "A4", "A5", "A6"].map(label), ["", "", " imp-high", "", "", ""]);
+  assert.deepEqual(["A1", "A2", "A3", "A4", "A5", "A6"].map(label), ["", "", " imp-high", "", " imp-high", ""]);
 });
 
 test("renderGantt: 開始も前のタスクもない（期限だけの）タスクは点で、期限の日のマスの中央に置く。期限の表示は翌日の左端", () => {
@@ -1053,7 +1063,7 @@ test("ibExamples: 依頼の例は、対象のプロジェクトの終わって�
   assert.match(ibExamples(data, "", "2026-11-01").due, /^X2 /, "対象が空なら、先頭のタスクのプロジェクト");
   assert.match(ibExamples(data, "Y", "2026-11-01").due, /^Y1 /);
   assert.ok(!Object.values(ex).some((s) => /[<>]/.test(s)), "<…> の穴埋めを残さない");
-  assert.match(ibExamples({ tasks: [] }, "", "2026-11-01").due, /^A1 /);
+  assert.match(ibExamples({ tasks: [] }, "", "2026-11-01").due, /^AA-0001 /);
 });
 
 test("renderTaskPop: 件名・メモ・ID はエスケープされ、窓には編集の入力と「リストで開く」「削除」が出る", () => {
@@ -1061,7 +1071,10 @@ test("renderTaskPop: 件名・メモ・ID はエスケープされ、窓には�
   const t = d.tasks.find((x) => x.id === "A4"); t.title = '"><img src=x onerror=1>'; t.memo = "<script>x</script>";
   const html = renderTaskPop(d, { id: "A4", x: 10.4, y: 20.6 }, "<select>状態</select>");
   assert.ok(!html.includes("<img src=x") && !html.includes("<script>x"));
-  for (const k of ["title", "start", "due", "importance", "memo"]) assert.ok(html.includes(`data-f="${k}" data-id="A4"`), k);
+  for (const k of ["title", "start", "due", "memo"]) assert.ok(html.includes(`data-f="${k}" data-id="A4"`), k);
+  assert.ok(html.includes('type="checkbox" data-f="important" data-id="A4"') && !html.includes("重要度"));
+  d.tasks.find((x) => x.id === "A4").important = true;
+  assert.ok(/data-f="important" data-id="A4" checked/.test(renderTaskPop(d, { id: "A4", x: 0, y: 0 }, "")), "重要なら checked");
   assert.ok(html.includes('data-goto="A4"') && html.includes('data-del="A4"') && html.includes("data-addpre=\"A4\"") || html.includes('data-rmpre="A4|A3"'));
   assert.ok(html.includes("left:10px;top:21px") && html.includes("<select>状態</select>"));
   assert.equal(renderTaskPop(d, { id: "ZZ", x: 0, y: 0 }, ""), "");
@@ -1431,6 +1444,34 @@ test("renderSchedule: 突発タスクの入力欄は、下書きの件名・プ�
   assert.match(html, /<option value="45" selected>/);
 });
 
+test("firstFreeStart: その日の最初の空き（今日なら現在時刻以降）の開始。なければ勤務の開始", () => {
+  const d = { settings: { workday: { start: "09:00", end: "18:00" } }, tasks: [], events: [{ id: "M", date: "2026-10-21", start: "09:30", end: "10:30", title: "m" }] };
+  const f = (date, time) => firstFreeStart(d, date, { date: "2026-10-21", time });
+  assert.equal(f("2026-10-21", "09:00"), "09:00");
+  assert.equal(f("2026-10-21", "09:20"), "10:30");
+  assert.equal(f("2026-10-21", "10:40"), "10:45");
+  assert.equal(f("2026-10-22", "15:00"), "09:00", "別の日は勤務の開始以降");
+  assert.equal(f("2026-10-21", "17:50"), "09:00", "今日の残りに 15 分の空きがなければ勤務の開始");
+  d.events[0] = { id: "M", date: "2026-10-22", start: "09:00", end: "18:00", title: "終日" };
+  assert.equal(f("2026-10-22", "09:00"), "09:00", "1 日埋まっていれば勤務の開始");
+  d.events[0] = { id: "M", date: "2026-10-22", start: "09:00", end: "10:00", title: "m" };
+  assert.equal(f("2026-10-22", "09:00"), "10:00");
+});
+
+test("urgentForm: 日付・開始時刻の欄に下書きの値が入る", () => {
+  const html = sched(load(), { urgentDraft: { date: "2026-10-22", start: "14:15", title: "", projectId: "", minutes: 30 } });
+  assert.match(html, /<input[^>]*type="date"[^>]*data-ug="date"[^>]*value="2026-10-22"|<input[^>]*data-ug="date"[^>]*type="date"[^>]*value="2026-10-22"/);
+  assert.match(html, /data-ug="start"[^>]*value="14:15"/);
+  assert.match(html, /type="time"[^>]*data-ug="start"|data-ug="start"[^>]*type="time"/);
+});
+
+test("urgentInput: 件名・日付・開始のどれかが空なら null、そろえば addUrgentTask への入力", () => {
+  const f = { title: " 障害対応 ", projectId: "", minutes: "45", date: "2026-10-22", start: "14:00" };
+  assert.deepEqual(urgentInput(f), { input: { title: "障害対応", projectId: null, date: "2026-10-22", start: "14:00", minutes: 45 } });
+  assert.equal(urgentInput({ ...f, projectId: "P1" }).input.projectId, "P1");
+  for (const k of ["title", "date", "start"]) assert.equal(urgentInput({ ...f, [k]: "  " }), null, k);
+});
+
 // ---- プロジェクトなしのタスク（サンプルの X1） ----
 const noneOpt = (html) => /<option value="none"[^>]*>プロジェクトなし<\/option>/.test(html);
 const noneChip = (html) => /<button class="chip-btn" data-filter="none"[^>]*>プロジェクトなし<\/button>/.test(html);
@@ -1493,4 +1534,111 @@ test("renderTaskPop: プロジェクトの選択欄に、プロジェクトな�
   for (const p of d.projects) assert.ok(h.includes(`<option value="${p.id}" ${p.id === "A" ? "selected" : ""}>${p.name}</option>`));
   const x = renderTaskPop(d, { id: "X1", x: 10, y: 10 }, "");
   assert.ok(x.includes('<option value="" selected>プロジェクトなし</option>'));
+});
+
+test("重要バッジ: 今日の優先は理由の欄に impbadge を 1 つ（重要度の文字は出さない）。今日のタスクは未完了の重要だけ、状態 pill の後に出す", () => {
+  const d = load();
+  const a = d.tasks.find((x) => x.id === "A3"); a.important = true;
+  const row = { html: [...renderPrio(d, TODAY, { sched: true }).matchAll(/<li[^>]*data-pick="A3"[^>]*>[\s\S]*?<\/li>/g)].map((m) => m[0]).join("") };
+  assert.ok(row.html, "A3 が今日の優先にある");
+  assert.equal(count(row.html, /impbadge/g), 1);
+  assert.ok(/<span class="why">[^]*<span class="impbadge">重要<\/span>/.test(row.html), "why の中");
+  assert.ok(!row.html.includes("重要度"));
+  const { d: d2, done } = withToday();
+  delete d2.tasks.find((x) => x.id === "A7").important;
+  d2.tasks.find((x) => x.id === "A5").important = true;
+  done.important = true;
+  const rows = items(renderTodayTasks(d2, TODAY));
+  assert.ok(/<span class="t">[^]*class="pill[^]*<\/span> ?<span class="impbadge">重要<\/span>/.test(rows.find((x) => x.id === "A5").html), "pill の後");
+  assert.ok(!rows.find((x) => x.id === done.id).html.includes("impbadge"), "Done には無い");
+  assert.ok(!rows.find((x) => x.id === "A7").html.includes("impbadge"), "重要でなければ無い");
+});
+
+test("renderCalendar: 重要で未完了のタスクの枠に imp、期限の行の件名に impt。Done には付けない", () => {
+  const d = load();
+  const A7 = d.tasks.find((t) => t.id === "A7");
+  A7.important = true;
+  A7.due = TODAY;
+  A7.sessions.push({ id: "S10", date: TODAY, start: "14:00", end: "15:00", kind: "planned" });
+  const done = d.tasks.find((t) => t.status === "Done");
+  done.important = true;
+  done.sessions = [...(done.sessions ?? []), { id: "S11", date: TODAY, start: "09:30", end: "10:00", kind: "actual" }];
+  for (const view of ["day", "week"]) {
+    const html = renderSchedule(d, TODAY, { view, date: TODAY, now: NOW });
+    const blk = (id) => html.match(new RegExp(`<div class="blk task [^"]*"[^>]*data-dragsess="${id}"`))[0];
+    assert.match(blk("S10"), /class="blk task plan imp /, `${view}: 重要の枠は imp（予定の class は残る）`);
+    assert.doesNotMatch(blk("S11"), /\bimp\b/, `${view}: Done の枠には付けない`);
+    assert.match(html, /data-dragsess="S10"[^>]*><span class="tm">[^<]*<\/span><span class="ttl">/, `${view}: 件名は span.ttl に入り、時刻 .tm の外にある`);
+  }
+  const wk = renderSchedule(d, TODAY, { view: "week", date: TODAY, now: NOW });
+  assert.ok(wk.includes(`<span class="impt">${A7.title}</span>`), "期限の行の件名に impt");
+});
+
+test("日程変更の履歴: 原因の選択欄（data-logcause）は出さず、取り込み・依頼の原因は表示する", () => {
+  const html = renderProjects(load(), TODAY, { filter: "A", view: "list" });
+  assert.ok(!html.includes("data-logcause"));
+  assert.ok(html.includes("ベンダーX の納期回答が遅れたため"));
+});
+
+test("スケジュールの編集欄: 枠を選ぶと「タスクを編集」が出る。編集欄は軽い欄だけ、full で全項目", () => {
+  const d = load();
+  d.tasks.find((t) => t.id === "A7").sessions.push({ id: "S10", date: TODAY, start: "14:00", end: "15:00", kind: "planned" });
+  assert.ok(!sched(d).includes("data-tedit-open"), "選んでいないときは出ない");
+  assert.ok(sched(d, { selSess: "S10" }).includes('data-tedit-open="A7"'), "選んだ枠のタスクの ID");
+  const slot = (html) => html.match(/<div id="mtgslot">([\s\S]*?)<\/div><div id="calslot">/)[1];
+  const light = slot(sched(d, { selSess: "S10", taskEdit: { id: "A7", full: false } }));
+  for (const f of ["title", "due", "start", "status", "important", "projectId", "memo"]) assert.ok(light.includes(`data-f="${f}" data-id="A7"`), f);
+  assert.ok(light.includes("data-tedit-full") && light.includes("data-tedit-close"));
+  for (const x of ['data-f="repeat"', "data-addpre", "data-dup", "data-tedit-del", "data-ckadd"]) assert.ok(!light.includes(x), `軽い: ${x} なし`);
+  const full = slot(sched(d, { selSess: "S10", taskEdit: { id: "A7", full: true } }));
+  for (const x of ['data-f="repeat"', 'data-dup="A7"', 'data-tedit-del="A7"', "前のタスク"]) assert.ok(full.includes(x), `full: ${x}`);
+  assert.ok(/data-f="important" data-id="A7"/.test(light));
+  assert.equal(slot(sched(d, { taskEdit: { id: "ZZ", full: false } })), "", "対象のタスクが無いときは空");
+  assert.equal(renderTaskEditPanel(d, { id: "ZZ", full: false }, ""), "");
+});
+
+test("スケジュールの編集欄: 削除は確認を挟む（askDel）", () => {
+  const d = load();
+  const html = renderTaskEditPanel(d, { id: "A7", full: true, askDel: true }, "");
+  assert.ok(html.includes('data-delyes="A7"') && html.includes("data-tedit-delno") && !html.includes("data-tedit-del="));
+});
+
+test("リスト: 各行に「プロジェクト」の選択欄。現在のプロジェクト（なしは空の値）が selected。見出しにも出る", () => {
+  const d = load();
+  const sel = (html, id) => html.match(new RegExp(`<select class="in sm" data-f="projectId" data-id="${id}"[^>]*>(.*?)</select>`))?.[1];
+  const a = renderProjects(d, TODAY, { view: "list", filter: "A" });
+  assert.ok(a.includes("<th>プロジェクト</th>") && a.includes('<td data-l="プロジェクト">'));
+  assert.ok(a.indexOf("<th>件名</th><th>プロジェクト</th>") > 0, "件名の列の後ろ");
+  assert.ok(a.includes('aria-label="A1 のプロジェクト"'));
+  assert.match(sel(a, "A1"), /<option value="">プロジェクトなし<\/option>/);
+  assert.match(sel(a, "A1"), /<option value="A" selected>/);
+  for (const p of d.projects) assert.ok(sel(a, "A1").includes(`value="${p.id}"`), p.id);
+  const x = renderProjects(d, TODAY, { view: "list", filter: "none" });
+  assert.match(sel(x, "X1"), /<option value="" selected>プロジェクトなし<\/option>/);
+});
+
+test("バナー: 共有に無いタスクの作業枠があれば、注意の文と data-orphan-clear が出る。無ければ出ない", () => {
+  const d = load();
+  d.orphanSessions = [{ id: "SX1", taskId: "ZZ9", date: TODAY, start: "13:00", end: "14:00", kind: "planned" }];
+  const msg = `注意: ${validate(d, NOW).warnings.join(" / ")}`;
+  const html = bannerHtml(msg, {}, 1, false);
+  assert.ok(html.includes("共有ファイルに無いタスクの作業枠が 1 件あります"));
+  assert.ok(html.includes("data-orphan-clear"));
+  assert.ok(!html.includes("data-orphan-ok"));
+  const ask = bannerHtml(msg, {}, 1, true);
+  assert.ok(ask.includes("1 件の作業枠を削除します。タスクが戻っていないか、少し待ってから確認してください"));
+  assert.ok(ask.includes("data-orphan-ok") && ask.includes("data-orphan-cancel") && !ask.includes("data-orphan-clear"));
+  assert.ok(!bannerHtml("注意: 別の警告", {}, 0, false).includes("data-orphan"));
+  assert.ok(bannerHtml("読み直せません: x", { reload: true }, 1, false).includes("data-reload"), "ほかのボタンは従来どおり");
+  assert.equal(bannerHtml("", {}, 0, false), "");
+});
+
+test("orphanSessions の枠は、カレンダー・優先度・稼働に描かない", () => {
+  const base = load();
+  const d = load();
+  d.orphanSessions = [{ id: "SX1", taskId: "ZZ9", date: TODAY, start: "13:00", end: "14:00", kind: "planned" }];
+  assert.equal(renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW }), renderSchedule(base, TODAY, { view: "day", date: TODAY, now: NOW }));
+  assert.ok(!renderSchedule(d, TODAY, { view: "week", date: TODAY, now: NOW }).includes("SX1"));
+  assert.equal(renderPrio(d, TODAY, { now: NOW }), renderPrio(base, TODAY, { now: NOW }));
+  assert.equal(renderWorkload(d, TODAY, { now: NOW }), renderWorkload(base, TODAY, { now: NOW }));
 });

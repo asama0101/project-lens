@@ -33,12 +33,12 @@ test("plan: 空のプロジェクトへは全行 add。期限なしの新規行�
   assert.match(bad.rejected[1].reason, /重複/);
 });
 
-test("plan: 重要度は high だけ受ける（mid・low は rejected）", () => {
-  const p = planWbsImport(empty(), "A", [
-    { title: "高", due: "2026-11-01", importance: "high" }, { title: "中", due: "2026-11-01", importance: "mid" }, { title: "低", due: "2026-11-01", importance: "low" },
-  ]);
-  assert.deepEqual(p.add.map((a) => a.key), ["高"]);
-  assert.equal(p.rejected.length, 2);
+test("plan: importance の列は取り込まない（タスクに important・importance が付かない）", () => {
+  const d = run(empty(), [{ title: "高", due: "2026-11-01", importance: "high" }]);
+  const t = d.tasks.find((x) => x.title === "高");
+  assert.ok(t);
+  assert.equal("important" in t, false);
+  assert.equal("importance" in t, false);
 });
 
 test("plan: 再取り込みで同じ内容は same、期限が変わった行は update(before/after)、WBS に無い既存は missing", () => {
@@ -211,7 +211,7 @@ test("plan: 前のタスクキーは、空の段を詰めた書き方（構築/�
   assert.deepEqual(pre, [d.tasks.find((t) => t.title === "機器設定").id]);
 });
 
-const legacy = (id, title, extra = {}) => ({ id, projectId: "A", title, due: "2026-11-01", start: null, status: "To Do", memo: "", predecessors: [], waitingOn: null, importance: null, doneAt: null, sessions: [], ...extra });
+const legacy = (id, title, extra = {}) => ({ id, projectId: "A", title, due: "2026-11-01", start: null, status: "To Do", memo: "", predecessors: [], waitingOn: null, doneAt: null, sessions: [], ...extra });
 
 test("plan/apply: wbsKey の無い手入力のタスクと同じ件名の行は、追加ではなく更新（wbsKey を付ける）として照合する", () => {
   const d = empty(); d.tasks.push(legacy("A1", "要件定義"));
@@ -272,7 +272,7 @@ test("planWbsImport: 開始日が期限より後の行は、新規でも更新�
 
 // ---- 前のタスクの循環の検出: 別プロジェクトの同じキー・行の順序 ----
 const proj = (id) => ({ id, name: id, type: "更改", status: "進行中", start: "2026-10-01", due: "2027-03-31", milestones: [] });
-const keyed = (id, projectId, key, predecessors = []) => ({ id, projectId, title: key, due: "2026-11-10", start: null, status: "To Do", memo: "", predecessors, waitingOn: null, importance: null, doneAt: null, checklist: [], sessions: [], wbsKey: key });
+const keyed = (id, projectId, key, predecessors = []) => ({ id, projectId, title: key, due: "2026-11-10", start: null, status: "To Do", memo: "", predecessors, waitingOn: null, doneAt: null, checklist: [], sessions: [], wbsKey: key });
 const two = (tasks) => ({ ...empty(), projects: [proj("A"), proj("B")], tasks });
 
 test("plan: 別のプロジェクトの同じ wbsKey の関係は、循環の判定に混ぜない（同じ雛形の WBS を複数のプロジェクトで使える）", () => {

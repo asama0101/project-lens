@@ -42,7 +42,7 @@ function openDownstream(tasks, id) {
 
 /**
  * 今日の優先。対象は Done/Cancelled 以外で、前のタスクがすべて完了しているもの。
- * 点数 = 期限超過 100 + 期限点 × 倍率 + 重要度(高 12)
+ * 点数 = 期限超過 100 + 期限点 × 倍率 + 重要(important: true で 12)
  *   期限点 = 残り 30 日以内なら (30−残り日数)×1.5（超過した分も加算）、それより先は 0
  *   倍率   = 1 + min(未チェックの項目数, 10)/10（Waiting は 1）
  * 次のタスクの数は、点数には使わず、理由の表示だけに残す。Waiting の催促は、回答予定日を過ぎたときだけ +40（理由にも出す）。
@@ -63,7 +63,7 @@ export function rankTasks(data, today) {
     if (left >= 0 && left <= 30) reasons.push(left === 0 ? "期限は今日" : `期限まで ${left}日`);
     const blocked = openDownstream(data.tasks, t.id);
     if (blocked) reasons.push(`次のタスク ${blocked} 件を止めている`);
-    if (t.importance === "high") { score += 12; reasons.push("重要度: 高"); }
+    if (t.important === true) { score += 12; reasons.push("重要"); }
     let action = "work";
     if (waiting) {
       action = "chase";

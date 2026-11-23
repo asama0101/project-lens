@@ -428,3 +428,76 @@ test("app.js: 空き時間を押すと、タスク未選択なら突発タスク
   assert.ok(src.includes('e.key === "Enter" && !e.isComposing && e.target.matches("[data-ug=\\"title\\"]")'));
   assert.match(src, /e\.key === "Escape" && S\.screen === "schedule" && \([^)]*S\.urgentDraft/);
 });
+
+test("app.js: ヘッダーの「＋ 突発タスク」は、clearSel() で選択を外し、スケジュール画面へ移り、firstFreeStart で開始を決めて件名にフォーカスする", () => {
+  assert.ok(src.includes("data-urgent-open") && src.includes("＋ 突発タスク"));
+  const h = src.slice(src.indexOf('e.target.closest("[data-urgent-open]")'));
+  const body = h.slice(0, 900);
+  assert.match(body, /clearSel\(\)/);
+  assert.match(body, /S\.screen = "schedule"/);
+  assert.match(body, /firstFreeStart\(/);
+  assert.match(body, /\[data-ug="title"\]'?\)?\??\.focus/);
+});
+
+// ---- 2 ファイル（共有・個人）を開く ----
+test("app.js: 画面は createPairStore で 2 つのファイルを開く。開始画面は、足りない方を選ぶボタン（data-open=\"shared\"・\"personal\"）と案内を出す", () => {
+  assert.match(src, /const store = createPairStore\(\);/);
+  assert.ok(!src.includes("createStore("), "1 ファイルのストアは使わない");
+  assert.ok(src.includes('data-open="shared"') && src.includes('data-open="personal"'));
+  assert.ok(src.includes("共有ファイルを選んでください") && src.includes("個人ファイルを選んでください"));
+  const ss = src.slice(src.indexOf("function startScreen"), src.indexOf("const scheduleOpts"));
+  assert.match(ss, /store\.missing\(\)/, "案内は、足りない方だけ");
+  assert.match(ss, /data-reopen/);
+  assert.match(ss, /S\.last\?\.\[w\]\?\.name/, "前回のファイルを開くは、足りない方に記憶があるときだけ");
+  assert.ok(!src.includes("data-openfile"), "「別のファイルを開く」の 1 つのボタンは持たない");
+});
+
+test("app.js: ファイルを選ぶと store.choose(which)。2 つ揃ったら（データが返ったら）loaded、揃わなければ開始画面のまま", () => {
+  const fn = src.slice(src.indexOf("async function openFile"), src.indexOf("async function startup"));
+  assert.match(fn, /store\.choose\(which\)/);
+  assert.match(fn, /if \(data\) \{ loaded\(data\);/);
+  const vc = src.slice(src.indexOf('if (q("[data-reopen]"))'), src.indexOf("/* プロジェクト画面 */"));
+  assert.match(vc, /!S\.data && q\("\[data-open\]"\)/, "開始画面のボタンは、プロジェクトの data-open（絞り込み）より先に、データが無いときだけ扱う");
+  assert.match(vc, /openFile\("choose", pick\.dataset\.open\)/);
+  const fb = src.slice(src.indexOf('$("filebar").addEventListener("click"'), src.indexOf('$("banner").addEventListener("click"'));
+  assert.match(fb, /openFile\("choose", pick\.dataset\.open\)/);
+  const bar = src.slice(src.indexOf('$("filebar").innerHTML'), src.indexOf('$("filebar").innerHTML') + 1200);
+  assert.ok(bar.includes('data-open="shared"') && bar.includes('data-open="personal"'), "上部のバーも、共有・個人の 2 つのボタン");
+});
+
+test("app.js: 読み直し（「更新」・バナーの再読込）は、失敗しても sync.reset() する（破棄すると伝えた編集を、あとで当て直さない）", () => {
+  const fn = src.slice(src.indexOf("async function reloadFile"), src.indexOf("async function reloadFile") + 800);
+  assert.ok(fn.length > 50);
+  assert.match(fn, /catch \(e\) \{[^}]*\}\s*sync\.reset\(\);/, "reset は try の外（例外のときも通る）");
+  assert.equal((src.match(/store\.reload\(\)/g) ?? []).length, 1, "store.reload を呼ぶのは reloadFile だけ");
+  assert.match(src, /\[data-refresh\][\s\S]{0,400}reloadFile\(/);
+  assert.match(src, /\[data-reload\][\s\S]{0,200}reloadFile\(/);
+});
+
+test("app.js: 共有に無い枠の削除は、確認（S.pendingOrphan）を挟んで apply で保存し、読み直し・他の更新の取り込みでもバナーを出し直す", () => {
+  assert.match(src, /data-orphan-clear\]"\)\) \{ S\.pendingOrphan = true/);
+  assert.match(src, /data-orphan-ok[\s\S]{0,200}apply\(\(d\) => removeOrphanSessions\(d\)/);
+  assert.match(src, /setData: \(d\) => \{ S\.data = d; if \(!sync\.failed\) refreshBanner\(\)/);
+  assert.match(src, /else \{ S\.pendingOrphan = false; refreshBanner\(\); \}\s*render\(\);/, "reloadFile の成功でも出し直し、確認の状態は下ろす");
+  assert.match(src.slice(src.indexOf("function loaded(")), /S\.pendingOrphan = false;\s*refreshBanner\(\)/, "loaded も確認の状態を下ろす");
+  // 失敗の案内（再読込・書き出しのボタンつき）は、削除のボタンで上書きしない。削除の UI は検証の注意（validated）にだけ付く
+  assert.match(src, /const orphans = actions\.validated \?/);
+  assert.match(src, /const again = \(\) => banner\(S\.banner\.msg, S\.banner\.actions\)/);
+  assert.match(src, /data-orphan-clear\]"\)\) \{ S\.pendingOrphan = true; again\(\); \}/, "押しても検証の結果で上書きしない");
+  assert.match(src, /if \(!msg && !actions\.validated && S\.data\) \{ refreshBanner\(\); return; \}/, "空の文は、検証の結果の出し直し");
+});
+
+test("app.js: 直接保存できないブラウザの書き出しは exportFiles の 2 ファイルを続けて落とし、読み込みは 2 ファイルを dataFromTexts で結合する（1 ファイルを丸ごとデータにしない）", () => {
+  const dl = src.slice(src.indexOf("function downloadJson()"), src.indexOf("/** 保存と読み直し"));
+  assert.match(dl, /exportFiles\(S\.data\)/);
+  assert.match(dl, /a\.download = name/);
+  assert.doesNotMatch(dl, /"data\.json"/, "名前は exportFiles が決める");
+  assert.match(src, /<input type="file" multiple /);
+  assert.match(src, /dataFromTexts\(texts, /);
+  assert.doesNotMatch(src, /loaded\(JSON\.parse/);
+});
+
+test("app.js: 開いた画面で別のファイルを選べなかったときは、通知で知らせる。読み直せない案内は、画面が古い可能性を伝える", () => {
+  assert.match(src, /if \(S\.data\) toast\(S\.openError\)/);
+  assert.match(src, /読み直せません: \$\{err\.message\}（画面の内容は、まだファイルと違う可能性があります）/);
+});

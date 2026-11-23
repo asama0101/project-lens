@@ -101,7 +101,7 @@
     <li><a href="#f5">画面からの依頼（画面下端の帯「Claude Code に依頼する」）</a></li>
     <li><a href="#f6">動作環境の診断（<code>/project-lens:doctor</code>）</a></li>
   </ol>
-  <p class="lead" style="margin-top:8px">用語: 「データファイル」= 作業フォルダの <code>.project-lens/data.json</code>。「画面」= <code>project-lens.html</code>。「設定フォルダ」= プラグイン専用の保存場所（<code>~/.claude/plugins/data/</code> の下）。「見張り」= 画面からの依頼を待ち受ける Claude Code の処理。</p>
+  <p class="lead" style="margin-top:8px">用語: 「データファイル」= 作業フォルダの <code>.project-lens/data.json</code>（共有）。個人の分は同じフォルダの <code>personal.json</code>（別の場所なら各コマンドに <code>--mine &lt;ファイル&gt;</code>）。「画面」= <code>project-lens.html</code>。「設定フォルダ」= プラグイン専用の保存場所（<code>~/.claude/plugins/data/</code> の下）。「見張り」= 画面からの依頼を待ち受ける Claude Code の処理。</p>
 </nav>
 
 <!-- ============================================================ -->
@@ -111,7 +111,7 @@
   <div></div><div class="head u">あなた</div><div class="head c">Claude</div><div class="head s">スクリプト</div>
 
   <div class="n">1</div>
-  <div class="cell u">管理したいフォルダで Claude Code を開き、<code>/project-lens:init</code> を実行する。試用なら <code>--sample</code> を付ける。<small class="src">skills/init/SKILL.md</small></div>
+  <div class="cell u">管理したいフォルダで Claude Code を開き、<code>/project-lens:init</code> を実行する。試用なら <code>--sample</code> を付ける。個人ファイルを別の場所に置くなら <code>--mine &lt;ファイル&gt;</code> を付ける。<small class="src">skills/init/SKILL.md</small></div>
   <div class="cell c">初期設定のスクリプトを実行する（この指示は Claude が自分の判断で呼ぶことはできず、あなたのコマンドでだけ動く）。<code>node</code> が見つからないときは、Node.js 24 以上の導入（<code>winget</code>）を案内する（未確認: 実際に <code>node</code> が無い環境では動かしていない）。<small class="src">skills/init/SKILL.md（disable-model-invocation）</small></div>
   <div class="cell empty"></div>
 
@@ -128,10 +128,16 @@
     <div class="case">project-lens が作ったもの → 手順 3 へ進む</div>
   </div></div>
 
+  <div class="branch"><p class="bt">既存の <code>.project-lens/data.json</code> が旧形式（作業枠・予定を含む 1 ファイル）</p><div class="flow">
+    <div class="n"></div><div class="cell empty"></div>
+    <div class="cell c">出力の理由をそのまま伝える。ファイルを作り直したり上書きしたりしない。<small class="src">skills/init/SKILL.md</small></div>
+    <div class="cell s"><span class="tag stop">止まる</span>何も書かずに終了コード 1。「… 旧形式の data.json です。personal.json へ手で分けてください。何も変更せずに止めました」（空の個人ファイルを隣に足さない）。実行して確かめた。<small class="src">tools/init.js oldShared / split.js isOldShared</small></div>
+  </div></div>
+
   <div class="n">3</div>
   <div class="cell empty"></div>
   <div class="cell empty"></div>
-  <div class="cell s">データファイル <code>.project-lens/data.json</code>: 既にあれば「そのまま」（中身は変えない）。なければ <span class="tag write">書き込み</span>作る（空の雛形。<code>--sample</code> なら架空のサンプル）。<small class="src">tools/init.js SKELETON / data/sample.json</small></div>
+  <div class="cell s">データは 2 ファイル。共有の <code>.project-lens/data.json</code> と、個人の <code>.project-lens/personal.json</code>（<code>--mine</code> を付けたときは、そのパス。相対パスは実行したフォルダから数える）を、それぞれ調べる。既にあれば「そのまま」（中身は変えない）。なければ <span class="tag write">書き込み</span>作る（空の雛形。<code>--sample</code> なら架空のサンプルを共有と個人に分けて、作業枠は個人へ）。共有だけがあって個人が無いときは、空の個人ファイルを作る。<code>saveData</code> は通さず、直接書く（<code>--mine</code> の指定先はまだ無いため）。空のフォルダ・再実行・<code>--sample --mine</code>（相対パス）・共有だけがある場合は、実行して確かめた。Claude が利用者の指定から <code>--mine</code> を付ける判断は未確認。<small class="src">tools/init.js init() / split.js splitData</small></div>
 
   <div class="n">4</div>
   <div class="cell empty"></div>
@@ -158,11 +164,11 @@
 
   <div class="n">6</div>
   <div class="cell empty"></div>
-  <div class="cell c">作成・更新したファイルを短く伝え、次の手順（ブラウザで画面を開く → 「ファイルを開く」でデータファイルを選ぶ）を案内する。<small class="src">skills/init/SKILL.md</small></div>
+  <div class="cell c">作成・更新したファイルを短く伝え、次の手順（ブラウザで画面を開く → 共有ファイルと個人ファイルを選ぶ）を案内する。<small class="src">skills/init/SKILL.md</small></div>
   <div class="cell s">ファイルごとの結果を 1 行ずつ出す（作りました／更新しました／そのままです／追記しました／変更しませんでした）。<small class="src">tools/init.js LABEL</small></div>
 
   <div class="n">7</div>
-  <div class="cell u">Edge か Chrome で <code>project-lens.html</code> を開き、「ファイルを開く」で <code>.project-lens/data.json</code> を選ぶ。以後の画面の変更は、このファイルに直接保存される。<small class="src">README.md 初回の準備</small></div>
+  <div class="cell u">Edge か Chrome で <code>project-lens.html</code> を開き、「共有ファイルを選ぶ」で <code>.project-lens/data.json</code>、「個人ファイルを選ぶ」で <code>.project-lens/personal.json</code> を選ぶ。2 つ選ぶと画面が開き、以後の変更は、変えた方のファイルに直接保存される。<small class="src">README.md 初回の準備</small></div>
   <div class="cell empty"></div>
   <div class="cell empty"></div>
 </div>
@@ -255,7 +261,7 @@
     <div class="case">「予定表を取り込んで」と頼んだだけ → 起動しない（<code>intake</code> は <code>disable-model-invocation: true</code>。<code>/project-lens:intake calendar</code> と実行する）<small class="src">skills/intake/SKILL.md</small></div>
     <div class="case">エージェントが <code>node</code> を見つけられない → <code>node</code> が見つからないときは、Node.js 24 以上の導入（<code>winget</code>）を案内する（未確認: 実際に <code>node</code> が無い環境では動かしていない）。<small class="src">skills/intake/SKILL.md 始める前の確認 4</small></div>
   </div></div>
-  <div class="note">書き込みは、すべて取り込みのスクリプトが行い、検証に通ったときだけ書く。Claude はデータファイルを直接書き換えない。重要度（高）は、取り込みでは推定しない。<small class="src">agents/intake.md 共通のルール / tools/cli.js save</small></div>
+  <div class="note">書き込みは、すべて取り込みのスクリプトが行い、検証に通ったときだけ書く。Claude はデータファイルを直接書き換えない。重要は、取り込まない（取り込んだあとに画面で付ける）。<small class="src">agents/intake.md 共通のルール / tools/cli.js save</small></div>
 </div>
 
 <h3 id="f3a">3-a. Excel の作業一覧（<code>wbs</code>）</h3>
@@ -303,7 +309,7 @@
   <div class="cell s"><code>wbs-plan</code>（読み取りだけ）: 既存のタスクと照合して、追加／更新（旧→新）／変更なし／作業一覧に無い既存（削除しない）／弾いた行と理由／警告を返す。照合は「大項目/中項目/件名」の鍵で行い、鍵のない手入力のタスクは、同じ件名が 1 つだけなら同じものとみなす。弾いた行の既存タスクは、「作業一覧に無い既存」に入れない。前のタスクが循環になる指定は設定せず、警告に出す。変更案の指紋（<code>planKey</code>）も返す。<small class="src">src/import/wbs.js planWbsImport / tools/intake.js wbs-plan</small></div>
 
   <div class="branch"><p class="bt">変更案での弾き・警告</p><div class="flow">
-    <div class="case">弾く（理由を付けて <code>rejected</code> に出す）: 件名がない、期限・開始日が日付の形でない、状態が 4 つ以外、状態が「待ち」（待ち先が要るので作業一覧からは設定できない）、重要度が「高」以外、項目名が重複する、新しい項目なのに期限がない<small class="src">src/import/wbs.js rowProblem・planWbsImport</small></div>
+    <div class="case">弾く（理由を付けて <code>rejected</code> に出す）: 件名がない、期限・開始日が日付の形でない、状態が 4 つ以外、状態が「待ち」（待ち先が要るので作業一覧からは設定できない）、項目名が重複する、新しい項目なのに期限がない<small class="src">src/import/wbs.js rowProblem・planWbsImport</small></div>
     <div class="case">警告: 前のタスクの名前が見つからない（その前のタスクだけ付けない）<span class="tag warn">注意</span></div>
     <div class="case">作業一覧から消えた既存のタスクは、削除せず一覧で知らせる</div>
   </div></div>
@@ -478,7 +484,7 @@
 
 <!-- ============================================================ -->
 <h2 id="f5">5. 画面からの依頼（画面下端の帯「Claude Code に依頼する」）</h2>
-<p class="lead">日程の見直し（期限の変更）・タスクの登録を、文章で依頼する（受ける操作は <code>addTask</code> と <code>moveDue</code> の 2 種類だけ。状態・重要度・削除・プロジェクトやマイルストーンの変更などは画面で行う）。Claude は「提案」を作るところまでで、反映はあなたが承認したときに画面（または端末の承認）が行う。承認するまで、タスクの日程・前のタスク・一覧は変わらない。</p>
+<p class="lead">日程の見直し（期限の変更）・タスクの登録を、文章で依頼する（受ける操作は <code>addTask</code> と <code>moveDue</code> の 2 種類だけ。状態・重要・削除・プロジェクトやマイルストーンの変更などは画面で行う）。Claude は「提案」を作るところまでで、反映はあなたが承認したときに画面（または端末の承認）が行う。承認するまで、タスクの日程・前のタスク・一覧は変わらない。</p>
 
 <h3>5-a. 依頼を送る</h3>
 <div class="flow">
@@ -490,7 +496,7 @@
   <div class="cell s">（画面の中の処理）依頼を <code>R1</code>、<code>R2</code>… の番号で、状態「送信済み」としてデータファイルの受信箱に <span class="tag write">書き込み</span>。履歴は 20 件まで（超えたら、済んだ古いものから消す。処理中は消えない）。<small class="src">src/core/inbox.js submitRequest・pruneRequests / src/ui/app.js sendRequest</small></div>
 
   <div class="branch"><p class="bt">送るときの分岐</p><div class="flow">
-    <div class="case">データファイルを「ファイルを開く」で直接開いていない（直接保存に対応しないブラウザ、または Edge・Chrome でもまだ開いていないとき） → 帯は使えず、「ファイルへの直接保存が必要です」と出る<small class="src">src/ui/app.js（canWrite: store.hasFile） / inboxpanel.js</small></div>
+    <div class="case">データファイル（共有・個人の 2 つ）を、画面から直接開いていない（直接保存に対応しないブラウザ、または Edge・Chrome でもまだ開いていないとき） → 帯は使えず、「ファイルへの直接保存が必要です」と出る<small class="src">src/ui/app.js（canWrite: store.hasFile） / inboxpanel.js</small></div>
     <div class="case">文章が空 → 「依頼を入力してください」</div>
     <div class="case">文章が 4000 文字を超える → 「依頼は 4000 文字までにしてください」<small class="src">src/core/inbox.js MAX_TEXT</small></div>
     <div class="case">保存が他の更新と重なった → 画面が最新のファイルを読み直し、同じ編集を当ててから保存する（編集は消えない）。当て直せなかったときだけ「他で更新されました。再読込してください」<small class="src">src/ui/sync.js / docs/development.md 保存と競合</small></div>
@@ -528,7 +534,7 @@
     <div class="cell u">画面の帯に「聞き返しがあります」と出る。返信欄に答えて「返信する」を押す → 状態が「送信済み」に戻り、Claude にもう一度届く。<small class="src">inboxpanel.js detailHtml question / src/core/inbox.js replyToRequest</small></div>
     <div class="cell c"><code>ask</code> を実行して、この依頼の処理を終える。<span class="tag stop">端末で止まらない</span>。<small class="src">agents/inbox.md 手順 4</small></div>
     <div class="cell s"><span class="tag write">書き込み</span><code>ask</code>: 状態を「聞き返し」にし、質問をやりとりに足す。<small class="src">tools/inbox.js ask / src/core/inbox.js askQuestion</small></div>
-    <div class="case">画面で行う操作（状態・重要度の変更、削除、プロジェクトやマイルストーンの変更、前のタスクの付け外し、チェックリストの項目の変更）→ <code>ask</code> で「この依頼は画面で行ってください」と返し、提案は作らない<small class="src">agents/inbox.md 手順 3</small></div>
+    <div class="case">画面で行う操作（状態・重要の変更、削除、プロジェクトやマイルストーンの変更、前のタスクの付け外し、チェックリストの項目の変更）→ <code>ask</code> で「この依頼は画面で行ってください」と返し、提案は作らない<small class="src">agents/inbox.md 手順 3</small></div>
     <div class="case">対象外（会議の追加・削除、Excel・予定表・規則の取り込み）→ <code>fail</code> で「できない旨と、代わりの方法（<code>/project-lens:intake</code>）」を返す<small class="src">agents/inbox.md 手順 5</small></div>
     <div class="n"></div>
     <div class="cell u">帯に「失敗」と理由が出る。</div>

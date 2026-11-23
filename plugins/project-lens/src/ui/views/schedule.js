@@ -1,12 +1,15 @@
 // スケジュール画面（週／日）。位置と高さは勤務時間に対する % で表し、カレンダーの高さは CSS で画面に追従させる。
-import { addDays, toMin, weekday } from "../../core/dates.js";
+import { addDays, toMin, toHHMM, weekday } from "../../core/dates.js";
 import { freeSlots, meetingKind } from "../../core/schedule.js";
 import { matchProject } from "../../core/rules.js";
 import { offDayChecker } from "../../core/holidays.js";
 import { sessionKind, allSessions } from "../../core/sessions.js";
-import { DEFAULT_WORKDAY } from "../../core/schema.js";
+import { DEFAULT_WORKDAY, isImportantMark } from "../../core/schema.js";
 import { esc, fmtMD, wdJa, STATUS_UI } from "../common.js";
-import { renderSide, renderSideToggle } from "./prio.js";
+import { renderSide, renderSideToggle, todayTaskIds } from "./prio.js";
+import { statusCellHtml } from "./project.js";
+import { renderTaskEditPanel } from "./taskpop.js";
+import { taskFlags } from "../../core/metrics.js";
 
 const SLOT_STEP = 15;
 
@@ -63,8 +66,10 @@ function sessionBlocks(data, d, full, g, ctx) {
     const kind = sessionKind(s, ctx.now);
     const c = KIND_CLS[kind];
     const confirm = full && kind === "unconfirmed" ? `<span class="bb"><button class="btn" data-confirm="${esc(s.id)}">実績にする</button></span>` : "";
-    const st = full ? ` <span class="stt">${STATUS_JA[data.tasks.find((t) => t.id === s.taskId).status] ?? ""}</span>` : "";
-    return `<div class="blk task ${c} ${ctx.selSess === s.id ? "sel" : ""}" draggable="true" tabindex="0" data-dragsess="${esc(s.id)}" style="top:${g.tp(toMin(s.start))};height:${g.ht(toMin(s.start), toMin(s.end))}" title="${esc(s.title)}(${KIND_JA[c]})"><span class="tm">${esc(s.start)}-${esc(s.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span>${full ? `${esc(s.taskId)} ` : ""}${esc(s.title)}${st}${confirm}<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i></div>`;
+    const task = data.tasks.find((t) => t.id === s.taskId);
+    const st = full ? ` <span class="stt">${STATUS_JA[task.status] ?? ""}</span>` : "";
+    const imp = isImportantMark(task) ? " imp" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
+    return `<div class="blk task ${c}${imp} ${ctx.selSess === s.id ? "sel" : ""}" draggable="true" tabindex="0" data-dragsess="${esc(s.id)}" style="top:${g.tp(toMin(s.start))};height:${g.ht(toMin(s.start), toMin(s.end))}" title="${esc(s.title)}(${KIND_JA[c]})"><span class="tm">${esc(s.start)}-${esc(s.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${full ? `${esc(s.taskId)} ` : ""}${esc(s.title)}</span>${st}${confirm}<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i></div>`;
   }).join("");
 }
 
@@ -73,6 +78,25 @@ function freeOf(data, d, g, isOff) {
   if (isOff(d)) return [];
   const busy = [...(data.events ?? []), ...allSessions(data)].filter((x) => x.date === d);
   return freeSlots(busy, d, g.wd);
+}
+
+/** 突発タスクの既定の開始: その日の勤務時間内で、会議・枠と重ならない最初の空き（今日なら現在時刻以降）の開始（15 分刻み）。なければ勤務の開始 */
+export function firstFreeStart(data, date, now) {
+  const g = calendarGeometry(data);
+  const from = date === now.date ? toMin(now.time) : 0;
+  for (const x of freeOf(data, date, g, offDayChecker(data.settings))) {
+    let st = snapFreeStart(Math.max(toMin(x.start), from), g.wd);
+    if (st < from) st += SLOT_STEP; // 現在時刻より前へ戻さない
+    if (st + SLOT_STEP <= toMin(x.end)) return toHHMM(st);
+  }
+  return g.wd.start;
+}
+
+/** 突発タスクの入力欄の値 → addUrgentTask への入力。件名・日付・開始のどれかが空なら null（何も作らない） */
+export function urgentInput(f) {
+  const title = f.title.trim(), date = f.date.trim(), start = f.start.trim();
+  if (!title || !date || !start) return null;
+  return { input: { title, projectId: f.projectId || null, date, start, minutes: +f.minutes } };
 }
 
 function meetingForm(data, ctx) {
@@ -99,7 +123,7 @@ function meetingForm(data, ctx) {
 }
 
 /** 空き時間から突発タスクを登録する入力欄（件名・プロジェクト・長さ）。下書きがないときは出さない */
-function urgentForm(data, draft) {
+export function urgentForm(data, draft) {
   if (!draft) return "";
   const projOpts = [`<option value=""${draft.projectId === "" ? " selected" : ""}>プロジェクトなし</option>`, ...(data.projects ?? []).map((p) => `<option value="${esc(p.id)}"${draft.projectId === p.id ? " selected" : ""}>${esc(p.name)}</option>`)].join("");
   const minOpts = [15, 30, 45, 60].map((m) => `<option value="${m}"${draft.minutes === m ? " selected" : ""}>${m} 分</option>`).join("");
@@ -107,7 +131,8 @@ function urgentForm(data, draft) {
     <label>件名<input class="in" data-ug="title" value="${esc(draft.title)}" placeholder="突発タスクの件名" style="min-width:200px"></label>
     <label>プロジェクト<select class="in" data-ug="projectId" aria-label="突発タスクのプロジェクト">${projOpts}</select></label>
     <label>長さ<select class="in" data-ug="minutes" aria-label="突発タスクの長さ">${minOpts}</select></label>
-    <span class="note" style="margin:0">${esc(draft.date)} ${esc(draft.start)} から</span>
+    <label>日付<input class="in" type="date" data-ug="date" value="${esc(draft.date)}"></label>
+    <label>開始<input class="in" type="time" step="900" data-ug="start" value="${esc(draft.start)}"></label>
     <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-urgsave>追加</button><button class="btn" data-urgcancel>キャンセル</button></div>
   </div>`;
 }
@@ -128,7 +153,7 @@ export function renderCalendar(data, today, opts) {
     const cols = days.map((d) => `<div class="col dz ${d === today ? "today" : ""} ${isOff(d) ? "weekend" : ""}" data-date="${d}">${meetingBlocks(data, d, false, g, ctx)}${sessionBlocks(data, d, false, g, ctx)}</div>`).join("");
     const dues = days.map((d) => {
       const due = data.tasks.filter((t) => t.due === d && t.status !== "Done" && t.status !== "Cancelled");
-      return `<div class="duecell">${due.map((t) => `<div style="display:flex;gap:6px;align-items:baseline"><i class="dot ${STATUS_UI[t.status]?.dot ?? ""}${t.due < today ? " is-late" : ""}"></i><span>${esc(t.title)}</span></div>`).join("") || '<span class="muted">—</span>'}</div>`;
+      return `<div class="duecell">${due.map((t) => `<div style="display:flex;gap:6px;align-items:baseline"><i class="dot ${STATUS_UI[t.status]?.dot ?? ""}${t.due < today ? " is-late" : ""}"></i><span${isImportantMark(t) ? ' class="impt"' : ""}>${esc(t.title)}</span></div>`).join("") || '<span class="muted">—</span>'}</div>`;
     }).join("");
     cal = `<div class="cal wk"><div class="week"><div></div>${heads}<div class="hrs">${hoursHtml(g)}</div>${cols}</div><div class="week" style="margin-top:8px"><div class="note" style="padding-top:6px">期限</div>${dues}</div></div>
       <p class="note" style="margin:8px 0 0">日付を押すと1日表示に切り替わります。枠をクリックして選び、「枠を削除」か Delete キーで削除できます。</p>`;
@@ -149,7 +174,7 @@ export function renderCalendar(data, today, opts) {
  * @param opts.view      "week" | "day"
  * @param opts.date      表示する日（週表示ではその日を含む週）
  * @param opts.now       {date, time}  現在時刻（過ぎた予定の判定に使う）
- * @param opts.selSess   選択中の枠 ID / opts.selMtg 選択中の会議 ID / opts.mtgDraft 追加中の会議の下書き / opts.urgentDraft 追加中の突発タスクの下書き
+ * @param opts.selSess   選択中の枠 ID / opts.selMtg 選択中の会議 ID / opts.mtgDraft 追加中の会議の下書き / opts.urgentDraft 追加中の突発タスクの下書き / opts.taskEdit 編集欄を開いているタスク { id, full, askDel }
  * @param opts.picked    選択中のタスク ID（キーボード配置用）
  * @param opts.showPrio  false なら今日の優先を出さない
  * @param opts.showSkipped  true なら「参加しない」の会議も出す（既定は出さない。選択中の会議だけは、隠さない。空き時間の計算は変わらない）
@@ -175,7 +200,9 @@ export function renderSchedule(data, today, opts) {
 
   const nav = `<div class="toolbar"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn" data-nav="${-step}" aria-label="前へ">←</button><button class="btn" data-nav="${step}" aria-label="次へ">→</button><button class="btn" data-sgoto>今日</button><strong style="margin-left:6px">${title}</strong></div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="chip-btn pref" data-sskip aria-pressed="${opts.showSkipped === true}" title="「参加しない」にした会議を、カレンダーに出したり隠したりします">参加しない会議</button><button class="btn" data-mtgadd>＋ 会議を追加</button><div class="seg" role="group" aria-label="表示"><button data-sview="week" aria-pressed="${view === "week"}">週</button><button data-sview="day" aria-pressed="${view === "day"}">日</button></div></div></div>
-    <div class="summary"><span>実績 <b class="mono">${hours.toFixed(1)}時間</b></span><span>予定 <b class="mono">${planned}件</b></span>${unconf ? `<span class="pill wait">未確認 ${unconf}件（作業枠 ${unconfS}・会議 ${unconfM}）</span><button class="btn" data-confirmall>未確認をすべて実績にする</button>` : ""}<button class="btn danger" data-delsel ${delOk ? "" : "disabled"}>${delLabel}</button></div>`;
-  return `<div class="cols${opts.showPrio === false ? " one" : ""}"><section class="panel">${nav}<div id="mtgslot">${meetingForm(data, { mtgDraft: opts.mtgDraft, selMtg: selMtg?.id })}${urgentForm(data, opts.urgentDraft)}</div><div id="calslot">${renderCalendar(data, today, calOpts)}</div></section>${renderSideToggle(opts.showPrio !== false)}${opts.showPrio === false ? "" : renderSide(data, today, { sched: true, picked: opts.picked, pendingDone: opts.pendingDone })}</div>`;
+    <div class="summary"><span>実績 <b class="mono">${hours.toFixed(1)}時間</b></span><span>予定 <b class="mono">${planned}件</b></span>${unconf ? `<span class="pill wait">未確認 ${unconf}件（作業枠 ${unconfS}・会議 ${unconfM}）</span><button class="btn" data-confirmall>未確認をすべて実績にする</button>` : ""}<button class="btn danger" data-delsel ${delOk ? "" : "disabled"}>${delLabel}</button>${selSess ? `<button class="btn" data-tedit-open="${esc(selSess.taskId)}">タスクを編集</button>` : ""}</div>`;
+  const et = opts.taskEdit ? data.tasks.find((t) => t.id === opts.taskEdit.id) : null;
+  const editPanel = et ? renderTaskEditPanel(data, opts.taskEdit, statusCellHtml(et, { ...opts, todayIds: opts.showPrio === false ? new Set() : new Set(todayTaskIds(data, today)) }, taskFlags(et, today, data.settings).includes("overdue"))) : "";
+  return `<div class="cols${opts.showPrio === false ? " one" : ""}"><section class="panel">${nav}<div id="mtgslot">${meetingForm(data, { mtgDraft: opts.mtgDraft, selMtg: selMtg?.id })}${urgentForm(data, opts.urgentDraft)}${editPanel}</div><div id="calslot">${renderCalendar(data, today, calOpts)}</div></section>${renderSideToggle(opts.showPrio !== false)}${opts.showPrio === false ? "" : renderSide(data, today, { sched: true, picked: opts.picked, pendingDone: opts.pendingDone })}</div>`;
 }
 

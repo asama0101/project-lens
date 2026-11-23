@@ -150,7 +150,7 @@ body.picking button.free:hover{background:var(--accent-soft);border-color:var(--
 .g-row{display:grid;grid-template-columns:230px minmax(0,1fr);gap:12px;align-items:center;border-bottom:1px solid var(--line-soft)}
 .g-row:last-child{border-bottom:0}
 .g-head{border-bottom:1px solid var(--line)}
-.g-label{display:grid;grid-template-columns:28px minmax(0,1fr);gap:0 6px;padding:5px 0;font-size:13px;line-height:1.35}
+.g-label{display:grid;grid-template-columns:var(--idw,56px) minmax(0,1fr);gap:0 6px;padding:5px 0;font-size:13px;line-height:1.35}
 .g-label .id{font-family:var(--f-mono);font-size:11px;color:var(--muted);padding-top:2px}
 .g-label .g-pre{grid-column:2;font-family:var(--f-mono);font-size:11px;color:var(--muted)}
 .g-lane{position:relative;height:36px}
@@ -212,7 +212,7 @@ label{font-size:13px}
 .g-row{display:flex;gap:12px;align-items:stretch;border-bottom:1px solid var(--line-soft)}
 .g-label{position:sticky;left:0;z-index:4;flex:none;width:230px;background:var(--surface)}
 .g-lane{flex:none}
-/* 重要度: 高は左端に太い赤の縦線と、行の薄い赤の背景。縦線は横スクロールで流れないよう、固定のラベルに付ける */
+/* 重要: 左端に太い赤の縦線と、行の薄い赤の背景。縦線は横スクロールで流れないよう、固定のラベルに付ける */
 .g-row>.g-label{padding-left:9px}
 .mv{cursor:grab;color:var(--muted);user-select:none;margin-right:4px}
 .mv:hover{color:var(--ink)}
@@ -243,7 +243,7 @@ tr.drop-after>td,.g-row.drop-after>.g-label,.g-row.drop-after>.g-lane{box-shadow
 .toolbar{display:flex;gap:10px 16px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:12px}
 .cols>.panel>.toolbar{margin-bottom:10px}
 .gscroll{container-type:inline-size;--lw:230px;overflow-x:auto;padding-bottom:6px}
-@media(max-width:640px){.gscroll{--lw:112px}.g-label{font-size:12px}}
+@media(max-width:640px){.gscroll{--lw:150px;--idw:40px}.g-label{font-size:12px}.g-label .id{font-size:9px}}
 .gwide{width:max-content;min-width:100%}
 .g-label{width:var(--lw)}
 .pg-head{width:100cqw}
@@ -261,7 +261,7 @@ tr.drop-after>td,.g-row.drop-after>.g-label,.g-row.drop-after>.g-lane{box-shadow
   .tbl.edit td{display:block;padding:0;border:0}
   .tbl.edit td::before{content:attr(data-l);display:block;font-size:11px;color:var(--muted)}
   .tbl.edit td[data-l=""]::before,.tbl.edit td[data-l="ID"]::before{display:none}
-  .tbl.edit td:nth-child(4),.tbl.edit td:nth-child(11){grid-column:1/-1}
+  .tbl.edit td:nth-child(4),.tbl.edit td:nth-child(12){grid-column:1/-1}
   #view .tbl.edit tr.ck-tr>td{grid-column:1/-1;padding-left:0} /* チェックリストの展開行は全幅 */
 }
 
@@ -278,12 +278,12 @@ tr.drop-after>td,.g-row.drop-after>.g-label,.g-row.drop-after>.g-lane{box-shadow
 .blk .bb{display:flex;gap:4px;flex-wrap:wrap;margin-top:2px}
 .blk .bb .btn{padding:0 6px;font-size:11px}
 .blk .rz{position:absolute;left:0;right:0;bottom:0;height:6px;cursor:ns-resize}
-.blk .rz::after{content:"";position:absolute;left:50%;bottom:2px;width:16px;height:2px;margin-left:-8px;border-radius:1px;background:currentColor;opacity:.35}
+.blk .rz::after{content:"";position:absolute;left:50%;bottom:2px;width:16px;height:2px;margin-left:-8px;border-radius:1px;background:var(--ink);opacity:.35}
 .nowline{position:absolute;left:0;right:0;height:0;border-top:2px solid var(--bad);z-index:6;pointer-events:none}
 
-.g-label{grid-template-columns:28px minmax(0,1fr) auto}
+.g-label{grid-template-columns:var(--idw,56px) minmax(0,1fr) auto}
 .g-label .g-pre{grid-column:2/-1}
-.g-label[data-mvrow]{grid-template-columns:auto 28px minmax(0,1fr) auto} /* 先頭の列は「⠿」 */
+.g-label[data-mvrow]{grid-template-columns:auto var(--idw,56px) minmax(0,1fr) auto} /* 先頭の列は「⠿」 */
 .g-label[data-mvrow] .g-pre{grid-column:3/-1}
 .g-name{font:inherit;font-size:13px;text-align:left;background:none;border:0;padding:0;color:var(--ink);cursor:pointer;line-height:1.35;overflow-wrap:anywhere}
 .g-name:hover{color:var(--accent);text-decoration:underline}
@@ -523,6 +523,27 @@ body:has(.ptool){padding-block-start:8px}
 #view .ask.warn-ck b{color:var(--warn)}
 #view .ask.warn-ck ul{margin:6px 0;padding-left:18px}
 #view .ck-row .gx{opacity:1;position:static;min-width:32px;min-height:32px;color:var(--muted)}
+
+/* リストの重要の印: ガントの imp-high と同じ（左端に太い赤の線と、薄い赤の背景） */
+#view .tbl tr.imp td:first-child{box-shadow:inset 5px 0 0 var(--bad)}
+#view .tbl tr.imp{background:var(--bad-soft)}
+
+/* 今日の優先・今日のタスクの「重要」バッジ */
+#view .impbadge{background:var(--bad);color:#fff;font-size:10px;font-weight:700;border-radius:8px;padding:0 6px;margin-left:4px}
+
+/* スケジュールの重要の印: 枠は左に赤い線と赤い太字の件名、期限の行は赤い太字の件名 */
+#view .blk.imp{box-shadow:inset 5px 0 0 var(--bad)}
+#view .blk.imp .ttl{color:var(--bad);font-weight:700}
+#view .impt{color:var(--bad);font-weight:700}
+
+/* スケジュールのタスク編集欄（#mtgslot）。窓（.tpop）と同じ項目を、横に並べて出す */
+#view .tedit{flex-direction:column;align-items:stretch;max-width:640px}
+#view .tedit .tp-h{display:flex;align-items:center;gap:8px}
+#view .tedit .tp-h .muted{flex:1;font-size:12px}
+#view .tedit .tp-f{display:flex;flex-direction:column;gap:2px;font-size:12px}
+#view .tedit .tp-f .in{width:100%;box-sizing:border-box;min-width:0}
+#view .tedit .tp-r{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+#view .tedit .tp-a{display:flex;gap:8px;align-items:center}
 </style>
 </head>
 <body>
@@ -743,7 +764,7 @@ return { isRepeat, nextRepeatDue };
 })();
 
 /* src/core/schema.js */
-const { TASK_STATUS, PROJECT_STATUS, PROJECT_TYPE, IMPORTANCE, CAUSES, HOLIDAY_KINDS, OP_KINDS, PROPOSE_OPS, DEFAULT_WORKDAY, isClosed, validate } = (() => {
+const { TASK_STATUS, PROJECT_STATUS, PROJECT_TYPE, CAUSES, HOLIDAY_KINDS, OP_KINDS, PROPOSE_OPS, DEFAULT_WORKDAY, isClosed, isImportantMark, validate } = (() => {
 // data.json の検証。errors は保存してはいけない不整合、warnings は保存を止めない注意。
 
 
@@ -751,7 +772,6 @@ const { TASK_STATUS, PROJECT_STATUS, PROJECT_TYPE, IMPORTANCE, CAUSES, HOLIDAY_K
 const TASK_STATUS = ["To Do", "In Progress", "Waiting", "Done", "Cancelled"];
 const PROJECT_STATUS = ["計画中", "進行中", "保留", "完了", "中止"];
 const PROJECT_TYPE = ["増設", "更改", "改善", "不具合対処", "その他"];
-const IMPORTANCE = ["high"];
 const CAUSES = ["ベンダー", "社内", "自分", "その他"];
 const HOLIDAY_KINDS = ["祝日", "有給", "その他"];
 /** 期限が今日からこれ以上（日）離れていたら、年の打ち間違いとして注意に出す */
@@ -764,6 +784,9 @@ const DEFAULT_WORKDAY = { start: "09:00", end: "18:00" };
 
 /** 終わったタスク（Done・Cancelled）か */
 const isClosed = (t) => t.status === "Done" || t.status === "Cancelled";
+
+/** 重要の印を出すタスクか（重要で、終わっていない） */
+const isImportantMark = (t) => t.important === true && !isClosed(t);
 
 /** 同じ日の枠が重なるか（端が接するだけは重ならない） */
 const overlap = (a, b) => toMin(a.start) < toMin(b.end) && toMin(b.start) < toMin(a.end);
@@ -862,7 +885,7 @@ function validate(data, now = nowLocal()) {
     if (t.start != null && !isDate(t.start)) err(`タスク ${t.id}: 開始日の形式が不正です (${t.start})`);
     if (t.doneAt != null && !isDate(t.doneAt)) err(`タスク ${t.id}: 完了日の形式が不正です (${t.doneAt})`);
     if (t.repeat != null && !isRepeat(t.repeat)) err(`タスク ${t.id}: 繰り返し (repeat) は、{ unit: "week" } か { unit: "month", day: 1〜31 } にしてください`);
-    if (t.importance != null && !IMPORTANCE.includes(t.importance)) err(`タスク ${t.id}: 重要度 "${t.importance}" は使えません。重要度は高（high）かなしにしてください。data.json の importance を直してください`);
+    if (t.important !== undefined && t.important !== true) err(`タスク ${t.id}: 重要 (important) は true にするか、項目を消してください`);
     if (t.checklist !== undefined) {
       if (!Array.isArray(t.checklist)) err(`タスク ${t.id}: チェックリスト (checklist) が配列ではありません`);
       else {
@@ -997,13 +1020,15 @@ function validate(data, now = nowLocal()) {
     if (!isDate(c.at)) err("changeLog: 日付が不正です");
     if (!Number.isInteger(c.deltaDays)) err("changeLog: deltaDays が整数ではありません");
     if (c.cause != null && !CAUSES.includes(c.cause)) err(`changeLog: 不明な原因 "${c.cause}"`);
-    if (c.source != null && !["wbs", "calendar", "inbox", "screen"].includes(c.source)) err(`changeLog: 不明な source "${c.source}"`);
+    if (c.source != null && !["wbs", "calendar", "inbox"].includes(c.source)) err(`changeLog: 不明な source "${c.source}"`);
   }
+
+  if (data.orphanSessions?.length) warn(`共有ファイルに無いタスクの作業枠が ${data.orphanSessions.length} 件あります`);
 
   return { errors, warnings };
 }
 
-return { TASK_STATUS, PROJECT_STATUS, PROJECT_TYPE, IMPORTANCE, CAUSES, HOLIDAY_KINDS, OP_KINDS, PROPOSE_OPS, DEFAULT_WORKDAY, isClosed, validate };
+return { TASK_STATUS, PROJECT_STATUS, PROJECT_TYPE, CAUSES, HOLIDAY_KINDS, OP_KINDS, PROPOSE_OPS, DEFAULT_WORKDAY, isClosed, isImportantMark, validate };
 })();
 
 /* src/core/checklist.js */
@@ -1490,7 +1515,7 @@ function openDownstream(tasks, id) {
 
 /**
  * 今日の優先。対象は Done/Cancelled 以外で、前のタスクがすべて完了しているもの。
- * 点数 = 期限超過 100 + 期限点 × 倍率 + 重要度(高 12)
+ * 点数 = 期限超過 100 + 期限点 × 倍率 + 重要(important: true で 12)
  *   期限点 = 残り 30 日以内なら (30−残り日数)×1.5（超過した分も加算）、それより先は 0
  *   倍率   = 1 + min(未チェックの項目数, 10)/10（Waiting は 1）
  * 次のタスクの数は、点数には使わず、理由の表示だけに残す。Waiting の催促は、回答予定日を過ぎたときだけ +40（理由にも出す）。
@@ -1511,7 +1536,7 @@ function rankTasks(data, today) {
     if (left >= 0 && left <= 30) reasons.push(left === 0 ? "期限は今日" : `期限まで ${left}日`);
     const blocked = openDownstream(data.tasks, t.id);
     if (blocked) reasons.push(`次のタスク ${blocked} 件を止めている`);
-    if (t.importance === "high") { score += 12; reasons.push("重要度: 高"); }
+    if (t.important === true) { score += 12; reasons.push("重要"); }
     let action = "work";
     if (waiting) {
       action = "chase";
@@ -1812,11 +1837,105 @@ function isWatching(data, nowMs) {
 return { MAX_REQUESTS, MAX_TEXT, WATCH_FRESH_MS, getRequest, pruneRequests, submitRequest, claimRequest, askQuestion, replyToRequest, setProposal, rejectRequest, markApplied, markFailed, retryRequest, touchWatching, isWatching };
 })();
 
+/* src/core/split.js */
+const { PERSONAL_SETTINGS, SHARED_SETTINGS, splitData, mergeData, removeOrphanSessions, emptyPersonal, isOldShared, checkSharedShape, checkPersonalShape, exportFiles, dataFromTexts } = (() => {
+// 1 つのデータ（メモリ上の形）と、共有ファイル（data.json）・個人ファイル（personal.json）の間の変換。純関数。
+// 入力は変えず、新しいオブジェクトを返す。
+
+const PERSONAL_SETTINGS = ["workday", "holidays", "workdays", "selfEmails", "selfNames"];
+const SHARED_SETTINGS = ["countWeekendsAndHolidays", "nationalHolidays", "waitingLongDays", "projectRules", "labels", "wbsMappings", "wbsImports"];
+
+const pick = (obj, keys) => Object.fromEntries(keys.filter((k) => k in obj).map((k) => [k, obj[k]]));
+
+/** 共有ファイルと個人ファイルへ分ける。共有の設定は、個人の設定のキー以外すべて（未知のキーも共有） */
+function splitData(data) {
+  const { tasks, events, inbox, settings = {}, orphanSessions, ...rest } = data;
+  const sessions = [];
+  const sharedTasks = (tasks ?? []).map(({ sessions: ss, ...t }) => {
+    for (const s of ss ?? []) sessions.push({ ...s, taskId: t.id });
+    return t;
+  });
+  for (const s of orphanSessions ?? []) sessions.push({ ...s });
+  const personalSettings = pick(settings, PERSONAL_SETTINGS);
+  const sharedSettings = Object.fromEntries(Object.entries(settings).filter(([k]) => !PERSONAL_SETTINGS.includes(k)));
+  const shared = { ...rest, tasks: sharedTasks, settings: sharedSettings };
+  const personal = { version: data.version, sessions, events: events ?? [], settings: personalSettings, ...(inbox !== undefined ? { inbox } : {}) };
+  return { shared, personal };
+}
+
+/** 2 つのファイルを 1 つのデータへ戻す。共有に無い taskId の枠は orphanSessions に入れる */
+function mergeData(shared, personal) {
+  const ids = new Set(shared.tasks.map((t) => t.id));
+  const byTask = new Map();
+  const orphans = [];
+  for (const s of personal.sessions ?? []) {
+    const { taskId, ...session } = s;
+    if (!ids.has(taskId)) { orphans.push({ ...session, taskId }); continue; }
+    if (!byTask.has(taskId)) byTask.set(taskId, []);
+    byTask.get(taskId).push(session);
+  }
+  const { inbox, events } = personal;
+  return {
+    ...shared,
+    tasks: shared.tasks.map((t) => ({ ...t, sessions: byTask.get(t.id) ?? [] })),
+    events: events ?? [],
+    settings: { ...(shared.settings ?? {}), ...(personal.settings ?? {}) },
+    ...(inbox !== undefined ? { inbox } : {}),
+    ...(orphans.length ? { orphanSessions: orphans } : {}),
+  };
+}
+
+function removeOrphanSessions(data) {
+  return { ...data, orphanSessions: [] };
+}
+
+function emptyPersonal() {
+  return { version: 1, sessions: [], events: [], settings: {} };
+}
+
+const checkShape = (x, name, keys) => {
+  for (const k of keys) if (!Array.isArray(x?.[k])) throw new Error(`${name}のデータの形が違います（${k} がありません）`);
+};
+/** 作業枠（tasks[].sessions）・予定（events）を含む、分割前の 1 ファイルの data.json か。splitData は共有ファイルにどちらも書かない */
+const isOldShared = (x) => "events" in x || x.tasks.some((t) => t && typeof t === "object" && "sessions" in t);
+/** 旧形式は読まない（読むと、個人の作業枠・予定が空のデータになり、次の保存で共有ファイルから消える。移行は持たない） */
+const checkSharedShape = (x) => {
+  checkShape(x, "data.json", ["projects", "tasks", "changeLog"]);
+  if (isOldShared(x)) throw new Error("作業枠・予定を含む 1 ファイルの旧形式の data.json です。personal.json へ手で分けてください");
+};
+const checkPersonalShape = (x) => checkShape(x, "personal.json", ["sessions", "events"]);
+
+/** 直接保存できないブラウザの「JSON を書き出す」: ダウンロードする 2 つのファイル（名前は固定） */
+function exportFiles(data) {
+  const { shared, personal } = splitData(data);
+  return [["data.json", shared], ["personal.json", personal]].map(([name, obj]) => ({ name, text: JSON.stringify(obj, null, 2) + "\n" }));
+}
+
+/** 直接開けないブラウザで選んだファイルの中身（文字列。names は、同じ順のファイル名）から、共有・個人を形で見分けて 1 つのデータにする。ちょうど共有 1・個人 1 でなければ例外 */
+function dataFromTexts(texts, names = []) {
+  const shared = [], personal = [];
+  for (const [i, t] of texts.entries()) {
+    let x;
+    try { x = JSON.parse(t); } catch { throw new Error(`JSON として読めません（${names[i] ?? `${i + 1} つ目のファイル`}）`); }
+    if (Array.isArray(x?.projects)) shared.push(x); else personal.push(x);
+  }
+  if (shared.length !== 1 || personal.length !== 1) throw new Error("共有ファイル（data.json）と個人ファイル（personal.json）を 1 つずつ選んでください");
+  checkSharedShape(shared[0]);
+  checkPersonalShape(personal[0]);
+  return mergeData(shared[0], personal[0]);
+}
+
+return { PERSONAL_SETTINGS, SHARED_SETTINGS, splitData, mergeData, removeOrphanSessions, emptyPersonal, isOldShared, checkSharedShape, checkPersonalShape, exportFiles, dataFromTexts };
+})();
+
 /* src/ui/store.js */
-const { checkShape, createStore } = (() => {
+const { checkShape, createStore, createPairStore } = (() => {
 // データファイル(JSON)の読み書き。File System Access API を使い、選んだファイルのハンドルを IndexedDB に覚える。
 // 保存前に更新日時を比べ、他（Claude Code など）が更新していたら上書きせず conflict を返す。
 // 開き直しは、権限が許可済みなら restore（確認なし）、確認が必要なら reopen（ボタンの押下で確認だけ）。ファイル選択は choose だけが出す。
+// createPairStore は、共有ファイル（data.json）と個人ファイル（personal.json）の 2 つの createStore を、結合した 1 つのデータで扱う。
+
+
 
 const KEY = "dataFileHandle";
 const PICKER_TYPES = [{ description: "プロジェクトデータ (JSON)", accept: { "application/json": [".json"] } }];
@@ -1854,6 +1973,7 @@ function createStore(deps = {}) {
   const picker = deps.showOpenFilePicker ?? ((o) => window.showOpenFilePicker(o));
   const idb = deps.idb ?? defaultIdb();
   const check = deps.check ?? (() => {});
+  const key = deps.key ?? KEY;
   let handle = null;
   let loadedAt = null; // 読み込み（または直近の保存）時点のファイル更新日時
   let rememberFailed = false; // choose で選んだファイルを記憶できなかった（次回も選び直しになる）
@@ -1870,7 +1990,8 @@ function createStore(deps = {}) {
   /** h のファイルを読み、形を検査する。handle と loadedAt は変えない（検査に通ってから、呼び出し側が切り替える） */
   async function readFrom(h) {
     const file = await h.getFile();
-    const data = JSON.parse(await file.text());
+    let data;
+    try { data = JSON.parse(await file.text()); } catch { throw new Error(`JSON として読めません（${h.name}）`); }
     check(data);
     return { data, at: file.lastModified };
   }
@@ -1894,7 +2015,7 @@ function createStore(deps = {}) {
   /** 記憶したファイルの名前。なければ null、記憶を読めなければ { error } */
   async function lastFile() {
     try {
-      const saved = await idb.get(KEY);
+      const saved = await idb.get(key);
       return saved ? { name: saved.name } : null;
     } catch (e) {
       return { error: e?.message ?? String(e) };
@@ -1904,15 +2025,15 @@ function createStore(deps = {}) {
   /** 起動時の自動オープン。権限が許可済みのときだけ読み、確認もファイル選択も出さない。使えなければ null */
   async function restore() {
     let saved;
-    try { saved = await idb.get(KEY); } catch { return null; }
+    try { saved = await idb.get(key); } catch { return null; }
     if (!saved || (await saved.queryPermission({ mode: "readwrite" })) !== "granted") return null;
     return switchTo(saved);
   }
 
   /** 「前回のファイルを開く」。権限の確認だけを出し（ボタン押下の中で呼ぶ）、拒否されてもファイル選択には切り替えない */
   async function reopen() {
-    const saved = await idb.get(KEY);
-    if (!(await ensureWritable(saved))) throw new Error("ファイルへの書き込みが許可されませんでした。もう一度押して許可するか、「別のファイルを開く」で選び直してください");
+    const saved = await idb.get(key);
+    if (!(await ensureWritable(saved))) throw new Error("ファイルへの書き込みが許可されませんでした。もう一度押して許可するか、ファイルを選ぶボタンで選び直してください");
     return switchTo(saved);
   }
 
@@ -1921,7 +2042,7 @@ function createStore(deps = {}) {
     const [h] = await picker({ types: PICKER_TYPES, multiple: false });
     await ensureWritable(h);
     const data = await switchTo(h);
-    rememberFailed = (await idb.set(KEY, h)) === false;
+    rememberFailed = (await idb.set(key, h)) === false;
     return data;
   }
 
@@ -1933,6 +2054,13 @@ function createStore(deps = {}) {
   async function reload() {
     if (!handle) throw new Error("ファイルが選ばれていません");
     return load();
+  }
+
+  /** reload を 2 段に分けたもの（createPairStore 用）。読んで検査するだけで、読み込み時点は commit() を呼んだときに進める */
+  async function read() {
+    if (!handle) throw new Error("ファイルが選ばれていません");
+    const r = await readFrom(handle);
+    return { data: r.data, commit: () => { loadedAt = r.at; } };
   }
 
   async function save(data) {
@@ -1977,10 +2105,120 @@ function createStore(deps = {}) {
     return { ...second, data };
   }
 
-  return { restore, reopen, choose, lastFile, peek, reload, save, saveMerged, get hasFile() { return !!handle; }, get rememberFailed() { return rememberFailed; } };
+  return { restore, reopen, choose, lastFile, peek, reload, read, save, saveMerged, get hasFile() { return !!handle; }, get rememberFailed() { return rememberFailed; } };
 }
 
-return { checkShape, createStore };
+const PAIR = ["shared", "personal"];
+const PAIR_NAMES = { shared: "data.json", personal: "personal.json" };
+
+/**
+ * 共有ファイル（data.json）と個人ファイル（personal.json）を、結合した 1 つのデータ（mergeData の形）で読み書きする。
+ * 公開するメソッドは createStore と同じ形で、choose(which)・missing()・lastFile()（{ shared, personal }）が違う。
+ * 保存は、splitData で分けた 2 つのうち、直前に読んだ（保存した）内容から変わった方だけを、共有 → 個人の順に書く。
+ * 競合はファイルごとに検知し、当て直しは「そのファイルの最新 + もう片方の、編集を当てる前の内容」に edit を当てた、そのファイルの分
+ */
+function createPairStore(deps = {}) {
+  const stores = {
+    shared: createStore({ ...deps, key: "dataFileHandle", check: checkSharedShape }),
+    personal: createStore({ ...deps, key: "personalFileHandle", check: checkPersonalShape }),
+  };
+  const raw = { shared: null, personal: null }; // 直前に読んだ（または保存した）各ファイルの内容
+  // 当て直して書けたが、もう片方の保存が失敗した（画面のデータが、そのファイルより古い）ファイルの、編集を当てる前の内容。
+  // 次の保存は、画面のデータではなく、これに edit を当て直したものを、当て直さずに書く（画面の古いデータで、他の更新を上書きしない）
+  let behind = {};
+  // 当て直さずに書けたが、もう片方の保存が失敗したファイルの、編集を当てる前の内容。sync はその編集を持ったままなので、
+  // もう片方の当て直しの土台にする（書けた内容を土台にすると、同じ編集を 2 回当てる）。このファイル自身も、もう当て直さずに書く
+  let prior = {};
+  const hasFile = () => stores.shared.hasFile && stores.personal.hasFile;
+  const merged = () => (hasFile() ? mergeData(raw.shared, raw.personal) : null);
+  const missing = () => PAIR.filter((w) => !stores[w].hasFile);
+  const loaded = (w, d) => { raw[w] = d; behind = {}; prior = {}; };
+
+  /** 起動時の自動オープン。2 つとも開けたときだけ結合したデータ、そうでなければ null（足りない方は missing で分かる） */
+  async function restore() {
+    for (const w of PAIR) { const d = await stores[w].restore(); if (d) loaded(w, d); }
+    return merged();
+  }
+
+  /** まだ開いていない方を、権限の確認だけで開く。記憶の無い方は開かない（missing に残る） */
+  async function reopen() {
+    for (const w of missing()) {
+      if ((await stores[w].lastFile()) === null) continue;
+      loaded(w, await stores[w].reopen());
+    }
+    return merged();
+  }
+
+  /** which（"shared" | "personal"）のファイルを選ぶ。2 つとも開いたら結合したデータ、そうでなければ null */
+  async function choose(which) {
+    loaded(which, await stores[which].choose());
+    return merged();
+  }
+
+  async function lastFile() {
+    return { shared: await stores.shared.lastFile(), personal: await stores.personal.lastFile() };
+  }
+
+  async function peek() {
+    return mergeData(await stores.shared.peek(), await stores.personal.peek());
+  }
+
+  /** 2 つとも読めて形が合ってから、両方の読み込み時点を進める。片方でも失敗したら、何も変えずに例外
+   *  （片方だけ進めると、画面の古いデータが、その方の他の更新を競合なしで上書きする） */
+  async function reload() {
+    const fresh = { shared: await stores.shared.read(), personal: await stores.personal.read() };
+    for (const w of PAIR) { fresh[w].commit(); loaded(w, fresh[w].data); }
+    return merged();
+  }
+
+  /** edit が null なら当て直さない（save）。結果は createStore の saveMerged と同じ形で、message にファイル名を付ける */
+  async function write(data, edit) {
+    const base = { shared: behind.shared ?? prior.shared ?? raw.shared, personal: behind.personal ?? prior.personal ?? raw.personal }; // 編集を当てる前の内容
+    const redo = (w, fresh) => { base[w] = fresh; return splitData(edit(mergeData(base.shared, base.personal)))[w]; };
+    const before = splitData(mergeData(raw.shared, raw.personal)); // 直前の内容を splitData の形（キーの順）にそろえて比べる
+    const next = splitData(data);
+    const failed = [], ahead = [], written = [];
+    for (const w of PAIR) {
+      let part = next[w];
+      if (behind[w]) {
+        if (!edit) { failed.push({ w, r: { reason: "conflict", message: "他で更新されました。再読込してください" } }); continue; }
+        try { part = redo(w, behind[w]); } catch (e) { failed.push({ w, r: { reason: "conflict", message: e?.message ?? String(e) } }); continue; }
+      }
+      if (JSON.stringify(part) !== JSON.stringify(before[w])) {
+        // behind の方は、当て直した結果を、もう当て直さずに書く（その後にまた外から変わっていたら conflict。すでに書いた編集を 2 回当てない）
+        const r = edit && !behind[w] && !prior[w] ? await stores[w].saveMerged((fresh) => redo(w, fresh), part) : { ...(await stores[w].save(part)), data: part };
+        if (!r.ok) { failed.push({ w, r }); continue; }
+        raw[w] = r.data;
+        part = r.data;
+        if (part === next[w]) written.push(w);
+      }
+      if (part !== next[w]) ahead.push(w); // ファイルが、画面のデータより新しい（当て直した）
+      else delete behind[w];
+    }
+    if (!failed.length) {
+      behind = {}; prior = {};
+      return { ok: true, data: ahead.length ? mergeData(raw.shared, raw.personal) : data };
+    }
+    for (const w of ahead) { behind[w] = base[w]; delete prior[w]; }
+    for (const w of written) prior[w] = base[w];
+    const message = failed.map(({ w, r }) => `${PAIR_NAMES[w]}: ${r.message}`).join(" / ");
+    return { ok: false, reason: failed[0].r.reason, message, data };
+  }
+
+  async function save(data) {
+    const r = await write(data, null);
+    return r.ok ? { ok: true } : r;
+  }
+
+  return {
+    restore, reopen, choose, missing, lastFile, peek, reload, save,
+    saveMerged: (edit, data) => write(data, edit),
+    get hasFile() { return hasFile(); },
+    get rememberFailed() { return stores.shared.rememberFailed || stores.personal.rememberFailed; },
+  };
+}
+
+return { checkShape, createStore, createPairStore };
 })();
 
 /* src/ui/sync.js */
@@ -2018,8 +2256,9 @@ function createSync({ store, getData, setData, render, renderBar, banner, toast,
               try { setData(pending.reduce((acc, e) => e(acc), r.data)); } catch { pending = []; toast("他の更新と重なったため、直前の操作は反映されませんでした"); }
               render();
             }
-            if (sync.failed) banner("");
+            const recovered = sync.failed;
             sync.failed = false;
+            if (recovered) banner(""); // 失敗の印を下ろしてから。画面は、空の文を「検証の結果を出し直す」と読む
             return;
           }
           sync.failed = true;
@@ -2119,7 +2358,7 @@ return { DEFAULT_PREFS, loadPrefs, savePrefs, loadInboxDraft, saveInboxDraft, SE
 })();
 
 /* src/ui/common.js */
-const { esc, fmtMD, wdJa, hm, hh, STATUS_UI, flagPills, checkMeterHtml, NO_PROJECT } = (() => {
+const { esc, fmtMD, wdJa, hm, hh, STATUS_UI, flagPills, checkMeterHtml, NO_PROJECT, bannerHtml } = (() => {
 // 画面共通の小さな道具（HTML エスケープ、日付・時刻の表示、状態の見た目）。DOM には触れない。
 
 
@@ -2169,7 +2408,16 @@ function checkMeterHtml(t, { remain = false } = {}) {
 /** 「プロジェクトなし」の区切り（絞り込みの値は "none"）。id が null で、プロジェクトの見出し・進捗・マイルストーンは持たない */
 const NO_PROJECT = { id: null, name: "プロジェクトなし" };
 
-return { esc, fmtMD, wdJa, hm, hh, STATUS_UI, flagPills, checkMeterHtml, NO_PROJECT };
+/** バナーの HTML。orphans＝共有ファイルに無いタスクの作業枠の件数（あれば削除のボタン、pending なら確認） */
+function bannerHtml(msg, actions = {}, orphans = 0, pending = false) {
+  const orphan = !orphans ? "" : pending
+    ? ` ${esc(`${orphans} 件の作業枠を削除します。タスクが戻っていないか、少し待ってから確認してください`)} <button class="btn" data-orphan-ok>削除する</button> <button class="btn" data-orphan-cancel>やめる</button>`
+    : ` <button class="btn" data-orphan-clear>該当の枠を削除</button>`;
+  if (!msg && !orphan) return "";
+  return `<div class="banner">${esc(msg)}${actions.reload ? ` <button class="btn" data-reload>再読込(画面の未保存の変更は破棄)</button>` : ""}${actions.download ? ` <button class="btn" data-download>変更を JSON で書き出す</button>` : ""}${orphan}</div>`;
+}
+
+return { esc, fmtMD, wdJa, hm, hh, STATUS_UI, flagPills, checkMeterHtml, NO_PROJECT, bannerHtml };
 })();
 
 /* src/ui/deps.js */
@@ -2243,7 +2491,7 @@ return { depPath, depMarkup, drawDeps, focusDeps };
 })();
 
 /* src/ui/edit.js */
-const { predecessorCandidates, updateTask, recordDueChanges, setLogCause, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextTaskId, spawnNextRepeat, duplicateTask, addTaskQuick, addUrgentTask, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject } = (() => {
+const { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, duplicateTask, addTaskQuick, addUrgentTask, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject } = (() => {
 // 画面からの編集（追加・削除・更新）。すべて不変更新で、不正な入力は例外にする（呼び出し側が理由を表示する）。
 
 
@@ -2288,7 +2536,7 @@ function predecessorCandidates(data, taskId) {
 }
 
 /**
- * patch: title / status / due / start / importance / memo / group / subgroup / predecessors / waitingOn
+ * patch: title / status / due / start / important / memo / group / subgroup / predecessors / waitingOn
  * 状態を Done にすると doneAt に today、他へ戻すと null。Waiting は待ち先が必須で、外れると waitingOn は null。
  */
 function updateTask(data, taskId, patch, today = nowLocal().date) {
@@ -2307,7 +2555,7 @@ function updateTask(data, taskId, patch, today = nowLocal().date) {
       if (patch.start != null && patch.start !== "" && !isDate(patch.start)) throw new Error("開始日は YYYY-MM-DD の形式で入力してください");
       n.start = patch.start || null;
     }
-    if ("importance" in patch) n.importance = patch.importance ?? null;
+    if ("important" in patch) { if (patch.important) n.important = true; else delete n.important; }
     if ("repeat" in patch) {
       const r = patch.repeat;
       if (r == null) delete n.repeat;
@@ -2347,36 +2595,6 @@ function updateTask(data, taskId, patch, today = nowLocal().date) {
     if (n.start && n.start > n.due) throw new Error("開始日は期限以前にしてください");
     return n;
   });
-}
-
-// ---- 画面での期限変更の記録 ----
-const isScreenLog = (l, at, taskId) => l.source === "screen" && l.at === at && l.taskIds?.length === 1 && l.taskIds[0] === taskId;
-
-/**
- * before と after で期限が変わったタスクを、changeLog に残す（source: "screen"）。同じ日・同じタスクの記録は 1 件にまとめ、
- * 合計が 0 日になったら消す。画面の保存だけが使う（依頼・WBS の取り込みは、それぞれ自分で記録する）。
- */
-function recordDueChanges(before, after, today = nowLocal().date) {
-  const prev = new Map(before.tasks.map((t) => [t.id, t.due]));
-  let log = after.changeLog ?? [];
-  let changed = false;
-  for (const t of after.tasks) {
-    if (!prev.has(t.id) || prev.get(t.id) === t.due) continue;
-    const delta = diffDays(t.due, prev.get(t.id));
-    const i = log.findIndex((l) => isScreenLog(l, today, t.id));
-    changed = true;
-    if (i < 0) { log = [...log, { at: today, taskIds: [t.id], reason: "画面で期限を変更", cause: null, deltaDays: delta, source: "screen" }]; continue; }
-    const sum = log[i].deltaDays + delta;
-    log = sum === 0 ? log.filter((_, k) => k !== i) : log.map((l, k) => (k === i ? { ...l, deltaDays: sum } : l));
-  }
-  return changed ? { ...after, changeLog: log } : after;
-}
-
-/** 画面の変更の行（key: { at, taskId }）の原因を変える。cause は CAUSES のいずれか、または null */
-function setLogCause(data, { at, taskId }, cause) {
-  if (cause != null && !CAUSES.includes(cause)) throw new Error(`不明な原因 "${cause}"`);
-  if (!(data.changeLog ?? []).some((l) => isScreenLog(l, at, taskId))) throw new Error("該当する履歴がありません");
-  return { ...data, changeLog: data.changeLog.map((l) => (isScreenLog(l, at, taskId) ? { ...l, cause } : l)) };
 }
 
 // ---- チェックリスト（task.checklist = [{ id, text, done }]） ----
@@ -2568,21 +2786,38 @@ function moveProjectDates(data, projectId, edge, days) {
 }
 
 // ---- 追加・削除 ----
-/** ID の末尾の番号（「A3」→ 3）。このプロジェクトの ID でなければ 0。プロジェクトなし（null）の接頭辞は X */
-const idNumber = (id, projectId) => (String(id).startsWith(projectId) && /^\d+$/.test(String(id).slice(projectId.length)) ? Number(String(id).slice(projectId.length)) : 0);
+const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** 「<接頭辞>-<4 桁>」の番号（「AA-0003」→ 3）。この接頭辞の ID でなければ 0 */
+const idNumber = (id, prefix) => {
+  const m = new RegExp(`^${escapeRegExp(prefix)}-(\\d{4})$`).exec(String(id));
+  return m ? Number(m[1]) : 0;
+};
+
+const LETTERS = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
+
+/** 使われていない最初のプロジェクト ID（AA〜ZY）。ZZ はプロジェクトなしのタスクの接頭辞なので、プロジェクトには付けない */
+function nextProjectId(data) {
+  const used = new Set(data.projects.map((p) => p.id));
+  for (const a of LETTERS) for (const b of LETTERS) {
+    const id = a + b;
+    if (id !== "ZZ" && !used.has(id)) return id;
+  }
+  throw new Error("プロジェクトは 675 個までです");
+}
 
 /** いまのタスクと変更履歴（消したタスクの ID も残る）の最大番号 + 1。消したタスクの ID を使い回すと、変更履歴が別のタスクのものとして出る */
 function nextTaskId(data, projectId) {
-  const prefix = projectId ?? "X";
+  const prefix = projectId ?? "ZZ";
   const ids = [...data.tasks.map((t) => t.id), ...(data.changeLog ?? []).flatMap((c) => c.taskIds ?? [])];
-  let n = ids.reduce((m, id) => Math.max(m, idNumber(id, prefix)), 0) + 1;
-  while (data.tasks.some((t) => t.id === `${prefix}${n}`)) n++;
-  return `${prefix}${n}`;
+  const n = ids.reduce((m, id) => Math.max(m, idNumber(id, prefix)), 0) + 1;
+  if (n > 9999) throw new Error("タスクの番号が 9999 を超えます");
+  return `${prefix}-${String(n).padStart(4, "0")}`;
 }
 
 const newTask = (data, projectId, title, due, extra = {}) => ({
   id: nextTaskId(data, projectId), projectId, title, due, start: null, status: "To Do", memo: "",
-  predecessors: [], waitingOn: null, importance: null, doneAt: null, sessions: [], ...extra,
+  predecessors: [], waitingOn: null, doneAt: null, sessions: [], ...extra,
 });
 
 /** 元のタスクの直後（同じ大項目・中項目の並びの中）にタスクを入れる */
@@ -2591,9 +2826,10 @@ const insertAfter = (data, afterId, task) => {
   return { ...data, tasks: [...data.tasks.slice(0, i + 1), task, ...data.tasks.slice(i + 1)] };
 };
 
-/** 引き継ぐ項目（件名のほかに、大項目・中項目・重要度・メモ・チェックリスト。チェックリストは全項目を未チェックに戻す） */
+/** 引き継ぐ項目（件名のほかに、大項目・中項目・重要・メモ・チェックリスト。チェックリストは全項目を未チェックに戻す） */
 const carriedFields = (t) => {
-  const extra = { importance: t.importance ?? null, memo: t.memo ?? "" };
+  const extra = { memo: t.memo ?? "" };
+  if (t.important === true) extra.important = true;
   for (const k of ["group", "subgroup"]) if (t[k] != null) extra[k] = t[k];
   if (t.checklist?.length) extra.checklist = newChecklist(t.checklist.map((c) => c.text));
   return extra;
@@ -2747,10 +2983,7 @@ const addWorkday = (data, { date, note }) => withSetting(data, "workdays", upser
 const removeWorkday = (data, date) => withSetting(data, "workdays", removeByDate(data.settings?.workdays, date));
 
 function addProject(data, { name, type }, today = nowLocal().date) {
-  const used = new Set(data.projects.map((p) => p.id));
-  let id = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"].find((c) => !used.has(c));
-  for (let i = 1; !id; i++) if (!used.has(`P${i}`)) id = `P${i}`;
-  const p = { id, name, type, status: "計画中", start: today, due: addDays(today, 30), milestones: [] };
+  const p = { id: nextProjectId(data), name, type, status: "計画中", start: today, due: addDays(today, 30), milestones: [] };
   return { ...data, projects: [...data.projects, p] };
 }
 
@@ -2774,7 +3007,7 @@ function deleteProject(data, projectId) {
   return { ...data, settings, events, ...(inbox ? { inbox } : {}), projects: data.projects.filter((p) => p.id !== projectId), tasks: data.tasks.filter((t) => t.projectId !== projectId) };
 }
 
-return { predecessorCandidates, updateTask, recordDueChanges, setLogCause, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextTaskId, spawnNextRepeat, duplicateTask, addTaskQuick, addUrgentTask, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject };
+return { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, duplicateTask, addTaskQuick, addUrgentTask, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject };
 })();
 
 /* src/ui/donecheck.js */
@@ -3026,6 +3259,7 @@ const { doneAskHtml, todayTaskIds, renderTodayTasks, renderPrio, renderSide, ren
 
 
 const PILL = { "To Do": "off", "In Progress": "ok", Waiting: "wait", Done: "done", Cancelled: "off" };
+const IMP_BADGE = `<span class="impbadge">重要</span>`;
 const statusPill = (t) => `<span class="pill ${PILL[t.status] ?? "off"}">${esc(t.status)}</span>`;
 
 /** 着手（To Do・Waiting のとき）と完了（Done・Cancelled 以外）のボタン。今日のタスクが使う */
@@ -3066,7 +3300,7 @@ function renderTodayTasks(data, today, opts = {}) {
     const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? (t.projectId == null ? "プロジェクトなし" : ""));
     const times = slots.map((s) => esc(`${s.start}–${s.end}`)).join("、");
     const ask = opts.pendingDone?.id === t.id ? doneAskHtml(opts.pendingDone) : "";
-    return `<li data-today="${esc(t.id)}"${isClosed(t) ? ' class="closed"' : ""}><span class="pj">${proj}</span><span class="t">${esc(t.title)} ${statusPill(t)}</span><span class="why mono">${times}</span>${isClosed(t) ? "" : checkMeterHtml(t, { remain: true })}${isClosed(t) ? "" : statusButtons(t)}${ask}</li>`;
+    return `<li data-today="${esc(t.id)}"${isClosed(t) ? ' class="closed"' : ""}><span class="pj">${proj}</span><span class="t">${esc(t.title)} ${statusPill(t)}${isImportantMark(t) ? IMP_BADGE : ""}</span><span class="why mono">${times}</span>${isClosed(t) ? "" : checkMeterHtml(t, { remain: true })}${isClosed(t) ? "" : statusButtons(t)}${ask}</li>`;
   }).join("");
   return `<section class="panel todaytasks" aria-labelledby="h-td"><h2 id="h-td">今日のタスク</h2><ul class="rank tl">${items}</ul></section>`;
 }
@@ -3087,7 +3321,7 @@ function renderPrio(data, today, opts = {}) {
     const pill = a.count ? ` <span class="pill ok">${a.count}回・実績 ${a.hours.toFixed(1)}h</span>` : "";
     const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? (t.projectId == null ? "プロジェクトなし" : ""));
     const drag = sched ? ` draggable="true" data-pick="${esc(t.id)}" tabindex="0"` : "";
-    return `<li${drag} class="${picked === t.id ? "picked" : ""}"><span class="n">${i + 1}</span><span class="pj">${proj}</span><span class="t">${r.action === "chase" ? `<span class="act">${r.reasons.some((x) => x.includes("催促")) ? "催促" : "確認"}</span>` : ""}${esc(t.title)} ${statusPill(t)}${pill}</span>${checkMeterHtml(t, { remain: true })}<span class="why">${esc(r.reasons.join("。"))}</span></li>`;
+    return `<li${drag} class="${picked === t.id ? "picked" : ""}"><span class="n">${i + 1}</span><span class="pj">${proj}</span><span class="t">${r.action === "chase" ? `<span class="act">${r.reasons.some((x) => x.includes("催促")) ? "催促" : "確認"}</span>` : ""}${esc(t.title)} ${statusPill(t)}${pill}</span>${checkMeterHtml(t, { remain: true })}<span class="why">${isImportantMark(t) ? IMP_BADGE : ""}${esc(r.reasons.filter((x) => x !== "重要").join("。"))}</span></li>`;
   }).join("");
   const note = sched
     ? "タスクをカレンダーへドラッグして配置します(15分刻み・長さ1時間)。配置済みの枠もドラッグで移動できます。キーボードでは、タスクを選んで日表示の空き枠を押します。"
@@ -3118,9 +3352,10 @@ const { assignLevels, layoutMilestones, renderGantt } = (() => {
 
 
 
+
 const GANTT_WINDOWS = [["m1", "1か月"], ["m3", "3か月"], ["m6", "6か月"], ["y1", "1年"], ["all", "全期間"]];
 
-const legend = (showActual) => `<div class="legend"><span><i class="gbar b-todo" style="position:static;display:inline-block;width:22px;height:10px"></i>To Do</span><span><i class="gbar b-prog" style="position:static;display:inline-block;width:22px;height:10px"></i>In Progress</span><span><i class="gbar b-wait" style="position:static;display:inline-block;width:22px;height:10px"></i>Waiting</span><span><i class="gbar b-done" style="position:static;display:inline-block;width:22px;height:10px"></i>Done</span><span><i class="gbar gsum" style="position:static;display:inline-block;width:22px;height:8px"></i>プロジェクト全体</span><span><i class="ms" style="position:static;display:inline-block;transform:rotate(45deg);width:9px;height:9px"></i>マイルストーン</span>${showActual ? `<span><i class="gact" style="position:static;display:inline-block;width:22px;height:5px"></i>実績(最初の作業日〜完了日・今日)</span>` : ""}<span><i class="imp-key hi"></i>重要度 高（行を薄い赤で塗る）</span><span>開始日は、未入力なら前のタスクの期限から</span></div>`;
+const legend = (showActual) => `<div class="legend"><span><i class="gbar b-todo" style="position:static;display:inline-block;width:22px;height:10px"></i>To Do</span><span><i class="gbar b-prog" style="position:static;display:inline-block;width:22px;height:10px"></i>In Progress</span><span><i class="gbar b-wait" style="position:static;display:inline-block;width:22px;height:10px"></i>Waiting</span><span><i class="gbar b-done" style="position:static;display:inline-block;width:22px;height:10px"></i>Done</span><span><i class="gbar gsum" style="position:static;display:inline-block;width:22px;height:8px"></i>プロジェクト全体</span><span><i class="ms" style="position:static;display:inline-block;transform:rotate(45deg);width:9px;height:9px"></i>マイルストーン</span>${showActual ? `<span><i class="gact" style="position:static;display:inline-block;width:22px;height:5px"></i>実績(最初の作業日〜完了日・今日)</span>` : ""}<span><i class="imp-key hi"></i>重要（行を薄い赤で塗る）</span><span>開始日は、未入力なら前のタスクの期限から</span></div>`;
 
 function tools(win, hideDone) {
   const seg = GANTT_WINDOWS.map(([k, l]) => `<button data-gwin="${k}" aria-pressed="${win === k}">${l}</button>`).join("");
@@ -3260,7 +3495,7 @@ function renderGantt(data, projectIds, today, opts = {}) {
       } else {
         const name = `<button class="g-name" data-gedit="${esc(t.id)}" title="クリックで編集">${esc(t.title)}</button>`;
         const del = `<button class="gx" data-del="${esc(t.id)}" aria-label="${esc(t.id)} を削除">×</button>`;
-        const imp = t.importance === "high" && !["Done", "Cancelled"].includes(t.status) ? " imp-high" : ""; // 重要度の印（高）。完了したタスクには付けない
+        const imp = isImportantMark(t) ? " imp-high" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
         lab = `<div class="g-label${imp}" data-mvrow="${esc(t.id)}"><span class="mv" draggable="true" data-mvh="${esc(t.id)}" title="ドラッグで並べ替え" aria-label="${esc(t.id)} を並べ替え">⠿</span><span class="id">${esc(t.id)}</span>${name}${del}<span class="g-pre">${hasPre ? "← " + esc(t.predecessors.join(", ")) : ""}</span>${checkMeterHtml(t)}</div>`;
       }
       return `<div class="g-row">${lab}<div class="g-lane" ${laneStyle}>${bar}${act}<span class="g-due mono" style="left:${x(addDays(r.end, 1))}">${fmtMD(t.due)}</span></div></div>`;
@@ -3292,193 +3527,6 @@ function renderGantt(data, projectIds, today, opts = {}) {
 }
 
 return { assignLevels, layoutMilestones, renderGantt };
-})();
-
-/* src/ui/views/schedule.js */
-const { snapStart, snapFreeStart, weekStartOf, calendarGeometry, renderCalendar, renderSchedule } = (() => {
-// スケジュール画面（週／日）。位置と高さは勤務時間に対する % で表し、カレンダーの高さは CSS で画面に追従させる。
-
-
-
-
-
-
-
-
-
-const SLOT_STEP = 15;
-
-/** 15 分刻みに丸め、勤務時間内に収める（開始の分を返す） */
-function snapStart(minutes, durationMin, workday = DEFAULT_WORKDAY) {
-  const [ws, we] = [toMin(workday.start), toMin(workday.end)];
-  return Math.max(ws, Math.min(Math.round(minutes / SLOT_STEP) * SLOT_STEP, we - durationMin));
-}
-
-/** 押した空き枠の開始を、15 分刻みに丸める。長さは最短（15 分）で収めるので、1 時間より短い最後の空き枠でも前へ引かれない */
-const snapFreeStart = (minutes, workday = DEFAULT_WORKDAY) => snapStart(minutes, SLOT_STEP, workday);
-
-const weekStartOf = (d) => addDays(d, -((weekday(d) + 6) % 7));
-
-/** 勤務時間 → 位置計算（すべて % ） */
-function calendarGeometry(data) {
-  const wd = data.settings?.workday ?? DEFAULT_WORKDAY;
-  const h0 = toMin(wd.start);
-  const span = toMin(wd.end) - h0;
-  const pc = (m) => ((m - h0) / span) * 100;
-  return { wd, h0, span, pc, tp: (m) => `${pc(m).toFixed(3)}%`, ht: (a, b) => `calc(${(pc(b) - pc(a)).toFixed(3)}% - 2px)` };
-}
-
-const hoursHtml = (g) => {
-  let s = "";
-  for (let h = Math.ceil(g.h0 / 60); h * 60 <= g.h0 + g.span; h++) s += `<div class="hour" style="top:${(((h * 60 - g.h0) / g.span) * 100).toFixed(3)}%"><span>${h}:00</span></div>`;
-  return s;
-};
-
-function meetingBlocks(data, d, full, g, ctx) {
-  return (data.events ?? []).filter((m) => m.date === d && (ctx.showSkipped || !m.skip || ctx.selMtg === m.id)).map((m) => {
-    const a = Math.max(toMin(m.start), g.h0);
-    const b = Math.min(toMin(m.end), g.h0 + g.span);
-    if (b <= a) return "";
-    const manual = m.source === "manual";
-    const kind = meetingKind(m, ctx.now);
-    const kc = kind === "actual" ? "act" : kind === "unconfirmed" ? "unconf" : "";
-    const mark = m.skip ? " 不参加" : kind === "actual" ? " ✓" : kind === "unconfirmed" ? " 未確認" : "";
-    const pname = (data.projects ?? []).find((p) => p.id === m.projectId)?.name;
-    const by = m.projectBy === "manual" ? "（手動）" : m.projectBy === "rule" ? "（規則）" : "";
-    const proj = full ? `<span class="mp">${pname ? `プロジェクト: ${esc(pname)}${by}` : "プロジェクト未設定"}</span>` : "";
-    const confirm = full && kind === "unconfirmed" ? `<span class="bb"><button class="btn" data-confirmmtg="${esc(m.id)}">実績にする</button></span>` : "";
-    return `<div class="blk mtg ${m.skip ? "skip" : ""} ${kc} ${ctx.selMtg === m.id ? "sel" : ""}" data-mtg="${esc(m.id)}" tabindex="0" ${manual ? `draggable="true" data-dragmtg="${esc(m.id)}"` : ""} style="top:${g.tp(a)};height:${g.ht(a, b)}" title="${esc(m.title)}${m.skip ? "(参加しない)" : ""}${manual ? "" : "(予定表から取得)"}"><span class="tm">${esc(m.start)}-${esc(m.end)}${mark}</span>${esc(m.title)}${proj}${confirm}${manual ? `<i class="rz" data-rzm="${esc(m.id)}" aria-label="終了時刻を変更"></i>` : ""}</div>`;
-  }).join("");
-}
-
-const KIND_CLS = { actual: "act", unconfirmed: "unconf", planned: "plan" };
-const KIND_JA = { act: "実績", unconf: "未確認", plan: "予定" };
-/** 日表示の枠に出す、タスクの状態の文字 */
-const STATUS_JA = { "To Do": "未着手", "In Progress": "着手中", Waiting: "待ち", Done: "完了", Cancelled: "中止" };
-
-function sessionBlocks(data, d, full, g, ctx) {
-  return allSessions(data).filter((s) => s.date === d).map((s) => {
-    const kind = sessionKind(s, ctx.now);
-    const c = KIND_CLS[kind];
-    const confirm = full && kind === "unconfirmed" ? `<span class="bb"><button class="btn" data-confirm="${esc(s.id)}">実績にする</button></span>` : "";
-    const st = full ? ` <span class="stt">${STATUS_JA[data.tasks.find((t) => t.id === s.taskId).status] ?? ""}</span>` : "";
-    return `<div class="blk task ${c} ${ctx.selSess === s.id ? "sel" : ""}" draggable="true" tabindex="0" data-dragsess="${esc(s.id)}" style="top:${g.tp(toMin(s.start))};height:${g.ht(toMin(s.start), toMin(s.end))}" title="${esc(s.title)}(${KIND_JA[c]})"><span class="tm">${esc(s.start)}-${esc(s.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span>${full ? `${esc(s.taskId)} ` : ""}${esc(s.title)}${st}${confirm}<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i></div>`;
-  }).join("");
-}
-
-/** 会議と配置済みの枠を除いた空き時間 */
-function freeOf(data, d, g, isOff) {
-  if (isOff(d)) return [];
-  const busy = [...(data.events ?? []), ...allSessions(data)].filter((x) => x.date === d);
-  return freeSlots(busy, d, g.wd);
-}
-
-function meetingForm(data, ctx) {
-  const draft = ctx.mtgDraft;
-  const m = draft ?? (data.events ?? []).find((o) => o.id === ctx.selMtg);
-  if (!m) return "";
-  const isNew = !!draft;
-  const lock = !isNew && m.source === "mcp" ? "disabled" : "";
-  const projects = data.projects ?? [];
-  const autoId = matchProject(m.title, (data.settings?.projectRules ?? []).filter((r) => projects.some((p) => p.id === r.projectId)));
-  const autoName = projects.find((p) => p.id === autoId)?.name ?? "未設定";
-  const cur = isNew ? (m.projectId ?? "") : m.projectBy === "manual" ? m.projectId : "";
-  const projOpts = [`<option value=""${cur === "" ? " selected" : ""}>自動（規則）→ ${esc(autoName)}</option>`, ...projects.map((p) => `<option value="${esc(p.id)}"${cur === p.id ? " selected" : ""}>${esc(p.name)}</option>`)].join("");
-  return `<div class="mtgform" role="group" aria-label="会議の${isNew ? "追加" : "編集"}">
-    <label>件名<input class="in" data-mt="title" value="${esc(m.title)}" placeholder="会議名" style="min-width:200px" ${lock}></label>
-    <label>日付<input class="in" type="date" data-mt="date" value="${esc(m.date)}" ${lock}></label>
-    <label>開始<input class="in" type="time" step="900" data-mt="start" value="${esc(m.start)}" ${lock}></label>
-    <label>終了<input class="in" type="time" step="900" data-mt="end" value="${esc(m.end)}" ${lock}></label>
-    <label>プロジェクト<select class="in" data-mt="projectId" aria-label="会議のプロジェクト">${projOpts}</select></label>
-    <label class="chk"><input type="checkbox" data-mt="skip" ${m.skip ? "checked" : ""}>参加しない(空き時間として扱う)</label>
-    <div style="display:flex;gap:6px;align-items:center">${isNew ? `<button class="btn" data-mtgsave>追加</button><button class="btn" data-mtgcancel>キャンセル</button>` : `${m.source === "manual" ? `<button class="btn danger" data-delsel>会議を削除</button>` : ""}<button class="btn" data-mtgclose>閉じる</button>`}</div>
-    ${!isNew && m.source === "manual" ? `<p class="note" style="flex-basis:100%;margin:0">カレンダー上でドラッグして移動（別の日へも）、下端をドラッグして長さを変えられます。</p>` : ""}${!isNew && m.source === "mcp" ? `<p class="note" style="flex-basis:100%;margin:0">予定表から取得した会議です。件名と時間は取得内容が正のため変更できません。プロジェクトは、規則で自動に付き、ここで手動に変えられます。出席しない会議は「参加しない」にします（削除しても、次の取得で戻ります）。</p>` : ""}
-  </div>`;
-}
-
-/** 空き時間から突発タスクを登録する入力欄（件名・プロジェクト・長さ）。下書きがないときは出さない */
-function urgentForm(data, draft) {
-  if (!draft) return "";
-  const projOpts = [`<option value=""${draft.projectId === "" ? " selected" : ""}>プロジェクトなし</option>`, ...(data.projects ?? []).map((p) => `<option value="${esc(p.id)}"${draft.projectId === p.id ? " selected" : ""}>${esc(p.name)}</option>`)].join("");
-  const minOpts = [15, 30, 45, 60].map((m) => `<option value="${m}"${draft.minutes === m ? " selected" : ""}>${m} 分</option>`).join("");
-  return `<div class="mtgform urgform" role="group" aria-label="突発タスクの追加">
-    <label>件名<input class="in" data-ug="title" value="${esc(draft.title)}" placeholder="突発タスクの件名" style="min-width:200px"></label>
-    <label>プロジェクト<select class="in" data-ug="projectId" aria-label="突発タスクのプロジェクト">${projOpts}</select></label>
-    <label>長さ<select class="in" data-ug="minutes" aria-label="突発タスクの長さ">${minOpts}</select></label>
-    <span class="note" style="margin:0">${esc(draft.date)} ${esc(draft.start)} から</span>
-    <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-urgsave>追加</button><button class="btn" data-urgcancel>キャンセル</button></div>
-  </div>`;
-}
-
-/** カレンダー部分（週または日）＋凡例。会議の編集中はここだけを描き直す */
-function renderCalendar(data, today, opts) {
-  const { view = "week", date = today } = opts;
-  const ctx = { now: opts.now ?? { date: today, time: "00:00" }, selSess: opts.selSess ?? null, selMtg: opts.selMtg ?? null, showSkipped: opts.showSkipped === true };
-  const g = calendarGeometry(data);
-  const isOff = offDayChecker(data.settings);
-  let cal;
-  if (view === "week") {
-    const days = [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(weekStartOf(date), i));
-    const heads = days.map((d) => {
-      const free = freeOf(data, d, g, isOff).reduce((a, x) => a + toMin(x.end) - toMin(x.start), 0);
-      return `<button class="dh ${d === today ? "t" : ""}" data-day="${d}" aria-label="${fmtMD(d)}の1日表示">${fmtMD(d)}(${wdJa(d)})<small class="mono">${isOff(d) ? "—" : `空き ${(free / 60).toFixed(1)}h`}</small></button>`;
-    }).join("");
-    const cols = days.map((d) => `<div class="col dz ${d === today ? "today" : ""} ${isOff(d) ? "weekend" : ""}" data-date="${d}">${meetingBlocks(data, d, false, g, ctx)}${sessionBlocks(data, d, false, g, ctx)}</div>`).join("");
-    const dues = days.map((d) => {
-      const due = data.tasks.filter((t) => t.due === d && t.status !== "Done" && t.status !== "Cancelled");
-      return `<div class="duecell">${due.map((t) => `<div style="display:flex;gap:6px;align-items:baseline"><i class="dot ${STATUS_UI[t.status]?.dot ?? ""}${t.due < today ? " is-late" : ""}"></i><span>${esc(t.title)}</span></div>`).join("") || '<span class="muted">—</span>'}</div>`;
-    }).join("");
-    cal = `<div class="cal wk"><div class="week"><div></div>${heads}<div class="hrs">${hoursHtml(g)}</div>${cols}</div><div class="week" style="margin-top:8px"><div class="note" style="padding-top:6px">期限</div>${dues}</div></div>
-      <p class="note" style="margin:8px 0 0">日付を押すと1日表示に切り替わります。枠をクリックして選び、「枠を削除」か Delete キーで削除できます。</p>`;
-  } else {
-    const free = freeOf(data, date, g, isOff).filter((x) => toMin(x.end) - toMin(x.start) >= 20);
-    const fb = free.map((x) => `<button class="free" data-free="${toMin(x.start)}" style="top:calc(${g.pc(toMin(x.start)).toFixed(3)}% + 1px);height:calc(${(g.pc(toMin(x.end)) - g.pc(toMin(x.start))).toFixed(3)}% - 3px)" aria-label="空き ${x.start}から${x.end}">${x.start}-${x.end} 空き</button>`).join("");
-    const nowLine = date === ctx.now.date && toMin(ctx.now.time) >= g.h0 && toMin(ctx.now.time) <= g.h0 + g.span ? `<span class="nowline" style="top:${g.tp(toMin(ctx.now.time))}" title="現在 ${ctx.now.time}"></span>` : "";
-    const offKinds = data.settings?.countWeekendsAndHolidays === true ? "休み" : "土日・日本の祝日・休み"; // 土日祝を営業日に数える設定のときは、手動の休みだけが休みの日
-    const offNote = isOff(date) ? `<p class="note" style="margin:0 0 8px">この日は休みです（${offKinds}）。作業枠は置けません。設定タブの「営業日として扱う日」に指定すると置けます。</p>` : "";
-    cal = `${offNote}<div class="cal"><div class="cal-grid">${hoursHtml(g)}<div class="cal-body dz" id="calbody" data-date="${date}">${meetingBlocks(data, date, true, g, ctx)}${sessionBlocks(data, date, true, g, ctx)}${fb}${nowLine}</div></div></div>`;
-  }
-  const day = view === "day";
-  const legend = `<div class="slegend" aria-label="色の凡例"><span><i class="sw mtg"></i>会議</span>${ctx.showSkipped ? '<span><i class="sw skipsw"></i>参加しない会議</span>' : ""}<span><i class="sw mtgun"></i>未確認の会議</span><span><i class="sw plan"></i>予定</span><span><i class="sw act"></i>実績(✓)</span><span><i class="sw unconf"></i>未確認(過ぎた予定)</span>${day ? '<span><i class="sw free"></i>空き時間</span><span><i class="sw now"></i>現在時刻</span>' : ""}<span><i class="sw sel"></i>選択中</span></div>`;
-  return cal + legend;
-}
-
-/**
- * @param opts.view      "week" | "day"
- * @param opts.date      表示する日（週表示ではその日を含む週）
- * @param opts.now       {date, time}  現在時刻（過ぎた予定の判定に使う）
- * @param opts.selSess   選択中の枠 ID / opts.selMtg 選択中の会議 ID / opts.mtgDraft 追加中の会議の下書き / opts.urgentDraft 追加中の突発タスクの下書き
- * @param opts.picked    選択中のタスク ID（キーボード配置用）
- * @param opts.showPrio  false なら今日の優先を出さない
- * @param opts.showSkipped  true なら「参加しない」の会議も出す（既定は出さない。選択中の会議だけは、隠さない。空き時間の計算は変わらない）
- */
-function renderSchedule(data, today, opts) {
-  const { view = "week", date = today } = opts;
-  const now = opts.now ?? { date: today, time: "00:00" };
-  const step = view === "week" ? 7 : 1;
-  const days = view === "week" ? [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(weekStartOf(date), i)) : [date];
-  const title = view === "week" ? `${fmtMD(days[0])}〜${fmtMD(days[6])} の週` : `${fmtMD(date)}(${wdJa(date)})`;
-  const inView = allSessions(data).filter((s) => days.includes(s.date));
-  const kinds = inView.map((s) => sessionKind(s, now));
-  const hours = inView.filter((s, i) => kinds[i] === "actual").reduce((a, s) => a + toMin(s.end) - toMin(s.start), 0) / 60;
-  const planned = kinds.filter((k) => k === "planned").length;
-  const unconfS = kinds.filter((k) => k === "unconfirmed").length;
-  const unconfM = (data.events ?? []).filter((m) => days.includes(m.date) && meetingKind(m, now) === "unconfirmed").length;
-  const unconf = unconfS + unconfM;
-  const selSess = inView.find((s) => s.id === opts.selSess);
-  const selMtg = (data.events ?? []).find((m) => m.id === opts.selMtg && days.includes(m.date));
-  const delLabel = selSess ? `「${esc(selSess.title)}」の枠を削除` : selMtg && selMtg.source === "manual" ? `会議「${esc(selMtg.title)}」を削除` : "枠や会議を選んで削除";
-  const delOk = !!selSess || (selMtg && selMtg.source === "manual");
-  const calOpts = { ...opts, view, date, now, selSess: selSess?.id ?? null, selMtg: selMtg?.id ?? null };
-
-  const nav = `<div class="toolbar"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn" data-nav="${-step}" aria-label="前へ">←</button><button class="btn" data-nav="${step}" aria-label="次へ">→</button><button class="btn" data-sgoto>今日</button><strong style="margin-left:6px">${title}</strong></div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="chip-btn pref" data-sskip aria-pressed="${opts.showSkipped === true}" title="「参加しない」にした会議を、カレンダーに出したり隠したりします">参加しない会議</button><button class="btn" data-mtgadd>＋ 会議を追加</button><div class="seg" role="group" aria-label="表示"><button data-sview="week" aria-pressed="${view === "week"}">週</button><button data-sview="day" aria-pressed="${view === "day"}">日</button></div></div></div>
-    <div class="summary"><span>実績 <b class="mono">${hours.toFixed(1)}時間</b></span><span>予定 <b class="mono">${planned}件</b></span>${unconf ? `<span class="pill wait">未確認 ${unconf}件（作業枠 ${unconfS}・会議 ${unconfM}）</span><button class="btn" data-confirmall>未確認をすべて実績にする</button>` : ""}<button class="btn danger" data-delsel ${delOk ? "" : "disabled"}>${delLabel}</button></div>`;
-  return `<div class="cols${opts.showPrio === false ? " one" : ""}"><section class="panel">${nav}<div id="mtgslot">${meetingForm(data, { mtgDraft: opts.mtgDraft, selMtg: selMtg?.id })}${urgentForm(data, opts.urgentDraft)}</div><div id="calslot">${renderCalendar(data, today, calOpts)}</div></section>${renderSideToggle(opts.showPrio !== false)}${opts.showPrio === false ? "" : renderSide(data, today, { sched: true, picked: opts.picked, pendingDone: opts.pendingDone })}</div>`;
-}
-
-
-return { snapStart, snapFreeStart, weekStartOf, calendarGeometry, renderCalendar, renderSchedule };
 })();
 
 /* src/ui/views/workload.js */
@@ -3673,14 +3721,14 @@ const STATUS = {
 };
 const EXAMPLES = [["due", "期限が動いた"], ["add", "タスクを登録"]];
 
-/** 「書き方の例」で入る文。対象のプロジェクト（空なら先頭のタスクのプロジェクト）の、終わっていないタスクの ID を使う（なければ終わったもの、タスクが 0 件のときだけ A1）。
+/** 「書き方の例」で入る文。対象のプロジェクト（空なら先頭のタスクのプロジェクト）の、終わっていないタスクの ID を使う（なければ終わったもの、タスクが 0 件のときだけ AA-0001）。
  *  別のプロジェクトの ID を混ぜない（依頼が「別のプロジェクトです」で失敗する）。登録の期限の例は、今日の 14 日後 */
 function ibExamples(data, projectId, today) {
   const all = data?.tasks ?? [];
   const pid = projectId || all[0]?.projectId;
   const pool = all.filter((t) => t.projectId === pid);
   const ids = [...pool.filter((t) => t.status !== "Done"), ...pool.filter((t) => t.status === "Done")].map((t) => t.id);
-  const a = ids[0] ?? "A1";
+  const a = ids[0] ?? "AA-0001";
   return {
     due: `${a} が 5 日遅れた（原因: ベンダー）。`,
     add: `次を登録して: 結合テスト ${addDays(today, 14)} 大項目▸中項目 前のタスク ${a}`,
@@ -3802,7 +3850,7 @@ return { checklistEditorHtml };
 })();
 
 /* src/ui/views/taskpop.js */
-const { predEditHtml, startInputHtml, renderTaskPop } = (() => {
+const { predEditHtml, startInputHtml, renderTaskPop, renderTaskEditPanel } = (() => {
 // ガントチャートでタスク名・バーをクリックしたときに開く、編集の小さな窓。
 // 入力の属性（data-f・data-id・data-addpre・data-rmpre）は、リストの編集欄と同じ。保存と描き直しは、リストと同じ処理が受け持つ。
 // 窓を閉じる ×: data-tpopclose / 窓: data-tpop。「リストで開く」は data-goto、削除は data-del（どちらも既存の処理）
@@ -3827,6 +3875,26 @@ function startInputHtml(data, t) {
 }
 
 /**
+ * 編集の項目の HTML。窓（full: true）とスケジュールの編集欄（full は詳細を開いたときだけ）で共用。
+ * 軽い欄 = 件名・プロジェクト・状態・開始・期限・重要・メモ。full で、チェックリスト・前のタスク・繰り返しを足す
+ */
+function taskFieldsHtml(data, t, { full, statusHtml }) {
+  const id = esc(t.id);
+  const field = (label, inner) => `<label class="tp-f"><span class="muted">${label}</span>${inner}</label>`;
+  const projects = [["", "プロジェクトなし"], ...data.projects.map((p) => [p.id, p.name])].map(([v, l]) => `<option value="${esc(v)}" ${(t.projectId ?? "") === v ? "selected" : ""}>${esc(l)}</option>`).join("");
+  const imp = field("重要", `<input type="checkbox" data-f="important" data-id="${id}" ${t.important === true ? "checked" : ""}>`);
+  const repeat = field("繰り返し", `<select class="in sm" data-f="repeat" data-id="${id}"><option value="">なし</option><option value="week" ${t.repeat?.unit === "week" ? "selected" : ""}>毎週</option><option value="month" ${t.repeat?.unit === "month" ? "selected" : ""}>毎月${t.repeat?.unit === "month" ? `（${esc(t.repeat.day)} 日）` : ""}</option></select>`);
+  return `${field("件名", `<input class="in" data-f="title" data-id="${id}" value="${esc(t.title)}">`)}
+    ${field("プロジェクト", `<select class="in sm" data-f="projectId" data-id="${id}">${projects}</select>`)}
+    <div class="tp-f"><span class="muted">状態</span><div>${statusHtml}</div></div>
+    <div class="tp-r">${field("開始", startInputHtml(data, t))}${field("期限", `<input class="in" type="date" data-f="due" data-id="${id}" value="${esc(t.due)}">`)}</div>
+    ${full ? checklistEditorHtml(t) : ""}
+    ${full ? `<div class="tp-f"><span class="muted">前のタスク</span>${predEditHtml(data, t)}</div>` : ""}
+    <div class="tp-r">${imp}${full ? repeat : ""}</div>
+    ${field("メモ", `<input class="in" data-f="memo" data-id="${id}" value="${esc(t.memo ?? "")}" placeholder="メモ">`)}`;
+}
+
+/**
  * @param pop { id, x, y }  クリックした位置（画面の座標）。置き場所の調整は呼び出し側（画面の端に収める）
  * @param statusHtml 状態の欄（リストと同じ。待ち先・Done の確認の表示を含む）
  */
@@ -3834,28 +3902,33 @@ function renderTaskPop(data, pop, statusHtml) {
   const t = data.tasks.find((x) => x.id === pop.id);
   if (!t) return "";
   const id = esc(t.id);
-  const field = (label, inner) => `<label class="tp-f"><span class="muted">${label}</span>${inner}</label>`;
-  const importance = [["", "—"], ["high", "高"]].map(([v, l]) => `<option value="${v}" ${(t.importance ?? "") === v ? "selected" : ""}>${l}</option>`).join("");
-  const projects = [["", "プロジェクトなし"], ...data.projects.map((p) => [p.id, p.name])].map(([v, l]) => `<option value="${esc(v)}" ${(t.projectId ?? "") === v ? "selected" : ""}>${esc(l)}</option>`).join("");
   return `<div class="tpop" role="dialog" aria-label="${id} を編集" data-tpop style="left:${Math.round(pop.x)}px;top:${Math.round(pop.y)}px">
     <div class="tp-h"><b class="mono">${id}</b><span class="muted">${fmtMD(taskStart(data, t.id))}〜${fmtMD(t.due)}</span><button class="gx" data-tpopclose aria-label="編集を閉じる" style="opacity:1">×</button></div>
-    ${field("件名", `<input class="in" data-f="title" data-id="${id}" value="${esc(t.title)}">`)}
-    ${field("プロジェクト", `<select class="in sm" data-f="projectId" data-id="${id}">${projects}</select>`)}
-    <div class="tp-f"><span class="muted">状態</span><div>${statusHtml}</div></div>
-    <div class="tp-r">${field("開始", startInputHtml(data, t))}${field("期限", `<input class="in" type="date" data-f="due" data-id="${id}" value="${esc(t.due)}">`)}</div>
-    ${checklistEditorHtml(t)}
-    <div class="tp-f"><span class="muted">前のタスク</span>${predEditHtml(data, t)}</div>
-    <div class="tp-r">${field("重要度", `<select class="in sm" data-f="importance" data-id="${id}">${importance}</select>`)}${field("繰り返し", `<select class="in sm" data-f="repeat" data-id="${id}"><option value="">なし</option><option value="week" ${t.repeat?.unit === "week" ? "selected" : ""}>毎週</option><option value="month" ${t.repeat?.unit === "month" ? "selected" : ""}>毎月${t.repeat?.unit === "month" ? `（${esc(t.repeat.day)} 日）` : ""}</option></select>`)}</div>
-    ${field("メモ", `<input class="in" data-f="memo" data-id="${id}" value="${esc(t.memo ?? "")}" placeholder="メモ">`)}
+    ${taskFieldsHtml(data, t, { full: true, statusHtml })}
     <div class="tp-a"><button class="btn" data-goto="${id}">リストで開く</button><button class="btn" data-dup="${id}">複製</button><button class="btn danger" data-del="${id}">削除</button></div>
   </div>`;
 }
 
-return { predEditHtml, startInputHtml, renderTaskPop };
+/**
+ * スケジュール画面の編集欄（#mtgslot に出す）。対象のタスクが無ければ空。
+ * @param edit { id, full, askDel }  askDel が真なら削除の確認を出す。full が真なら、繰り返し・チェックリスト・前のタスク・複製・削除も出す
+ */
+function renderTaskEditPanel(data, edit, statusHtml) {
+  const t = data.tasks.find((x) => x.id === edit.id);
+  if (!t) return "";
+  const id = esc(t.id);
+  return `<div class="mtgform tedit" role="group" aria-label="${id} を編集" data-tedit>
+    <div class="tp-h"><b class="mono">${id}</b><span class="muted">${fmtMD(taskStart(data, t.id))}〜${fmtMD(t.due)}</span><button class="btn" data-tedit-full aria-expanded="${edit.full}">${edit.full ? "詳細を閉じる" : "詳細を開く"}</button><button class="gx" data-tedit-close aria-label="編集を閉じる" style="opacity:1">×</button></div>
+    ${taskFieldsHtml(data, t, { full: edit.full, statusHtml })}
+    ${edit.full ? `<div class="tp-a"><button class="btn" data-dup="${id}">複製</button>${edit.askDel ? `<span class="ask">このタスクを削除します。<button class="btn danger" data-delyes="${id}">削除する</button><button class="btn" data-tedit-delno>やめる</button></span>` : `<button class="btn danger" data-tedit-del="${id}">削除</button>`}</div>` : ""}
+  </div>`;
+}
+
+return { predEditHtml, startInputHtml, renderTaskPop, renderTaskEditPanel };
 })();
 
 /* src/ui/views/project.js */
-const { renderProjects } = (() => {
+const { statusCellHtml, renderProjects } = (() => {
 // プロジェクト画面: 絞り込み × ガント／リスト、右に「今日のタスク」「今日の優先」
 
 
@@ -3892,9 +3965,6 @@ function checkCell(t, opts) {
   return `<button class="ck-toggle${total ? "" : " ck-empty"}" data-cktoggle="${esc(t.id)}" aria-expanded="${open}" aria-label="${esc(t.id)} のチェックリスト">${label}</button>`;
 }
 
-/** 画面での期限変更の行の原因の選択欄（行は at とタスク ID で探す） */
-const causeSelect = (l) => `<select class="in sm" data-logcause="${esc(l.at)}|${esc(l.taskIds[0])}" aria-label="${esc(l.taskIds[0])} の変更の原因"><option value="">—</option>${CAUSES.map((c) => `<option ${c === l.cause ? "selected" : ""}>${c}</option>`).join("")}</select>`;
-
 function renderList(data, p, today, opts) {
   const none = p.id === null;
   const prog = none ? null : projectProgress(data, p.id);
@@ -3907,30 +3977,31 @@ function renderList(data, p, today, opts) {
       ? `<div class="ask">${dependents.length ? `次のタスク ${esc(dependents.join(", "))} の前のタスクから外れます。` : "このタスクを削除します。"}<div style="display:flex;gap:6px;margin-top:4px"><button class="btn danger" data-delyes="${esc(t.id)}">削除する</button><button class="btn" data-delno>やめる</button></div></div>`
       : `<button class="btn" data-del="${esc(t.id)}" aria-label="${esc(t.id)} を削除">削除</button>`;
     const late = taskFlags(t, today, data.settings).includes("overdue");
-    return `<tr data-row="${esc(t.id)}" data-mvrow="${esc(t.id)}"><td class="id" data-l="ID"><span class="mv" draggable="true" data-mvh="${esc(t.id)}" title="ドラッグで並べ替え" aria-label="${esc(t.id)} を並べ替え">⠿</span>${esc(t.id)}${t.repeat ? ` <span class="muted" title="${t.repeat.unit === "week" ? "毎週" : `毎月 ${esc(t.repeat.day)} 日`}の定例（完了で次回を作ります）" aria-label="定例">↻</span>` : ""}</td>
+    return `<tr${isImportantMark(t) ? ' class="imp"' : ""} data-row="${esc(t.id)}" data-mvrow="${esc(t.id)}"><td class="id" data-l="ID"><span class="mv" draggable="true" data-mvh="${esc(t.id)}" title="ドラッグで並べ替え" aria-label="${esc(t.id)} を並べ替え">⠿</span>${esc(t.id)}${t.repeat ? ` <span class="muted" title="${t.repeat.unit === "week" ? "毎週" : `毎月 ${esc(t.repeat.day)} 日`}の定例（完了で次回を作ります）" aria-label="定例">↻</span>` : ""}</td>
       <td data-l="${esc(labels.group)}"><input class="in gi" data-f="group" data-id="${esc(t.id)}" value="${esc(t.group ?? "")}" aria-label="${esc(t.id)} の${esc(labels.group)}"></td>
       <td data-l="${esc(labels.subgroup)}"><input class="in gi" data-f="subgroup" data-id="${esc(t.id)}" value="${esc(t.subgroup ?? "")}" aria-label="${esc(t.id)} の${esc(labels.subgroup)}"></td>
       <td data-l="件名"><input class="in" id="f-${esc(t.id)}-t" data-f="title" data-id="${esc(t.id)}" value="${esc(t.title)}" aria-label="${esc(t.id)} の件名"></td>
+      <td data-l="プロジェクト"><select class="in sm" data-f="projectId" data-id="${esc(t.id)}" aria-label="${esc(t.id)} のプロジェクト"><option value=""${t.projectId == null ? " selected" : ""}>プロジェクトなし</option>${data.projects.map((o) => `<option value="${esc(o.id)}"${o.id === t.projectId ? " selected" : ""}>${esc(o.name)}</option>`).join("")}</select></td>
       <td data-l="状態">${statusCellHtml(t, opts, late)}</td>
       <td data-l="開始">${startInputHtml(data, t)}</td>
       <td data-l="期限"><input class="in" type="date" data-f="due" data-id="${esc(t.id)}" value="${esc(t.due)}" aria-label="${esc(t.id)} の期限"></td>
       <td data-l="前のタスク">${predEditHtml(data, t)}</td>
       <td data-l="待ち先"><input class="in" data-f="party" data-id="${esc(t.id)}" value="${esc(t.waitingOn?.party ?? "")}" placeholder="${t.status === "Waiting" ? "ベンダー・部署名" : "—"}" ${t.status === "Waiting" ? "" : "disabled"} aria-label="${esc(t.id)} の待ち先">${needParty}<input class="in sm" type="date" data-f="expected" data-id="${esc(t.id)}" value="${esc(t.waitingOn?.expected ?? "")}" title="回答予定日" ${t.status === "Waiting" && t.waitingOn?.party ? "" : "disabled"} aria-label="${esc(t.id)} の回答予定日"></td>
-      <td data-l="重要度"><select class="in sm" data-f="importance" data-id="${esc(t.id)}" aria-label="${esc(t.id)} の重要度">${[["", "—"], ["high", "高"]].map(([v, l]) => `<option value="${v}" ${(t.importance ?? "") === v ? "selected" : ""}>${l}</option>`).join("")}</select></td>
+      <td data-l="重要"><input type="checkbox" data-f="important" data-id="${esc(t.id)}" ${t.important === true ? "checked" : ""} aria-label="${esc(t.id)} を重要にする"></td>
       <td data-l="メモ"><input class="in" data-f="memo" data-id="${esc(t.id)}" value="${esc(t.memo ?? "")}" placeholder="メモ" aria-label="${esc(t.id)} のメモ"></td>
       <td data-l="チェック">${checkCell(t, opts)}</td>
-      <td data-l="実績" class="mono muted">${actText(data, t.id)}</td><td data-l="">${delCell}</td></tr>${opts.checkOpen?.has(t.id) ? `<tr class="ck-tr" data-ckpanel="${esc(t.id)}"><td colspan="14">${checklistEditorHtml(t)}</td></tr>` : ""}`;
+      <td data-l="実績" class="mono muted">${actText(data, t.id)}</td><td data-l="">${delCell}</td></tr>${opts.checkOpen?.has(t.id) ? `<tr class="ck-tr" data-ckpanel="${esc(t.id)}"><td colspan="15">${checklistEditorHtml(t)}</td></tr>` : ""}`;
   };
   // (大項目, 中項目) ごとに見出し行を入れて並べる。「＋」はそのグループへ追加する入口なので、0 件でも「（なし）」を出す
   const secs = groupSections(tasks, { ensureNone: !none });
   const rows = secs.map((sec) => {
     const name = `${sec.group || "（なし）"}${sec.subgroup ? ` ▸ ${sec.subgroup}` : ""}`;
-    return `<tr class="grp-tr" data-mvgrp="${esc(p.id)}" data-mvg="${esc(sec.group)}" data-mvsg="${esc(sec.subgroup)}"><td colspan="14"><b>${esc(sec.group || "（なし）")}</b>${sec.subgroup ? ` <span class="muted">▸ ${esc(sec.subgroup)}</span>` : ""}${none ? "" : ` <button class="plus" data-addat="${esc(p.id)}" data-ag="${esc(sec.group)}" data-asg="${esc(sec.subgroup)}" aria-label="${esc(name)} にタスクを追加">＋</button>`}</td></tr>${sec.tasks.map(rowOf).join("")}`;
+    return `<tr class="grp-tr" data-mvgrp="${esc(p.id)}" data-mvg="${esc(sec.group)}" data-mvsg="${esc(sec.subgroup)}"><td colspan="15"><b>${esc(sec.group || "（なし）")}</b>${sec.subgroup ? ` <span class="muted">▸ ${esc(sec.subgroup)}</span>` : ""}${none ? "" : ` <button class="plus" data-addat="${esc(p.id)}" data-ag="${esc(sec.group)}" data-asg="${esc(sec.subgroup)}" aria-label="${esc(name)} にタスクを追加">＋</button>`}</td></tr>${sec.tasks.map(rowOf).join("")}`;
   }).join("");
 
   const projTaskIds = new Set(tasks.map((t) => t.id));
   const log = data.changeLog.filter((l) => l.source == null || Number(l.deltaDays) !== 0).filter((l) => (l.taskIds ?? []).some((id) => projTaskIds.has(id)))
-    .map((l) => `<li><span class="d">${fmtMD(l.at)}</span><span>${l.source === "screen" ? causeSelect(l) : `<span class="pill">${esc(l.cause ?? "—")}</span>`} ${esc(l.reason)} <span class="mono muted">(${esc((l.taskIds ?? []).join(", "))}・${Number(l.deltaDays) > 0 ? "+" : ""}${Number(l.deltaDays)}日)</span></span></li>`).join("")
+    .map((l) => `<li><span class="d">${fmtMD(l.at)}</span><span><span class="pill">${esc(l.cause ?? "—")}</span> ${esc(l.reason)} <span class="mono muted">(${esc((l.taskIds ?? []).join(", "))}・${Number(l.deltaDays) > 0 ? "+" : ""}${Number(l.deltaDays)}日)</span></span></li>`).join("")
     || `<li class="muted">変更履歴はありません。</li>`;
 
   const ms = (p.milestones ?? []).map((m, i) => `<div class="msrow"><input class="in" data-mf="name" data-pid="${esc(p.id)}" data-i="${i}" value="${esc(m.name)}" aria-label="マイルストーン名"><input class="in sm" type="date" data-mf="date" data-pid="${esc(p.id)}" data-i="${i}" value="${esc(m.date)}" aria-label="マイルストーンの日付"><button class="btn" data-msdel="${esc(p.id)}|${i}" aria-label="${esc(m.name)} を削除">削除</button></div>`).join("")
@@ -3940,7 +4011,7 @@ function renderList(data, p, today, opts) {
     ? `<span class="ask" style="max-width:none">プロジェクトと配下のタスク ${tasks.length} 件を削除します。 <button class="btn danger" data-pdelyes="${esc(p.id)}">削除する</button> <button class="btn" data-pdelno>やめる</button></span>`
     : `<button class="btn" data-pdel="${esc(p.id)}">プロジェクトを削除</button>`;
 
-  const table = `<div class="twrap"><div class="thstrip" aria-hidden="true"></div><div class="tscroll tlist"><table class="tbl edit"><thead><tr><th>ID</th><th>${esc(labels.group)}</th><th>${esc(labels.subgroup)}</th><th>件名</th><th>状態</th><th>開始</th><th>期限</th><th>前のタスク</th><th>待ち先</th><th>重要度</th><th>メモ</th><th>チェック</th><th>実績</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  const table = `<div class="twrap"><div class="thstrip" aria-hidden="true"></div><div class="tscroll tlist"><table class="tbl edit"><thead><tr><th>ID</th><th>${esc(labels.group)}</th><th>${esc(labels.subgroup)}</th><th>件名</th><th>プロジェクト</th><th>状態</th><th>開始</th><th>期限</th><th>前のタスク</th><th>待ち先</th><th>重要</th><th>メモ</th><th>チェック</th><th>実績</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
   if (none) return `<section class="panel" aria-label="${esc(p.name)}"><div class="pstick"><div class="prow"><h2>${esc(p.name)}</h2></div></div>${table}</section>`;
 
   return `<section class="panel" aria-label="${esc(p.name)}"><div class="pstick"><div class="prow"><h2><input class="in" data-pf="name" data-pid="${esc(p.id)}" value="${esc(p.name)}" style="font-size:17px;font-weight:700" aria-label="プロジェクト名"></h2><label>状態 <select class="in sm" data-pf="status" data-pid="${esc(p.id)}" aria-label="${esc(p.name)} の状態">${PROJECT_STATUS.map((o) => `<option ${o === p.status ? "selected" : ""}>${o}</option>`).join("")}</select></label></div><div class="phead"><div><div class="kv" style="align-items:center">
@@ -3952,7 +4023,7 @@ function renderList(data, p, today, opts) {
     <div style="display:flex;gap:12px;align-items:center;margin-top:12px;flex-wrap:wrap"><span class="note">変更はその場でファイルに保存されます。次のタスクの日程をまとめて見直すときは、画面の下端の「Claude Code に依頼する」に頼みます。</span></div>
     <h2 style="margin:18px 0 8px;font-size:13px">マイルストーン</h2>
     <div class="mslist">${ms}<div><button class="btn" data-msadd="${esc(p.id)}">＋ マイルストーンを追加</button> <span class="note">ガントに◆で表示されます。</span></div></div>
-    <h2 style="margin:18px 0 2px;font-size:13px">日程変更の履歴</h2><p class="note" style="margin:0 0 8px">日程が動いたとき、いつ・何が・なぜ動いたか(原因: ベンダー／社内／自分)の記録です。「Claude Code に依頼する」で期限の変更を反映したときと、画面で期限を変えたときに記録されます。画面での変更は原因が空で記録されるので、行の選択欄で後から選べます。</p><ul class="log">${log}</ul>
+    <h2 style="margin:18px 0 2px;font-size:13px">日程変更の履歴</h2><p class="note" style="margin:0 0 8px">日程が動いたとき、いつ・何が・なぜ動いたか(原因: ベンダー／社内／自分)の記録です。「Claude Code に依頼する」で期限の変更を反映したときと、取り込みで日程が動いたときに記録されます。画面で期限を直接変えたときは記録されません。</p><ul class="log">${log}</ul>
     <div style="margin-top:18px">${delProj}</div></section>`;
 }
 
@@ -3988,7 +4059,221 @@ function renderProjects(data, today, opts = {}) {
     <div class="cols${showPrio ? "" : " one"}">${body}${renderSideToggle(showPrio)}${showPrio ? renderSide(data, today, { sched: false, pendingDone: opts.pendingDone }) : ""}</div>${pop}`;
 }
 
-return { renderProjects };
+return { statusCellHtml, renderProjects };
+})();
+
+/* src/ui/views/schedule.js */
+const { snapStart, snapFreeStart, weekStartOf, calendarGeometry, firstFreeStart, urgentInput, urgentForm, renderCalendar, renderSchedule } = (() => {
+// スケジュール画面（週／日）。位置と高さは勤務時間に対する % で表し、カレンダーの高さは CSS で画面に追従させる。
+
+
+
+
+
+
+
+
+
+
+
+
+const SLOT_STEP = 15;
+
+/** 15 分刻みに丸め、勤務時間内に収める（開始の分を返す） */
+function snapStart(minutes, durationMin, workday = DEFAULT_WORKDAY) {
+  const [ws, we] = [toMin(workday.start), toMin(workday.end)];
+  return Math.max(ws, Math.min(Math.round(minutes / SLOT_STEP) * SLOT_STEP, we - durationMin));
+}
+
+/** 押した空き枠の開始を、15 分刻みに丸める。長さは最短（15 分）で収めるので、1 時間より短い最後の空き枠でも前へ引かれない */
+const snapFreeStart = (minutes, workday = DEFAULT_WORKDAY) => snapStart(minutes, SLOT_STEP, workday);
+
+const weekStartOf = (d) => addDays(d, -((weekday(d) + 6) % 7));
+
+/** 勤務時間 → 位置計算（すべて % ） */
+function calendarGeometry(data) {
+  const wd = data.settings?.workday ?? DEFAULT_WORKDAY;
+  const h0 = toMin(wd.start);
+  const span = toMin(wd.end) - h0;
+  const pc = (m) => ((m - h0) / span) * 100;
+  return { wd, h0, span, pc, tp: (m) => `${pc(m).toFixed(3)}%`, ht: (a, b) => `calc(${(pc(b) - pc(a)).toFixed(3)}% - 2px)` };
+}
+
+const hoursHtml = (g) => {
+  let s = "";
+  for (let h = Math.ceil(g.h0 / 60); h * 60 <= g.h0 + g.span; h++) s += `<div class="hour" style="top:${(((h * 60 - g.h0) / g.span) * 100).toFixed(3)}%"><span>${h}:00</span></div>`;
+  return s;
+};
+
+function meetingBlocks(data, d, full, g, ctx) {
+  return (data.events ?? []).filter((m) => m.date === d && (ctx.showSkipped || !m.skip || ctx.selMtg === m.id)).map((m) => {
+    const a = Math.max(toMin(m.start), g.h0);
+    const b = Math.min(toMin(m.end), g.h0 + g.span);
+    if (b <= a) return "";
+    const manual = m.source === "manual";
+    const kind = meetingKind(m, ctx.now);
+    const kc = kind === "actual" ? "act" : kind === "unconfirmed" ? "unconf" : "";
+    const mark = m.skip ? " 不参加" : kind === "actual" ? " ✓" : kind === "unconfirmed" ? " 未確認" : "";
+    const pname = (data.projects ?? []).find((p) => p.id === m.projectId)?.name;
+    const by = m.projectBy === "manual" ? "（手動）" : m.projectBy === "rule" ? "（規則）" : "";
+    const proj = full ? `<span class="mp">${pname ? `プロジェクト: ${esc(pname)}${by}` : "プロジェクト未設定"}</span>` : "";
+    const confirm = full && kind === "unconfirmed" ? `<span class="bb"><button class="btn" data-confirmmtg="${esc(m.id)}">実績にする</button></span>` : "";
+    return `<div class="blk mtg ${m.skip ? "skip" : ""} ${kc} ${ctx.selMtg === m.id ? "sel" : ""}" data-mtg="${esc(m.id)}" tabindex="0" ${manual ? `draggable="true" data-dragmtg="${esc(m.id)}"` : ""} style="top:${g.tp(a)};height:${g.ht(a, b)}" title="${esc(m.title)}${m.skip ? "(参加しない)" : ""}${manual ? "" : "(予定表から取得)"}"><span class="tm">${esc(m.start)}-${esc(m.end)}${mark}</span>${esc(m.title)}${proj}${confirm}${manual ? `<i class="rz" data-rzm="${esc(m.id)}" aria-label="終了時刻を変更"></i>` : ""}</div>`;
+  }).join("");
+}
+
+const KIND_CLS = { actual: "act", unconfirmed: "unconf", planned: "plan" };
+const KIND_JA = { act: "実績", unconf: "未確認", plan: "予定" };
+/** 日表示の枠に出す、タスクの状態の文字 */
+const STATUS_JA = { "To Do": "未着手", "In Progress": "着手中", Waiting: "待ち", Done: "完了", Cancelled: "中止" };
+
+function sessionBlocks(data, d, full, g, ctx) {
+  return allSessions(data).filter((s) => s.date === d).map((s) => {
+    const kind = sessionKind(s, ctx.now);
+    const c = KIND_CLS[kind];
+    const confirm = full && kind === "unconfirmed" ? `<span class="bb"><button class="btn" data-confirm="${esc(s.id)}">実績にする</button></span>` : "";
+    const task = data.tasks.find((t) => t.id === s.taskId);
+    const st = full ? ` <span class="stt">${STATUS_JA[task.status] ?? ""}</span>` : "";
+    const imp = isImportantMark(task) ? " imp" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
+    return `<div class="blk task ${c}${imp} ${ctx.selSess === s.id ? "sel" : ""}" draggable="true" tabindex="0" data-dragsess="${esc(s.id)}" style="top:${g.tp(toMin(s.start))};height:${g.ht(toMin(s.start), toMin(s.end))}" title="${esc(s.title)}(${KIND_JA[c]})"><span class="tm">${esc(s.start)}-${esc(s.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${full ? `${esc(s.taskId)} ` : ""}${esc(s.title)}</span>${st}${confirm}<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i></div>`;
+  }).join("");
+}
+
+/** 会議と配置済みの枠を除いた空き時間 */
+function freeOf(data, d, g, isOff) {
+  if (isOff(d)) return [];
+  const busy = [...(data.events ?? []), ...allSessions(data)].filter((x) => x.date === d);
+  return freeSlots(busy, d, g.wd);
+}
+
+/** 突発タスクの既定の開始: その日の勤務時間内で、会議・枠と重ならない最初の空き（今日なら現在時刻以降）の開始（15 分刻み）。なければ勤務の開始 */
+function firstFreeStart(data, date, now) {
+  const g = calendarGeometry(data);
+  const from = date === now.date ? toMin(now.time) : 0;
+  for (const x of freeOf(data, date, g, offDayChecker(data.settings))) {
+    let st = snapFreeStart(Math.max(toMin(x.start), from), g.wd);
+    if (st < from) st += SLOT_STEP; // 現在時刻より前へ戻さない
+    if (st + SLOT_STEP <= toMin(x.end)) return toHHMM(st);
+  }
+  return g.wd.start;
+}
+
+/** 突発タスクの入力欄の値 → addUrgentTask への入力。件名・日付・開始のどれかが空なら null（何も作らない） */
+function urgentInput(f) {
+  const title = f.title.trim(), date = f.date.trim(), start = f.start.trim();
+  if (!title || !date || !start) return null;
+  return { input: { title, projectId: f.projectId || null, date, start, minutes: +f.minutes } };
+}
+
+function meetingForm(data, ctx) {
+  const draft = ctx.mtgDraft;
+  const m = draft ?? (data.events ?? []).find((o) => o.id === ctx.selMtg);
+  if (!m) return "";
+  const isNew = !!draft;
+  const lock = !isNew && m.source === "mcp" ? "disabled" : "";
+  const projects = data.projects ?? [];
+  const autoId = matchProject(m.title, (data.settings?.projectRules ?? []).filter((r) => projects.some((p) => p.id === r.projectId)));
+  const autoName = projects.find((p) => p.id === autoId)?.name ?? "未設定";
+  const cur = isNew ? (m.projectId ?? "") : m.projectBy === "manual" ? m.projectId : "";
+  const projOpts = [`<option value=""${cur === "" ? " selected" : ""}>自動（規則）→ ${esc(autoName)}</option>`, ...projects.map((p) => `<option value="${esc(p.id)}"${cur === p.id ? " selected" : ""}>${esc(p.name)}</option>`)].join("");
+  return `<div class="mtgform" role="group" aria-label="会議の${isNew ? "追加" : "編集"}">
+    <label>件名<input class="in" data-mt="title" value="${esc(m.title)}" placeholder="会議名" style="min-width:200px" ${lock}></label>
+    <label>日付<input class="in" type="date" data-mt="date" value="${esc(m.date)}" ${lock}></label>
+    <label>開始<input class="in" type="time" step="900" data-mt="start" value="${esc(m.start)}" ${lock}></label>
+    <label>終了<input class="in" type="time" step="900" data-mt="end" value="${esc(m.end)}" ${lock}></label>
+    <label>プロジェクト<select class="in" data-mt="projectId" aria-label="会議のプロジェクト">${projOpts}</select></label>
+    <label class="chk"><input type="checkbox" data-mt="skip" ${m.skip ? "checked" : ""}>参加しない(空き時間として扱う)</label>
+    <div style="display:flex;gap:6px;align-items:center">${isNew ? `<button class="btn" data-mtgsave>追加</button><button class="btn" data-mtgcancel>キャンセル</button>` : `${m.source === "manual" ? `<button class="btn danger" data-delsel>会議を削除</button>` : ""}<button class="btn" data-mtgclose>閉じる</button>`}</div>
+    ${!isNew && m.source === "manual" ? `<p class="note" style="flex-basis:100%;margin:0">カレンダー上でドラッグして移動（別の日へも）、下端をドラッグして長さを変えられます。</p>` : ""}${!isNew && m.source === "mcp" ? `<p class="note" style="flex-basis:100%;margin:0">予定表から取得した会議です。件名と時間は取得内容が正のため変更できません。プロジェクトは、規則で自動に付き、ここで手動に変えられます。出席しない会議は「参加しない」にします（削除しても、次の取得で戻ります）。</p>` : ""}
+  </div>`;
+}
+
+/** 空き時間から突発タスクを登録する入力欄（件名・プロジェクト・長さ）。下書きがないときは出さない */
+function urgentForm(data, draft) {
+  if (!draft) return "";
+  const projOpts = [`<option value=""${draft.projectId === "" ? " selected" : ""}>プロジェクトなし</option>`, ...(data.projects ?? []).map((p) => `<option value="${esc(p.id)}"${draft.projectId === p.id ? " selected" : ""}>${esc(p.name)}</option>`)].join("");
+  const minOpts = [15, 30, 45, 60].map((m) => `<option value="${m}"${draft.minutes === m ? " selected" : ""}>${m} 分</option>`).join("");
+  return `<div class="mtgform urgform" role="group" aria-label="突発タスクの追加">
+    <label>件名<input class="in" data-ug="title" value="${esc(draft.title)}" placeholder="突発タスクの件名" style="min-width:200px"></label>
+    <label>プロジェクト<select class="in" data-ug="projectId" aria-label="突発タスクのプロジェクト">${projOpts}</select></label>
+    <label>長さ<select class="in" data-ug="minutes" aria-label="突発タスクの長さ">${minOpts}</select></label>
+    <label>日付<input class="in" type="date" data-ug="date" value="${esc(draft.date)}"></label>
+    <label>開始<input class="in" type="time" step="900" data-ug="start" value="${esc(draft.start)}"></label>
+    <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-urgsave>追加</button><button class="btn" data-urgcancel>キャンセル</button></div>
+  </div>`;
+}
+
+/** カレンダー部分（週または日）＋凡例。会議の編集中はここだけを描き直す */
+function renderCalendar(data, today, opts) {
+  const { view = "week", date = today } = opts;
+  const ctx = { now: opts.now ?? { date: today, time: "00:00" }, selSess: opts.selSess ?? null, selMtg: opts.selMtg ?? null, showSkipped: opts.showSkipped === true };
+  const g = calendarGeometry(data);
+  const isOff = offDayChecker(data.settings);
+  let cal;
+  if (view === "week") {
+    const days = [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(weekStartOf(date), i));
+    const heads = days.map((d) => {
+      const free = freeOf(data, d, g, isOff).reduce((a, x) => a + toMin(x.end) - toMin(x.start), 0);
+      return `<button class="dh ${d === today ? "t" : ""}" data-day="${d}" aria-label="${fmtMD(d)}の1日表示">${fmtMD(d)}(${wdJa(d)})<small class="mono">${isOff(d) ? "—" : `空き ${(free / 60).toFixed(1)}h`}</small></button>`;
+    }).join("");
+    const cols = days.map((d) => `<div class="col dz ${d === today ? "today" : ""} ${isOff(d) ? "weekend" : ""}" data-date="${d}">${meetingBlocks(data, d, false, g, ctx)}${sessionBlocks(data, d, false, g, ctx)}</div>`).join("");
+    const dues = days.map((d) => {
+      const due = data.tasks.filter((t) => t.due === d && t.status !== "Done" && t.status !== "Cancelled");
+      return `<div class="duecell">${due.map((t) => `<div style="display:flex;gap:6px;align-items:baseline"><i class="dot ${STATUS_UI[t.status]?.dot ?? ""}${t.due < today ? " is-late" : ""}"></i><span${isImportantMark(t) ? ' class="impt"' : ""}>${esc(t.title)}</span></div>`).join("") || '<span class="muted">—</span>'}</div>`;
+    }).join("");
+    cal = `<div class="cal wk"><div class="week"><div></div>${heads}<div class="hrs">${hoursHtml(g)}</div>${cols}</div><div class="week" style="margin-top:8px"><div class="note" style="padding-top:6px">期限</div>${dues}</div></div>
+      <p class="note" style="margin:8px 0 0">日付を押すと1日表示に切り替わります。枠をクリックして選び、「枠を削除」か Delete キーで削除できます。</p>`;
+  } else {
+    const free = freeOf(data, date, g, isOff).filter((x) => toMin(x.end) - toMin(x.start) >= 20);
+    const fb = free.map((x) => `<button class="free" data-free="${toMin(x.start)}" style="top:calc(${g.pc(toMin(x.start)).toFixed(3)}% + 1px);height:calc(${(g.pc(toMin(x.end)) - g.pc(toMin(x.start))).toFixed(3)}% - 3px)" aria-label="空き ${x.start}から${x.end}">${x.start}-${x.end} 空き</button>`).join("");
+    const nowLine = date === ctx.now.date && toMin(ctx.now.time) >= g.h0 && toMin(ctx.now.time) <= g.h0 + g.span ? `<span class="nowline" style="top:${g.tp(toMin(ctx.now.time))}" title="現在 ${ctx.now.time}"></span>` : "";
+    const offKinds = data.settings?.countWeekendsAndHolidays === true ? "休み" : "土日・日本の祝日・休み"; // 土日祝を営業日に数える設定のときは、手動の休みだけが休みの日
+    const offNote = isOff(date) ? `<p class="note" style="margin:0 0 8px">この日は休みです（${offKinds}）。作業枠は置けません。設定タブの「営業日として扱う日」に指定すると置けます。</p>` : "";
+    cal = `${offNote}<div class="cal"><div class="cal-grid">${hoursHtml(g)}<div class="cal-body dz" id="calbody" data-date="${date}">${meetingBlocks(data, date, true, g, ctx)}${sessionBlocks(data, date, true, g, ctx)}${fb}${nowLine}</div></div></div>`;
+  }
+  const day = view === "day";
+  const legend = `<div class="slegend" aria-label="色の凡例"><span><i class="sw mtg"></i>会議</span>${ctx.showSkipped ? '<span><i class="sw skipsw"></i>参加しない会議</span>' : ""}<span><i class="sw mtgun"></i>未確認の会議</span><span><i class="sw plan"></i>予定</span><span><i class="sw act"></i>実績(✓)</span><span><i class="sw unconf"></i>未確認(過ぎた予定)</span>${day ? '<span><i class="sw free"></i>空き時間</span><span><i class="sw now"></i>現在時刻</span>' : ""}<span><i class="sw sel"></i>選択中</span></div>`;
+  return cal + legend;
+}
+
+/**
+ * @param opts.view      "week" | "day"
+ * @param opts.date      表示する日（週表示ではその日を含む週）
+ * @param opts.now       {date, time}  現在時刻（過ぎた予定の判定に使う）
+ * @param opts.selSess   選択中の枠 ID / opts.selMtg 選択中の会議 ID / opts.mtgDraft 追加中の会議の下書き / opts.urgentDraft 追加中の突発タスクの下書き / opts.taskEdit 編集欄を開いているタスク { id, full, askDel }
+ * @param opts.picked    選択中のタスク ID（キーボード配置用）
+ * @param opts.showPrio  false なら今日の優先を出さない
+ * @param opts.showSkipped  true なら「参加しない」の会議も出す（既定は出さない。選択中の会議だけは、隠さない。空き時間の計算は変わらない）
+ */
+function renderSchedule(data, today, opts) {
+  const { view = "week", date = today } = opts;
+  const now = opts.now ?? { date: today, time: "00:00" };
+  const step = view === "week" ? 7 : 1;
+  const days = view === "week" ? [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(weekStartOf(date), i)) : [date];
+  const title = view === "week" ? `${fmtMD(days[0])}〜${fmtMD(days[6])} の週` : `${fmtMD(date)}(${wdJa(date)})`;
+  const inView = allSessions(data).filter((s) => days.includes(s.date));
+  const kinds = inView.map((s) => sessionKind(s, now));
+  const hours = inView.filter((s, i) => kinds[i] === "actual").reduce((a, s) => a + toMin(s.end) - toMin(s.start), 0) / 60;
+  const planned = kinds.filter((k) => k === "planned").length;
+  const unconfS = kinds.filter((k) => k === "unconfirmed").length;
+  const unconfM = (data.events ?? []).filter((m) => days.includes(m.date) && meetingKind(m, now) === "unconfirmed").length;
+  const unconf = unconfS + unconfM;
+  const selSess = inView.find((s) => s.id === opts.selSess);
+  const selMtg = (data.events ?? []).find((m) => m.id === opts.selMtg && days.includes(m.date));
+  const delLabel = selSess ? `「${esc(selSess.title)}」の枠を削除` : selMtg && selMtg.source === "manual" ? `会議「${esc(selMtg.title)}」を削除` : "枠や会議を選んで削除";
+  const delOk = !!selSess || (selMtg && selMtg.source === "manual");
+  const calOpts = { ...opts, view, date, now, selSess: selSess?.id ?? null, selMtg: selMtg?.id ?? null };
+
+  const nav = `<div class="toolbar"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn" data-nav="${-step}" aria-label="前へ">←</button><button class="btn" data-nav="${step}" aria-label="次へ">→</button><button class="btn" data-sgoto>今日</button><strong style="margin-left:6px">${title}</strong></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="chip-btn pref" data-sskip aria-pressed="${opts.showSkipped === true}" title="「参加しない」にした会議を、カレンダーに出したり隠したりします">参加しない会議</button><button class="btn" data-mtgadd>＋ 会議を追加</button><div class="seg" role="group" aria-label="表示"><button data-sview="week" aria-pressed="${view === "week"}">週</button><button data-sview="day" aria-pressed="${view === "day"}">日</button></div></div></div>
+    <div class="summary"><span>実績 <b class="mono">${hours.toFixed(1)}時間</b></span><span>予定 <b class="mono">${planned}件</b></span>${unconf ? `<span class="pill wait">未確認 ${unconf}件（作業枠 ${unconfS}・会議 ${unconfM}）</span><button class="btn" data-confirmall>未確認をすべて実績にする</button>` : ""}<button class="btn danger" data-delsel ${delOk ? "" : "disabled"}>${delLabel}</button>${selSess ? `<button class="btn" data-tedit-open="${esc(selSess.taskId)}">タスクを編集</button>` : ""}</div>`;
+  const et = opts.taskEdit ? data.tasks.find((t) => t.id === opts.taskEdit.id) : null;
+  const editPanel = et ? renderTaskEditPanel(data, opts.taskEdit, statusCellHtml(et, { ...opts, todayIds: opts.showPrio === false ? new Set() : new Set(todayTaskIds(data, today)) }, taskFlags(et, today, data.settings).includes("overdue"))) : "";
+  return `<div class="cols${opts.showPrio === false ? " one" : ""}"><section class="panel">${nav}<div id="mtgslot">${meetingForm(data, { mtgDraft: opts.mtgDraft, selMtg: selMtg?.id })}${urgentForm(data, opts.urgentDraft)}${editPanel}</div><div id="calslot">${renderCalendar(data, today, calOpts)}</div></section>${renderSideToggle(opts.showPrio !== false)}${opts.showPrio === false ? "" : renderSide(data, today, { sched: true, picked: opts.picked, pendingDone: opts.pendingDone })}</div>`;
+}
+
+
+return { snapStart, snapFreeStart, weekStartOf, calendarGeometry, firstFreeStart, urgentInput, urgentForm, renderCalendar, renderSchedule };
 })();
 
 /* src/ui/sticky.js */
@@ -4114,7 +4399,7 @@ return { syncSticky };
 /* src/ui/app.js */
 (() => {
 // ダッシュボード本体: 状態の保持、描画、保存、イベントの結線。判断ロジックは src/core、見た目は src/ui/views、データ編集は src/ui/edit.js。
-const store = createStore({ check: checkShape });
+const store = createPairStore();
 let settingTimer = null; // 勤務時間の保存待ちのタイマー（changeSettingSoon）。render が最初に呼ばれる前に宣言しておく
 const params = new URLSearchParams(location.search);
 // ?today=2026-10-20&time=10:15 で「現在」を固定できる(デモ・動作確認用)
@@ -4125,7 +4410,7 @@ const S = {
   screen: "gantt",
   filter: "all", gwin: "m6", hideDone: false,
   askDel: null, askDelProject: null, pendingWait: null, pendingDone: null, checkOpen: new Set(),
-  sview: "week", sdate: clock().date, selSess: null, selMtg: null, mtgDraft: null, urgentDraft: null, picked: null,
+  sview: "week", sdate: clock().date, selSess: null, selMtg: null, mtgDraft: null, urgentDraft: null, taskEdit: null, picked: null,
   prefs: loadPrefs(), settingsClosed: loadSettingsClosed(), tpop: null, addAt: null, last: null, ruleError: "",
   ib: { open: false, text: loadInboxDraft(), projectId: "", replies: {}, reasons: {}, causes: {} },
   wperiod: "week", wdate: clock().date,
@@ -4142,16 +4427,24 @@ function toast(msg) {
 }
 
 /* ---------- 描画 ---------- */
+/** 開始画面の、まだ開いていないファイルごとの案内と選ぶボタン */
+const PICK = {
+  shared: `<p><b>共有ファイルを選んでください。</b>プロジェクトとタスク（<code>/project-lens:init</code> が作った <code>.project-lens/data.json</code>）です。</p><button class="btn" data-open="shared">共有ファイルを選ぶ</button>`,
+  personal: `<p><b>個人ファイルを選んでください。</b>自分の作業枠・予定・勤務時間（既定は <code>.project-lens/personal.json</code>）です。</p><button class="btn" data-open="personal">個人ファイルを選ぶ</button>`,
+};
 function startScreen() {
   const canPick = typeof window.showOpenFilePicker === "function";
+  const miss = store.missing();
+  const names = miss.map((w) => S.last?.[w]?.name).filter(Boolean); // 前回のファイルを開くは、足りない方に記憶があるときだけ
+  const errs = miss.map((w) => S.last?.[w]?.error).filter(Boolean);
   return `<section class="panel"><h2>データファイルを開いてください</h2>
-    <p>プロジェクトとタスクのデータ(JSON)を選びます。初めてのときは、<code>/project-lens:init</code> が作った <code>.project-lens/data.json</code> を選んでください。</p>
-    ${canPick ? `${S.last?.name ? `<button class="btn primary" data-reopen>前回のファイル（${esc(S.last.name)}）を開く</button> <button class="btn" data-openfile>別のファイルを開く</button>` : `<button class="btn" data-openfile>ファイルを開く</button>`}${S.last?.error ? `<p class="note">前回のファイルの記憶を読めませんでした（${esc(S.last.error)}）。毎回ファイルを選ぶ必要があります。</p>` : ""}`
-      : `<p class="note">このブラウザはファイルへの直接保存に対応していません。読み込みだけできます。変更したときは、画面上部の「JSON を書き出す」で保存してください(Edge か Chrome なら直接保存できます)。</p><input type="file" accept=".json,application/json" data-fileinput aria-label="データファイルを選ぶ">`}
+    <p>共有ファイル（data.json）と個人ファイル（personal.json）の 2 つを選ぶと、画面が開きます。</p>
+    ${canPick ? `${names.length ? `<p><button class="btn primary" data-reopen>前回のファイル（${esc(names.join("・"))}）を開く</button></p>` : ""}${miss.map((w) => PICK[w]).join("")}${miss.length === 1 ? `<p class="note">${miss[0] === "shared" ? "個人" : "共有"}ファイルは選びました。</p>` : ""}${errs.length ? `<p class="note">前回のファイルの記憶を読めませんでした（${esc(errs[0])}）。毎回ファイルを選ぶ必要があります。</p>` : ""}`
+      : `<p class="note">このブラウザはファイルへの直接保存に対応していません。読み込みだけできます。共有ファイルと個人ファイルを、一度に 2 つ選んでください。変更したときは、画面上部の「JSON を書き出す」で、2 つのファイルを保存してください(Edge か Chrome なら直接保存できます)。</p><input type="file" multiple accept=".json,application/json" data-fileinput aria-label="共有ファイルと個人ファイルを選ぶ">`}
     ${S.openError ? `<p class="ask" style="max-width:none" role="alert">${esc(S.openError)}</p>` : ""}</section>`;
 }
 
-const scheduleOpts = () => ({ view: S.sview, date: S.sdate, now: clock(), selSess: S.selSess, selMtg: S.selMtg, mtgDraft: S.mtgDraft, urgentDraft: S.urgentDraft, picked: S.picked, showPrio: S.prefs.showPrio, showSkipped: S.prefs.showSkipped, pendingDone: S.pendingDone });
+const scheduleOpts = () => ({ view: S.sview, date: S.sdate, now: clock(), selSess: S.selSess, selMtg: S.selMtg, mtgDraft: S.mtgDraft, urgentDraft: S.urgentDraft, taskEdit: S.taskEdit, pendingWait: S.pendingWait, picked: S.picked, showPrio: S.prefs.showPrio, showSkipped: S.prefs.showSkipped, pendingDone: S.pendingDone });
 
 function renderBody() {
   const { date: today } = clock();
@@ -4189,10 +4482,11 @@ function render() {
   hideTip();
   clearTimeout(settingTimer); settingTimer = null; // 描き直しで入力欄を取り除くときに focusout が走り、保存が入れ子の描き直しになるのを防ぐ（待っていた入力は、描き直しで消えるのと同じ）
   if (S.tpop && !S.data.tasks.some((t) => t.id === S.tpop.id)) S.tpop = null; // 読み直しで対象のタスクが消えたら、窓も閉じる
+  if (S.taskEdit && (S.screen !== "schedule" || !S.data.tasks.some((t) => t.id === S.taskEdit.id))) S.taskEdit = null; // スケジュールの編集欄も同じ
   const c = clock();
   $("todaylabel").textContent = `${c.date.replace(/-/g, "/")}(${wdJa(c.date)})`;
   document.querySelectorAll("nav [role=tab]").forEach((b) => b.setAttribute("aria-selected", String(b.id === "tab-" + S.screen)));
-  $("filebar").innerHTML = S.data ? `<button class="chip-btn pref" data-pref="actual" aria-pressed="${S.prefs.showActual}" title="ガントの実績の線を出したり隠したりします">ガント実績</button><span class="fsep" aria-hidden="true"></span><button class="btn" data-refresh title="ファイルを読み直します(Claude Code などが更新した内容を反映)">更新</button><button class="btn" data-openfile>別のファイルを開く</button>${typeof window.showOpenFilePicker === "function" ? "" : `<button class="btn" data-download>JSON を書き出す</button>`}` : "";
+  $("filebar").innerHTML = S.data ? `<button class="chip-btn pref" data-pref="actual" aria-pressed="${S.prefs.showActual}" title="ガントの実績の線を出したり隠したりします">ガント実績</button><span class="fsep" aria-hidden="true"></span><button class="btn" data-urgent-open title="空き時間を押さずに、突発タスクの入力欄を開きます">＋ 突発タスク</button><button class="btn" data-refresh title="ファイルを読み直します(Claude Code などが更新した内容を反映)">更新</button><button class="btn" data-open="shared" title="別の共有ファイル（data.json）を選びます">別の共有ファイル</button><button class="btn" data-open="personal" title="別の個人ファイル（personal.json）を選びます">別の個人ファイル</button>${typeof window.showOpenFilePicker === "function" ? "" : `<button class="btn" data-download>JSON を書き出す</button>`}` : "";
   document.body.classList.toggle("picking", !!S.picked && S.screen === "schedule" && S.sview === "day");
   renderBar();
   // ガントの横スクロール位置(全プロジェクトで同じ)とページの縦の位置は、編集で描き直しても保つ(表示期間・絞り込みなどを変えたときだけ今日の位置へ戻す)。
@@ -4280,21 +4574,33 @@ function scrollToday(smooth) {
 
 /* ---------- 保存 ---------- */
 function banner(msg, actions = {}) {
-  $("banner").innerHTML = msg ? `<div class="banner">${esc(msg)}${actions.reload ? ` <button class="btn" data-reload>再読込(画面の未保存の変更は破棄)</button>` : ""}${actions.download ? ` <button class="btn" data-download>変更を JSON で書き出す</button>` : ""}</div>` : "";
+  if (!msg && !actions.validated && S.data) { refreshBanner(); return; } // 空の文＝失敗の案内を下ろす。検証の結果を出し直す
+  S.banner = { msg, actions };
+  // 共有に無い枠の削除は、検証の注意に添える（失敗の案内には付けない）
+  const orphans = actions.validated ? (S.data?.orphanSessions?.length ?? 0) : 0;
+  if (!orphans) S.pendingOrphan = false;
+  $("banner").innerHTML = bannerHtml(msg, actions, orphans, S.pendingOrphan);
+}
+/** データの検証結果（問題・注意）をバナーに出し直す。ファイルを読み直したあと・他の更新を取り込んだあとも、これで出す */
+function refreshBanner() {
+  const { errors, warnings } = validate(S.data, clock());
+  banner(errors.length ? `データに問題があります: ${errors.slice(0, 3).join(" / ")}` : warnings.length ? `注意: ${warnings.slice(0, 2).join(" / ")}` : "", { validated: true });
 }
 
+/** 共有・個人の 2 つのファイルを、続けてダウンロードする（ブラウザが連続のダウンロードを確認することがある） */
 function downloadJson() {
-  const blob = new Blob([JSON.stringify(S.data, null, 2) + "\n"], { type: "application/json" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "data.json";
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  exportFiles(S.data).forEach(({ name, text }, i) => setTimeout(() => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }, i * 300));
 }
 
 /** 保存と読み直し（競合の当て直しを含む）。中身は ui/sync.js */
 const sync = createSync({
-  store, getData: () => S.data, setData: (d) => { S.data = d; }, render, renderBar, banner, toast,
+  store, getData: () => S.data, setData: (d) => { S.data = d; if (!sync.failed) refreshBanner(); }, render, renderBar, banner, toast,
   visible: () => document.visibilityState !== "hidden", wantFast: () => S.ib.open,
 });
 
@@ -4321,19 +4627,21 @@ function loaded(data) {
   sync.reset();
   S.ruleError = "";
   S.openError = "";
-  const { errors, warnings } = validate(data, clock());
-  banner(errors.length ? `データに問題があります: ${errors.slice(0, 3).join(" / ")}` : warnings.length ? `注意: ${warnings.slice(0, 2).join(" / ")}` : "");
+  S.pendingOrphan = false;
+  refreshBanner();
 }
 
-/** mode: "choose"＝ファイル選択を出す / "reopen"＝前回のファイルを、権限の確認だけで開く */
-async function openFile(mode) {
+/** mode: "choose"＝which（"shared" | "personal"）のファイル選択を出す / "reopen"＝前回のファイルを、権限の確認だけで開く。
+ *  2 つとも開いたときだけデータが返り、画面を開く。片方だけなら、開始画面のまま、足りない方の案内を出す */
+async function openFile(mode, which) {
   try {
-    loaded(await (mode === "reopen" ? store.reopen() : store.choose()));
-    S.resetScroll = true;
+    const data = await (mode === "reopen" ? store.reopen() : store.choose(which));
+    if (data) { loaded(data); S.resetScroll = true; } else S.openError = "";
     if (store.rememberFailed) toast("このブラウザでは、選んだファイルを記憶できません。次回もファイルを選ぶ必要があります");
   } catch (e) {
     if (e?.name === "AbortError") return;
     S.openError = `開けません: ${e.message}`;
+    if (S.data) toast(S.openError); // 開始画面は無いので、画面上部の案内ではなく、通知で知らせる
   }
   render();
 }
@@ -4439,7 +4747,7 @@ function submitGAdd(input) {
 }
 
 /* ---------- 選択と削除 ---------- */
-const clearSel = () => { S.selSess = null; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; };
+const clearSel = () => { S.selSess = null; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.taskEdit = null; };
 
 function deleteSelected() {
   if (S.selMtg) {
@@ -4449,7 +4757,7 @@ function deleteSelected() {
   }
   const s = S.data.tasks.flatMap((t) => (t.sessions ?? []).map((x) => ({ ...x, task: t }))).find((x) => x.id === S.selSess);
   if (!s) { toast("削除する枠を選んでください"); return; }
-  S.selSess = null;
+  S.selSess = null; S.taskEdit = null;
   apply((d) => removeSession(d, s.id), `${s.task.title} の${s.kind === "actual" ? "実績" : "予定"}の枠を削除しました`);
 }
 
@@ -4460,6 +4768,18 @@ function togglePref(key) {
   S.prefs = { ...S.prefs, [key]: !S.prefs[key] };
   savePrefs(S.prefs);
   render();
+}
+
+/** 「更新」・バナーの再読込。読み直せなくても、保存していない編集を捨てる（sync.reset）。
+ *  捨てると伝えた編集を残すと、次の保存で、最新のファイルに当て直されてしまう。失敗したときは、再読込のボタンつきのバナーを出す */
+async function reloadFile(okMsg) {
+  let err = null;
+  try { S.data = await store.reload(); } catch (e) { err = e; }
+  sync.reset();
+  S.ruleError = "";
+  if (err) banner(`読み直せません: ${err.message}（画面の内容は、まだファイルと違う可能性があります）`, { reload: true, download: true }); else { S.pendingOrphan = false; refreshBanner(); }
+  render();
+  toast(err ? err.message : okMsg);
 }
 
 /* ---------- クリック ---------- */
@@ -4477,20 +4797,36 @@ document.querySelector("nav").addEventListener("click", (e) => {
 $("filebar").addEventListener("click", async (e) => {
   const pf = e.target.closest("[data-pref]");
   if (pf) { togglePref("showActual"); return; }
+  if (e.target.closest("[data-urgent-open]")) {
+    clearSel(); S.tpop = null; S.pendingDone = null; S.ruleError = "";
+    const date = S.screen === "schedule" ? S.sdate : clock().date;
+    S.screen = "schedule"; S.sdate = date; S.resetScroll = true;
+    S.urgentDraft = { date, start: firstFreeStart(S.data, date, clock()), title: "", projectId: "", minutes: 30 };
+    render(); view.querySelector('[data-ug="title"]')?.focus();
+    return;
+  }
   if (e.target.closest("[data-refresh]")) {
     await sync.whenIdle();
     if (sync.failed && !S.confirmRefresh) { S.confirmRefresh = true; toast("保存できていない変更があります。もう一度「更新」を押すと破棄して読み直します"); return; }
     S.confirmRefresh = false;
-    try { S.data = await store.reload(); sync.reset(); S.ruleError = ""; banner(""); render(); toast("ファイルから読み直しました"); } catch (err) { toast(err.message); }
+    reloadFile("ファイルから読み直しました");
     return;
   }
-  if (e.target.closest("[data-openfile]")) openFile("choose");
+  const pick = e.target.closest("[data-open]");
+  if (pick) openFile("choose", pick.dataset.open);
   if (e.target.closest("[data-download]")) downloadJson();
 });
 $("banner").addEventListener("click", async (e) => {
   if (e.target.closest("[data-download]")) downloadJson();
-  if (e.target.closest("[data-reload]")) {
-    try { S.data = await store.reload(); sync.reset(); S.ruleError = ""; banner(""); render(); toast("再読込しました"); } catch (err) { toast(err.message); }
+  if (e.target.closest("[data-reload]")) reloadFile("再読込しました");
+  const again = () => banner(S.banner.msg, S.banner.actions); // いま出している案内のまま、確認の状態だけ変えて描く
+  if (e.target.closest("[data-orphan-clear]")) { S.pendingOrphan = true; again(); }
+  if (e.target.closest("[data-orphan-cancel]")) { S.pendingOrphan = false; again(); }
+  if (e.target.closest("[data-orphan-ok]")) {
+    S.pendingOrphan = false;
+    const n = S.data.orphanSessions?.length ?? 0;
+    apply((d) => removeOrphanSessions(d), `共有ファイルに無いタスクの作業枠 ${n} 件を削除しました`);
+    if (!sync.failed) refreshBanner(); else again();
   }
 });
 
@@ -4498,7 +4834,7 @@ $("banner").addEventListener("click", async (e) => {
  *  画面の描き直しで target が DOM から外れる前に判定するため、キャプチャ段階で処理する */
 document.addEventListener("click", (e) => {
   if (S.tpop && !view.contains(e.target)) { S.tpop = null; render(); return; } // ガントの編集の窓は、画面の外のクリックでも閉じる
-  if (view.contains(e.target) || !(S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft)) return;
+  if (view.contains(e.target) || !(S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.taskEdit)) return;
   if (e.target.closest("[data-delsel]")) return;
   clearSel();
   render();
@@ -4518,7 +4854,7 @@ view.addEventListener("click", (e) => {
   if (S.tpop && !q(".tpop,[data-gt],[data-gh]")) { S.tpop = null; render(); } // 閉じたあと、押したものの操作もそのまま行う
   let cleared = false;
   // 欄外のクリックで、枠・会議の選択と追加中の下書きを外す
-  if ((S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft) && !q("[data-dragsess],[data-mtg],[data-delsel],.mtgform,[data-mtgadd],[data-confirm],[data-confirmmtg],[data-confirmall]")) { clearSel(); cleared = true; }
+  if ((S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.taskEdit) && !q("[data-dragsess],[data-mtg],[data-delsel],[data-tedit-open],.mtgform,[data-mtgadd],[data-confirm],[data-confirmmtg],[data-confirmall]")) { clearSel(); cleared = true; }
   const { date: today, time } = clock();
   const now = clock();
 
@@ -4538,7 +4874,8 @@ view.addEventListener("click", (e) => {
   const rdel = q("[data-rdel]");
   if (rdel) { ruleApply((d) => removeProjectRule(d, rdel.dataset.rdel), "規則を削除しました"); return; }
   if (q("[data-reopen]")) { openFile("reopen"); return; }
-  if (q("[data-openfile]")) { openFile("choose"); return; }
+  const pick = !S.data && q("[data-open]"); // 開始画面の「共有／個人ファイルを選ぶ」。データがあるときの data-open は、プロジェクトの絞り込み（下）
+  if (pick) { openFile("choose", pick.dataset.open); return; }
   /* プロジェクト画面 */
   const gw = q("[data-gwin]"); if (gw) { S.gwin = gw.dataset.gwin; S.resetScroll = true; render(); return; }
   if (q("[data-hidedone]")) { S.hideDone = !S.hideDone; render(); return; }
@@ -4633,9 +4970,9 @@ view.addEventListener("click", (e) => {
   }
   if (q("[data-delsel]")) { deleteSelected(); return; }
   const sb = q("[data-dragsess]");
-  if (sb && !q("[data-rz]")) { S.selSess = S.selSess === sb.dataset.dragsess ? null : sb.dataset.dragsess; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; render(); return; }
+  if (sb && !q("[data-rz]")) { S.selSess = S.selSess === sb.dataset.dragsess ? null : sb.dataset.dragsess; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.taskEdit = null; render(); return; }
   const mb = q("[data-mtg]");
-  if (mb && !q("[data-rzm]")) { S.selMtg = S.selMtg === mb.dataset.mtg ? null : mb.dataset.mtg; S.selSess = null; S.mtgDraft = null; S.urgentDraft = null; render(); return; }
+  if (mb && !q("[data-rzm]")) { S.selMtg = S.selMtg === mb.dataset.mtg ? null : mb.dataset.mtg; S.selSess = null; S.mtgDraft = null; S.urgentDraft = null; S.taskEdit = null; render(); return; }
   if (q("[data-mtgadd]")) {
     const wd = S.data.settings?.workday ?? DEFAULT_WORKDAY;
     const base = S.sdate === today ? Math.ceil((toMin(time) + 1) / 60) * 60 : 10 * 60;
@@ -4652,6 +4989,12 @@ view.addEventListener("click", (e) => {
   if (q("[data-mtgcancel]")) { S.mtgDraft = null; render(); return; }
   if (q("[data-mtgclose]")) { S.selMtg = null; render(); return; }
   if (q("[data-urgsave]")) { submitUrgent(); return; }
+  const to = q("[data-tedit-open]");
+  if (to) { S.mtgDraft = null; S.urgentDraft = null; S.pendingDone = null; S.taskEdit = { id: to.dataset.teditOpen, full: false, askDel: false }; render(); view.querySelector('[data-tedit] [data-f="title"]')?.focus(); return; }
+  if (q("[data-tedit-full]")) { S.taskEdit = { ...S.taskEdit, full: !S.taskEdit.full, askDel: false }; render(); return; }
+  if (q("[data-tedit-close]")) { S.taskEdit = null; render(); return; }
+  if (q("[data-tedit-del]")) { S.taskEdit = { ...S.taskEdit, askDel: true }; render(); return; }
+  if (q("[data-tedit-delno]")) { S.taskEdit = { ...S.taskEdit, askDel: false }; render(); return; }
   if (q("[data-urgcancel]")) { S.urgentDraft = null; render(); return; }
   const fr = q("[data-free]");
   if (fr) {
@@ -4674,14 +5017,15 @@ view.addEventListener("click", (e) => {
 /** 突発タスクの入力欄の確定。件名が空なら何もしない。Error のときは通知だけで、入力欄を残す */
 function submitUrgent() {
   const u = S.urgentDraft, f = (k) => view.querySelector(`[data-ug="${k}"]`).value;
-  const title = f("title").trim();
-  if (!u || !title) return;
-  const input = { title, projectId: f("projectId") || null, date: u.date, start: u.start, minutes: +f("minutes") };
-  S.urgentDraft = { ...u, title, projectId: f("projectId"), minutes: input.minutes }; // Error で描き直しても、入力を残す
+  if (!u) return;
+  const r = urgentInput({ title: f("title"), projectId: f("projectId"), minutes: f("minutes"), date: f("date"), start: f("start") });
+  S.urgentDraft = { ...u, title: f("title").trim(), projectId: f("projectId"), minutes: +f("minutes"), date: f("date"), start: f("start") }; // 空・Error で描き直しても、入力を残す
+  if (!r) return;
+  const { input } = r, title = input.title;
   let warning;
   if (apply((d) => { const r = addUrgentTask(d, input, clock()); warning = r.warning; return r.data; }, null, { quiet: true })) {
-    S.urgentDraft = null; S.sdate = u.date; render();
-    toast(`${title} を ${u.start} に ${input.minutes} 分で登録しました${warning ? `(${warning})` : ""}`);
+    S.urgentDraft = null; S.sdate = input.date; render();
+    toast(`${title} を ${input.start} に ${input.minutes} 分で登録しました${warning ? `(${warning})` : ""}`);
   }
 }
 
@@ -4782,9 +5126,8 @@ view.addEventListener("focusout", (e) => {
 function onChange(el) {
   const { date: today } = clock();
   if (el.dataset.fileinput !== undefined) {
-    const file = el.files?.[0];
-    if (!file) return;
-    file.text().then((text) => { try { loaded(JSON.parse(text)); } catch (err) { S.openError = `開けません: ${err.message}`; } render(); });
+    if (!el.files?.length) return;
+    Promise.all([...el.files].map((f) => f.text())).then((texts) => { try { loaded(dataFromTexts(texts, [...el.files].map((f) => f.name))); } catch (err) { S.openError = `開けません: ${err.message}`; } render(); });
     return;
   }
   if (el.dataset.mt) {
@@ -4839,11 +5182,6 @@ function onChange(el) {
     apply((d) => updateChecklistItem(d, tid, iid, { text })); // 空にすると例外のトーストが出て、描き直しで元に戻る
     return;
   }
-  if (el.dataset.logcause !== undefined) {
-    const [at, taskId] = el.dataset.logcause.split("|");
-    apply((d) => setLogCause(d, { at, taskId }, el.value || null), "原因を保存しました");
-    return;
-  }
   if (el.dataset.addpre !== undefined) {
     if (el.value) {
       const id = el.dataset.addpre, pre = el.value;
@@ -4864,7 +5202,7 @@ function onChange(el) {
     }
     if (f === "expected") { if (el.validity.badInput) return; apply((d) => updateTask(d, id, { waitingOn: { party: t.waitingOn.party, since: t.waitingOn.since, expected: el.value } }, today), "変更を保存しました"); return; }
     if (f === "group" || f === "subgroup") S.hlId = id; // 該当グループへ移った行を強調して見失わないようにする
-    apply((d) => { const n = updateTask(d, id, { [f]: f === "importance" ? el.value || null : el.value }, today); return f === "due" ? recordDueChanges(d, n, today) : n; }, "変更を保存しました");
+    apply((d) => updateTask(d, id, { [f]: f === "important" ? el.checked : el.value }, today), "変更を保存しました");
   }
 }
 
@@ -5120,7 +5458,7 @@ view.addEventListener("mousedown", (e) => {
       const m = mode === "l" ? "start" : mode === "r" ? "due" : "both";
       const amt = m === "start" ? ns - s : m === "due" ? ne - en : dd;
       result = moveTaskDates(S.data, t.id, m, amt);
-      dragEdit = (d) => { const r = moveTaskDates(d, t.id, m, amt); if (r.error) throw new Error(r.error); return recordDueChanges(d, r.data, clock().date); };
+      dragEdit = (d) => { const r = moveTaskDates(d, t.id, m, amt); if (r.error) throw new Error(r.error); return r.data; };
       msg = `${t.id}: ${fmtMD(addDays(s0, ns))}〜${fmtMD(addDays(s0, ne))}`;
     } else if (kind === "p") {
       const edge = mode === "l" ? "start" : "due", amt = mode === "l" ? ns - s : ne - en, pid = p.id;
@@ -5145,7 +5483,7 @@ document.addEventListener("keydown", (e) => {
   const typing = e.target.matches?.("input,select,textarea");
   if ((e.key === "Delete" || e.key === "Backspace") && S.screen === "schedule" && (S.selSess || S.selMtg) && !typing) { e.preventDefault(); deleteSelected(); }
   if (e.key === "Escape" && S.tpop) { S.tpop = null; render(); return; }
-  if (e.key === "Escape" && S.screen === "schedule" && (S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft)) { clearSel(); render(); }
+  if (e.key === "Escape" && S.screen === "schedule" && (S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.taskEdit)) { clearSel(); render(); }
 });
 view.addEventListener("keydown", (e) => {
   // 日本語入力の変換確定の Enter(isComposing)では追加しない

@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { init, MARKER } from "../plugins/project-lens/tools/init.js";
 import { validate } from "../plugins/project-lens/src/core/schema.js";
+import { splitData, mergeData } from "../plugins/project-lens/src/core/split.js";
 
 const REPO = fileURLToPath(new URL("../plugins/project-lens/", import.meta.url));
 const base = mkdtempSync(join(tmpdir(), "projectlens-init-"));
@@ -25,14 +26,16 @@ const plugin = (html = `<html>${MARKER}v1</html>`) => {
 const names = (d) => readdirSync(d).sort();
 const status = (r, p) => r.results.find((x) => x.path === p)?.status;
 
-test("空のフォルダ: project-lens.html と .project-lens/data.json だけができる（.gitignore は作らない）", () => {
+test("空のフォルダ: project-lens.html と .project-lens/ の data.json・personal.json だけができる（.gitignore は作らない）", () => {
   const cwd = proj(), pluginRoot = plugin();
   const r = init({ cwd, pluginRoot });
   assert.equal(r.ok, true);
   assert.deepEqual(names(cwd), [".project-lens", "project-lens.html"]);
-  assert.deepEqual(names(join(cwd, ".project-lens")), ["data.json"]);
-  const data = JSON.parse(readFileSync(join(cwd, ".project-lens/data.json"), "utf8"));
+  assert.deepEqual(names(join(cwd, ".project-lens")), ["data.json", "personal.json"]);
+  const rd = (f) => JSON.parse(readFileSync(join(cwd, ".project-lens", f), "utf8"));
+  const data = mergeData(rd("data.json"), rd("personal.json"));
   assert.deepEqual(validate(data).errors, []);
+  assert.equal(rd("personal.json").settings.workday !== undefined, true, "勤務時間は個人ファイル");
   assert.equal(status(r, "project-lens.html"), "created");
 });
 
@@ -77,10 +80,78 @@ test("目印つきの古い project-lens.html は updated、同じなら unchang
   assert.equal(status(init({ cwd, pluginRoot }), "project-lens.html"), "unchanged");
 });
 
-test("--sample: data.json にサンプルの内容が入る", () => {
+test("--sample: サンプルが splitData で 2 ファイルに入る（作業枠は personal.json）", () => {
   const cwd = proj(), pluginRoot = plugin();
   init({ cwd, pluginRoot, sample: true });
-  assert.equal(readFileSync(join(cwd, ".project-lens/data.json"), "utf8"), readFileSync(join(pluginRoot, "data/sample.json"), "utf8"));
+  const sample = JSON.parse(readFileSync(join(pluginRoot, "data/sample.json"), "utf8"));
+  const { shared, personal } = splitData(sample);
+  const rd = (f) => JSON.parse(readFileSync(join(cwd, ".project-lens", f), "utf8"));
+  assert.deepEqual(rd("data.json"), shared);
+  assert.deepEqual(rd("personal.json"), personal);
+  assert.ok(personal.sessions.length > 0 && shared.tasks.every((t) => !("sessions" in t)));
+});
+
+test("--mine: 個人ファイルをそこへ作る（無いフォルダも作る）。data.json の隣には作らない", () => {
+  const cwd = proj(), pluginRoot = plugin(), other = join(proj("other"), "sub", "mine.json");
+  const r = init({ cwd, pluginRoot, sample: true, mine: other });
+  assert.equal(r.ok, true);
+  assert.ok(existsSync(other));
+  assert.equal(existsSync(join(cwd, ".project-lens/personal.json")), false);
+  assert.equal(status(r, other), "created");
+  assert.ok(JSON.parse(readFileSync(other, "utf8")).sessions.length > 0);
+});
+
+test("相対の --mine は、実行したフォルダ（cwd）から数える", () => {
+  const cwd = proj(), pluginRoot = plugin();
+  init({ cwd, pluginRoot, mine: "me/personal.json" });
+  assert.ok(existsSync(join(cwd, "me/personal.json")));
+});
+
+test("既存の個人ファイルは、再実行でも --sample でも 1 バイトも変わらない。共有だけがあるときは、空の個人ファイルを足す", () => {
+  const cwd = proj(), pluginRoot = plugin();
+  init({ cwd, pluginRoot });
+  const pp = join(cwd, ".project-lens/personal.json");
+  writeFileSync(pp, '{"keep":"me"}');
+  const r = init({ cwd, pluginRoot, sample: true });
+  assert.equal(readFileSync(pp, "utf8"), '{"keep":"me"}');
+  assert.equal(status(r, ".project-lens/personal.json"), "unchanged");
+  rmSync(pp);
+  const r2 = init({ cwd, pluginRoot, sample: true });
+  assert.equal(status(r2, ".project-lens/personal.json"), "created");
+  assert.deepEqual(JSON.parse(readFileSync(pp, "utf8")).sessions, []);
+});
+
+test("--sample で新しく作る data.json の隣に、既にある個人ファイルがあっても、個人ファイルは変えず、お知らせを出す", () => {
+  const cwd = proj(), pluginRoot = plugin();
+  mkdirSync(join(cwd, ".project-lens"));
+  const pp = join(cwd, ".project-lens/personal.json");
+  writeFileSync(pp, '{"keep":"me"}');
+  const r = init({ cwd, pluginRoot, sample: true });
+  assert.equal(readFileSync(pp, "utf8"), '{"keep":"me"}');
+  assert.ok(r.results.some((x) => x.path === ".project-lens/personal.json" && /変えていません/.test(x.note ?? "")));
+});
+
+test("CLI: --mine に値が無いと、終了コード 2 で理由を出し、何も作らない", () => {
+  const cwd = proj();
+  for (const [script, args] of [["init.js", ["--mine"]], ["validate.js", ["x.json", "--mine"]], ["holidays.js", ["status", "x.json", "--mine"]], ["inbox.js", ["list", "x.json", "--mine"]], ["intake.js", ["rules-list", "x.json", "--mine"]]]) {
+    const r = spawnSync(process.execPath, [join(REPO, "tools", script), ...args], { cwd, encoding: "utf8" });
+    assert.equal(r.status, 2, script);
+    assert.match(r.stderr, /--mine にファイルを指定してください/);
+  }
+  assert.deepEqual(readdirSync(cwd), []);
+});
+
+test("CLI: init --mine で作った個人ファイルが、validate.js --mine で読める。個人ファイルが無い保存先の validate.js は共有だけで成功する", () => {
+  const cwd = proj(), mine = join(proj("m"), "p.json");
+  const run = (script, ...a) => spawnSync(process.execPath, [join(REPO, "tools", script), ...a], { cwd, encoding: "utf8" });
+  const r = run("init.js", "--sample", "--mine", mine);
+  assert.equal(r.status, 0, r.stderr);
+  const data = join(cwd, ".project-lens/data.json");
+  assert.equal(run("validate.js", data, "--mine", mine).status, 0);
+  assert.equal(run("validate.js", data).status, 0, "既定の personal.json が無くても、共有だけで成功する");
+  const bad = run("validate.js", data, "--mine", join(cwd, "nothing.json"));
+  assert.equal(bad.status, 1);
+  assert.match(bad.stdout, /個人ファイル .* がありません。--mine の指定を確かめてください/);
 });
 
 test("末尾に改行のない .gitignore へ、最後の行と連結せずに追記する", () => {
@@ -152,4 +223,17 @@ test("空のひな形: projectRules が空で、見出しの既定が入る", ()
   const d = JSON.parse(readFileSync(join(cwd, ".project-lens/data.json"), "utf8"));
   assert.deepEqual(d.settings.projectRules, []);
   assert.deepEqual(d.settings.labels, { group: "大項目", subgroup: "中項目" });
+});
+
+test("既存の data.json が、作業枠・予定を含む旧形式なら、何も作らずに止める（空の個人ファイルを隣に足さない）", () => {
+  const cwd = proj(), pluginRoot = plugin();
+  mkdirSync(join(cwd, ".project-lens"));
+  const old = readFileSync(join(REPO, "data/sample.json"), "utf8");
+  writeFileSync(join(cwd, ".project-lens/data.json"), old);
+  const r = init({ cwd, pluginRoot });
+  assert.equal(r.ok, false);
+  assert.match(r.error, /旧形式の data\.json/);
+  assert.deepEqual(names(cwd), [".project-lens"]);
+  assert.deepEqual(names(join(cwd, ".project-lens")), ["data.json"]);
+  assert.equal(readFileSync(join(cwd, ".project-lens/data.json"), "utf8"), old);
 });

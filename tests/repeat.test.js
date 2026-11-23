@@ -24,12 +24,12 @@ test("nextRepeatDue: 毎月は指定の日で、短い月は月末に丸める�
   assert.equal(nextRepeatDue(month(5), "2026-12-05", "2026-12-01"), "2027-01-05");
 });
 
-// A5 に定例の設定・チェックリスト・重要度・メモを付けて Done にしたデータ
+// A5 に定例の設定・チェックリスト・重要・メモを付けて Done にしたデータ
 function doneRepeating(extra = {}) {
   let d = load();
   const id = d.tasks.find((t) => t.status !== "Done" && t.status !== "Cancelled").id;
   d = { ...d, tasks: d.tasks.map((t) => (t.id === id ? {
-    ...t, repeat: { ...WEEK }, importance: "high", memo: "メモ", group: "G", subgroup: "S", predecessors: [], start: "2026-10-01",
+    ...t, repeat: { ...WEEK }, important: true, memo: "メモ", group: "G", subgroup: "S", predecessors: [], start: "2026-10-01",
     checklist: [{ id: "c3", text: "一つ目", done: true }, { id: "c7", text: "二つ目", done: false }], ...extra,
   } : t)) };
   return { d: updateTask(d, id, { status: "Done" }, TODAY), id };
@@ -43,7 +43,7 @@ test("spawnNextRepeat: Done にした定例タスクの次回を 1 件作り、�
   const n = out.tasks.find((t) => !d.tasks.some((x) => x.id === t.id));
   assert.equal(n.status, "To Do");
   assert.equal(n.due, nextDueOf(src));
-  assert.deepEqual([n.title, n.projectId, n.group, n.subgroup, n.importance, n.memo], [src.title, src.projectId, "G", "S", "high", "メモ"]);
+  assert.deepEqual([n.title, n.projectId, n.group, n.subgroup, n.important, n.memo], [src.title, src.projectId, "G", "S", true, "メモ"]);
   assert.deepEqual(n.repeat, WEEK);
   assert.deepEqual(n.checklist, [{ id: "c1", text: "一つ目", done: false }, { id: "c2", text: "二つ目", done: false }]);
   assert.deepEqual([n.predecessors, n.waitingOn, n.sessions, n.start, n.doneAt], [[], null, [], null, null]);
@@ -91,7 +91,7 @@ test("duplicateTask: 期限を今日にした未チェックのコピーを、�
   const { data, id: nid } = duplicateTask(d, id, TODAY);
   const src = data.tasks.find((t) => t.id === id), n = data.tasks.find((t) => t.id === nid);
   assert.notEqual(nid, id);
-  assert.deepEqual([n.title, n.projectId, n.group, n.subgroup, n.importance, n.memo], [src.title, src.projectId, "G", "S", "high", "メモ"]);
+  assert.deepEqual([n.title, n.projectId, n.group, n.subgroup, n.important, n.memo], [src.title, src.projectId, "G", "S", true, "メモ"]);
   assert.deepEqual([n.due, n.status, n.repeat], [TODAY, "To Do", undefined]);
   assert.ok(n.checklist.every((c) => c.done === false) && n.checklist.length === 2);
   assert.deepEqual(validate(data).errors, []);
