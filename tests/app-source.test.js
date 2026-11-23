@@ -617,3 +617,8 @@ test("app.js: 一括の「実績にする」は、重なって実績にできな
   const all = src.slice(src.indexOf('q("[data-confirmall]")'), src.indexOf('q("[data-confirmall]")') + 900);
   assert.ok(all.includes("skipped") && all.includes("ほかの実績の枠と重なる"), all);
 });
+
+test("theme.css: スケジュールの重要の枠は、件名の赤い太字だけ（左の赤い線は付けない）", () => {
+  assert.ok(css.includes("#view .blk.imp .ttl{color:var(--bad);font-weight:700}"));
+  assert.ok(!/\.blk\.imp\{[^}]*box-shadow/.test(css), "左の線（box-shadow）は持たない");
+});
