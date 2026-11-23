@@ -396,3 +396,17 @@ test("changeLog の source が screen の履歴は error（画面の期限変更
   const a = load(); a.changeLog.push({ at: "2026-10-20", taskIds: [], reason: "x", cause: null, deltaDays: 0, source: "screen" });
   assert.ok(hit(v(a).errors, "不明な source"));
 });
+
+test("共有ファイルに無いタスクの作業枠(orphanSessions): あれば警告（error ではない）、無い・空なら警告なし", () => {
+  const word = "共有ファイルに無いタスクの作業枠が 1 件あります";
+  const d = load();
+  d.orphanSessions = [{ id: "S9", taskId: "ZZ-0001", date: "2026-10-21", start: "09:00", end: "10:00", kind: "planned" }];
+  const r = v(d);
+  assert.deepEqual(r.errors, []);
+  assert.ok(hit(r.warnings, word));
+  for (const none of [undefined, []]) {
+    const e = load();
+    if (none) e.orphanSessions = none;
+    assert.ok(!hit(v(e).warnings, "共有ファイルに無いタスクの作業枠"));
+  }
+});

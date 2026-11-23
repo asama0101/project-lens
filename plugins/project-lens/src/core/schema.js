@@ -256,5 +256,7 @@ export function validate(data, now = nowLocal()) {
     if (c.source != null && !["wbs", "calendar", "inbox"].includes(c.source)) err(`changeLog: 不明な source "${c.source}"`);
   }
 
+  if (data.orphanSessions?.length) warn(`共有ファイルに無いタスクの作業枠が ${data.orphanSessions.length} 件あります`);
+
   return { errors, warnings };
 }
