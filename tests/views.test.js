@@ -1647,6 +1647,33 @@ test("スケジュールの編集欄: 枠を選ぶと（selSess と taskEdit）�
   assert.equal(renderTaskEditPanel(d, { id: "ZZ", full: false }, ""), "");
 });
 
+/** 画面に見える文字だけ（タグと属性を除く）。data-id・aria-label などの属性の ID は、表示ではない */
+const visibleText = (html) => html.replace(/<[^>]*>/g, " ");
+const TASK_ID = /[A-Z]{2}-\d{4}/;
+
+test("スケジュール画面: タスクの ID を表示しない（週・日の枠、選んだ枠の編集欄（詳細を開いた前のタスクも）、期限の行、削除のボタン、右の列の今日のタスク・今日の優先と確認）。属性の ID は残す", () => {
+  const d = load();
+  d.tasks.find((t) => t.id === "AA-0007").sessions.push({ id: "S10", date: TODAY, start: "14:00", end: "15:00", kind: "planned" });
+  d.tasks.find((t) => t.id === "AA-0006").due = TODAY; // 期限の行に出す
+  const pages = {
+    week: renderSchedule(d, TODAY, { view: "week", date: TODAY, now: NOW, selSess: "S10", taskEdit: { id: "AA-0007", full: true } }),
+    day: sched(d, { selSess: "S10", taskEdit: { id: "AA-0007", full: true } }),
+    dayLight: sched(d, { selSess: "S10", taskEdit: { id: "AA-0007", full: false } }),
+    askDone: sched(d, { pendingDone: { id: "AA-0007", status: "Done", n: 1, future: ["S10"], open: [], stage: "future" } }),
+    askDel: sched(d, { selSess: "S10", taskEdit: { id: "AA-0007", full: true, askDel: true } }),
+  };
+  for (const [k, html] of Object.entries(pages)) assert.ok(!TASK_ID.test(visibleText(html)), `${k}: ${visibleText(html).match(TASK_ID)?.[0]}`);
+  assert.ok(pages.day.includes('data-id="AA-0007"') && pages.day.includes('data-dragtask="'), "属性の ID は残す");
+  assert.ok(visibleText(pages.day).includes("本番切替") && visibleText(pages.week).includes("切替リハーサル"), "件名は出す");
+});
+
+test("ID の表示はガントとリストに残す（スケジュールだけ件名にする）", () => {
+  const d = load();
+  assert.ok(TASK_ID.test(visibleText(renderProjects(d, TODAY, { filter: "AA", view: "list" }))), "リスト");
+  assert.ok(TASK_ID.test(visibleText(renderProjects(d, TODAY, { filter: "AA", view: "gantt" }))), "ガント");
+  assert.ok(TASK_ID.test(visibleText(renderProjects(d, TODAY, { filter: "AA", view: "gantt", tpop: { id: "AA-0007", x: 0, y: 0 } }).match(/<div class="tpop"[\s\S]*?<\/div>/)[0])), "ガントの窓の見出し");
+});
+
 test("スケジュールの編集欄: 会議の入力欄と同じ、ラベル付きの項目が折り返して並ぶ（縦の枠 tp-f・tp-r を使わない）", () => {
   const d = load();
   const light = renderTaskEditPanel(d, { id: "AA-0007", full: false }, "<select>状態</select>");

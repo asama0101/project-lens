@@ -17,6 +17,9 @@ const S = {
 const $ = (id) => document.getElementById(id);
 const view = $("view");
 
+/** 通知で言うタスクの名前（件名）。スケジュールでも出る通知は、ID でなく件名で言う */
+const taskTitle = (id) => S.data.tasks.find((t) => t.id === id)?.title ?? id;
+
 function toast(msg) {
   const t = $("toast");
   t.textContent = msg;
@@ -556,7 +559,7 @@ view.addEventListener("click", (e) => {
   const dl = q("[data-del]"); if (dl) { S.askDel = dl.dataset.del; S.tpop = null; render(); return; }
   if (q("[data-delno]")) { S.askDel = null; render(); return; }
   const dy = q("[data-delyes]");
-  if (dy) { const id = dy.dataset.delyes; S.askDel = null; apply((d) => deleteTask(d, id),`${id} を削除しました`); return; }
+  if (dy) { const id = dy.dataset.delyes, name = taskTitle(id); S.askDel = null; apply((d) => deleteTask(d, id),`${name} を削除しました`); return; }
   const pd = q("[data-pdel]"); if (pd) { S.askDelProject = pd.dataset.pdel; render(); return; }
   if (q("[data-pdelno]")) { S.askDelProject = null; render(); return; }
   const pdy = q("[data-pdelyes]");
@@ -591,7 +594,7 @@ view.addEventListener("click", (e) => {
     const sid = sa.dataset.sessionActual; let r;
     if (apply((d) => { r = confirmTodaySession(d, sid, now); return r.data; }, null)) {
       const s = allSessions(S.data).find((x) => x.id === sid);
-      toast(`${r.taskId} の ${s.start}–${s.end} を実績にしました${r.statusChanged ? `（状態を In Progress にしました${r.from === "Waiting" ? "。待ち先の記録は外しました" : ""}）` : ""}`);
+      toast(`${taskTitle(r.taskId)} の ${s.start}–${s.end} を実績にしました${r.statusChanged ? `（状態を In Progress にしました${r.from === "Waiting" ? "。待ち先の記録は外しました" : ""}）` : ""}`);
     }
     return;
   }
@@ -672,7 +675,7 @@ function setStatus(id, status, future, checkAll = false) {
   const kept = status === "Done" || status === "Cancelled" ? runningPlanned(S.data, id, clock()).length : 0; // 完了にしても進行中の枠は残る
   const keptMsg = kept ? `。進行中の枠 ${kept} 件は残しました（終わったら「実績にする」で確定します）` : "";
   const n0 = S.data.tasks.length;
-  const doneMsg = future.length ? `${id} の状態を ${status} にしました。未来の予定の枠 ${future.length} 件を解除しました${keptMsg}` : `変更を保存しました${keptMsg}`;
+  const doneMsg = future.length ? `${taskTitle(id)} の状態を ${status} にしました。未来の予定の枠 ${future.length} 件を解除しました${keptMsg}` : `変更を保存しました${keptMsg}`;
   apply((d) => {
     let next = updateTask(d, id, { status }, clock().date);
     if (checkAll) next = checkAllChecklist(next, id);
@@ -681,7 +684,7 @@ function setStatus(id, status, future, checkAll = false) {
   }, doneMsg);
   if (S.data.tasks.length > n0) {
     const sp = S.data.tasks.find((x) => x.id === S.data.tasks.find((y) => y.id === id).repeat.spawned);
-    toast(`${doneMsg}。次回 ${sp.id}（期限 ${fmtMD(sp.due)}）を作りました`);
+    toast(`${doneMsg}。次回（期限 ${fmtMD(sp.due)}）を作りました`);
   }
 }
 
@@ -690,7 +693,7 @@ function submitWait(id) {
   const party = input.value.trim();
   if (!party) { toast("待ち先を入力してください"); return; }
   S.pendingWait = null;
-  apply((d) => updateTask(d, id, { status: "Waiting", waitingOn: { party, since: clock().date } }, clock().date), `${id} を Waiting にしました`);
+  apply((d) => updateTask(d, id, { status: "Waiting", waitingOn: { party, since: clock().date } }, clock().date), `${taskTitle(id)} を Waiting にしました`);
 }
 
 /* ---------- 入力の変更 ---------- */

@@ -646,3 +646,8 @@ test("theme.css: プロジェクトの稼働の札（.mono.hrs）の塗りは、
   assert.ok(!/(^|\n)\.hrs\{/.test(css), "素の .hrs に塗りを付けない");
   assert.ok(!css.includes(".rank .bb") && !css.includes(".rank.tl .bb"));
 });
+
+test("app.js: スケジュールから届く通知（今日のタスクの「実績にする」・状態の変更・待ち先・タスクの削除・定例の次回）は、タスクの ID でなく件名で言う", () => {
+  for (const bad of ["${r.taskId} の ${s.start}", "${id} の状態を ${status}", "${id} を Waiting にしました", "${id} を削除しました", "次回 ${sp.id}"]) assert.ok(!src.includes(bad), bad);
+  assert.ok(src.includes("taskTitle("), "件名を引く");
+});

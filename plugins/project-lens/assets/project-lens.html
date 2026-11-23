@@ -3332,7 +3332,7 @@ function doneAskHtml(pd) {
   if (pd.stage === "check") {
     return `<div class="ask warn-ck" role="alert" style="max-width:none"><b>チェックリストに、未完了の項目が ${pd.open.length} 件あります。</b><ul>${pd.open.map((x) => `<li>${esc(x)}</li>`).join("")}</ul><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px"><button class="btn" data-ckall="${id}">残りをすべてチェックして ${esc(pd.status)} にする</button><button class="btn" data-ckkeep="${id}">未完了のまま ${esc(pd.status)} にする</button><button class="btn" data-doneno>やめる</button></div></div>`;
   }
-  return `<div class="ask" style="max-width:none">${id} の未来の予定の枠 ${pd.n} 件を解除して ${esc(pd.status)} にします。<div style="display:flex;gap:6px;margin-top:4px"><button class="btn danger" data-doneok="${id}">解除して ${esc(pd.status)} にする</button><button class="btn" data-doneno>やめる</button></div></div>`;
+  return `<div class="ask" style="max-width:none">このタスクの未来の予定の枠 ${pd.n} 件を解除して ${esc(pd.status)} にします。<div style="display:flex;gap:6px;margin-top:4px"><button class="btn danger" data-doneok="${id}">解除して ${esc(pd.status)} にする</button><button class="btn" data-doneno>やめる</button></div></div>`;
 }
 
 /** 今日の日付に作業枠（予定・実績・未確認）があるタスクを [{ t, slots }] で返す。未完了を最初の枠の開始順に、Done・Cancelled を末尾に */
@@ -3914,11 +3914,12 @@ const { predEditHtml, startInputHtml, renderTaskPop, renderTaskEditPanel } = (()
 
 
 
-/** 前のタスクの外し方（×）と足し方（選択）。リストの編集欄と共用 */
-function predEditHtml(data, t) {
-  const chips = (t.predecessors ?? []).map((id) => `<span class="chip">${esc(id)}<button data-rmpre="${esc(t.id)}|${esc(id)}" aria-label="${esc(id)} を前のタスクから外す">×</button></span>`).join("");
+/** 前のタスクの外し方（×）と足し方（選択）。リストの編集欄と共用。ids が false なら ID を出さず件名で出す（スケジュールの編集欄） */
+function predEditHtml(data, t, { ids = true } = {}) {
+  const label = (id) => (ids ? id : data.tasks.find((u) => u.id === id)?.title ?? id);
+  const chips = (t.predecessors ?? []).map((id) => `<span class="chip">${esc(label(id))}<button data-rmpre="${esc(t.id)}|${esc(id)}" aria-label="${esc(id)} を前のタスクから外す">×</button></span>`).join("");
   const cand = predecessorCandidates(data, t.id).map((id) => data.tasks.find((u) => u.id === id));
-  const add = cand.length ? `<select class="in sm" data-addpre="${esc(t.id)}" aria-label="前のタスクを追加"><option value="">＋前のタスク</option>${cand.map((u) => `<option value="${esc(u.id)}">${esc(u.id)} ${esc(u.title)}</option>`).join("")}</select>` : "";
+  const add = cand.length ? `<select class="in sm" data-addpre="${esc(t.id)}" aria-label="前のタスクを追加"><option value="">＋前のタスク</option>${cand.map((u) => `<option value="${esc(u.id)}">${ids ? `${esc(u.id)} ` : ""}${esc(u.title)}</option>`).join("")}</select>` : "";
   return `<div class="chips">${chips}${add}</div>`;
 }
 
@@ -3983,12 +3984,12 @@ function taskRowFieldsHtml(data, t, { full, statusHtml }) {
     full ? field("", "繰り返し", `<select class="in sm" data-f="repeat" data-id="${id}">${repeat}</select>`) : "",
     field("tp-memo", "メモ", `<input class="in" data-f="memo" data-id="${id}" value="${esc(t.memo ?? "")}" placeholder="メモ">`),
   ].join("\n    ");
-  const wide = full ? `${checklistEditorHtml(t)}<div class="tp-wide"><span>前のタスク</span>${predEditHtml(data, t)}</div>` : "";
+  const wide = full ? `${checklistEditorHtml(t)}<div class="tp-wide"><span>前のタスク</span>${predEditHtml(data, t, { ids: false })}</div>` : "";
   return { fields, wide };
 }
 
 /**
- * スケジュール画面の編集欄（#mtgslot に出す）。対象のタスクが無ければ空。会議の入力欄と同じ、ラベル付きの項目が折り返して並ぶ形
+ * スケジュール画面の編集欄（#mtgslot に出す）。対象のタスクが無ければ空。見出しに ID は出さない（スケジュールは件名だけで表す）。会議の入力欄と同じ、ラベル付きの項目が折り返して並ぶ形
  * @param edit { id, full, askDel }  askDel が真なら削除の確認を出す。full が真なら、繰り返し・チェックリスト・前のタスク・複製・削除も出す
  */
 function renderTaskEditPanel(data, edit, statusHtml) {
@@ -3998,7 +3999,7 @@ function renderTaskEditPanel(data, edit, statusHtml) {
   const { fields, wide } = taskRowFieldsHtml(data, t, { full: edit.full, statusHtml });
   const del = edit.askDel ? `<span class="ask">このタスクを削除します。<button class="btn danger" data-delyes="${id}">削除する</button><button class="btn" data-tedit-delno>やめる</button></span>` : `<button class="btn danger" data-tedit-del="${id}">削除</button>`;
   return `<div class="mtgform tedit" role="group" aria-label="${id} を編集" data-tedit>
-    <span class="tp-h"><b class="mono">${id}</b><span class="muted">${fmtMD(taskStart(data, t.id))}〜${fmtMD(t.due)}</span></span>
+    <span class="tp-h"><span class="muted">${fmtMD(taskStart(data, t.id))}〜${fmtMD(t.due)}</span></span>
     ${fields}
     <div class="tp-a"><button class="btn" data-tedit-full aria-expanded="${edit.full}">${edit.full ? "詳細を閉じる" : "詳細を開く"}</button>${edit.full ? `<button class="btn" data-dup="${id}">複製</button>${del}` : ""}<button class="btn" data-tedit-close>閉じる</button></div>
     ${wide}
@@ -4219,7 +4220,7 @@ function sessionBlocks(data, d, full, g, ctx) {
     const st = full ? ` <span class="stt">${STATUS_JA[task.status] ?? ""}</span>` : "";
     const imp = isImportantMark(task) ? " imp" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
     const short = toMin(s.end) - toMin(s.start) < SHORT_MIN ? " short" : "";
-    return `<div class="blk task ${c}${imp}${short} ${ctx.selSess === s.id ? "sel" : ""}" draggable="true" tabindex="0" data-dragsess="${esc(s.id)}" style="top:${g.tp(toMin(s.start))};height:${g.ht(toMin(s.start), toMin(s.end))}" title="${esc(s.title)}(${KIND_JA[c]})"><span class="tm">${esc(s.start)}-${esc(s.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${full ? `${esc(s.taskId)} ` : ""}${esc(s.title)}</span>${st}${confirm}<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i></div>`;
+    return `<div class="blk task ${c}${imp}${short} ${ctx.selSess === s.id ? "sel" : ""}" draggable="true" tabindex="0" data-dragsess="${esc(s.id)}" style="top:${g.tp(toMin(s.start))};height:${g.ht(toMin(s.start), toMin(s.end))}" title="${esc(s.title)}(${KIND_JA[c]})"><span class="tm">${esc(s.start)}-${esc(s.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${esc(s.title)}</span>${st}${confirm}<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i></div>`;
   }).join("");
 }
 
@@ -4489,6 +4490,9 @@ const S = {
 };
 const $ = (id) => document.getElementById(id);
 const view = $("view");
+
+/** 通知で言うタスクの名前（件名）。スケジュールでも出る通知は、ID でなく件名で言う */
+const taskTitle = (id) => S.data.tasks.find((t) => t.id === id)?.title ?? id;
 
 function toast(msg) {
   const t = $("toast");
@@ -5029,7 +5033,7 @@ view.addEventListener("click", (e) => {
   const dl = q("[data-del]"); if (dl) { S.askDel = dl.dataset.del; S.tpop = null; render(); return; }
   if (q("[data-delno]")) { S.askDel = null; render(); return; }
   const dy = q("[data-delyes]");
-  if (dy) { const id = dy.dataset.delyes; S.askDel = null; apply((d) => deleteTask(d, id),`${id} を削除しました`); return; }
+  if (dy) { const id = dy.dataset.delyes, name = taskTitle(id); S.askDel = null; apply((d) => deleteTask(d, id),`${name} を削除しました`); return; }
   const pd = q("[data-pdel]"); if (pd) { S.askDelProject = pd.dataset.pdel; render(); return; }
   if (q("[data-pdelno]")) { S.askDelProject = null; render(); return; }
   const pdy = q("[data-pdelyes]");
@@ -5064,7 +5068,7 @@ view.addEventListener("click", (e) => {
     const sid = sa.dataset.sessionActual; let r;
     if (apply((d) => { r = confirmTodaySession(d, sid, now); return r.data; }, null)) {
       const s = allSessions(S.data).find((x) => x.id === sid);
-      toast(`${r.taskId} の ${s.start}–${s.end} を実績にしました${r.statusChanged ? `（状態を In Progress にしました${r.from === "Waiting" ? "。待ち先の記録は外しました" : ""}）` : ""}`);
+      toast(`${taskTitle(r.taskId)} の ${s.start}–${s.end} を実績にしました${r.statusChanged ? `（状態を In Progress にしました${r.from === "Waiting" ? "。待ち先の記録は外しました" : ""}）` : ""}`);
     }
     return;
   }
@@ -5145,7 +5149,7 @@ function setStatus(id, status, future, checkAll = false) {
   const kept = status === "Done" || status === "Cancelled" ? runningPlanned(S.data, id, clock()).length : 0; // 完了にしても進行中の枠は残る
   const keptMsg = kept ? `。進行中の枠 ${kept} 件は残しました（終わったら「実績にする」で確定します）` : "";
   const n0 = S.data.tasks.length;
-  const doneMsg = future.length ? `${id} の状態を ${status} にしました。未来の予定の枠 ${future.length} 件を解除しました${keptMsg}` : `変更を保存しました${keptMsg}`;
+  const doneMsg = future.length ? `${taskTitle(id)} の状態を ${status} にしました。未来の予定の枠 ${future.length} 件を解除しました${keptMsg}` : `変更を保存しました${keptMsg}`;
   apply((d) => {
     let next = updateTask(d, id, { status }, clock().date);
     if (checkAll) next = checkAllChecklist(next, id);
@@ -5154,7 +5158,7 @@ function setStatus(id, status, future, checkAll = false) {
   }, doneMsg);
   if (S.data.tasks.length > n0) {
     const sp = S.data.tasks.find((x) => x.id === S.data.tasks.find((y) => y.id === id).repeat.spawned);
-    toast(`${doneMsg}。次回 ${sp.id}（期限 ${fmtMD(sp.due)}）を作りました`);
+    toast(`${doneMsg}。次回（期限 ${fmtMD(sp.due)}）を作りました`);
   }
 }
 
@@ -5163,7 +5167,7 @@ function submitWait(id) {
   const party = input.value.trim();
   if (!party) { toast("待ち先を入力してください"); return; }
   S.pendingWait = null;
-  apply((d) => updateTask(d, id, { status: "Waiting", waitingOn: { party, since: clock().date } }, clock().date), `${id} を Waiting にしました`);
+  apply((d) => updateTask(d, id, { status: "Waiting", waitingOn: { party, since: clock().date } }, clock().date), `${taskTitle(id)} を Waiting にしました`);
 }
 
 /* ---------- 入力の変更 ---------- */

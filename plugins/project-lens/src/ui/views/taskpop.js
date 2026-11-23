@@ -6,11 +6,12 @@ import { taskStart } from "../../core/metrics.js";
 import { predecessorCandidates } from "../edit.js";
 import { checklistEditorHtml } from "./checklist.js";
 
-/** 前のタスクの外し方（×）と足し方（選択）。リストの編集欄と共用 */
-export function predEditHtml(data, t) {
-  const chips = (t.predecessors ?? []).map((id) => `<span class="chip">${esc(id)}<button data-rmpre="${esc(t.id)}|${esc(id)}" aria-label="${esc(id)} を前のタスクから外す">×</button></span>`).join("");
+/** 前のタスクの外し方（×）と足し方（選択）。リストの編集欄と共用。ids が false なら ID を出さず件名で出す（スケジュールの編集欄） */
+export function predEditHtml(data, t, { ids = true } = {}) {
+  const label = (id) => (ids ? id : data.tasks.find((u) => u.id === id)?.title ?? id);
+  const chips = (t.predecessors ?? []).map((id) => `<span class="chip">${esc(label(id))}<button data-rmpre="${esc(t.id)}|${esc(id)}" aria-label="${esc(id)} を前のタスクから外す">×</button></span>`).join("");
   const cand = predecessorCandidates(data, t.id).map((id) => data.tasks.find((u) => u.id === id));
-  const add = cand.length ? `<select class="in sm" data-addpre="${esc(t.id)}" aria-label="前のタスクを追加"><option value="">＋前のタスク</option>${cand.map((u) => `<option value="${esc(u.id)}">${esc(u.id)} ${esc(u.title)}</option>`).join("")}</select>` : "";
+  const add = cand.length ? `<select class="in sm" data-addpre="${esc(t.id)}" aria-label="前のタスクを追加"><option value="">＋前のタスク</option>${cand.map((u) => `<option value="${esc(u.id)}">${ids ? `${esc(u.id)} ` : ""}${esc(u.title)}</option>`).join("")}</select>` : "";
   return `<div class="chips">${chips}${add}</div>`;
 }
 
@@ -75,12 +76,12 @@ function taskRowFieldsHtml(data, t, { full, statusHtml }) {
     full ? field("", "繰り返し", `<select class="in sm" data-f="repeat" data-id="${id}">${repeat}</select>`) : "",
     field("tp-memo", "メモ", `<input class="in" data-f="memo" data-id="${id}" value="${esc(t.memo ?? "")}" placeholder="メモ">`),
   ].join("\n    ");
-  const wide = full ? `${checklistEditorHtml(t)}<div class="tp-wide"><span>前のタスク</span>${predEditHtml(data, t)}</div>` : "";
+  const wide = full ? `${checklistEditorHtml(t)}<div class="tp-wide"><span>前のタスク</span>${predEditHtml(data, t, { ids: false })}</div>` : "";
   return { fields, wide };
 }
 
 /**
- * スケジュール画面の編集欄（#mtgslot に出す）。対象のタスクが無ければ空。会議の入力欄と同じ、ラベル付きの項目が折り返して並ぶ形
+ * スケジュール画面の編集欄（#mtgslot に出す）。対象のタスクが無ければ空。見出しに ID は出さない（スケジュールは件名だけで表す）。会議の入力欄と同じ、ラベル付きの項目が折り返して並ぶ形
  * @param edit { id, full, askDel }  askDel が真なら削除の確認を出す。full が真なら、繰り返し・チェックリスト・前のタスク・複製・削除も出す
  */
 export function renderTaskEditPanel(data, edit, statusHtml) {
@@ -90,7 +91,7 @@ export function renderTaskEditPanel(data, edit, statusHtml) {
   const { fields, wide } = taskRowFieldsHtml(data, t, { full: edit.full, statusHtml });
   const del = edit.askDel ? `<span class="ask">このタスクを削除します。<button class="btn danger" data-delyes="${id}">削除する</button><button class="btn" data-tedit-delno>やめる</button></span>` : `<button class="btn danger" data-tedit-del="${id}">削除</button>`;
   return `<div class="mtgform tedit" role="group" aria-label="${id} を編集" data-tedit>
-    <span class="tp-h"><b class="mono">${id}</b><span class="muted">${fmtMD(taskStart(data, t.id))}〜${fmtMD(t.due)}</span></span>
+    <span class="tp-h"><span class="muted">${fmtMD(taskStart(data, t.id))}〜${fmtMD(t.due)}</span></span>
     ${fields}
     <div class="tp-a"><button class="btn" data-tedit-full aria-expanded="${edit.full}">${edit.full ? "詳細を閉じる" : "詳細を開く"}</button>${edit.full ? `<button class="btn" data-dup="${id}">複製</button>${del}` : ""}<button class="btn" data-tedit-close>閉じる</button></div>
     ${wide}
