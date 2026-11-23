@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, readFileSync, readdirSync, linkSync, rmSync, mkdirSync, renameSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { save } from "../plugins/project-lens/tools/cli.js";
 
 const dir = mkdtempSync(join(tmpdir(), "project-lens-cli-"));
@@ -263,4 +265,15 @@ test("saveData: 読んだあとに共有ファイルが消されていても、�
   const data = readData(p);
   rmSync(p);
   assert.throws(() => saveData(p, data), /他で更新されました/);
+});
+
+test("readData・validate.js: 作業枠・予定を含む 1 ファイルの旧形式の data.json は読まない（個人ファイルが無くても空として読まない）", () => {
+  const d = mkdtempSync(join(dir, "old-"));
+  const p = join(d, "data.json");
+  writeFileSync(p, json(sample));
+  assert.throws(() => readData(p), /旧形式の data\.json/);
+  const v = spawnSync(process.execPath, [fileURLToPath(new URL("../plugins/project-lens/tools/validate.js", import.meta.url)), p], { encoding: "utf8" });
+  assert.equal(v.status, 1);
+  assert.match(JSON.parse(v.stdout).errors[0], /旧形式の data\.json/);
+  assert.equal(existsSync(join(d, "personal.json")), false);
 });

@@ -257,3 +257,50 @@ test("sync と組み合わせて: 個人の書き込み失敗 → 読み直し�
   assert.equal(file(sh).tasks[0].title, "自分");
   assert.equal(file(pe).sessions[0].end, "11:00");
 });
+
+test("sync と組み合わせて: 共有は書けて個人が失敗（競合でない）→ 個人が外で更新 → 次の編集で、書けた共有に編集を重ねて当てない", async () => {
+  const { s, data: d0, sh, pe } = await opened();
+  let data = d0;
+  const sync = createSync({ store: s, getData: () => data, setData: (d) => { data = d; }, render() {}, renderBar() {}, banner() {}, toast() {}, visible: () => true, wantFast: () => false });
+  const persist = (e) => { data = e(data); sync.persist(e); return sync.whenIdle(); };
+  // 急ぎのタスクの追加のように、ID を編集の中で決める
+  const ADD = (d) => { const id = "T" + (d.tasks.length + 1); return { ...d, tasks: [...d.tasks, { id, projectId: "P1", title: "急ぎ", sessions: [{ id: "S-" + id, date: "2026-11-23", start: "13:00", end: "13:30" }] }] }; };
+  const E2 = (d) => ({ ...d, tasks: d.tasks.map((t) => (t.id === "T1" ? { ...t, title: "x" } : t)) });
+  pe.failWrite = Object.assign(new Error("locked"), { name: "NoModificationAllowedError" });
+  await persist(ADD);
+  assert.equal(sync.failed, true);
+  assert.deepEqual(file(sh).tasks.map((t) => t.id), ["T1", "T2"]);
+  pe.failWrite = null;
+  pe.text = JSON.stringify({ ...file(pe), inbox: { watching: "now" } }); pe.modified += 5; // 見張りの印（CLI）が個人ファイルを書いた
+  await persist(E2);
+  assert.equal(sync.failed, false);
+  assert.deepEqual(file(sh).tasks.map((t) => [t.id, t.title]), [["T1", "x"], ["T2", "急ぎ"]]);
+  assert.deepEqual(file(pe).sessions.map((x) => `${x.taskId}:${x.id ?? ""}`), ["T1:", "T2:S-T2"], "枠は T2 に付く（共有に無い T3 の枠にしない）");
+  assert.deepEqual(file(pe).inbox, { watching: "now" }, "見張りの印も残る");
+  assert.equal(data.orphanSessions, undefined);
+});
+
+test("当て直さずに書けた方が、もう片方の失敗中に外で変わったら、その方は conflict で、編集を 2 回当てない", async () => {
+  const { s, data, sh, pe } = await opened();
+  const ADD = (d) => ({ ...d, changeLog: [...d.changeLog, { id: "L" + (d.changeLog.length + 1) }], tasks: d.tasks.map((t) => ({ ...t, sessions: t.sessions.map((x) => ({ ...x, end: "11:00" })) })) });
+  pe.failWrite = new Error("disk full");
+  assert.equal((await s.saveMerged(ADD, ADD(data))).ok, false);
+  pe.failWrite = null;
+  sh.text = JSON.stringify({ ...file(sh), labels: "外" }); sh.modified += 5;
+  const E2 = (d) => ({ ...d, tasks: d.tasks.map((t) => ({ ...t, title: "x" })) });
+  const both = (d) => E2(ADD(d));
+  const r = await s.saveMerged(both, both(data));
+  assert.deepEqual([r.ok, r.reason], [false, "conflict"]);
+  assert.match(r.message, /data\.json: /);
+  assert.deepEqual(file(sh).changeLog, [{ id: "L1" }]);
+  assert.equal(file(pe).sessions[0].end, "11:00", "個人は、編集を当てる前の共有を土台に書ける");
+});
+
+test("choose: 旧形式の data.json と、JSON でないファイルは、開かない（理由とファイル名つき）", async () => {
+  const old = fakeHandle({ ...S0, events: [] }, "data.json");
+  const s = createPairStore({ showOpenFilePicker: async () => [old], idb: memIdb() });
+  await assert.rejects(s.choose("shared"), /旧形式の data\.json/);
+  const bad = fakeHandle({}, "mine.json"); bad.text = "{ broken";
+  const s2 = createPairStore({ showOpenFilePicker: async () => [bad], idb: memIdb() });
+  await assert.rejects(s2.choose("personal"), /JSON として読めません（mine\.json）/);
+});

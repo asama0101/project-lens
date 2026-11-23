@@ -11,6 +11,7 @@ import { markApplied } from "../plugins/project-lens/src/core/inbox.js";
 import { addDays, dueAfter, today } from "../plugins/project-lens/src/core/dates.js";
 
 import { writeTwo, readTwo, rawTwo } from "./twofiles.js";
+import { splitData } from "../plugins/project-lens/src/core/split.js";
 
 const REPO = fileURLToPath(new URL("../plugins/project-lens/", import.meta.url));
 const base = mkdtempSync(join(tmpdir(), "project-lens-inbox-"));
@@ -379,11 +380,14 @@ test("wait: 存在しないパス・壊れたファイルは、黙って待ち�
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
+/** 分割したサンプルの共有ファイルの中身（sample.json はそのままでは、作業枠・予定を含む旧形式の data.json として読まれない） */
+const sharedText = () => JSON.stringify(splitData(JSON.parse(readFileSync(join(REPO, "data/sample.json"), "utf8"))).shared);
+
 test("CLI は、BOM 付きの data.json も読める（画面は BOM を除いて開くので、そろえる）", () => {
   const dir = mkdtempSync(join(tmpdir(), "tt-bom-"));
   try {
     const p = join(dir, "bom.json");
-    writeFileSync(p, "﻿" + readFileSync(join(REPO, "data/sample.json"), "utf8"));
+    writeFileSync(p, "﻿" + sharedText());
     const r = spawnSync(process.execPath, [join(REPO, "tools/inbox.js"), "list", p], { encoding: "utf8" });
     assert.equal(r.status, 0, r.stderr);
     assert.ok(Array.isArray(JSON.parse(r.stdout)));
@@ -397,7 +401,7 @@ test("wait: --interval が 0 以下なら終了コード 2（CPU を使い続け
     copyFileSync(join(REPO, "data/sample.json"), ok);
     assert.equal(spawnSync(process.execPath, [join(REPO, "tools/inbox.js"), "wait", ok, "--interval", "0", "--timeout", "1"], { encoding: "utf8", timeout: 20000 }).status, 2);
     const bom = join(dir, "bom.json");
-    writeFileSync(bom, "﻿" + readFileSync(join(REPO, "data/sample.json"), "utf8"));
+    writeFileSync(bom, "﻿" + sharedText());
     const v = spawnSync(process.execPath, [join(REPO, "tools/validate.js"), bom], { encoding: "utf8" });
     assert.equal(v.status, 0, v.stdout + v.stderr);
   } finally { rmSync(dir, { recursive: true, force: true }); }

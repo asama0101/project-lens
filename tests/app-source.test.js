@@ -493,7 +493,7 @@ test("app.js: 直接保存できないブラウザの書き出しは exportFiles
   assert.match(dl, /a\.download = name/);
   assert.doesNotMatch(dl, /"data\.json"/, "名前は exportFiles が決める");
   assert.match(src, /<input type="file" multiple /);
-  assert.match(src, /dataFromTexts\(texts\)/);
+  assert.match(src, /dataFromTexts\(texts, /);
   assert.doesNotMatch(src, /loaded\(JSON\.parse/);
 });
 

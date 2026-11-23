@@ -98,3 +98,17 @@ test("dataFromTexts: 選ぶ順に関係なく、形で共有・個人を見分�
   assert.throws(() => dataFromTexts([a, a]), /1 つずつ/);
   assert.throws(() => dataFromTexts([b, b]), /1 つずつ/);
 });
+
+test("checkSharedShape: 作業枠・予定を含む 1 ファイルの旧形式は例外（読み込んで、次の保存で枠・予定を消さない）", () => {
+  const OLD = /作業枠・予定を含む 1 ファイルの旧形式の data\.json です/;
+  assert.throws(() => checkSharedShape(sample()), OLD);
+  const ok = { projects: [], tasks: [{ id: "A" }], changeLog: [] };
+  assert.doesNotThrow(() => checkSharedShape(ok));
+  assert.throws(() => checkSharedShape({ ...ok, tasks: [{ id: "A", sessions: [] }] }), OLD);
+  assert.throws(() => checkSharedShape({ ...ok, events: [] }), OLD);
+  assert.throws(() => dataFromTexts([JSON.stringify(sample()), JSON.stringify(emptyPersonal())]), OLD);
+});
+
+test("dataFromTexts: JSON でないファイルは、ファイル名つきで「JSON として読めません」", () => {
+  assert.throws(() => dataFromTexts(["{ x", JSON.stringify(emptyPersonal())], ["data.json", "personal.json"]), /JSON として読めません（data\.json）/);
+});

@@ -55,7 +55,13 @@ export function emptyPersonal() {
 const checkShape = (x, name, keys) => {
   for (const k of keys) if (!Array.isArray(x?.[k])) throw new Error(`${name}のデータの形が違います（${k} がありません）`);
 };
-export const checkSharedShape = (x) => checkShape(x, "data.json", ["projects", "tasks", "changeLog"]);
+/** 作業枠（tasks[].sessions）・予定（events）を含む、分割前の 1 ファイルの data.json か。splitData は共有ファイルにどちらも書かない */
+export const isOldShared = (x) => "events" in x || x.tasks.some((t) => t && typeof t === "object" && "sessions" in t);
+/** 旧形式は読まない（読むと、個人の作業枠・予定が空のデータになり、次の保存で共有ファイルから消える。移行は持たない） */
+export const checkSharedShape = (x) => {
+  checkShape(x, "data.json", ["projects", "tasks", "changeLog"]);
+  if (isOldShared(x)) throw new Error("作業枠・予定を含む 1 ファイルの旧形式の data.json です。personal.json へ手で分けてください");
+};
 export const checkPersonalShape = (x) => checkShape(x, "personal.json", ["sessions", "events"]);
 
 /** 直接保存できないブラウザの「JSON を書き出す」: ダウンロードする 2 つのファイル（名前は固定） */
@@ -64,11 +70,12 @@ export function exportFiles(data) {
   return [["data.json", shared], ["personal.json", personal]].map(([name, obj]) => ({ name, text: JSON.stringify(obj, null, 2) + "\n" }));
 }
 
-/** 直接開けないブラウザで選んだファイルの中身（文字列）から、共有・個人を形で見分けて 1 つのデータにする。ちょうど共有 1・個人 1 でなければ例外 */
-export function dataFromTexts(texts) {
+/** 直接開けないブラウザで選んだファイルの中身（文字列。names は、同じ順のファイル名）から、共有・個人を形で見分けて 1 つのデータにする。ちょうど共有 1・個人 1 でなければ例外 */
+export function dataFromTexts(texts, names = []) {
   const shared = [], personal = [];
-  for (const t of texts) {
-    const x = JSON.parse(t);
+  for (const [i, t] of texts.entries()) {
+    let x;
+    try { x = JSON.parse(t); } catch { throw new Error(`JSON として読めません（${names[i] ?? `${i + 1} つ目のファイル`}）`); }
     if (Array.isArray(x?.projects)) shared.push(x); else personal.push(x);
   }
   if (shared.length !== 1 || personal.length !== 1) throw new Error("共有ファイル（data.json）と個人ファイル（personal.json）を 1 つずつ選んでください");

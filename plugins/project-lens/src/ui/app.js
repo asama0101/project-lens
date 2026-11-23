@@ -727,7 +727,7 @@ function onChange(el) {
   const { date: today } = clock();
   if (el.dataset.fileinput !== undefined) {
     if (!el.files?.length) return;
-    Promise.all([...el.files].map((f) => f.text())).then((texts) => { try { loaded(dataFromTexts(texts)); } catch (err) { S.openError = `開けません: ${err.message}`; } render(); });
+    Promise.all([...el.files].map((f) => f.text())).then((texts) => { try { loaded(dataFromTexts(texts, [...el.files].map((f) => f.name))); } catch (err) { S.openError = `開けません: ${err.message}`; } render(); });
     return;
   }
   if (el.dataset.mt) {

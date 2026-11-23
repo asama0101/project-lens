@@ -58,7 +58,8 @@ export function createStore(deps = {}) {
   /** h のファイルを読み、形を検査する。handle と loadedAt は変えない（検査に通ってから、呼び出し側が切り替える） */
   async function readFrom(h) {
     const file = await h.getFile();
-    const data = JSON.parse(await file.text());
+    let data;
+    try { data = JSON.parse(await file.text()); } catch { throw new Error(`JSON として読めません（${h.name}）`); }
     check(data);
     return { data, at: file.lastModified };
   }
@@ -193,10 +194,13 @@ export function createPairStore(deps = {}) {
   // 当て直して書けたが、もう片方の保存が失敗した（画面のデータが、そのファイルより古い）ファイルの、編集を当てる前の内容。
   // 次の保存は、画面のデータではなく、これに edit を当て直したものを、当て直さずに書く（画面の古いデータで、他の更新を上書きしない）
   let behind = {};
+  // 当て直さずに書けたが、もう片方の保存が失敗したファイルの、編集を当てる前の内容。sync はその編集を持ったままなので、
+  // もう片方の当て直しの土台にする（書けた内容を土台にすると、同じ編集を 2 回当てる）。このファイル自身も、もう当て直さずに書く
+  let prior = {};
   const hasFile = () => stores.shared.hasFile && stores.personal.hasFile;
   const merged = () => (hasFile() ? mergeData(raw.shared, raw.personal) : null);
   const missing = () => PAIR.filter((w) => !stores[w].hasFile);
-  const loaded = (w, d) => { raw[w] = d; behind = {}; };
+  const loaded = (w, d) => { raw[w] = d; behind = {}; prior = {}; };
 
   /** 起動時の自動オープン。2 つとも開けたときだけ結合したデータ、そうでなければ null（足りない方は missing で分かる） */
   async function restore() {
@@ -237,11 +241,11 @@ export function createPairStore(deps = {}) {
 
   /** edit が null なら当て直さない（save）。結果は createStore の saveMerged と同じ形で、message にファイル名を付ける */
   async function write(data, edit) {
-    const base = { shared: behind.shared ?? raw.shared, personal: behind.personal ?? raw.personal }; // 編集を当てる前の内容
+    const base = { shared: behind.shared ?? prior.shared ?? raw.shared, personal: behind.personal ?? prior.personal ?? raw.personal }; // 編集を当てる前の内容
     const redo = (w, fresh) => { base[w] = fresh; return splitData(edit(mergeData(base.shared, base.personal)))[w]; };
     const before = splitData(mergeData(raw.shared, raw.personal)); // 直前の内容を splitData の形（キーの順）にそろえて比べる
     const next = splitData(data);
-    const failed = [], ahead = [];
+    const failed = [], ahead = [], written = [];
     for (const w of PAIR) {
       let part = next[w];
       if (behind[w]) {
@@ -250,19 +254,21 @@ export function createPairStore(deps = {}) {
       }
       if (JSON.stringify(part) !== JSON.stringify(before[w])) {
         // behind の方は、当て直した結果を、もう当て直さずに書く（その後にまた外から変わっていたら conflict。すでに書いた編集を 2 回当てない）
-        const r = edit && !behind[w] ? await stores[w].saveMerged((fresh) => redo(w, fresh), part) : { ...(await stores[w].save(part)), data: part };
+        const r = edit && !behind[w] && !prior[w] ? await stores[w].saveMerged((fresh) => redo(w, fresh), part) : { ...(await stores[w].save(part)), data: part };
         if (!r.ok) { failed.push({ w, r }); continue; }
         raw[w] = r.data;
         part = r.data;
+        if (part === next[w]) written.push(w);
       }
       if (part !== next[w]) ahead.push(w); // ファイルが、画面のデータより新しい（当て直した）
       else delete behind[w];
     }
     if (!failed.length) {
-      behind = {};
+      behind = {}; prior = {};
       return { ok: true, data: ahead.length ? mergeData(raw.shared, raw.personal) : data };
     }
-    for (const w of ahead) behind[w] = base[w];
+    for (const w of ahead) { behind[w] = base[w]; delete prior[w]; }
+    for (const w of written) prior[w] = base[w];
     const message = failed.map(({ w, r }) => `${PAIR_NAMES[w]}: ${r.message}`).join(" / ");
     return { ok: false, reason: failed[0].r.reason, message, data };
   }

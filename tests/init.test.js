@@ -224,3 +224,16 @@ test("空のひな形: projectRules が空で、見出しの既定が入る", ()
   assert.deepEqual(d.settings.projectRules, []);
   assert.deepEqual(d.settings.labels, { group: "大項目", subgroup: "中項目" });
 });
+
+test("既存の data.json が、作業枠・予定を含む旧形式なら、何も作らずに止める（空の個人ファイルを隣に足さない）", () => {
+  const cwd = proj(), pluginRoot = plugin();
+  mkdirSync(join(cwd, ".project-lens"));
+  const old = readFileSync(join(REPO, "data/sample.json"), "utf8");
+  writeFileSync(join(cwd, ".project-lens/data.json"), old);
+  const r = init({ cwd, pluginRoot });
+  assert.equal(r.ok, false);
+  assert.match(r.error, /旧形式の data\.json/);
+  assert.deepEqual(names(cwd), [".project-lens"]);
+  assert.deepEqual(names(join(cwd, ".project-lens")), ["data.json"]);
+  assert.equal(readFileSync(join(cwd, ".project-lens/data.json"), "utf8"), old);
+});
