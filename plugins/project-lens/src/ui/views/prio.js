@@ -1,10 +1,11 @@
 // 「今日のタスク」「今日の優先」パネル（プロジェクト画面・スケジュール画面で共通。右の列に並ぶ）
 import { rankTasks } from "../../core/schedule.js";
 import { taskActual } from "../../core/sessions.js";
-import { isClosed } from "../../core/schema.js";
+import { isClosed, isImportantMark } from "../../core/schema.js";
 import { esc, checkMeterHtml } from "../common.js";
 
 const PILL = { "To Do": "off", "In Progress": "ok", Waiting: "wait", Done: "done", Cancelled: "off" };
+const IMP_BADGE = `<span class="impbadge">重要</span>`;
 const statusPill = (t) => `<span class="pill ${PILL[t.status] ?? "off"}">${esc(t.status)}</span>`;
 
 /** 着手（To Do・Waiting のとき）と完了（Done・Cancelled 以外）のボタン。今日のタスクが使う */
@@ -45,7 +46,7 @@ export function renderTodayTasks(data, today, opts = {}) {
     const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? (t.projectId == null ? "プロジェクトなし" : ""));
     const times = slots.map((s) => esc(`${s.start}–${s.end}`)).join("、");
     const ask = opts.pendingDone?.id === t.id ? doneAskHtml(opts.pendingDone) : "";
-    return `<li data-today="${esc(t.id)}"${isClosed(t) ? ' class="closed"' : ""}><span class="pj">${proj}</span><span class="t">${esc(t.title)} ${statusPill(t)}</span><span class="why mono">${times}</span>${isClosed(t) ? "" : checkMeterHtml(t, { remain: true })}${isClosed(t) ? "" : statusButtons(t)}${ask}</li>`;
+    return `<li data-today="${esc(t.id)}"${isClosed(t) ? ' class="closed"' : ""}><span class="pj">${proj}</span><span class="t">${esc(t.title)} ${statusPill(t)}${isImportantMark(t) ? IMP_BADGE : ""}</span><span class="why mono">${times}</span>${isClosed(t) ? "" : checkMeterHtml(t, { remain: true })}${isClosed(t) ? "" : statusButtons(t)}${ask}</li>`;
   }).join("");
   return `<section class="panel todaytasks" aria-labelledby="h-td"><h2 id="h-td">今日のタスク</h2><ul class="rank tl">${items}</ul></section>`;
 }
@@ -66,7 +67,7 @@ export function renderPrio(data, today, opts = {}) {
     const pill = a.count ? ` <span class="pill ok">${a.count}回・実績 ${a.hours.toFixed(1)}h</span>` : "";
     const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? (t.projectId == null ? "プロジェクトなし" : ""));
     const drag = sched ? ` draggable="true" data-pick="${esc(t.id)}" tabindex="0"` : "";
-    return `<li${drag} class="${picked === t.id ? "picked" : ""}"><span class="n">${i + 1}</span><span class="pj">${proj}</span><span class="t">${r.action === "chase" ? `<span class="act">${r.reasons.some((x) => x.includes("催促")) ? "催促" : "確認"}</span>` : ""}${esc(t.title)} ${statusPill(t)}${pill}</span>${checkMeterHtml(t, { remain: true })}<span class="why">${esc(r.reasons.join("。"))}</span></li>`;
+    return `<li${drag} class="${picked === t.id ? "picked" : ""}"><span class="n">${i + 1}</span><span class="pj">${proj}</span><span class="t">${r.action === "chase" ? `<span class="act">${r.reasons.some((x) => x.includes("催促")) ? "催促" : "確認"}</span>` : ""}${esc(t.title)} ${statusPill(t)}${pill}</span>${checkMeterHtml(t, { remain: true })}<span class="why">${isImportantMark(t) ? IMP_BADGE : ""}${esc(r.reasons.filter((x) => x !== "重要").join("。"))}</span></li>`;
   }).join("");
   const note = sched
     ? "タスクをカレンダーへドラッグして配置します(15分刻み・長さ1時間)。配置済みの枠もドラッグで移動できます。キーボードでは、タスクを選んで日表示の空き枠を押します。"

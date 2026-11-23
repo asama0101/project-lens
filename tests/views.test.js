@@ -1504,3 +1504,21 @@ test("renderTaskPop: プロジェクトの選択欄に、プロジェクトな�
   const x = renderTaskPop(d, { id: "X1", x: 10, y: 10 }, "");
   assert.ok(x.includes('<option value="" selected>プロジェクトなし</option>'));
 });
+
+test("重要バッジ: 今日の優先は理由の欄に impbadge を 1 つ（重要度の文字は出さない）。今日のタスクは未完了の重要だけ、状態 pill の後に出す", () => {
+  const d = load();
+  const a = d.tasks.find((x) => x.id === "A3"); a.important = true;
+  const row = { html: [...renderPrio(d, TODAY, { sched: true }).matchAll(/<li[^>]*data-pick="A3"[^>]*>[\s\S]*?<\/li>/g)].map((m) => m[0]).join("") };
+  assert.ok(row.html, "A3 が今日の優先にある");
+  assert.equal(count(row.html, /impbadge/g), 1);
+  assert.ok(/<span class="why">[^]*<span class="impbadge">重要<\/span>/.test(row.html), "why の中");
+  assert.ok(!row.html.includes("重要度"));
+  const { d: d2, done } = withToday();
+  delete d2.tasks.find((x) => x.id === "A7").important;
+  d2.tasks.find((x) => x.id === "A5").important = true;
+  done.important = true;
+  const rows = items(renderTodayTasks(d2, TODAY));
+  assert.ok(/<span class="t">[^]*class="pill[^]*<\/span> ?<span class="impbadge">重要<\/span>/.test(rows.find((x) => x.id === "A5").html), "pill の後");
+  assert.ok(!rows.find((x) => x.id === done.id).html.includes("impbadge"), "Done には無い");
+  assert.ok(!rows.find((x) => x.id === "A7").html.includes("impbadge"), "重要でなければ無い");
+});

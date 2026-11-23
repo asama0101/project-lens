@@ -520,3 +520,6 @@ body:has(.ptool){padding-block-start:8px}
 /* リストの重要の印: ガントの imp-high と同じ（左端に太い赤の線と、薄い赤の背景） */
 #view .tbl tr.imp td:first-child{box-shadow:inset 5px 0 0 var(--bad)}
 #view .tbl tr.imp{background:var(--bad-soft)}
+
+/* 今日の優先・今日のタスクの「重要」バッジ */
+#view .impbadge{background:var(--bad);color:#fff;font-size:10px;font-weight:700;border-radius:8px;padding:0 6px;margin-left:4px}
