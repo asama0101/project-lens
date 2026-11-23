@@ -183,8 +183,8 @@ export function createPairStore(deps = {}) {
     personal: createStore({ ...deps, key: "personalFileHandle", check: checkPersonalShape }),
   };
   const raw = { shared: null, personal: null }; // 直前に読んだ（または保存した）各ファイルの内容
-  // 当て直して書けたが、もう片方の保存が失敗したファイルの、編集を当てる前の内容。画面のデータはそのファイルより古いので、
-  // 次の保存は、画面のデータではなく、これに edit を当て直したものを書く（画面の古いデータで、他の更新を上書きしない）
+  // 画面のデータより新しくなったファイル（当て直して書けたが、もう片方の保存が失敗した / 片方だけ読み直せた）の、まだ保存していない編集を当てる土台。
+  // 次の保存は、画面のデータではなく、これに edit を当て直したものを、当て直さずに書く（画面の古いデータで、他の更新を上書きしない）
   let behind = {};
   const hasFile = () => stores.shared.hasFile && stores.personal.hasFile;
   const merged = () => (hasFile() ? mergeData(raw.shared, raw.personal) : null);
@@ -197,9 +197,12 @@ export function createPairStore(deps = {}) {
     return merged();
   }
 
-  /** まだ開いていない方を、権限の確認だけで開く */
+  /** まだ開いていない方を、権限の確認だけで開く。記憶の無い方は開かない（missing に残る） */
   async function reopen() {
-    for (const w of missing()) loaded(w, await stores[w].reopen());
+    for (const w of missing()) {
+      if ((await stores[w].lastFile()) === null) continue;
+      loaded(w, await stores[w].reopen());
+    }
     return merged();
   }
 
@@ -217,8 +220,17 @@ export function createPairStore(deps = {}) {
     return mergeData(await stores.shared.peek(), await stores.personal.peek());
   }
 
+  /** 片方だけ読み直せて、もう片方が失敗したときは、読み直せた方を behind に入れる（その方の読み込み時点は進んでいて、
+   *  画面は古いデータのままなので、次の保存が、他の更新を画面の古いデータで上書きしないように） */
   async function reload() {
-    for (const w of PAIR) loaded(w, await stores[w].reload());
+    const fresh = {};
+    try {
+      for (const w of PAIR) fresh[w] = await stores[w].reload();
+    } catch (e) {
+      for (const w of Object.keys(fresh)) { raw[w] = fresh[w]; behind[w] = fresh[w]; }
+      throw e;
+    }
+    for (const w of PAIR) loaded(w, fresh[w]);
     return merged();
   }
 
@@ -236,7 +248,8 @@ export function createPairStore(deps = {}) {
         try { part = redo(w, behind[w]); } catch (e) { failed.push({ w, r: { reason: "conflict", message: e?.message ?? String(e) } }); continue; }
       }
       if (JSON.stringify(part) !== JSON.stringify(before[w])) {
-        const r = edit ? await stores[w].saveMerged((fresh) => redo(w, fresh), part) : { ...(await stores[w].save(part)), data: part };
+        // behind の方は、当て直した結果を、もう当て直さずに書く（その後にまた外から変わっていたら conflict。すでに書いた編集を 2 回当てない）
+        const r = edit && !behind[w] ? await stores[w].saveMerged((fresh) => redo(w, fresh), part) : { ...(await stores[w].save(part)), data: part };
         if (!r.ok) { failed.push({ w, r }); continue; }
         raw[w] = r.data;
         part = r.data;

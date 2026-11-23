@@ -175,3 +175,46 @@ test("片方を当て直して書けたが、もう片方が失敗したとき�
   assert.deepEqual(again.data.tasks.map((t) => t.id), ["T1", "T2"], "画面へ、最新を返す");
   assert.equal(sh.writes, 1, "共有は書き直さない（中身が同じ）");
 });
+
+test("reload: 片方だけ読み直せて、もう片方が失敗したとき、次の保存は他の更新を消さない", async () => {
+  const { s, data, sh, pe } = await opened();
+  sh.text = JSON.stringify({ ...S0, tasks: [...S0.tasks, { id: "EXT", projectId: "P1", title: "他" }] }); sh.modified += 5;
+  const getFile = pe.getFile;
+  pe.getFile = async () => { pe.getFile = getFile; throw new Error("読めません"); }; // 1 回だけ失敗
+  await assert.rejects(s.reload(), /読めません/);
+  const edit = (d) => ({ ...d, tasks: d.tasks.map((t) => (t.id === "T1" ? { ...t, title: "自分" } : t)) });
+  const r = await s.saveMerged(edit, edit(data)); // 画面は、まだ EXT を知らない
+  assert.equal(r.ok, true);
+  assert.deepEqual(file(sh).tasks.map((t) => [t.id, t.title]), [["T1", "自分"], ["EXT", "他"]], "EXT が残る");
+  assert.deepEqual(r.data.tasks.map((t) => t.id), ["T1", "EXT"]);
+});
+
+test("当て直して書いたあと、もう片方の失敗中に、そのファイルがまた外から変わったら conflict で、書かない（編集を 2 回当てない）", async () => {
+  const { s, data, sh, pe } = await opened();
+  const ext = (ids) => { sh.text = JSON.stringify({ ...S0, tasks: [...S0.tasks, ...ids.map((id) => ({ id, projectId: "P1", title: "他" }))] }); sh.modified += 5; };
+  ext(["T2"]);
+  pe.failWrite = new Error("disk full");
+  const log = (d) => ({ ...d, changeLog: [...d.changeLog, { id: "L1" }], tasks: d.tasks.map((t) => ({ ...t, sessions: t.sessions.map((x) => ({ ...x, end: "11:00" })) })) });
+  assert.equal((await s.saveMerged(log, log(data))).ok, false);
+  assert.equal(sh.writes, 1);
+  const afterFirst = JSON.parse(sh.text);
+  ext(["T2", "T3"]); sh.text = JSON.stringify({ ...JSON.parse(sh.text), changeLog: afterFirst.changeLog }); // 他が、さらに T3 を足した
+  pe.failWrite = null;
+  const title = (d) => ({ ...d, tasks: d.tasks.map((t) => (t.id === "T1" ? { ...t, title: "自分" } : t)) });
+  const both = (d) => title(log(d));
+  const r = await s.saveMerged(both, both(data));
+  assert.deepEqual([r.ok, r.reason], [false, "conflict"]);
+  assert.match(r.message, /data\.json: /);
+  assert.equal(sh.writes, 1, "共有は書かない");
+  assert.deepEqual(JSON.parse(sh.text).changeLog, [{ id: "L1" }], "編集を 2 回当てない");
+});
+
+test("reopen: 記憶の無い方は開かず、権限の誤った文言を出さない。足りない方は missing で分かる", async () => {
+  const sh = fakeHandle(S0, "data.json");
+  const deps = { showOpenFilePicker: async () => [sh], idb: memIdb() };
+  await createPairStore(deps).choose("shared");
+  sh.perm = "prompt"; sh.reqPerm = "granted";
+  const s = createPairStore(deps);
+  assert.equal(await s.reopen(), null);
+  assert.deepEqual(s.missing(), ["personal"]);
+});
