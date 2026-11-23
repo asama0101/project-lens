@@ -585,6 +585,13 @@ test("app.js: 作業枠を押して選ぶと（selectSession）、そのタス�
   assert.match(src, /if \(q\("\[data-tedit-close\]"\)\) \{ clearSel\(\); render\(\); return; \}/);
 });
 
+test("theme.css: スケジュールの凡例の色の見本は 18×14px（線・点線・塗りは .sw の規則のまま）。文字は 12px。現在時刻の線は高さ 0 のまま、行の中央に置く（#view の中だけ）", () => {
+  assert.ok(css.includes("#view .toolbar .slegend{margin:0 0 0 10px;gap:2px 12px;font-size:12px}"));
+  assert.ok(css.includes("#view .toolbar .slegend .sw{width:18px;height:14px;margin-right:5px}"));
+  assert.ok(css.includes("#view .toolbar .slegend .sw.now{height:0}"));
+  assert.ok(!css.includes("#view .toolbar .slegend .sw{width:14px"), "小さい見本の規則を残さない");
+});
+
 test("theme.css: カレンダーの上の入力欄（#mtgslot）は、中身があるとき、ヘッダーと操作の行の下に固定する（#view の中だけ）", () => {
   assert.ok(css.includes("#view #mtgslot:not(:empty){position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px));"));
 });

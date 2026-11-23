@@ -559,9 +559,10 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 #view .ktag.plan{background:var(--accent-soft);border:1px solid var(--accent)}
 #view .ktag.act{background:color-mix(in srgb,var(--ok) 22%,var(--surface));border:1px solid var(--ok)}
 #view .ktag.unconf{background:var(--warn-soft);border:1px dashed var(--warn);color:var(--warn)}
-/* スケジュールの色の凡例は、上の操作の行（週・日の見出しの横）に小さく並べる。入らないときだけ次の行へ折り返す */
-#view .toolbar .slegend{margin:0 0 0 10px;gap:2px 10px;font-size:11px}
-#view .toolbar .slegend .sw{width:14px;height:10px;margin-right:4px}
+/* スケジュールの色の凡例は、上の操作の行（週・日の見出しの横）に並べる。入らないときだけ次の行へ折り返す。色の見本は 18×14px（線・点線・塗りは .sw の規則のまま）。現在時刻の見本は線なので、高さ 0 のまま行の中央に置く */
+#view .toolbar .slegend{margin:0 0 0 10px;gap:2px 12px;font-size:12px}
+#view .toolbar .slegend .sw{width:18px;height:14px;margin-right:5px}
+#view .toolbar .slegend .sw.now{height:0}
 /* 30 分未満の枠・会議（short）は、時刻と件名を 1 行に並べ、上下の余白を詰める（15 分は 22px） */
 #view .cal .blk.short{padding-top:1px;padding-bottom:1px;white-space:nowrap;text-overflow:ellipsis}
 #view .cal .blk.short .tm{display:inline;margin-right:4px}
