@@ -51,7 +51,7 @@ tools: Read, Write, Bash
    - シートが複数あり、依頼にシートの指定がないときは、シートの一覧（`hidden` は除く）を添えて、どれを取り込むかを質問として報告して終わる。
 3. **列の対応を決める。**
    - まず次のコマンドで、保存済みの対応を確認する（読み取り専用）: `node "${CLAUDE_PLUGIN_ROOT}/tools/intake.js" mapping-get ".project-lens/data.json" <projectId>`。保存済みの対応を使うときも、その内容を一時フォルダの `mapping.json` に書く（手順 5 の承認の依頼に、パスを入れるため）。
-   - 無ければ、見出しと内容から、列の意味（`group` 大項目・`subgroup` 中項目・`title` 件名・`due` 期限・`start` 開始・`status` 状態・`predecessors` 前のタスク・`memo` メモ）。重要の列があっても対応させないを判断する。対応（Excel の列 → 項目）は `{"title": "作業名", "due": "期限", ...}`（項目 → Excel の列見出し）の JSON にして OS の一時フォルダの `mapping.json` に置く。
+   - 無ければ、見出しと内容から、列の意味（`group` 大項目・`subgroup` 中項目・`title` 件名・`due` 期限・`start` 開始・`status` 状態・`predecessors` 前のタスク・`memo` メモ）を判断する。重要の列があっても対応させない。対応（Excel の列 → 項目）は `{"title": "作業名", "due": "期限", ...}`（項目 → Excel の列見出し）の JSON にして OS の一時フォルダの `mapping.json` に置く。
    - **ここでは承認を求めず**、手順 4〜5（`rows.json` の作成と `wbs-plan`。どちらも読み取り専用）まで進め、**対応表と変更案を一緒に報告する**（承認は 1 回。手順 6 の依頼で受ける）。
    - 依頼に列の対応の直しが足されていたら、それに従った対応で手順 4 から作る。次回は、保存済みの対応を使い、同じく変更案と一緒に報告する。
 4. **行を正規化する。** WBS の形式は固定でない。階層は、列（大項目・中項目の列）、結合セル（展開済み）、インデント（`indents`）、番号（1.1.2 など）のいずれかで表されている。次の規則で `rows.json`（`[{group, subgroup, title, due, start, status, memo, predecessorKeys}]`）を作る。
