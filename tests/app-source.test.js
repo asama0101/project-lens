@@ -692,3 +692,8 @@ test("theme.css: スケジュールも、ガント・リストと同じく、ペ
     "#view section.panel > .stop{padding-top:16px}",
   ]) assert.ok(css.includes(rule), rule);
 });
+
+test("app.js: render は、画面を描けない例外（不正な日付など）で固まらず、理由とバナーを出す", () => {
+  const body = src.slice(src.indexOf("function render()"), src.indexOf("function focusSelector"));
+  assert.match(body, /try \{\s*view\.innerHTML = renderBody\(\);\s*\} catch \(e\) \{[\s\S]*?画面を描けません[\s\S]*?refreshBanner\(\)/);
+});

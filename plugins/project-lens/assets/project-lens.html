@@ -2091,15 +2091,15 @@ function createStore(deps = {}) {
   /** 常にファイル選択を出す。読めて形が合ったときだけ、切り替えて記憶する */
   async function choose() {
     const [h] = await picker({ types: PICKER_TYPES, multiple: false });
-    await ensureWritable(h);
+    if (!(await ensureWritable(h))) throw new Error("ファイルへの書き込みが許可されませんでした。もう一度ファイルを選び、許可してください");
     const data = await switchTo(h);
     rememberFailed = (await idb.set(key, h)) === false;
     return data;
   }
 
-  /** ファイルの最新を読むだけ（読込時点は変えない。他の更新があるかの確認用） */
-  async function peek() {
-    return JSON.parse(await (await handle.getFile()).text());
+  /** 読み込み（または直近の保存）のあとに、ファイルの更新日時が変わったか（中身は読まない。他の更新があるかの確認用） */
+  async function changed() {
+    return (await handle.getFile()).lastModified !== loadedAt;
   }
 
   async function reload() {
@@ -2156,7 +2156,7 @@ function createStore(deps = {}) {
     return { ...second, data };
   }
 
-  return { restore, reopen, choose, lastFile, peek, reload, read, save, saveMerged, get hasFile() { return !!handle; }, get rememberFailed() { return rememberFailed; } };
+  return { restore, reopen, choose, lastFile, changed, reload, read, save, saveMerged, get hasFile() { return !!handle; }, get rememberFailed() { return rememberFailed; } };
 }
 
 const PAIR = ["shared", "personal"];
@@ -2210,8 +2210,8 @@ function createPairStore(deps = {}) {
     return { shared: await stores.shared.lastFile(), personal: await stores.personal.lastFile() };
   }
 
-  async function peek() {
-    return mergeData(await stores.shared.peek(), await stores.personal.peek());
+  async function changed() {
+    return (await stores.shared.changed()) || (await stores.personal.changed());
   }
 
   /** 2 つとも読めて形が合ってから、両方の読み込み時点を進める。片方でも失敗したら、何も変えずに例外
@@ -2262,7 +2262,7 @@ function createPairStore(deps = {}) {
   }
 
   return {
-    restore, reopen, choose, missing, lastFile, peek, reload, save,
+    restore, reopen, choose, missing, lastFile, changed, reload, save,
     saveMerged: (edit, data) => write(data, edit),
     get hasFile() { return hasFile(); },
     get rememberFailed() { return stores.shared.rememberFailed || stores.personal.rememberFailed; },
@@ -2332,8 +2332,7 @@ function createSync({ store, getData, setData, render, renderBar, banner, toast,
         try {
           if (sync.failed || pending.length) return; // 並んでいる間に編集があった。その保存を先にする
           const strip = (d) => JSON.stringify({ ...d, inbox: undefined });
-          const probe = await store.peek(); // 読むだけ（読み込んだことにしない）。他の更新があるときだけ、読み込み直す
-          if (JSON.stringify(probe) === JSON.stringify(getData())) { renderBar(); return; }
+          if (!(await store.changed())) { renderBar(); return; } // 更新日時を見るだけ。他の更新があるときだけ、読み込み直す
           const fresh = await store.reload();
           if (pending.length) { // 読んでいる間に、画面で編集があった。最新のファイルの上に重ねる（保存は、その編集の保存が行う）
             try { setData(pending.reduce((d, e) => e(d), fresh)); } catch { sync.failed = true; banner(CONFLICT, { reload: true, download: true }); return; }
@@ -4595,7 +4594,12 @@ function render() {
   const prevLeft = view.querySelector(".gscroll")?.scrollLeft ?? 0, prevY = window.scrollY, chipsLeft = view.querySelector(".chips-row")?.scrollLeft ?? 0;
   view.style.minHeight = `${view.offsetHeight}px`;
   const keepFocus = focusSelector(document.activeElement);
-  view.innerHTML = renderBody();
+  try {
+    view.innerHTML = renderBody();
+  } catch (e) { // 手で直した日付の不正などで、描けない。固まらせず、理由と検証の結果（バナー）を出す
+    view.innerHTML = `<section class="panel"><h2>画面を描けません</h2><p class="ask" style="max-width:none" role="alert">${esc(e.message)}</p><p>データファイル（data.json・personal.json）を直してから、このページを再読み込みしてください。</p></section>`;
+    refreshBanner();
+  }
   if (keepFocus && !S.focusSel) view.querySelector(keepFocus)?.focus();
   const bars = [...view.querySelectorAll(".gscroll")];
   const reset = S.resetScroll;

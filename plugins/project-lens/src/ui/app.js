@@ -99,7 +99,12 @@ function render() {
   const prevLeft = view.querySelector(".gscroll")?.scrollLeft ?? 0, prevY = window.scrollY, chipsLeft = view.querySelector(".chips-row")?.scrollLeft ?? 0;
   view.style.minHeight = `${view.offsetHeight}px`;
   const keepFocus = focusSelector(document.activeElement);
-  view.innerHTML = renderBody();
+  try {
+    view.innerHTML = renderBody();
+  } catch (e) { // 手で直した日付の不正などで、描けない。固まらせず、理由と検証の結果（バナー）を出す
+    view.innerHTML = `<section class="panel"><h2>画面を描けません</h2><p class="ask" style="max-width:none" role="alert">${esc(e.message)}</p><p>データファイル（data.json・personal.json）を直してから、このページを再読み込みしてください。</p></section>`;
+    refreshBanner();
+  }
   if (keepFocus && !S.focusSel) view.querySelector(keepFocus)?.focus();
   const bars = [...view.querySelectorAll(".gscroll")];
   const reset = S.resetScroll;
