@@ -257,8 +257,6 @@ function apply(edit, msg, { partial = false, quiet = false } = {}) {
   sync.persist(edit);
   return true;
 }
-/** { data, error, warning } を返す編集関数を、apply に渡せる形（data → data）にする */
-const asEdit = (fn) => (d) => { const r = fn(d); if (r.error) throw new Error(r.error); return r.data; };
 
 /* ---------- ファイルを開く ---------- */
 function loaded(data) {
@@ -888,25 +886,8 @@ let ghost = null, drag = null;
 const minAtEl = (y, el) => { const g = calendarGeometry(), r = el.getBoundingClientRect(); return g.h0 + ((y - r.top) / r.height) * g.span; };
 const findSession = (id) => allSessions(S.data).find((s) => s.id === id);
 
-/** ドロップ先の判定(データは変えない): { st, end, error?, warning?, commit() } */
-function planDrop(dz, clientY) {
-  const date = dz.dataset.date, now = clock(), at = minAtEl(clientY, dz);
-  if (drag.kind === "mtg") {
-    const m = S.data.events.find((o) => o.id === drag.id), dur = toMin(m.end) - toMin(m.start), st = snapStart(at, dur);
-    const clash = S.data.tasks.some((t) => (t.sessions ?? []).some((s) => s.date === date && toMin(s.start) < st + dur && toMin(s.end) > st));
-    return { st, end: st + dur, warning: clash ? "配置済みの枠と重なっています" : "", next: (d) => updateMeeting(d, m.id, { date, start: toHHMM(st), end: toHHMM(st + dur) }), msg: `会議「${m.title}」を ${fmtMD(date)} ${hm(st)} に移動しました` };
-  }
-  if (drag.kind === "sess") {
-    const s = findSession(drag.id), dur = toMin(s.end) - toMin(s.start), st = snapStart(at, dur);
-    const to = { date, start: toHHMM(st) };
-    const r = moveSession(S.data, s.id, to, now);
-    return { st, end: st + dur, error: r.error, warning: r.warning, next: asEdit((d) => moveSession(d, s.id, to, now)), msg: `${S.data.tasks.find((t) => t.id === s.taskId).title} を ${fmtMD(date)} ${hm(st)} に移動しました` };
-  }
-  const st = snapStart(at, 60);
-  const did = drag.id, put = { date, start: toHHMM(st), end: toHHMM(st + 60) };
-  const r = addSession(S.data, did, put);
-  return { st, end: st + 60, error: r.error, warning: r.warning, next: asEdit((d) => addSession(d, did, put)), msg: `${S.data.tasks.find((t) => t.id === did).title} を ${fmtMD(date)} ${hm(st)} に予定として配置しました` };
-}
+/** ドロップ先の判定(データは変えない): { st, end, error?, warning, next, msg }。落とし先の読み取りだけここで行い、判断は dnd.js */
+const planDrop = (dz, clientY) => planDropAt(S.data, drag, { date: dz.dataset.date, at: minAtEl(clientY, dz) }, clock());
 
 /** ドラッグ中の時刻（10:00–11:00）を、ポインタの近くに出す。終わり・Esc・描き直しで消す */
 function showTip(text, x, y) {
@@ -934,42 +915,26 @@ view.addEventListener("dragstart", (e) => {
   e.dataTransfer.setData("text/plain", drag.id);
   e.dataTransfer.effectAllowed = "move";
 });
-/** タスクの並べ替え（リスト・ガントの「⠿」）。落とす位置の行から、moveTask に渡す指定を決める。落とせない・動かないときは null */
+/** タスクの並べ替え（リスト・ガントの「⠿」）。落とす位置の行を読み、判断は dnd.js。落とせない・動かないときは null */
 function planOrder(e) {
   const row = e.target.closest?.("tr, .g-row");
   if (!row) return null;
-  const dragged = S.data.tasks.find((t) => t.id === drag.id);
   const info = (r) => { const s = r.matches("tr") ? r : r.querySelector(":scope > .g-label"); return s ? { id: s.dataset.mvrow, pid: s.dataset.mvgrp, g: s.dataset.mvg ?? "", sg: s.dataset.mvsg ?? "" } : {}; };
-  const here = info(row);
-  const target = here.id ? S.data.tasks.find((t) => t.id === here.id) : null;
-  const pid = target ? target.projectId : here.pid;
-  if (!dragged || !pid || pid !== dragged.projectId) return null;
-  const rows = [...row.parentNode.children].filter((r) => r.matches("tr, .g-row"));
-  // その行より下で、同じセクションの先頭のタスク行（見出しに当たったらなし）
-  const nextTaskId = () => { for (const r of rows.slice(rows.indexOf(row) + 1)) { const i = info(r); if (i.id) return i.id; if (i.pid) return null; } return null; };
-  let plan;
-  if (target) {
-    const box = row.getBoundingClientRect();
-    plan = e.clientY < box.top + box.height / 2
-      ? { beforeId: target.id, pos: "before" }
-      : { beforeId: nextTaskId(), group: target.group ?? "", subgroup: target.subgroup ?? "", pos: "after" };
-  } else {
-    plan = { beforeId: nextTaskId(), group: here.g, subgroup: here.sg, pos: "after" }; // 見出しへ落とすと、そのセクションの先頭
-  }
-  if (moveTask(S.data, drag.id, plan) === S.data) return null;
-  return { ...plan, row };
+  const sibs = [...row.parentNode.children].filter((r) => r.matches("tr, .g-row"));
+  const box = row.getBoundingClientRect();
+  const plan = planOrderAt(S.data, drag.id, sibs.map(info), sibs.indexOf(row), e.clientY < box.top + box.height / 2);
+  return plan && { ...plan, row };
 }
-/** チェックリストの項目の落とし先。行の上半分ならその前、下半分なら次の項目の前（なければ末尾）。動かない・落とせないときは null */
+/** チェックリストの項目の落とし先。落とす行を読み、判断は dnd.js。動かない・落とせないときは null */
 function planCkOrder(e) {
   const row = e.target.closest?.(".ck-row");
   const box = row?.closest("[data-ckbox]");
   const [tid, iid] = drag.id.split("|");
   if (!row || box?.dataset.ckbox !== tid) return null;
   const rows = [...box.querySelectorAll(":scope > .ck-row")];
-  const r = row.getBoundingClientRect(), before = e.clientY < r.top + r.height / 2;
-  const beforeId = before ? row.dataset.ckid : (rows[rows.indexOf(row) + 1]?.dataset.ckid ?? null);
-  if (beforeId === iid || moveChecklistItem(S.data, tid, iid, beforeId) === S.data) return null;
-  return { tid, iid, beforeId, row, pos: before ? "before" : "after" };
+  const r = row.getBoundingClientRect();
+  const plan = planCkOrderAt(S.data, tid, iid, rows.map((x) => x.dataset.ckid), rows.indexOf(row), e.clientY < r.top + r.height / 2);
+  return plan && { tid, iid, ...plan, row };
 }
 const clearOrderLine = () => view.querySelectorAll(".drop-before,.drop-after").forEach((r) => r.classList.remove("drop-before", "drop-after"));
 view.addEventListener("dragover", (e) => {
@@ -1243,14 +1208,7 @@ function approveRequest(id) {
   const cause = S.ib.causes[id] ?? req.proposal.cause ?? "その他";
   if (!reason) { toast("変更履歴に残す理由を入力してください"); return; }
   const today = clock().date, now = nowIso();
-  const ok = apply((d) => {
-    const cur = getRequest(d, id);
-    if (cur?.status !== "proposed") throw new Error("この依頼は、すでに処理されています");
-    let next;
-    try { next = applyProposal(d, cur.proposal, { reason, cause, today }); }
-    catch (e) { if (e.code === "stale") return markFailed(d, id, e.message, now); throw e; }
-    return markApplied(next, id, { by: "html", summary: `${summarizeSections(cur.proposal.sections)}を反映しました`, now });
-  }, null);
+  const ok = apply((d) => approveEdit(d, id, { reason, cause, today, now }), null);
   if (!ok) return;
   const after = getRequest(S.data, id)?.status;
   toast(after === "applied" ? "反映しました" : "提案のあとにデータが変わったので、反映しませんでした。「もう一度提案してもらう」を押してください");

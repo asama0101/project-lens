@@ -27,7 +27,7 @@
 
 ## 3. `app.js` の判断ロジックを、DOM に触れない関数に出す
 - 設計の見立て: 判断そのもの（`moveSession`・`moveTask`・`applyProposal` など）は、すでに `src/core` と `inboxops.js` の純関数にある。`app.js` に残る問題は、DOM（`dataset`・`getBoundingClientRect`・`closest`）の読み取りと、判断が 1 つの関数に混ざっていること。そのためテストが、ソースの文字列を `assert.match` で探す形（`tests/app-source.test.js`）になっている。`S`（共有の状態）と `apply`・`render` を、全モジュールが共有するため、`app.js` 全体を仕事ごとのファイルに割ると、`S` を渡す口が増え、`build.js` の制約（順序・循環）にも当たる。割るのは、見送る。
-- 変更: 次の 3 つだけ、「DOM を読む部分」と「判断する部分」に分ける。判断する部分は、`src/core/` の新しいファイル `dnd.js` と、`src/ui/inboxops.js` に置く。
+- 変更: 次の 3 つだけ、「DOM を読む部分」と「判断する部分」に分ける。判断する部分は、`src/ui/` の新しいファイル `dnd.js`（`snapStart`・`moveTask` が UI 側にあるため） と、`src/ui/inboxops.js` に置く。
   - `planDrop`: DOM から `{ date, at（分）, kind, id }` を読む部分は `app.js` に残す。`{ st, end, error, warning, next, msg }` を出す判断を、`planDropAt(data, drag, { date, at }, now)` として `dnd.js` に出す。
   - `planOrder`・`planCkOrder`: DOM から、落とし先の行の情報（`{ id, pid, g, sg }` の並びと、上半分か下半分か）を読む部分を残し、`beforeId`・`pos` を決める判断を、`dnd.js` に出す。
   - `approveRequest`: `apply` に渡す編集（`getRequest` の確認 → `applyProposal` → `markApplied`、`stale` のとき `markFailed`）を、`approveEdit(id, { reason, cause, today, now })`（data → data）として `inboxops.js` に出す。
