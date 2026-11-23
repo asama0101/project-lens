@@ -702,6 +702,17 @@ test("renderTodayTasks: 「実績にする」は、予定の枠（未確認を�
   assert.ok(row(renderProjects(d, TODAY, { filter: "all", view: "list", now: NOW })).includes('data-session-actual="S10"'), "プロジェクト画面の右の列");
 });
 
+test("renderTodayTasks: 枠の時間の前に、予定・実績・未確認（過ぎた予定）の札を付ける（文字で出す。色はカレンダーの凡例と同じ class）", () => {
+  const { d, done } = withToday();
+  d.tasks.find((t) => t.id === "AA-0007").sessions.push({ id: "S13", date: TODAY, start: "08:00", end: "09:00", kind: "planned" }, { id: "S14", date: TODAY, start: "15:30", end: "16:00", kind: "actual" });
+  const html = renderTodayTasks(d, TODAY, { now: NOW });
+  const row = items(html).find((x) => x.id === "AA-0007").html;
+  assert.ok(row.includes('<span class="ktag unconf">未確認</span>08:00–09:00'), row);
+  assert.ok(row.includes('<span class="ktag plan">予定</span>14:00–15:00'), row);
+  assert.ok(row.includes('<span class="ktag act">実績</span>15:30–16:00'), row);
+  assert.ok(items(html).find((x) => x.id === done.id).html.includes('<span class="ktag act">実績</span>09:30–10:00'));
+});
+
 test("renderTodayTasks: 複数の枠は時間を並べる。pendingDone の行にだけ確認（data-doneok / data-doneno）を出す", () => {
   const { d } = withToday();
   d.tasks.find((t) => t.id === "AA-0005").sessions.push({ id: "S12", date: TODAY, start: "16:00", end: "17:00", kind: "planned" });

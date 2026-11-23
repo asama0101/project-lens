@@ -555,6 +555,11 @@ body:has(.ptool){padding-block-start:8px}
 #view .rank.tl .tss{display:flex;flex-wrap:wrap;gap:4px 12px}
 #view .rank.tl .ts{display:inline-flex;align-items:center;gap:6px}
 #view .rank.tl .ts .btn{padding:0 8px;font-size:12px;min-height:24px}
+/* 今日のタスクの枠の札（予定・実績・未確認）。色はカレンダーの凡例（.sw.plan・.sw.act・.sw.unconf）と同じ */
+#view .ktag{display:inline-block;font-family:var(--f-body);font-size:11px;font-weight:700;line-height:1.4;border-radius:4px;padding:0 6px;margin-right:4px;color:var(--ink);white-space:nowrap}
+#view .ktag.plan{background:var(--accent-soft);border:1px solid var(--accent)}
+#view .ktag.act{background:color-mix(in srgb,var(--ok) 22%,var(--surface));border:1px solid var(--ok)}
+#view .ktag.unconf{background:var(--warn-soft);border:1px dashed var(--warn);color:var(--warn)}
 </style>
 </head>
 <body>
@@ -3273,11 +3278,15 @@ const PILL = { "To Do": "off", "In Progress": "ok", Waiting: "wait", Done: "done
 const IMP_BADGE = `<span class="impbadge">重要</span>`;
 const statusPill = (t) => `<span class="pill ${PILL[t.status] ?? "off"}">${esc(t.status)}</span>`;
 
-/** 今日のタスクの枠の時間。終わっていないタスクの予定の枠（未確認を含む）には「実績にする」のボタンを付ける */
-function slotHtml(t, s) {
+/** 枠の種類の札（カレンダーの凡例と同じ色の class。文字でも出す） */
+const KIND_TAG = { planned: ["plan", "予定"], actual: ["act", "実績"], unconfirmed: ["unconf", "未確認"] };
+
+/** 今日のタスクの枠の時間。前に予定・実績・未確認の札、終わっていないタスクの予定の枠（未確認を含む）には「実績にする」のボタンを付ける */
+function slotHtml(t, s, now) {
   const time = esc(`${s.start}–${s.end}`);
+  const [cls, label] = KIND_TAG[sessionKind(s, now)];
   const btn = !isClosed(t) && s.kind === "planned" ? `<button class="btn" data-session-actual="${esc(s.id)}" aria-label="${esc(t.id)} の ${time} の枠を実績にする">実績にする</button>` : "";
-  return `<span class="ts">${time}${btn}</span>`;
+  return `<span class="ts"><span class="ktag ${cls}">${label}</span>${time}${btn}</span>`;
 }
 
 /** Done・Cancelled にする前の確認（今日のタスクの行と、リストの状態の欄が使う）。
@@ -3302,13 +3311,15 @@ function todayList(data, today) {
 const todayTaskIds = (data, today) => todayList(data, today).map((r) => r.t.id);
 
 /** 今日のタスク。今日に枠が無ければ空文字
- *  @param opts.pendingDone  未来の予定の枠を解除する確認待ち { id, status, n }（その行に確認を出す） */
+ *  @param opts.pendingDone  未来の予定の枠を解除する確認待ち { id, status, n }（その行に確認を出す）
+ *  @param opts.now          {date, time} 現在時刻（過ぎた予定を未確認にする。省略は today の 00:00） */
 function renderTodayTasks(data, today, opts = {}) {
   const rows = todayList(data, today);
+  const now = opts.now ?? { date: today, time: "00:00" };
   if (!rows.length) return "";
   const items = rows.map(({ t, slots }) => {
     const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? (t.projectId == null ? "プロジェクトなし" : ""));
-    const times = slots.map((s) => slotHtml(t, s)).join("");
+    const times = slots.map((s) => slotHtml(t, s, now)).join("");
     const ask = opts.pendingDone?.id === t.id ? doneAskHtml(opts.pendingDone) : "";
     return `<li data-today="${esc(t.id)}"${isClosed(t) ? ' class="closed"' : ""}><span class="pj">${proj}</span><span class="t">${esc(t.title)} ${statusPill(t)}${isImportantMark(t) ? IMP_BADGE : ""}</span><span class="why mono tss">${times}</span>${isClosed(t) ? "" : checkMeterHtml(t, { remain: true })}${ask}</li>`;
   }).join("");

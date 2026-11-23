@@ -548,3 +548,8 @@ body:has(.ptool){padding-block-start:8px}
 #view .rank.tl .tss{display:flex;flex-wrap:wrap;gap:4px 12px}
 #view .rank.tl .ts{display:inline-flex;align-items:center;gap:6px}
 #view .rank.tl .ts .btn{padding:0 8px;font-size:12px;min-height:24px}
+/* 今日のタスクの枠の札（予定・実績・未確認）。色はカレンダーの凡例（.sw.plan・.sw.act・.sw.unconf）と同じ */
+#view .ktag{display:inline-block;font-family:var(--f-body);font-size:11px;font-weight:700;line-height:1.4;border-radius:4px;padding:0 6px;margin-right:4px;color:var(--ink);white-space:nowrap}
+#view .ktag.plan{background:var(--accent-soft);border:1px solid var(--accent)}
+#view .ktag.act{background:color-mix(in srgb,var(--ok) 22%,var(--surface));border:1px solid var(--ok)}
+#view .ktag.unconf{background:var(--warn-soft);border:1px dashed var(--warn);color:var(--warn)}
