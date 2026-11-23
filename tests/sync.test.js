@@ -139,12 +139,32 @@ test("pollInbox: 打ちかけでなければ、今までどおりすぐ描き直
   for (const drop of [(x) => x.sync.rendered(), (x) => x.sync.reset()]) {
     editing = true;
     external(s2.h, { tasks: [{ id: "AA-0001", title: String(Math.random()) }] });
+    const atPoll = s2.ui.render;
     s2.sync.pollInbox(true);
     await s2.sync.whenIdle();
+    assert.equal(s2.ui.render, atPoll, "捨てる前に、描き直しを待たせている");
     drop(s2);
     editing = false;
     const before = s2.ui.render;
     s2.sync.flush();
     assert.equal(s2.ui.render, before, "捨てたあとの flush は描き直さない");
   }
+});
+
+test("pollInbox: 読んでいる間に画面で編集があった（pending の当て直し）ときも、打ちかけの間は描き直しを待たせる", async () => {
+  let editing = true;
+  const { h, store, ui, sync } = await setup(base(), { isEditing: () => editing });
+  external(h, { inbox: { watching: { at: "2026-10-31T00:00:00Z" }, requests: [] }, tasks: [{ id: "AA-0001", title: "x", note: "ext" }] });
+  const edit = (d) => ({ ...d, tasks: d.tasks.map((t) => ({ ...t, title: "mine" })) });
+  const reload = store.reload;
+  store.reload = async () => { const r = await reload(); ui.data = edit(ui.data); sync.persist(edit); return r; }; // 読んでいる間に編集した
+  sync.pollInbox(true);
+  await sync.whenIdle();
+  store.reload = reload;
+  assert.equal(ui.data.tasks[0].title, "mine", "画面の編集を、最新のファイルの上に重ねる");
+  assert.equal(ui.data.inbox.watching.at, "2026-10-31T00:00:00Z", "他の更新も取り込む");
+  editing = false;
+  const before = ui.render;
+  sync.flush();
+  assert.equal(ui.render, before + 1, "当て直しの描き直しを待たせていた（flush で描き直す）");
 });
