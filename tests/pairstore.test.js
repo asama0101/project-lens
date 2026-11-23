@@ -145,11 +145,11 @@ test("(f) 片方の保存が失敗したら ok: false（ファイル名つき）
   assert.deepEqual(await s.save(d2), { ok: true }, "共有の読み込み時点は進んでいる（競合にならない）");
 });
 
-test("(g) 共有に無いタスクの枠は、保存しても個人ファイルに残る。peek は結合したデータ（orphanSessions を含む）", async () => {
+test("(g) 共有に無いタスクの枠は、保存しても個人ファイルに残る。保存しても枠は残る", async () => {
   const P = { ...P0, sessions: [...P0.sessions, { taskId: "AA-0009", date: "2026-11-24", start: "13:00", end: "14:00" }] };
   const { s, data, sh, pe } = await opened(S0, P);
   assert.equal(data.orphanSessions.length, 1);
-  assert.deepEqual(await s.peek(), data);
+  assert.equal(await s.changed(), false);
   const d = clone(data); d.tasks[0].title = "b";
   assert.deepEqual(await s.save(d), { ok: true });
   assert.deepEqual([sh.writes, pe.writes], [1, 0]);
@@ -303,4 +303,15 @@ test("choose: 旧形式の data.json と、JSON でないファイルは、開�
   const bad = fakeHandle({}, "mine.json"); bad.text = "{ broken";
   const s2 = createPairStore({ showOpenFilePicker: async () => [bad], idb: memIdb() });
   await assert.rejects(s2.choose("personal"), /JSON として読めません（mine\.json）/);
+});
+
+test("changed: 2 つのどちらかを他が書き換えたら true。読み直したあとは false", async () => {
+  const { s, sh, pe } = await opened();
+  assert.equal(await s.changed(), false);
+  pe.modified += 1;
+  assert.equal(await s.changed(), true);
+  await s.reload();
+  assert.equal(await s.changed(), false);
+  sh.modified += 1;
+  assert.equal(await s.changed(), true);
 });

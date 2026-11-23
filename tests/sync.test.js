@@ -168,3 +168,15 @@ test("pollInbox: 読んでいる間に画面で編集があった（pending の�
   sync.flush();
   assert.equal(ui.render, before + 1, "当て直しの描き直しを待たせていた（flush で描き直す）");
 });
+
+test("pollInbox: ファイルの更新日時が変わっていなければ、読み直さず、描き直さない", async () => {
+  const { store, ui, sync } = await setup();
+  let reloads = 0;
+  const reload = store.reload;
+  store.reload = async () => { reloads++; return reload(); };
+  sync.pollInbox(true);
+  await sync.whenIdle();
+  assert.equal(reloads, 0);
+  assert.equal(ui.render, 0);
+  assert.ok(ui.renderBar >= 1);
+});
