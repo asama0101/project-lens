@@ -501,3 +501,19 @@ test("app.js: 開いた画面で別のファイルを選べなかったときは
   assert.match(src, /if \(S\.data\) toast\(S\.openError\)/);
   assert.match(src, /読み直せません: \$\{err\.message\}（画面の内容は、まだファイルと違う可能性があります）/);
 });
+
+test("app.js: 読み直しの描き直しを、打ちかけの入力の間は待たせる（isEditing → flush・rendered）。突発タスクの入力は、確定（change）で下書きに残す", () => {
+  const editing = src.slice(src.indexOf("function isEditing("), src.indexOf("function isEditing(") + 500);
+  assert.match(editing, /document\.activeElement/);
+  assert.match(editing, /view\.contains\(/);
+  assert.match(editing, /\.value !== [^\n]*\.defaultValue/);
+  assert.match(src, /createSync\(\{[\s\S]{0,400}isEditing[,\s}]/, "createSync に isEditing を渡す");
+  const render = src.slice(src.indexOf("function render() {"), src.indexOf("function render() {") + 300);
+  assert.match(render, /sync\.rendered\(\)/, "ほかの理由の描き直しで、待たせた描き直しを捨てる");
+  assert.match(src, /view\.addEventListener\("focusout", [^\n]*setTimeout\(\(\) => sync\.flush\(\), 0\)/, "フォーカスが移り終わってから flush");
+  assert.match(src, /view\.addEventListener\("change", [^\n]*setTimeout\(\(\) => sync\.flush\(\), 0\)/, "change の処理（setTimeout）のあとで flush");
+  assert.ok(src.indexOf('view.addEventListener("change", (e) => { const el = e.target; setTimeout(() => onChange(el), 0); });') < src.indexOf("setTimeout(() => sync.flush(), 0)"), "onChange の登録が先（同じ change で onChange のあとに flush が走る）");
+  const onChange = src.slice(src.indexOf("function onChange(el) {"), src.indexOf("function onChange(el) {") + 1500);
+  assert.match(onChange, /el\.dataset\.ug !== undefined[^\n]*S\.urgentDraft = \{ \.\.\.S\.urgentDraft/, "突発タスクの欄は change で下書きへ");
+  assert.match(src, /if \(d\.ug\) return q\("data-ug", d\.ug\)/, "欄を移ったときの描き直しでも、フォーカスを保つ");
+});

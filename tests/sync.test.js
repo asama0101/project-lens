@@ -21,14 +21,14 @@ const memIdb = () => { const m = new Map(); return { get: async (k) => m.get(k),
 const base = () => ({ projects: [], tasks: [{ id: "A1", title: "a" }], events: [], changeLog: [], inbox: { watching: null, requests: [] } });
 
 /** 画面の代わり: データの入れ物と、描画・通知の呼ばれた回数 */
-async function setup(initial = base()) {
+async function setup(initial = base(), { isEditing } = {}) {
   const h = fakeHandle(initial);
   const store = createStore({ showOpenFilePicker: async () => [h], idb: memIdb() });
   const ui = { data: await store.choose(), render: 0, renderBar: 0, banner: [], toast: [] };
   const sync = createSync({
     store, getData: () => ui.data, setData: (d) => { ui.data = d; },
     render: () => { ui.render++; }, renderBar: () => { ui.renderBar++; }, banner: (m) => ui.banner.push(m), toast: (m) => ui.toast.push(m),
-    visible: () => true, wantFast: () => false,
+    visible: () => true, wantFast: () => false, isEditing,
   });
   return { h, store, ui, sync };
 }
@@ -107,4 +107,44 @@ test("persist: 保存の失敗から戻ったとき、バナーを消す呼び�
   sync.persist((d) => d);
   await sync.whenIdle();
   assert.deepEqual(calls.at(-1), ["", false]);
+});
+
+test("pollInbox: 入力欄で打ちかけ（isEditing）の間は、データは取り込むが描き直さず、flush で 1 回だけ描き直す", async () => {
+  let editing = true;
+  const { h, ui, sync } = await setup(base(), { isEditing: () => editing });
+  external(h, { tasks: [{ id: "A1", title: "x" }] });
+  sync.pollInbox(true);
+  await sync.whenIdle();
+  assert.equal(ui.data.tasks[0].title, "x", "データは取り込む");
+  assert.equal(ui.render, 0, "打ちかけの間は描き直さない");
+  sync.flush();
+  assert.equal(ui.render, 0, "まだ打ちかけなら、flush でも描き直さない");
+  editing = false;
+  sync.flush();
+  sync.flush();
+  assert.equal(ui.render, 1, "打ち終えたら 1 回だけ");
+});
+
+test("pollInbox: 打ちかけでなければ、今までどおりすぐ描き直す。描き直しが済んだ（rendered）・開き直した（reset）ら、待っていた描き直しは捨てる", async () => {
+  const { h, ui, sync } = await setup(base(), { isEditing: () => false });
+  external(h, { tasks: [{ id: "A1", title: "x" }] });
+  sync.pollInbox(true);
+  await sync.whenIdle();
+  assert.equal(ui.render, 1);
+  sync.flush();
+  assert.equal(ui.render, 1, "待っている描き直しが無ければ、flush は何もしない");
+
+  let editing = true;
+  const s2 = await setup(base(), { isEditing: () => editing });
+  for (const drop of [(x) => x.sync.rendered(), (x) => x.sync.reset()]) {
+    editing = true;
+    external(s2.h, { tasks: [{ id: "A1", title: String(Math.random()) }] });
+    s2.sync.pollInbox(true);
+    await s2.sync.whenIdle();
+    drop(s2);
+    editing = false;
+    const before = s2.ui.render;
+    s2.sync.flush();
+    assert.equal(s2.ui.render, before, "捨てたあとの flush は描き直さない");
+  }
 });

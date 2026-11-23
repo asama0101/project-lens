@@ -2229,12 +2229,15 @@ const { createSync } = (() => {
 const CONFLICT ="他で更新されました。再読込してください。(再読込すると、保存できていない画面の変更は消えます)";
 
 /**
- * deps: { store, getData, setData, render, renderBar, banner, toast, visible, wantFast }
+ * deps: { store, getData, setData, render, renderBar, banner, toast, visible, wantFast, isEditing }
  *   visible: 画面が見えているか（隠れている間は読み直さない）/ wantFast: 帯が開いているか（4 秒ごとに読み直す。そうでなければ 16 秒ごと）
- * 戻り値: { persist(edit), pollInbox(force), whenIdle(), reset(), failed }。failed は保存に失敗したまま（バナーが出ている）か
+ *   isEditing: 入力欄で打ちかけ（まだ確定していない）か。真の間、読み直しはデータだけ取り込み、描き直しを flush まで待たせる（描き直すと打ちかけの文字が消えるため）
+ * 戻り値: { persist(edit), pollInbox(force), flush(), rendered(), whenIdle(), reset(), failed }。failed は保存に失敗したまま（バナーが出ている）か
  */
-function createSync({ store, getData, setData, render, renderBar, banner, toast, visible, wantFast }) {
+function createSync({ store, getData, setData, render, renderBar, banner, toast, visible, wantFast, isEditing = () => false }) {
   let chain = Promise.resolve();
+  let renderLater = false; // 打ちかけの間に待たせた描き直しがある
+  const renderOrWait = () => { if (isEditing()) renderLater = true; else render(); };
   let pending = []; // 保存がまだ済んでいない編集（data → data）。競合したとき、最新のファイルに当て直す
   let inflight = 0; // 保存・読み直しの待ち・実行中の数
   let tick = 0;
@@ -2284,19 +2287,23 @@ function createSync({ store, getData, setData, render, renderBar, banner, toast,
           const fresh = await store.reload();
           if (pending.length) { // 読んでいる間に、画面で編集があった。最新のファイルの上に重ねる（保存は、その編集の保存が行う）
             try { setData(pending.reduce((d, e) => e(d), fresh)); } catch { sync.failed = true; banner(CONFLICT, { reload: true, download: true }); return; }
-            render();
+            renderOrWait();
             return;
           }
           const bodyChanged = strip(fresh) !== strip(getData());
           setData(fresh);
-          if (bodyChanged) render(); else renderBar();
+          if (bodyChanged) renderOrWait(); else renderBar();
         } catch { /* 読めないときは、次の回に */ } finally { inflight--; }
       });
     },
+    /** 待たせた描き直しを、打ちかけでなくなっていれば行う（画面が、入力欄の確定・フォーカスが離れたときに呼ぶ） */
+    flush() { if (renderLater && !isEditing()) { renderLater = false; render(); } },
+    /** 画面がほかの理由で描き直した: 待たせた描き直しは要らない */
+    rendered() { renderLater = false; },
     /** 並んでいる保存・読み直しが終わるまで待つ */
     whenIdle: () => chain,
     /** ファイルを開き直したとき: 保存していない編集を捨て、失敗の印を消す */
-    reset() { pending = []; sync.failed = false; },
+    reset() { pending = []; sync.failed = false; renderLater = false; },
   };
   return sync;
 }
@@ -4481,6 +4488,7 @@ function drawAllDeps() {
 
 function render() {
   hideTip();
+  sync.rendered(); // 読み直しで待たせた描き直しは、この描き直しで済む
   clearTimeout(settingTimer); settingTimer = null; // 描き直しで入力欄を取り除くときに focusout が走り、保存が入れ子の描き直しになるのを防ぐ（待っていた入力は、描き直しで消えるのと同じ）
   if (S.tpop && !S.data.tasks.some((t) => t.id === S.tpop.id)) S.tpop = null; // 読み直しで対象のタスクが消えたら、窓も閉じる
   if (S.taskEdit && (S.screen !== "schedule" || !S.data.tasks.some((t) => t.id === S.taskEdit.id))) S.taskEdit = null; // スケジュールの編集欄も同じ
@@ -4553,6 +4561,7 @@ function focusSelector(el) {
   for (const k of ["hnew", "hto", "hnote", "wnew", "wnote"]) if (d[k] !== undefined) return `[data-${k}]`;
   if (d.rnewpj !== undefined) return "[data-rnewpj]";
   if (d.waitparty) return q("data-waitparty", d.waitparty);
+  if (d.ug) return q("data-ug", d.ug); // 突発タスクの欄（読み直しで待たせた描き直しが、欄を移ったときに走る）
   return null;
 }
 
@@ -4599,10 +4608,18 @@ function downloadJson() {
   }, i * 300));
 }
 
+/** 画面の入力欄で打ちかけ（打った文字が、まだ change で確定していない）か。描き直すと消えるので、読み直しの描き直しを待たせる */
+function isEditing() {
+  const el = document.activeElement;
+  if (!el || !view.contains(el)) return false;
+  const typing = el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && !["checkbox", "radio", "file", "button", "submit", "range", "color"].includes(el.type));
+  return typing && el.value !== el.defaultValue;
+}
+
 /** 保存と読み直し（競合の当て直しを含む）。中身は ui/sync.js */
 const sync = createSync({
   store, getData: () => S.data, setData: (d) => { S.data = d; if (!sync.failed) refreshBanner(); }, render, renderBar, banner, toast,
-  visible: () => document.visibilityState !== "hidden", wantFast: () => S.ib.open,
+  visible: () => document.visibilityState !== "hidden", wantFast: () => S.ib.open, isEditing,
 });
 
 /** 編集を適用して描画・保存する。edit は、いまのデータへの差分（data → data）で、例外を投げたら理由を表示して、データは変えない。
@@ -5123,6 +5140,9 @@ view.addEventListener("focusout", (e) => {
   settingTimer = null;
   changeSetting(e.target);
 });
+// 読み直しで待たせた描き直しは、入力が確定した（onChange のあと）・フォーカスが移り終わったあとに行う
+view.addEventListener("change", () => setTimeout(() => sync.flush(), 0));
+view.addEventListener("focusout", () => setTimeout(() => sync.flush(), 0));
 
 function onChange(el) {
   const { date: today } = clock();
@@ -5131,6 +5151,8 @@ function onChange(el) {
     Promise.all([...el.files].map((f) => f.text())).then((texts) => { try { loaded(dataFromTexts(texts, [...el.files].map((f) => f.name))); } catch (err) { S.openError = `開けません: ${err.message}`; } render(); });
     return;
   }
+  // 突発タスクの欄は、確定した値を下書きに残す（読み直しの描き直しで、打った内容を消さない）
+  if (el.dataset.ug !== undefined) { if (S.urgentDraft) S.urgentDraft = { ...S.urgentDraft, [el.dataset.ug]: el.dataset.ug === "minutes" ? +el.value : el.value }; return; }
   if (el.dataset.mt) {
     const f = el.dataset.mt, v = f === "skip" ? el.checked : el.value;
     const m = S.mtgDraft ?? S.data.events.find((o) => o.id === S.selMtg);
