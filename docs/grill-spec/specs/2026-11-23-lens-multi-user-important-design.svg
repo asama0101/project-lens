@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 470" font-family="Yu Gothic UI, Meiryo, sans-serif">
+<title>Q10 採用した画面案（スケジュールでの重要の印）</title>
+<style>
+:root{--bg:#f4f8f3;--card:#ffffff;--line:#b9cdb6;--ink:#1f2d1f;--muted:#5b6b5b;--ok:#2f7d32;--plan:#d3ece8;--plan-b:#2a9d8f;--act:#d9f0d2;--act-b:#4c9a3b;--bad:#c62828;--rec:#2f7d32}
+.bg{fill:var(--bg)}.card{fill:var(--card);stroke:var(--line);stroke-width:1.5}
+.h{font-size:15px;font-weight:700;fill:var(--ink)}.rec{font-size:12px;font-weight:700;fill:#fff}
+.n{font-size:12px;fill:var(--muted)}.t{font-size:12px;fill:var(--ink)}
+.imp{font-size:12px;font-weight:700;fill:var(--bad)}
+.col{fill:#fafcf9;stroke:var(--line);stroke-width:1}
+.plan{fill:var(--plan);stroke:var(--plan-b);stroke-width:1.2}.act{fill:var(--act);stroke:var(--act-b);stroke-width:1.2}
+.bar{fill:var(--bad)}.badge{fill:var(--bad)}.bt{font-size:10px;font-weight:700;fill:#fff}
+.recbox{fill:var(--rec)}
+</style>
+<rect class="bg" width="340" height="470"/>
+<text x="20" y="28" class="h">スケジュールの重要の印（採用: C）</text>
+<text x="20" y="48" class="n">上から 60 分・30 分・15 分の枠と期限の行。いちばん上と 15 分の枠が重要。</text>
+
+<g id="optC" transform="translate(20 66)">
+<rect class="card" width="296" height="388" rx="8"/>
+<rect class="recbox" x="190" y="12" width="92" height="20" rx="10"/><text x="236" y="26" class="rec" text-anchor="middle">採用</text>
+<text x="14" y="28" class="h">C 赤字・太字 + 左の赤い線</text>
+<rect class="col" x="14" y="46" width="268" height="220"/>
+<rect class="plan" x="18" y="52" width="260" height="84" rx="4"/>
+<rect class="bar" x="18" y="52" width="5" height="84"/>
+<text x="32" y="72" class="imp">回線切替の手順書づくり</text><text x="32" y="90" class="n">10:00–11:00 予定</text>
+<rect class="act" x="18" y="146" width="260" height="42" rx="4"/>
+<text x="32" y="164" class="t">ログの収集</text><text x="32" y="180" class="n">11:30–12:00 実績</text>
+<rect class="plan" x="18" y="198" width="260" height="22" rx="4"/>
+<text x="32" y="213" class="t">問い合わせ対応</text>
+<rect class="plan" x="18" y="230" width="260" height="22" rx="4"/>
+<rect class="bar" x="18" y="230" width="5" height="22"/>
+<text x="32" y="245" class="imp">機器の発注（15 分）</text>
+<text x="14" y="288" class="n">期限の行</text>
+<circle cx="24" cy="308" r="4" fill="#2a9d8f"/><text x="36" y="312" class="imp">開通試験</text>
+<circle cx="24" cy="330" r="4" fill="#2a9d8f"/><text x="36" y="334" class="t">ルータ設定の作成</text>
+<text x="14" y="368" class="n">15 分の枠でも、線と赤字は必ず見える</text>
+</g>
+
+</svg>
