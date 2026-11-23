@@ -552,3 +552,6 @@ body:has(.ptool){padding-block-start:8px}
 #view .ktag.plan{background:var(--accent-soft);border:1px solid var(--accent)}
 #view .ktag.act{background:color-mix(in srgb,var(--ok) 22%,var(--surface));border:1px solid var(--ok)}
 #view .ktag.unconf{background:var(--warn-soft);border:1px dashed var(--warn);color:var(--warn)}
+/* スケジュールの色の凡例は、上の操作の行（週・日の見出しの横）に小さく並べる。入らないときだけ次の行へ折り返す */
+#view .toolbar .slegend{margin:0 0 0 10px;gap:2px 10px;font-size:11px}
+#view .toolbar .slegend .sw{width:14px;height:10px;margin-right:4px}

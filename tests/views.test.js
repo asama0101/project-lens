@@ -11,7 +11,7 @@ import { checklistEditorHtml } from "../plugins/project-lens/src/ui/views/checkl
 import { renderTaskPop, renderTaskEditPanel } from "../plugins/project-lens/src/ui/views/taskpop.js";
 import { renderInboxBar, ibExamples } from "../plugins/project-lens/src/ui/views/inboxpanel.js";
 import { ruleMeetingCounts } from "../plugins/project-lens/src/core/rules.js";
-import { renderSchedule, snapStart, calendarGeometry, urgentDefaultStart, urgentInput } from "../plugins/project-lens/src/ui/views/schedule.js";
+import { renderSchedule, renderCalendar, snapStart, calendarGeometry, urgentDefaultStart, urgentInput } from "../plugins/project-lens/src/ui/views/schedule.js";
 import { taskActual } from "../plugins/project-lens/src/core/sessions.js";
 import { rankTasks } from "../plugins/project-lens/src/core/schedule.js";
 import { bannerHtml } from "../plugins/project-lens/src/ui/common.js";
@@ -272,6 +272,16 @@ test("renderSchedule: 凡例（会議・予定・実績・未確認、日は現�
   const wk = renderSchedule(load(), TODAY, { view: "week", date: TODAY, now: NOW });
   assert.ok(!wk.includes("現在時刻") && wk.includes("未確認"));
   assert.ok(day.includes('class="nowline"'));
+});
+
+test("renderSchedule: 凡例は上の操作の行（週・日の見出しの横）に置き、カレンダーの下（renderCalendar）には出さない", () => {
+  for (const view of ["day", "week"]) {
+    const html = renderSchedule(load(), TODAY, { view, date: TODAY, now: NOW });
+    const nav = html.slice(0, html.indexOf('<div id="mtgslot">'));
+    assert.ok(nav.includes('class="slegend"') && nav.indexOf("<strong") < nav.indexOf('class="slegend"'), `${view}: 見出しの後ろ`);
+    assert.equal((html.match(/class="slegend"/g) ?? []).length, 1, view);
+    assert.ok(!renderCalendar(load(), TODAY, { view, date: TODAY, now: NOW }).includes("slegend"), view);
+  }
 });
 
 test("renderSchedule: 手入力の会議だけドラッグ可、参加しない会議は skip 表示、MCP 会議は編集不可の注意", () => {
