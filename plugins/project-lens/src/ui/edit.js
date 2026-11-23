@@ -292,16 +292,33 @@ export function moveProjectDates(data, projectId, edge, days) {
 }
 
 // ---- 追加・削除 ----
-/** ID の末尾の番号（「A3」→ 3）。このプロジェクトの ID でなければ 0。プロジェクトなし（null）の接頭辞は X */
-const idNumber = (id, projectId) => (String(id).startsWith(projectId) && /^\d+$/.test(String(id).slice(projectId.length)) ? Number(String(id).slice(projectId.length)) : 0);
+const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** 「<接頭辞>-<4 桁>」の番号（「AA-0003」→ 3）。この接頭辞の ID でなければ 0 */
+const idNumber = (id, prefix) => {
+  const m = new RegExp(`^${escapeRegExp(prefix)}-(\\d{4})$`).exec(String(id));
+  return m ? Number(m[1]) : 0;
+};
+
+const LETTERS = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
+
+/** 使われていない最初のプロジェクト ID（AA〜ZY）。ZZ はプロジェクトなしのタスクの接頭辞なので、プロジェクトには付けない */
+export function nextProjectId(data) {
+  const used = new Set(data.projects.map((p) => p.id));
+  for (const a of LETTERS) for (const b of LETTERS) {
+    const id = a + b;
+    if (id !== "ZZ" && !used.has(id)) return id;
+  }
+  throw new Error("プロジェクトは 675 個までです");
+}
 
 /** いまのタスクと変更履歴（消したタスクの ID も残る）の最大番号 + 1。消したタスクの ID を使い回すと、変更履歴が別のタスクのものとして出る */
 export function nextTaskId(data, projectId) {
-  const prefix = projectId ?? "X";
+  const prefix = projectId ?? "ZZ";
   const ids = [...data.tasks.map((t) => t.id), ...(data.changeLog ?? []).flatMap((c) => c.taskIds ?? [])];
-  let n = ids.reduce((m, id) => Math.max(m, idNumber(id, prefix)), 0) + 1;
-  while (data.tasks.some((t) => t.id === `${prefix}${n}`)) n++;
-  return `${prefix}${n}`;
+  const n = ids.reduce((m, id) => Math.max(m, idNumber(id, prefix)), 0) + 1;
+  if (n > 9999) throw new Error("タスクの番号が 9999 を超えます");
+  return `${prefix}-${String(n).padStart(4, "0")}`;
 }
 
 const newTask = (data, projectId, title, due, extra = {}) => ({
@@ -472,10 +489,7 @@ export const addWorkday = (data, { date, note }) => withSetting(data, "workdays"
 export const removeWorkday = (data, date) => withSetting(data, "workdays", removeByDate(data.settings?.workdays, date));
 
 export function addProject(data, { name, type }, today = nowLocal().date) {
-  const used = new Set(data.projects.map((p) => p.id));
-  let id = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"].find((c) => !used.has(c));
-  for (let i = 1; !id; i++) if (!used.has(`P${i}`)) id = `P${i}`;
-  const p = { id, name, type, status: "計画中", start: today, due: addDays(today, 30), milestones: [] };
+  const p = { id: nextProjectId(data), name, type, status: "計画中", start: today, due: addDays(today, 30), milestones: [] };
   return { ...data, projects: [...data.projects, p] };
 }
 
