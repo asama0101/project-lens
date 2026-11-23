@@ -1,11 +1,14 @@
 // CLI（tools/*.js）で共有する data.json の読み書き。save は検証に通ったときだけ書く。
-import { readFileSync, writeFileSync, renameSync, rmSync, statSync, copyFileSync } from "node:fs";
-import { resolve, join, dirname } from "node:path";
+import { readFileSync, writeFileSync, renameSync, rmSync, statSync, copyFileSync, existsSync } from "node:fs";
+import { resolve, join, dirname, basename } from "node:path";
 import { validate } from "../src/core/schema.js";
 import { splitData, mergeData, emptyPersonal, checkSharedShape, checkPersonalShape } from "../src/core/split.js";
 
 // 読んだ時点のファイルの印（更新日時とサイズ）。save が、読んでから書くまでの間に他が書き換えていないかを確かめる
 const seen = new Map();
+const STALE = "他で更新されました。読み直して、もう一度実行してください";
+// 読んだとき個人ファイルが無かった場所（印が無いので、あとで他が作ったかを別に見張る）
+const missing = new Set();
 const stamp = (p) => { const s = statSync(p); return `${s.mtimeMs}:${s.size}`; };
 
 /** 読んだ時点の印を覚える。印は、中身より先に取る（読む間に書き換わっても、あとの save が競合として気づく） */
@@ -44,7 +47,10 @@ export function save(path, data, rename = renameSync, { backup = true, validate:
 /** readJson で読んだあとに他が書き換えていたら例外 */
 function assertFresh(path) {
   const read = seen.get(resolve(path));
-  if (read && read !== stamp(path)) throw new Error("他で更新されました。読み直して、もう一度実行してください");
+  if (!read) return;
+  let now;
+  try { now = stamp(path); } catch { now = null; } // 読んだあとに消された
+  if (read !== now) throw new Error(STALE);
 }
 
 /** 一時ファイルに書いて置き換える（.bak の扱いは save の説明のとおり）。成功したら、いまの印を覚える */
@@ -55,7 +61,7 @@ function writeText(path, text, rename, backup) {
     let bakReady = false;
     const warn = (e) => process.stderr.write(`${path}.bak を更新できませんでした: ${e.message}\n`);
     if (backup) { try { copyFileSync(path, bakTmp); bakReady = true; } catch (e) { if (e.code !== "ENOENT") warn(e); /* 初回（元が無い）や控えが書けないときも、本体は保存する */ } }
-    try { renameWithRetry(tmp, path, rename); } catch (e) { throw new Error(`${path} を置き換えられませんでした（${e.message}）。ウイルス対策ソフトや同期ソフトなど、ほかのプログラムが data.json を開いていないか確かめて、もう一度実行してください`); }
+    try { renameWithRetry(tmp, path, rename); } catch (e) { throw new Error(`${path} を置き換えられませんでした（${e.message}）。ウイルス対策ソフトや同期ソフトなど、ほかのプログラムが ${basename(path)} を開いていないか確かめて、もう一度実行してください`); }
     if (bakReady) { try { renameSync(bakTmp, `${path}.bak`); } catch (e) { warn(e); } } // 置き換えに成功したあとで、控えを確定する（失敗したときは、1 つ前の控えを残す）
   } finally {
     try { rmSync(tmp, { force: true }); rmSync(bakTmp, { force: true }); } catch { /* 消せなくても、データは書けている */ }
@@ -73,12 +79,20 @@ export function takeMine(args) {
 /** 個人ファイルの場所。--mine があればそれ（いまのフォルダからの相対パスも可）、なければ共有ファイルと同じフォルダの personal.json */
 export const personalPathOf = (path, mine) => mine ? resolve(mine) : join(dirname(path), "personal.json");
 
+const noMine = (p) => `個人ファイル ${p} がありません。--mine の指定を確かめてください`;
+
 /** 共有ファイルと個人ファイルを読んで 1 つのデータにする。個人ファイルが無い（ENOENT）ときは空の個人として扱う。共有ファイルが読めなければ例外 */
 export function readData(path, mine) {
   const shared = readJson(path);
   checkSharedShape(shared);
   let personal;
-  try { personal = readJson(personalPathOf(path, mine)); } catch (e) { if (e.code !== "ENOENT") throw e; personal = emptyPersonal(); }
+  const pPath = personalPathOf(path, mine), key = resolve(pPath);
+  try { personal = readJson(pPath); missing.delete(key); } catch (e) {
+    if (e.code !== "ENOENT") throw e;
+    if (mine) throw new Error(noMine(pPath)); // 明示した --mine が無い: 指定の誤りなので、空として読まない
+    missing.add(key);
+    personal = emptyPersonal();
+  }
   checkPersonalShape(personal);
   return mergeData(shared, personal);
 }
@@ -94,13 +108,19 @@ export function saveData(path, data, rename = renameSync, { backup = true, mine 
   const { errors } = validate(data);
   if (errors.length) throw new Error(errors.join(" / "));
   const pPath = personalPathOf(path, mine);
+  if (mine && !existsSync(pPath)) throw new Error(noMine(pPath));
   assertFresh(path);
   assertFresh(pPath);
+  if (missing.has(resolve(pPath)) && existsSync(pPath)) throw new Error(STALE); // 読んだときは無かった個人ファイルを、他が作った
   const { shared, personal } = splitData(data);
   const files = [[path, text(shared), textOf(path)], [pPath, text(personal), textOf(pPath) ?? text(emptyPersonal())]]
     .filter(([, next, now]) => next !== now);
   files.forEach(([p, t], i) => {
-    try { writeText(p, t, rename, backup); } catch (e) {
+    try {
+      if (missing.has(resolve(p)) && existsSync(p)) throw new Error(STALE); // 書く直前にも、無かったはずの個人ファイルを確かめる
+      writeText(p, t, rename, backup);
+      missing.delete(resolve(p));
+    } catch (e) {
       if (i === 0) throw e;
       throw new Error(`${files[0][0]} は書けましたが、${p} は書けませんでした（${e.message}）。${p} を確かめて、もう一度実行してください`);
     }

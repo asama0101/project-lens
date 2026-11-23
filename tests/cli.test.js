@@ -220,9 +220,42 @@ test("saveData: 2 つ目の置き換えが失敗したら、1 つ目はそのま
   data.tasks[0].title = "x";
   data.events = [];
   const b = readFileSync(pp, "utf8");
-  let n = 0;
-  const rename = (from, to) => { if (to === pp) throw new Error("EBUSY"); n++; renameSync(from, to); };
+  const rename = (from, to) => { if (to === pp) throw new Error("EBUSY"); renameSync(from, to); };
   assert.throws(() => saveData(p, data, rename), (e) => e.message.includes(`${p} は書けました`) && e.message.includes(`${pp} は書けませんでした`));
   assert.equal(JSON.parse(readFileSync(p, "utf8")).tasks[0].title, "x");
   assert.equal(readFileSync(pp, "utf8"), b);
+  saveData(p, data); // 書けなかった方は、次の保存で書かれる（共有は変わっていないので書かれない）
+  assert.deepEqual(JSON.parse(readFileSync(pp, "utf8")).events, []);
+});
+
+test("readData・saveData: 明示した --mine が無ければ、空として読まず、例外にする（共有は変えない）。既定の personal.json が無いときは空として読む", () => {
+  const d = twoFiles("m");
+  const p = join(d, "data.json"), wrong = join(d, "typo.json");
+  const a = readFileSync(p, "utf8");
+  assert.throws(() => readData(p, wrong), /個人ファイル .* がありません。--mine の指定を確かめてください/);
+  const data = readData(p);
+  data.tasks[0].title = "x";
+  assert.throws(() => saveData(p, data, undefined, { mine: wrong }), /--mine の指定を確かめてください/);
+  assert.equal(readFileSync(p, "utf8"), a);
+  rmSync(join(d, "personal.json"));
+  assert.deepEqual(readData(p).events, []);
+});
+
+test("saveData: 読んだとき無かった個人ファイルを、他が作っていたら、上書きせず例外にする", () => {
+  const d = twoFiles("c");
+  const p = join(d, "data.json"), pp = join(d, "personal.json");
+  rmSync(pp);
+  const data = readData(p);
+  const theirs = json({ version: 1, sessions: [], events: [], settings: { selfNames: ["他"] } });
+  writeFileSync(pp, theirs);
+  assert.throws(() => saveData(p, data), /他で更新されました/);
+  assert.equal(readFileSync(pp, "utf8"), theirs);
+});
+
+test("saveData: 読んだあとに共有ファイルが消されていても、生の ENOENT でなく「他で更新されました」にする", () => {
+  const d = twoFiles("z");
+  const p = join(d, "data.json");
+  const data = readData(p);
+  rmSync(p);
+  assert.throws(() => saveData(p, data), /他で更新されました/);
 });
