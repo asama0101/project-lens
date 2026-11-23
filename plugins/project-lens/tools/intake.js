@@ -7,7 +7,7 @@ import { realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, resolve, join, relative, isAbsolute } from "node:path";
 import { today, isDate, nowLocal } from "../src/core/dates.js";
-import { readJson, readData, saveData, takeMine, out } from "./cli.js";
+import { readJson, readData, saveData, takeMineOrExit, out } from "./cli.js";
 import { assignMeetingProjects, setProjectRule, removeProjectRule } from "../src/core/rules.js";
 import { planWbsImport, applyWbsImport, getWbsMapping, setWbsMapping } from "../src/import/wbs.js";
 import { planCalendarSync, planAutoSync } from "../src/import/calendar.js";
@@ -80,7 +80,7 @@ const COMMANDS = {
   "mapping-set": [3, (d, [path, pid, m], o) => { saveData(path, setWbsMapping(d, pid, readJson(m)), undefined, { mine: o.mine }); out({ ok: true }); }],
 };
 
-const { mine, rest: minefree } = takeMine(process.argv.slice(2));
+const { mine, rest: minefree } = takeMineOrExit(process.argv.slice(2));
 const { data: dataArg, rest: argv } = takeData(minefree);
 const take = (flag) => { const i = argv.indexOf(flag); if (i < 0) return undefined; const v = argv[i + 1] ?? null; argv.splice(i, 2); return v; }; // 無ければ undefined、値が無ければ null
 const planKeyArg = take("--plan-key");

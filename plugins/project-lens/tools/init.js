@@ -6,7 +6,7 @@ import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DEFAULT_WORKDAY } from "../src/core/schema.js";
 import { splitData, emptyPersonal } from "../src/core/split.js";
-import { takeMine } from "./cli.js";
+import { takeMineOrExit } from "./cli.js";
 
 /** この目印があるファイルだけを、project-lens が作ったものとみなして更新する */
 export const MARKER = '<meta name="generator" content="project-lens">';
@@ -59,13 +59,15 @@ export function init({ cwd, pluginRoot, sample = false, mine = null }) {
   } else {
     results.push({ path: DATA, status: "unchanged" });
   }
-  if (existsSync(personalPath)) {
+  const personalExisted = existsSync(personalPath);
+  if (personalExisted) {
     results.push({ path: personalLabel, status: "unchanged" });
   } else {
     // 共有ファイルが既にあるときは、その作業枠・予定と合わないサンプルの個人データを足さず、空の個人ファイルにする
     write(personalPath, dataNew ? parts.personal : emptyPersonal());
     results.push({ path: personalLabel, status: "created", ...(sample && dataNew && { note: "サンプルデータ" }) });
   }
+  if (sample && dataNew && personalExisted) results.push({ path: personalLabel, status: "unchanged", note: "既にある個人ファイルは変えていません。サンプルの作業枠・予定は入っていません" });
 
   if (current === null) {
     writeFileSync(htmlPath, bundled);
@@ -103,7 +105,7 @@ const LABEL = { created: "作りました", updated: "更新しました", uncha
 
 function main() {
   const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-  const { mine, rest } = takeMine(process.argv.slice(2));
+  const { mine, rest } = takeMineOrExit(process.argv.slice(2));
   let r;
   try { r = init({ cwd: process.cwd(), pluginRoot, sample: rest.includes("--sample"), mine }); }
   catch (e) { console.error(`失敗しました: ${e.message}`); process.exit(1); }

@@ -4,7 +4,7 @@
 // list・get は書かない。それ以外は、書く直前にファイルを読み直して、検証に通ったときだけ書く。
 import { CAUSES } from "../src/core/schema.js";
 import { today } from "../src/core/dates.js";
-import { readJson, readData, saveData, takeMine, out } from "./cli.js";
+import { readJson, readData, saveData, takeMineOrExit, out } from "./cli.js";
 import {
   submitRequest, claimRequest, askQuestion, setProposal, rejectRequest, markApplied, markFailed, touchWatching, getRequest,
 } from "../src/core/inbox.js";
@@ -112,7 +112,7 @@ function wait(path, o) {
 }
 
 // --flag 値 を取り除いて、残りを位置引数にする
-const { mine, rest: argv } = takeMine(process.argv.slice(2));
+const { mine, rest: argv } = takeMineOrExit(process.argv.slice(2));
 const FLAGS = ["summary", "reason", "cause", "timeout", "interval"];
 const opts = { mine };
 const rest = [];

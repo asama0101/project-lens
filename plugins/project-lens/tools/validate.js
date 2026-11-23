@@ -1,9 +1,9 @@
 // 使い方: node tools/validate.js <data.json> [--mine <個人ファイル>]   結果を JSON で出力し、errors があれば exit 1
 // 共有ファイルと個人ファイルを合わせて検証する。個人ファイルは、同じフォルダの personal.json（無ければ空として扱う）。別の場所なら --mine。
-import { readData, takeMine } from "./cli.js";
+import { readData, takeMineOrExit } from "./cli.js";
 import { validate } from "../src/core/schema.js";
 
-const { mine, rest: [path] } = takeMine(process.argv.slice(2));
+const { mine, rest: [path] } = takeMineOrExit(process.argv.slice(2));
 if (!path) { console.error("使い方: node tools/validate.js <data.json> [--mine <個人ファイル>]"); process.exit(2); }
 let data;
 try { data = readData(path, mine); } // BOM は readData が除く（画面・他の CLI と同じ）

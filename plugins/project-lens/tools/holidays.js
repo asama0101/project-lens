@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { today, diffDays, isDate } from "../src/core/dates.js";
 import { decodeHolidayCsv, parseHolidayCsv, pickRecent } from "../src/core/holidays.js";
-import { readData, saveData, takeMine, out } from "./cli.js";
+import { readData, saveData, takeMineOrExit, out } from "./cli.js";
 
 const DEFAULT_URL = "https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv";
 const USAGE = `使い方: node tools/holidays.js <コマンド> <data.json> [--mine <個人ファイル>]
@@ -70,7 +70,7 @@ async function ensure(path, mine) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const { mine, rest: [cmd, path] } = takeMine(process.argv.slice(2));
+  const { mine, rest: [cmd, path] } = takeMineOrExit(process.argv.slice(2));
   if (!["update", "ensure", "status"].includes(cmd) || !path) { console.error(USAGE); process.exit(2); }
   try {
     if (cmd === "update") await update(path, mine); else if (cmd === "ensure") await ensure(path, mine); else out(holidayStatus(readData(path, mine).settings));

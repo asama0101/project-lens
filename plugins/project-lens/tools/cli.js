@@ -69,11 +69,18 @@ function writeText(path, text, rename, backup) {
   seen.set(resolve(path), stamp(path));
 }
 
-/** `--mine <ファイル>` を引数から取り除く（takeData と同じ書き方）。値が無ければ mine は ""（未指定と同じ扱い） */
+/** `--mine <ファイル>` を引数から取り除く。値が無い（末尾、または空）ときは例外（黙って既定の場所を使わない） */
 export function takeMine(args) {
   const i = args.indexOf("--mine");
   if (i < 0) return { mine: null, rest: args };
-  return { mine: args[i + 1] ?? "", rest: args.filter((_, j) => j !== i && j !== i + 1) };
+  const v = args[i + 1];
+  if (!v) throw new Error("--mine にファイルを指定してください");
+  return { mine: v, rest: args.filter((_, j) => j !== i && j !== i + 1) };
+}
+
+/** 各ツールの入口用: takeMine の例外を、使い方の誤り（標準エラーに理由、終了コード 2）にする */
+export function takeMineOrExit(args) {
+  try { return takeMine(args); } catch (e) { console.error(e.message); process.exit(2); }
 }
 
 /** 個人ファイルの場所。--mine があればそれ（いまのフォルダからの相対パスも可）、なければ共有ファイルと同じフォルダの personal.json */

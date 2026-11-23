@@ -1,8 +1,8 @@
 ---
 name: init
 description: project-lens のセットアップ。作業フォルダに、ダッシュボード(project-lens.html)とデータ(.project-lens/data.json)を用意する。何度実行しても既存のデータは変えない。データの取り込みや日程の変更には使わない（取り込みは /project-lens:intake、日程の変更は HTML の「Claude Code に依頼する」）
-argument-hint: "[--sample]"
-allowed-tools: 'Bash(node "${CLAUDE_PLUGIN_ROOT}/tools/init.js") Bash(node "${CLAUDE_PLUGIN_ROOT}/tools/init.js" --sample)'
+argument-hint: "[--sample] [--mine <個人ファイル>]"
+allowed-tools: 'Bash(node "${CLAUDE_PLUGIN_ROOT}/tools/init.js") Bash(node "${CLAUDE_PLUGIN_ROOT}/tools/init.js" --sample) Bash(node "${CLAUDE_PLUGIN_ROOT}/tools/init.js" --mine *) Bash(node "${CLAUDE_PLUGIN_ROOT}/tools/init.js" --sample --mine *)'
 disable-model-invocation: true
 ---
 

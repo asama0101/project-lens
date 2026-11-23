@@ -121,6 +121,26 @@ test("既存の個人ファイルは、再実行でも --sample でも 1 バイ�
   assert.deepEqual(JSON.parse(readFileSync(pp, "utf8")).sessions, []);
 });
 
+test("--sample で新しく作る data.json の隣に、既にある個人ファイルがあっても、個人ファイルは変えず、お知らせを出す", () => {
+  const cwd = proj(), pluginRoot = plugin();
+  mkdirSync(join(cwd, ".project-lens"));
+  const pp = join(cwd, ".project-lens/personal.json");
+  writeFileSync(pp, '{"keep":"me"}');
+  const r = init({ cwd, pluginRoot, sample: true });
+  assert.equal(readFileSync(pp, "utf8"), '{"keep":"me"}');
+  assert.ok(r.results.some((x) => x.path === ".project-lens/personal.json" && /変えていません/.test(x.note ?? "")));
+});
+
+test("CLI: --mine に値が無いと、終了コード 2 で理由を出し、何も作らない", () => {
+  const cwd = proj();
+  for (const [script, args] of [["init.js", ["--mine"]], ["validate.js", ["x.json", "--mine"]], ["holidays.js", ["status", "x.json", "--mine"]], ["inbox.js", ["list", "x.json", "--mine"]], ["intake.js", ["rules-list", "x.json", "--mine"]]]) {
+    const r = spawnSync(process.execPath, [join(REPO, "tools", script), ...args], { cwd, encoding: "utf8" });
+    assert.equal(r.status, 2, script);
+    assert.match(r.stderr, /--mine にファイルを指定してください/);
+  }
+  assert.deepEqual(readdirSync(cwd), []);
+});
+
 test("CLI: init --mine で作った個人ファイルが、validate.js --mine で読める。個人ファイルが無い保存先の validate.js は共有だけで成功する", () => {
   const cwd = proj(), mine = join(proj("m"), "p.json");
   const run = (script, ...a) => spawnSync(process.execPath, [join(REPO, "tools", script), ...a], { cwd, encoding: "utf8" });

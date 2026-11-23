@@ -193,6 +193,11 @@ test("--mine: 別の場所の個人ファイルを読み書きできる", () => 
   assert.ok(!existsSync(join(d, "personal.json")));
 });
 
+test("takeMine: 値が無い --mine は、既定の場所へ黙って戻さず例外にする", () => {
+  assert.throws(() => takeMine(["a.json", "--mine"]), /--mine にファイルを指定してください/);
+  assert.throws(() => takeMine(["--mine", ""]), /--mine にファイルを指定してください/);
+});
+
 test("takeMine: --mine と値を取り除く", () => {
   assert.deepEqual(takeMine(["a.json", "--mine", "p.json", "x"]), { mine: "p.json", rest: ["a.json", "x"] });
   assert.deepEqual(takeMine(["a.json"]), { mine: null, rest: ["a.json"] });
