@@ -65,12 +65,12 @@ test("syncMcpEvents: 追加・更新・消えた MCP 会議の削除、skip と�
 });
 
 // ---- 優先順位（SPEC の式を手計算で検証） ----
-const T = (id, due, extra = {}) => ({ id, projectId: "P", title: id, due, status: "To Do", predecessors: [], waitingOn: null, importance: null, start: null, doneAt: null, sessions: [], ...extra });
+const T = (id, due, extra = {}) => ({ id, projectId: "P", title: id, due, status: "To Do", predecessors: [], waitingOn: null, start: null, doneAt: null, sessions: [], ...extra });
 function rankData() {
   const tasks = [
     T("R1", "2026-10-16", { status: "Waiting", waitingOn: { party: "ベンダーA", since: "2026-10-11" } }),
-    T("R2", "2026-10-23", { importance: "high" }),
-    T("R3", "2026-10-21", { importance: "high" }),
+    T("R2", "2026-10-23", { important: true }),
+    T("R3", "2026-10-21", { important: true }),
     T("R4", "2026-10-22"),
   ];
   const direct = (parent, n) => { for (let i = 0; i < n; i++) tasks.push(T(`${parent}-s${i}`, "2027-03-01", { predecessors: [parent] })); };
@@ -93,7 +93,7 @@ test("rankTasks: Waiting は chase で待ち先名を含み、理由は日本語
   assert.ok(r1.reasons.includes("期限超過 4日"));
   assert.ok(r1.reasons.includes("次のタスク 4 件を止めている"));
   assert.equal(rankTasks(rankData(), "2026-10-20")[1].action, "work");
-  assert.ok(rankTasks(rankData(), "2026-10-20")[1].reasons.includes("重要度: 高"));
+  assert.ok(rankTasks(rankData(), "2026-10-20")[1].reasons.includes("重要"));
 });
 
 test("rankTasks: Done／Cancelled と、前のタスクが未完了のタスクは含まれない。前のタスクが完了なら含まれる", () => {
@@ -120,8 +120,11 @@ const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} != ${b}`);
 test("rankTasks: 期限点 (30−残り日数)×1.5 に、未チェック n 件の倍率 1+min(n,10)/10 をかける", () => {
   near(scoreOf([T("X", "2026-10-25", { checklist: CK(3) })]), 48.75);
   near(scoreOf([T("X", "2026-10-25")]), 37.5);
-  near(scoreOf([T("X", "2026-10-25", { importance: "high" })]), 49.5);
+  near(scoreOf([T("X", "2026-10-25", { important: true })]), 49.5);
   near(scoreOf([T("X", "2026-10-20")]), 45);
+  near(scoreOf([T("X", "2026-10-25", { important: true })]) - scoreOf([T("X", "2026-10-25")]), 12);
+  const r = rankTasks({ ...base(), tasks: [T("X", "2026-10-25", { important: true })] }, "2026-10-20");
+  assert.ok(r[0].reasons.includes("重要"));
 });
 
 test("rankTasks: 済みの項目は数えない。未チェックが 10 件を超えても倍率は 2.0 まで", () => {
@@ -268,6 +271,6 @@ test("syncMcpEvents: 取得に無いだけの「参加しない」の会議は�
 
 test("rankTasks: プロジェクトなしのタスク（projectId が null）も順位に入る", () => {
   const d = base();
-  d.tasks = [{ id: "X1", projectId: null, title: "突発", due: "2026-10-21", start: null, status: "In Progress", predecessors: [], waitingOn: null, importance: null, sessions: [] }];
+  d.tasks = [{ id: "X1", projectId: null, title: "突発", due: "2026-10-21", start: null, status: "In Progress", predecessors: [], waitingOn: null, sessions: [] }];
   assert.deepEqual(rankTasks(d, "2026-10-20").map((r) => r.taskId), ["X1"]);
 });

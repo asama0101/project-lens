@@ -6,7 +6,7 @@ import { addTask, updateTask } from "../ui/edit.js";
 
 const s = (v) => String(v ?? "").trim();
 const nz = (v) => (s(v) === "" ? null : s(v));
-const FIELDS = ["due", "start", "group", "subgroup", "status", "importance", "memo"];
+const FIELDS = ["due", "start", "group", "subgroup", "status", "memo"];
 
 const esc = (p) => s(p).replace(/\\/g, "\\\\").replace(/\//g, "\\/");
 
@@ -31,7 +31,6 @@ function rowProblem(r) {
     if (!TASK_STATUS.includes(r.status)) return `不明な状態です: ${r.status}`;
     if (r.status === "Waiting") return "Waiting は待ち先が必要なため、WBS からは設定できません";
   }
-  if (s(r.importance) && r.importance !== "high") return `不明な重要度です: ${r.importance}`;
   return null;
 }
 
@@ -150,7 +149,7 @@ export function applyWbsImport(data, projectId, plan, { today, source = null }) 
   for (const a of plan.add) {
     const had = new Set(d.tasks.map((t) => t.id));
     const r = a.row;
-    d = addTask(d, { projectId, title: r.title, due: r.due, start: r.start ?? null, importance: r.importance ?? null, memo: r.memo ?? "", group: r.group ?? null, subgroup: r.subgroup ?? null, wbsKey: a.key });
+    d = addTask(d, { projectId, title: r.title, due: r.due, start: r.start ?? null, memo: r.memo ?? "", group: r.group ?? null, subgroup: r.subgroup ?? null, wbsKey: a.key });
     const id = d.tasks.find((t) => !had.has(t.id)).id;
     if (r.status && r.status !== "To Do") d = updateTask(d, id, { status: r.status }, today);
     idByKey.set(a.key, id);
@@ -158,7 +157,7 @@ export function applyWbsImport(data, projectId, plan, { today, source = null }) 
   }
   for (const u of plan.update) {
     const patch = {};
-    for (const f of ["due", "start", "status", "importance", "memo"]) if (f in u.after) patch[f] = u.after[f];
+    for (const f of ["due", "start", "status", "memo"]) if (f in u.after) patch[f] = u.after[f];
     if (Object.keys(patch).length) d = updateTask(d, u.taskId, patch, today);
     const g = {};
     for (const f of ["group", "subgroup", "wbsKey"]) if (f in u.after) g[f] = u.after[f];

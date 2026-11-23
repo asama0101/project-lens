@@ -5,7 +5,6 @@ import { isRepeat } from "./repeat.js";
 export const TASK_STATUS = ["To Do", "In Progress", "Waiting", "Done", "Cancelled"];
 export const PROJECT_STATUS = ["計画中", "進行中", "保留", "完了", "中止"];
 export const PROJECT_TYPE = ["増設", "更改", "改善", "不具合対処", "その他"];
-export const IMPORTANCE = ["high"];
 export const CAUSES = ["ベンダー", "社内", "自分", "その他"];
 export const HOLIDAY_KINDS = ["祝日", "有給", "その他"];
 /** 期限が今日からこれ以上（日）離れていたら、年の打ち間違いとして注意に出す */
@@ -18,6 +17,9 @@ export const DEFAULT_WORKDAY = { start: "09:00", end: "18:00" };
 
 /** 終わったタスク（Done・Cancelled）か */
 export const isClosed = (t) => t.status === "Done" || t.status === "Cancelled";
+
+/** 重要の印を出すタスクか（重要で、終わっていない） */
+export const isImportantMark = (t) => t.important === true && !isClosed(t);
 
 /** 同じ日の枠が重なるか（端が接するだけは重ならない） */
 const overlap = (a, b) => toMin(a.start) < toMin(b.end) && toMin(b.start) < toMin(a.end);
@@ -116,7 +118,7 @@ export function validate(data, now = nowLocal()) {
     if (t.start != null && !isDate(t.start)) err(`タスク ${t.id}: 開始日の形式が不正です (${t.start})`);
     if (t.doneAt != null && !isDate(t.doneAt)) err(`タスク ${t.id}: 完了日の形式が不正です (${t.doneAt})`);
     if (t.repeat != null && !isRepeat(t.repeat)) err(`タスク ${t.id}: 繰り返し (repeat) は、{ unit: "week" } か { unit: "month", day: 1〜31 } にしてください`);
-    if (t.importance != null && !IMPORTANCE.includes(t.importance)) err(`タスク ${t.id}: 重要度 "${t.importance}" は使えません。重要度は高（high）かなしにしてください。data.json の importance を直してください`);
+    if (t.important !== undefined && t.important !== true) err(`タスク ${t.id}: 重要 (important) は true にするか、項目を消してください`);
     if (t.checklist !== undefined) {
       if (!Array.isArray(t.checklist)) err(`タスク ${t.id}: チェックリスト (checklist) が配列ではありません`);
       else {

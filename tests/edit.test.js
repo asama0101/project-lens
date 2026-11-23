@@ -53,7 +53,15 @@ test("updateTask: 不正な値は例外（件名・日付・開始>期限・循�
   assert.throws(() => updateTask(d, "A5", { start: "2027-01-10" }, TODAY), "前のタスクなしで開始>期限");
   assert.throws(() => updateTask(d, "A4", { predecessors: ["A7"] }, TODAY), "次のタスクを前のタスクにすると循環");
   assert.throws(() => updateTask(d, "ZZ", { memo: "x" }, TODAY));
-  assert.equal(task(updateTask(d, "A4", { importance: "high", memo: "m", title: " 新件名 " }, TODAY), "A4").title, "新件名");
+  assert.equal(task(updateTask(d, "A4", { important: true, memo: "m", title: " 新件名 " }, TODAY), "A4").title, "新件名");
+});
+
+test("updateTask: important は true で付き、false で項目が消える", () => {
+  const d = load();
+  const on = updateTask(d, "A3", { important: true }, TODAY);
+  assert.equal(task(on, "A3").important, true);
+  const off = updateTask(on, "A3", { important: false }, TODAY);
+  assert.equal("important" in task(off, "A3"), false);
 });
 
 test("updateProject: 状態・期限・開始日。開始>期限と空の名前は例外", () => {

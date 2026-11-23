@@ -743,7 +743,7 @@ return { isRepeat, nextRepeatDue };
 })();
 
 /* src/core/schema.js */
-const { TASK_STATUS, PROJECT_STATUS, PROJECT_TYPE, IMPORTANCE, CAUSES, HOLIDAY_KINDS, OP_KINDS, PROPOSE_OPS, DEFAULT_WORKDAY, isClosed, validate } = (() => {
+const { TASK_STATUS, PROJECT_STATUS, PROJECT_TYPE, CAUSES, HOLIDAY_KINDS, OP_KINDS, PROPOSE_OPS, DEFAULT_WORKDAY, isClosed, isImportantMark, validate } = (() => {
 // data.json の検証。errors は保存してはいけない不整合、warnings は保存を止めない注意。
 
 
@@ -751,7 +751,6 @@ const { TASK_STATUS, PROJECT_STATUS, PROJECT_TYPE, IMPORTANCE, CAUSES, HOLIDAY_K
 const TASK_STATUS = ["To Do", "In Progress", "Waiting", "Done", "Cancelled"];
 const PROJECT_STATUS = ["計画中", "進行中", "保留", "完了", "中止"];
 const PROJECT_TYPE = ["増設", "更改", "改善", "不具合対処", "その他"];
-const IMPORTANCE = ["high"];
 const CAUSES = ["ベンダー", "社内", "自分", "その他"];
 const HOLIDAY_KINDS = ["祝日", "有給", "その他"];
 /** 期限が今日からこれ以上（日）離れていたら、年の打ち間違いとして注意に出す */
@@ -764,6 +763,9 @@ const DEFAULT_WORKDAY = { start: "09:00", end: "18:00" };
 
 /** 終わったタスク（Done・Cancelled）か */
 const isClosed = (t) => t.status === "Done" || t.status === "Cancelled";
+
+/** 重要の印を出すタスクか（重要で、終わっていない） */
+const isImportantMark = (t) => t.important === true && !isClosed(t);
 
 /** 同じ日の枠が重なるか（端が接するだけは重ならない） */
 const overlap = (a, b) => toMin(a.start) < toMin(b.end) && toMin(b.start) < toMin(a.end);
@@ -862,7 +864,7 @@ function validate(data, now = nowLocal()) {
     if (t.start != null && !isDate(t.start)) err(`タスク ${t.id}: 開始日の形式が不正です (${t.start})`);
     if (t.doneAt != null && !isDate(t.doneAt)) err(`タスク ${t.id}: 完了日の形式が不正です (${t.doneAt})`);
     if (t.repeat != null && !isRepeat(t.repeat)) err(`タスク ${t.id}: 繰り返し (repeat) は、{ unit: "week" } か { unit: "month", day: 1〜31 } にしてください`);
-    if (t.importance != null && !IMPORTANCE.includes(t.importance)) err(`タスク ${t.id}: 重要度 "${t.importance}" は使えません。重要度は高（high）かなしにしてください。data.json の importance を直してください`);
+    if (t.important !== undefined && t.important !== true) err(`タスク ${t.id}: 重要 (important) は true にするか、項目を消してください`);
     if (t.checklist !== undefined) {
       if (!Array.isArray(t.checklist)) err(`タスク ${t.id}: チェックリスト (checklist) が配列ではありません`);
       else {
@@ -1003,7 +1005,7 @@ function validate(data, now = nowLocal()) {
   return { errors, warnings };
 }
 
-return { TASK_STATUS, PROJECT_STATUS, PROJECT_TYPE, IMPORTANCE, CAUSES, HOLIDAY_KINDS, OP_KINDS, PROPOSE_OPS, DEFAULT_WORKDAY, isClosed, validate };
+return { TASK_STATUS, PROJECT_STATUS, PROJECT_TYPE, CAUSES, HOLIDAY_KINDS, OP_KINDS, PROPOSE_OPS, DEFAULT_WORKDAY, isClosed, isImportantMark, validate };
 })();
 
 /* src/core/checklist.js */
@@ -1511,7 +1513,7 @@ function rankTasks(data, today) {
     if (left >= 0 && left <= 30) reasons.push(left === 0 ? "期限は今日" : `期限まで ${left}日`);
     const blocked = openDownstream(data.tasks, t.id);
     if (blocked) reasons.push(`次のタスク ${blocked} 件を止めている`);
-    if (t.importance === "high") { score += 12; reasons.push("重要度: 高"); }
+    if (t.important === true) { score += 12; reasons.push("重要"); }
     let action = "work";
     if (waiting) {
       action = "chase";
@@ -2288,7 +2290,7 @@ function predecessorCandidates(data, taskId) {
 }
 
 /**
- * patch: title / status / due / start / importance / memo / group / subgroup / predecessors / waitingOn
+ * patch: title / status / due / start / important / memo / group / subgroup / predecessors / waitingOn
  * 状態を Done にすると doneAt に today、他へ戻すと null。Waiting は待ち先が必須で、外れると waitingOn は null。
  */
 function updateTask(data, taskId, patch, today = nowLocal().date) {
@@ -2307,7 +2309,7 @@ function updateTask(data, taskId, patch, today = nowLocal().date) {
       if (patch.start != null && patch.start !== "" && !isDate(patch.start)) throw new Error("開始日は YYYY-MM-DD の形式で入力してください");
       n.start = patch.start || null;
     }
-    if ("importance" in patch) n.importance = patch.importance ?? null;
+    if ("important" in patch) { if (patch.important) n.important = true; else delete n.important; }
     if ("repeat" in patch) {
       const r = patch.repeat;
       if (r == null) delete n.repeat;
@@ -2582,7 +2584,7 @@ function nextTaskId(data, projectId) {
 
 const newTask = (data, projectId, title, due, extra = {}) => ({
   id: nextTaskId(data, projectId), projectId, title, due, start: null, status: "To Do", memo: "",
-  predecessors: [], waitingOn: null, importance: null, doneAt: null, sessions: [], ...extra,
+  predecessors: [], waitingOn: null, doneAt: null, sessions: [], ...extra,
 });
 
 /** 元のタスクの直後（同じ大項目・中項目の並びの中）にタスクを入れる */
@@ -2591,9 +2593,10 @@ const insertAfter = (data, afterId, task) => {
   return { ...data, tasks: [...data.tasks.slice(0, i + 1), task, ...data.tasks.slice(i + 1)] };
 };
 
-/** 引き継ぐ項目（件名のほかに、大項目・中項目・重要度・メモ・チェックリスト。チェックリストは全項目を未チェックに戻す） */
+/** 引き継ぐ項目（件名のほかに、大項目・中項目・重要・メモ・チェックリスト。チェックリストは全項目を未チェックに戻す） */
 const carriedFields = (t) => {
-  const extra = { importance: t.importance ?? null, memo: t.memo ?? "" };
+  const extra = { memo: t.memo ?? "" };
+  if (t.important === true) extra.important = true;
   for (const k of ["group", "subgroup"]) if (t[k] != null) extra[k] = t[k];
   if (t.checklist?.length) extra.checklist = newChecklist(t.checklist.map((c) => c.text));
   return extra;

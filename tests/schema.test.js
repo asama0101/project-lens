@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { addDays, diffDays, toMin, toHHMM, weekday } from "../plugins/project-lens/src/core/dates.js";
-import { validate, OP_KINDS, PROPOSE_OPS } from "../plugins/project-lens/src/core/schema.js";
+import { validate, isImportantMark, OP_KINDS, PROPOSE_OPS } from "../plugins/project-lens/src/core/schema.js";
 
 const load = () => JSON.parse(readFileSync(new URL("../plugins/project-lens/data/sample.json", import.meta.url), "utf8"));
 const NOW = { date: "2026-10-20", time: "12:00" };
@@ -10,15 +10,26 @@ const v = (d) => validate(d, NOW);
 const task = (d, id) => d.tasks.find((t) => t.id === id);
 const hit = (list, word) => list.some((m) => m.includes(word));
 
-test("mid・low は検証エラーになる", () => {
-  for (const bad of ["mid", "low"]) {
-    const d = load();
-    task(d, d.tasks[0].id).importance = bad;
-    assert.ok(hit(v(d).errors, "重要度は高（high）かなしにしてください。data.json の importance を直してください"), bad);
-  }
+test("重要: important: true は error なし。false・文字列は error。旧 importance キーは無視する", () => {
   const ok = load();
-  ok.tasks[0].importance = "high";
+  task(ok, ok.tasks[0].id).important = true;
   assert.deepEqual(v(ok).errors, []);
+  for (const bad of [false, "true"]) {
+    const d = load();
+    task(d, d.tasks[0].id).important = bad;
+    assert.ok(hit(v(d).errors, "重要 (important) は true にするか、項目を消してください"), String(bad));
+  }
+  const old = load();
+  task(old, old.tasks[0].id).importance = "mid";
+  const r = v(old);
+  assert.deepEqual(r.errors, []);
+  assert.deepEqual(r.warnings, v(load()).warnings);
+});
+test("isImportantMark: 重要で、終わっていないときだけ true", () => {
+  assert.equal(isImportantMark({ important: true, status: "To Do" }), true);
+  assert.equal(isImportantMark({ important: true, status: "Done" }), false);
+  assert.equal(isImportantMark({ important: true, status: "Cancelled" }), false);
+  assert.equal(isImportantMark({ status: "To Do" }), false);
 });
 
 test("サンプルデータはエラーなし", () => {

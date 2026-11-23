@@ -42,7 +42,7 @@ export function predecessorCandidates(data, taskId) {
 }
 
 /**
- * patch: title / status / due / start / importance / memo / group / subgroup / predecessors / waitingOn
+ * patch: title / status / due / start / important / memo / group / subgroup / predecessors / waitingOn
  * 状態を Done にすると doneAt に today、他へ戻すと null。Waiting は待ち先が必須で、外れると waitingOn は null。
  */
 export function updateTask(data, taskId, patch, today = nowLocal().date) {
@@ -61,7 +61,7 @@ export function updateTask(data, taskId, patch, today = nowLocal().date) {
       if (patch.start != null && patch.start !== "" && !isDate(patch.start)) throw new Error("開始日は YYYY-MM-DD の形式で入力してください");
       n.start = patch.start || null;
     }
-    if ("importance" in patch) n.importance = patch.importance ?? null;
+    if ("important" in patch) { if (patch.important) n.important = true; else delete n.important; }
     if ("repeat" in patch) {
       const r = patch.repeat;
       if (r == null) delete n.repeat;
@@ -336,7 +336,7 @@ export function nextTaskId(data, projectId) {
 
 const newTask = (data, projectId, title, due, extra = {}) => ({
   id: nextTaskId(data, projectId), projectId, title, due, start: null, status: "To Do", memo: "",
-  predecessors: [], waitingOn: null, importance: null, doneAt: null, sessions: [], ...extra,
+  predecessors: [], waitingOn: null, doneAt: null, sessions: [], ...extra,
 });
 
 /** 元のタスクの直後（同じ大項目・中項目の並びの中）にタスクを入れる */
@@ -345,9 +345,10 @@ const insertAfter = (data, afterId, task) => {
   return { ...data, tasks: [...data.tasks.slice(0, i + 1), task, ...data.tasks.slice(i + 1)] };
 };
 
-/** 引き継ぐ項目（件名のほかに、大項目・中項目・重要度・メモ・チェックリスト。チェックリストは全項目を未チェックに戻す） */
+/** 引き継ぐ項目（件名のほかに、大項目・中項目・重要・メモ・チェックリスト。チェックリストは全項目を未チェックに戻す） */
 const carriedFields = (t) => {
-  const extra = { importance: t.importance ?? null, memo: t.memo ?? "" };
+  const extra = { memo: t.memo ?? "" };
+  if (t.important === true) extra.important = true;
   for (const k of ["group", "subgroup"]) if (t[k] != null) extra[k] = t[k];
   if (t.checklist?.length) extra.checklist = newChecklist(t.checklist.map((c) => c.text));
   return extra;

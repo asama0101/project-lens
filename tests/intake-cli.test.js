@@ -342,7 +342,7 @@ test("wbs-plan は planKey を出す。wbs-apply --plan-key が一致すれば�
   assert.match(plan.out.planKey, /^[0-9a-f]{16}$/);
   // 承認待ちの間に、同じ件名のタスクが手で足された（wbsKey なし）。いまの案は「追加」でなく「更新」になる
   const d = w.json();
-  d.tasks.push({ id: "ZZ1", projectId: pid, title: "承認後にずれる新規項目", due: "2026-11-30", start: null, status: "To Do", memo: "", predecessors: [], waitingOn: null, importance: null, doneAt: null, checklist: [], sessions: [] });
+  d.tasks.push({ id: "ZZ1", projectId: pid, title: "承認後にずれる新規項目", due: "2026-11-30", start: null, status: "To Do", memo: "", predecessors: [], waitingOn: null, doneAt: null, checklist: [], sessions: [] });
   writeFileSync(w.data, JSON.stringify(d, null, 2));
   const before = w.read();
   const bad = run("wbs-apply", w.data, pid, rows, "--plan-key", plan.out.planKey);

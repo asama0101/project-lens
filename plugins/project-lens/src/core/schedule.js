@@ -63,7 +63,7 @@ export function rankTasks(data, today) {
     if (left >= 0 && left <= 30) reasons.push(left === 0 ? "期限は今日" : `期限まで ${left}日`);
     const blocked = openDownstream(data.tasks, t.id);
     if (blocked) reasons.push(`次のタスク ${blocked} 件を止めている`);
-    if (t.importance === "high") { score += 12; reasons.push("重要度: 高"); }
+    if (t.important === true) { score += 12; reasons.push("重要"); }
     let action = "work";
     if (waiting) {
       action = "chase";

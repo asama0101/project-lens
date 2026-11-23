@@ -288,7 +288,8 @@ test("renderSchedule: 優先リストはドラッグ可で、置いた回数と�
 });
 
 test("リスト: 重要度とメモを編集できる", () => {
-  const html = renderProjects(load(), TODAY, { filter: "A", view: "list" });
+  const d = load(); d.tasks.find((t) => t.id === "A3").importance = "high"; // 画面（list）はまだ旧項目。後続のタスクで important に直す
+  const html = renderProjects(d, TODAY, { filter: "A", view: "list" });
   assert.ok(html.includes('data-f="importance" data-id="A3"'));
   assert.ok(/<option value="high" selected>高<\/option>/.test(html), "A3 は重要度 高");
   assert.ok(html.includes('data-f="memo" data-id="A3" value="納期回答待ち"'));
