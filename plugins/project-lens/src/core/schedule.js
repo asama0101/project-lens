@@ -91,7 +91,7 @@ export function updateMeeting(data, id, patch) {
   const next = { ...cur, ...Object.fromEntries(Object.entries(patch).filter(([k]) => allowed.includes(k) && k !== "projectId")) };
   if (cur.source === "manual") { assertTimes(next); next.title = (next.title ?? "").trim() || "会議"; }
   // 日時が変わったら、確認済みは外す(別の時間の会議を、確認したことにしない)。confirmed を明示したときは、その値に従う
-  if (!("confirmed" in patch) && cur.confirmed === true && (next.date !== cur.date || next.start !== cur.start || next.end !== cur.end)) next.confirmed = false;
+  if (!("confirmed" in patch) && cur.confirmed === true && (next.date !== cur.date || next.start !== cur.start || next.end !== cur.end)) { next.confirmed = false; delete next.actual; }
   if ("projectId" in patch) {
     if (patch.projectId === "" || patch.projectId == null) { delete next.projectBy; next.projectId = null; }
     else {
@@ -122,6 +122,19 @@ export function confirmMeeting(data, id, now) {
   return { ...data, events: data.events.map((e) => (e.id === id ? { ...e, confirmed: true } : e)) };
 }
 
+/** 会議の実際の時間。実績が無ければ予定の時間（confirmed のみ = 予定どおり） */
+export const meetingActualSpan = (m) => m.actual ?? { start: m.start, end: m.end };
+
+/** 会議の実績の時間を書く（confirmed も true になる）。参加しない会議と、始まっていない会議は書けない */
+export function setMeetingActual(data, id, { start, end }, now) {
+  const cur = data.events.find((e) => e.id === id);
+  if (!cur) throw new Error(`会議 ${id} がありません`);
+  if (cur.skip) throw new Error("参加しない会議は実績にできません");
+  if (cur.date > now.date || (cur.date === now.date && cur.start > now.time)) throw new Error("未来の会議は実績にできません");
+  assertTimes({ date: cur.date, start, end });
+  return { ...data, events: data.events.map((e) => (e.id === id ? { ...e, confirmed: true, actual: { start, end } } : e)) };
+}
+
 export function deleteMeeting(data, id) {
   const cur = data.events.find((e) => e.id === id);
   if (!cur) throw new Error(`会議 ${id} がありません`);
@@ -142,7 +155,9 @@ export function syncMcpEvents(data, fetched, range, excludedIds = new Set(), kee
     const f = e.source === "mcp" ? fetched.find((x) => x.externalId === e.externalId) : null;
     if (!f) return e;
     const moved = f.date !== e.date || f.start !== e.start || f.end !== e.end;
-    return { ...e, title: f.title, date: f.date, start: f.start, end: f.end, ...(moved && e.confirmed ? { confirmed: false } : {}) };
+    const out = { ...e, title: f.title, date: f.date, start: f.start, end: f.end };
+    if (moved && e.confirmed) { out.confirmed = false; delete out.actual; } // 日時が変わったら、確認済みと実績は外す
+    return out;
   });
   for (const f of fetched) {
     if (existing.has(f.externalId)) continue;

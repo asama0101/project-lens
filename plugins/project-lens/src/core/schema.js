@@ -181,6 +181,7 @@ export function validate(data, now = nowLocal()) {
     if (e.projectId != null && !projectIds.has(e.projectId)) err(`会議 ${e.id}: 不明な projectId "${e.projectId}"`);
     if (e.projectBy != null && !["rule", "manual"].includes(e.projectBy)) err(`会議 ${e.id}: 不明な projectBy "${e.projectBy}"`);
     if (e.confirmed != null && typeof e.confirmed !== "boolean") err(`会議 ${e.id}: confirmed が真偽値ではありません`);
+    if (e.actual != null && !(isTime(e.actual.start) && isTime(e.actual.end) && toMin(e.actual.end) > toMin(e.actual.start))) err(`会議 ${e.id}: actual は HH:MM の開始と終了にしてください（終了は開始より後）`);
   }
 
   const st = data.settings ?? {};

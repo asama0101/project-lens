@@ -140,6 +140,15 @@ test("confirmed が真偽値でなければ error", () => {
   assert.deepEqual(v(ok).errors, []);
 });
 
+test("会議の actual の形式が不正（時刻でない・開始が終了以前）は error、正しければ通る", () => {
+  for (const bad of [{ start: "9:00", end: "10:00" }, { start: "10:00", end: "10:00" }, { start: "11:00", end: "10:00" }]) {
+    const d = load(); d.events[0].actual = bad;
+    assert.ok(hit(v(d).errors, "actual"), JSON.stringify(bad));
+  }
+  const ok = load(); ok.events[0].actual = { start: "10:05", end: "10:50" };
+  assert.deepEqual(v(ok).errors, []);
+});
+
 test("projectRules の keyword が空、または projectId が存在しないなら error", () => {
   const a = load(); a.settings.projectRules = [{ keyword: "", projectId: "AA" }];
   assert.ok(hit(v(a).errors, "projectRules"));

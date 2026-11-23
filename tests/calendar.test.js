@@ -31,6 +31,13 @@ test("planCalendarSync: 確認済み（confirmed）と手動のひも付けは�
   assert.deepEqual([m.title, m.confirmed, m.projectId, m.projectBy], ["ベンダーX 打合せ（変更）", true, "AB", "manual"]);
 });
 
+test("planCalendarSync: 予定表で日時が変わった確認済みの会議は、confirmed と actual が外れる", () => {
+  const d = mk([ev("m1", "定例", { externalId: "e1", confirmed: true, actual: { start: "10:05", end: "10:50" } })]);
+  const m = planCalendarSync(d, [f("e1", "定例", { start: "11:00", end: "12:00" })], range).data.events[0];
+  assert.equal(m.confirmed, false);
+  assert.equal("actual" in m, false);
+});
+
 // ---- 自分だけ・自分と会議室だけの予定を除く ----
 const SELF = "me@example.com";
 const cfg = { selfEmails: [SELF] };
