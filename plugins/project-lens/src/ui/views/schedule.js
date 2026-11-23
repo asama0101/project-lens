@@ -80,11 +80,6 @@ function freeOf(data, d, g, isOff) {
   return freeSlots(busy, d, g.wd);
 }
 
-/** 空き時間のボタン（20 分以上の空き）。押すと突発タスクの入力欄を開く。週表示は列の日付を attr（data-freedate）で持たせる */
-function freeButtons(data, d, g, isOff, attr) {
-  return freeOf(data, d, g, isOff).filter((x) => toMin(x.end) - toMin(x.start) >= 20).map((x) => `<button class="free" data-free="${toMin(x.start)}"${attr} style="top:calc(${g.pc(toMin(x.start)).toFixed(3)}% + 1px);height:calc(${(g.pc(toMin(x.end)) - g.pc(toMin(x.start))).toFixed(3)}% - 3px)" aria-label="空き ${x.start}から${x.end}">${x.start}-${x.end} 空き</button>`).join("");
-}
-
 /** 突発タスクの既定の開始: その日の勤務時間内で、会議・枠と重ならない最初の空き（今日なら現在時刻以降）の開始（15 分刻み）。なければ勤務の開始 */
 export function firstFreeStart(data, date, now) {
   const g = calendarGeometry(data);
@@ -127,7 +122,7 @@ function meetingForm(data, ctx) {
   </div>`;
 }
 
-/** 空き時間から突発タスクを登録する入力欄（件名・プロジェクト・長さ）。下書きがないときは出さない */
+/** 突発タスクを登録する入力欄（件名・プロジェクト・長さ・日付・開始）。ヘッダーの「＋ 突発タスク」から開く。下書きがないときは出さない */
 export function urgentForm(data, draft) {
   if (!draft) return "";
   const projOpts = [`<option value=""${draft.projectId === "" ? " selected" : ""}>プロジェクトなし</option>`, ...(data.projects ?? []).map((p) => `<option value="${esc(p.id)}"${draft.projectId === p.id ? " selected" : ""}>${esc(p.name)}</option>`)].join("");
@@ -155,22 +150,21 @@ export function renderCalendar(data, today, opts) {
       const free = freeOf(data, d, g, isOff).reduce((a, x) => a + toMin(x.end) - toMin(x.start), 0);
       return `<button class="dh ${d === today ? "t" : ""}" data-day="${d}" aria-label="${fmtMD(d)}の1日表示">${fmtMD(d)}(${wdJa(d)})<small class="mono">${isOff(d) ? "—" : `空き ${(free / 60).toFixed(1)}h`}</small></button>`;
     }).join("");
-    const cols = days.map((d) => `<div class="col dz ${d === today ? "today" : ""} ${isOff(d) ? "weekend" : ""}" data-date="${d}">${meetingBlocks(data, d, false, g, ctx)}${sessionBlocks(data, d, false, g, ctx)}${freeButtons(data, d, g, isOff, ` data-freedate="${d}"`)}</div>`).join("");
+    const cols = days.map((d) => `<div class="col dz ${d === today ? "today" : ""} ${isOff(d) ? "weekend" : ""}" data-date="${d}">${meetingBlocks(data, d, false, g, ctx)}${sessionBlocks(data, d, false, g, ctx)}</div>`).join("");
     const dues = days.map((d) => {
       const due = data.tasks.filter((t) => t.due === d && t.status !== "Done" && t.status !== "Cancelled");
       return `<div class="duecell">${due.map((t) => `<div style="display:flex;gap:6px;align-items:baseline"><i class="dot ${STATUS_UI[t.status]?.dot ?? ""}${t.due < today ? " is-late" : ""}"></i><span${isImportantMark(t) ? ' class="impt"' : ""}>${esc(t.title)}</span></div>`).join("") || '<span class="muted">—</span>'}</div>`;
     }).join("");
     cal = `<div class="cal wk"><div class="week"><div></div>${heads}<div class="hrs">${hoursHtml(g)}</div>${cols}</div><div class="week" style="margin-top:8px"><div class="note" style="padding-top:6px">期限</div>${dues}</div></div>
-      <p class="note" style="margin:8px 0 0">日付を押すと1日表示に切り替わります。空き時間を押すと、突発タスクの入力欄が開きます。枠をクリックして選び、「枠を削除」か Delete キーで削除できます。</p>`;
+      <p class="note" style="margin:8px 0 0">日付を押すと1日表示に切り替わります。枠をクリックして選び、「枠を削除」か Delete キーで削除できます。</p>`;
   } else {
-    const fb = freeButtons(data, date, g, isOff, "");
     const nowLine = date === ctx.now.date && toMin(ctx.now.time) >= g.h0 && toMin(ctx.now.time) <= g.h0 + g.span ? `<span class="nowline" style="top:${g.tp(toMin(ctx.now.time))}" title="現在 ${ctx.now.time}"></span>` : "";
     const offKinds = data.settings?.countWeekendsAndHolidays === true ? "休み" : "土日・日本の祝日・休み"; // 土日祝を営業日に数える設定のときは、手動の休みだけが休みの日
     const offNote = isOff(date) ? `<p class="note" style="margin:0 0 8px">この日は休みです（${offKinds}）。作業枠は置けません。設定タブの「営業日として扱う日」に指定すると置けます。</p>` : "";
-    cal = `${offNote}<div class="cal"><div class="cal-grid">${hoursHtml(g)}<div class="cal-body dz" id="calbody" data-date="${date}">${meetingBlocks(data, date, true, g, ctx)}${sessionBlocks(data, date, true, g, ctx)}${fb}${nowLine}</div></div></div>`;
+    cal = `${offNote}<div class="cal"><div class="cal-grid">${hoursHtml(g)}<div class="cal-body dz" id="calbody" data-date="${date}">${meetingBlocks(data, date, true, g, ctx)}${sessionBlocks(data, date, true, g, ctx)}${nowLine}</div></div></div>`;
   }
   const day = view === "day";
-  const legend = `<div class="slegend" aria-label="色の凡例"><span><i class="sw mtg"></i>会議</span>${ctx.showSkipped ? '<span><i class="sw skipsw"></i>参加しない会議</span>' : ""}<span><i class="sw mtgun"></i>未確認の会議</span><span><i class="sw plan"></i>予定</span><span><i class="sw act"></i>実績(✓)</span><span><i class="sw unconf"></i>未確認(過ぎた予定)</span>${day ? '<span><i class="sw free"></i>空き時間</span><span><i class="sw now"></i>現在時刻</span>' : ""}<span><i class="sw sel"></i>選択中</span></div>`;
+  const legend = `<div class="slegend" aria-label="色の凡例"><span><i class="sw mtg"></i>会議</span>${ctx.showSkipped ? '<span><i class="sw skipsw"></i>参加しない会議</span>' : ""}<span><i class="sw mtgun"></i>未確認の会議</span><span><i class="sw plan"></i>予定</span><span><i class="sw act"></i>実績(✓)</span><span><i class="sw unconf"></i>未確認(過ぎた予定)</span>${day ? '<span><i class="sw now"></i>現在時刻</span>' : ""}<span><i class="sw sel"></i>選択中</span></div>`;
   return cal + legend;
 }
 

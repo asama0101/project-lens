@@ -221,11 +221,10 @@ test("snapFreeStart: 押した空き枠の開始を 15 分刻みに丸める。1
   assert.equal(snapFreeStart(8 * 60, wd), 9 * 60);
 });
 
-test("renderSchedule(day): 空き時間・優先タスクと理由・枠の種別クラス・実績時間", () => {
+test("renderSchedule(day): 優先タスクと理由・枠の種別クラス・実績時間", () => {
   const d = load();
   d.tasks.find((t) => t.id === "AA-0005").sessions.push({ id: "S9", date: "2026-10-20", start: "09:00", end: "09:30", kind: "planned" }); // 過ぎた予定 = 未確認
   const html = sched(d);
-  assert.ok(html.includes("10:30-13:00 空き"), "会議と枠を除いた空き");
   assert.ok(html.includes('id="h-rk"') && html.includes("催促") && html.includes("期限超過 4日"));
   assert.ok(html.includes('class="blk task unconf'), "未確認");
   const w = renderSchedule(load(), TODAY, { view: "week", date: "2026-10-19", now: NOW });
@@ -263,9 +262,10 @@ test("renderSchedule: 未確認 0 件なら『すべて実績にする』は出�
   assert.ok(sel.includes("blk task act sel"));
 });
 
-test("renderSchedule: 凡例（会議・予定・実績・未確認、日は空き時間と現在時刻）", () => {
+test("renderSchedule: 凡例（会議・予定・実績・未確認、日は現在時刻）。空き時間の凡例は出さない", () => {
   const day = sched(load());
-  for (const w of ["会議", "予定", "実績", "未確認", "空き時間", "現在時刻"]) assert.ok(day.includes(w), w);
+  for (const w of ["会議", "予定", "実績", "未確認", "現在時刻"]) assert.ok(day.includes(w), w);
+  assert.ok(!day.includes("sw free") && !day.includes("空き時間"));
   const wk = renderSchedule(load(), TODAY, { view: "week", date: TODAY, now: NOW });
   assert.ok(!wk.includes("現在時刻") && wk.includes("未確認"));
   assert.ok(day.includes('class="nowline"'));
@@ -453,7 +453,7 @@ test("会議ブロック: 過ぎて未確認なら unconf と『実績にする�
   assert.ok(sk.includes("blk mtg skip") && !sk.includes('data-confirmmtg="m2"'));
 });
 
-test("renderSchedule: 参加しない会議は、showSkipped が true のときだけ描く。凡例・ボタンの状態もそれに合わせ、空き時間は変わらない", () => {
+test("renderSchedule: 参加しない会議は、showSkipped が true のときだけ描く。凡例・ボタンの状態もそれに合わせる", () => {
   const d = load();
   d.events.find((e) => e.id === "m2").skip = true;
   for (const view of ["day", "week"]) {
@@ -464,11 +464,6 @@ test("renderSchedule: 参加しない会議は、showSkipped が true のとき�
     assert.ok(!hide.includes("skipsw") && /data-sskip aria-pressed="false"/.test(hide), `${view}: 凡例を出さず、ボタンは押していない`);
     assert.ok(show.includes("blk mtg skip") && show.includes("skipsw") && /data-sskip aria-pressed="true"/.test(show), `${view}: 出すとき`);
   }
-  const freeOf = (data, o) => (renderSchedule(data, TODAY, { view: "day", date: TODAY, now: NOW, ...o }).match(/data-free="\d+"/g) ?? []).join();
-  const joined = load(); // 同じ会議を「参加する」にしたとき（空き時間はこちらが狭い）
-  assert.notEqual(freeOf(d, {}), "", "空き時間が出る日で確かめている");
-  assert.notEqual(freeOf(d, {}), freeOf(joined, {}), "参加しない会議は、空き時間として扱う（参加する会議だと空きが変わる）");
-  assert.equal(freeOf(d, {}), freeOf(d, { showSkipped: true }), "空き時間は表示の切り替えで変わらない");
   const sel = renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW, selMtg: "m2" });
   assert.ok(sel.includes('data-mtg="m2"') && sel.includes("sel"), "選択中の参加しない会議は、隠していても出す（見えない会議を削除・編集しないため）");
   assert.ok(!renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW, selMtg: "m1" }).includes('data-mtg="m2"'), "ほかの会議を選んでいるときは、隠したまま");
@@ -863,26 +858,17 @@ test("renderSchedule: 休みの日（土日・手動の休み・日本の祝日�
   assert.match(head("2026-10-24"), /^空き /);
   assert.match(head("2026-10-21"), /^空き /);
   const day = (date) => renderSchedule(d, TODAY, { view: "day", date, now: NOW, showPrio: false });
-  assert.ok(!day("2026-10-22").includes('data-free='), "休みの日の日表示に空き枠は出ない");
-  assert.ok(day("2026-10-24").includes('data-free='), "営業日の指定の土曜には空き枠が出る");
+  assert.ok(day("2026-10-22").includes("この日は休みです"), "休みの日の日表示は、休みの案内を出す");
+  assert.ok(!day("2026-10-24").includes("この日は休みです"), "営業日の指定の土曜は休みでない");
 });
 
-test("renderSchedule(week): 各日の列に、日表示と同じ空き枠（data-free・data-freedate）を出す。休みの日には出さない", () => {
+test("renderSchedule: 週表示・日表示とも、空き時間のボタン（data-free・data-freedate）を出さない（突発タスクはヘッダーのボタンから登録する）", () => {
   const d = load();
-  d.settings = { ...d.settings, holidays: [{ date: "2026-10-22", kind: "有給" }] };
-  const week = renderSchedule(d, TODAY, { view: "week", date: TODAY, now: NOW, showPrio: false });
-  const colHtml = (date) => { const i = week.indexOf(`data-date="${date}"`), j = week.indexOf('<div class="col dz', i); return week.slice(i, j < 0 ? week.indexOf('<div class="week"', i) : j); };
-  const frees = (html) => [...html.matchAll(/<button class="free" data-free="(\d+)" data-freedate="([^"]+)"/g)].map((m) => [m[1], m[2]]);
-  const dayFree = (date) => [...renderSchedule(d, TODAY, { view: "day", date, now: NOW, showPrio: false }).matchAll(/data-free="(\d+)"/g)].map((m) => m[1]);
-  for (const date of ["2026-10-19", "2026-10-20", "2026-10-21"]) {
-    const f = frees(colHtml(date));
-    assert.ok(f.length > 0, date);
-    assert.deepEqual(f.map((x) => x[0]), dayFree(date), `${date}: 日表示と同じ空き枠`);
-    assert.ok(f.every((x) => x[1] === date), "列の日付を持つ");
+  for (const view of ["week", "day"]) {
+    const html = renderSchedule(d, TODAY, { view, date: TODAY, now: NOW, showPrio: false });
+    assert.ok(!html.includes("data-free") && !html.includes('class="free"'), view);
+    assert.ok(!html.includes("空き時間を押す"), `${view}: 空き時間を押す案内も出さない`);
   }
-  assert.equal(frees(colHtml("2026-10-22")).length, 0, "手動の休み");
-  assert.equal(frees(colHtml("2026-10-25")).length, 0, "日曜");
-  assert.ok(!renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW, showPrio: false }).includes("data-freedate"), "日表示は S.sdate を使うので日付を持たない");
 });
 
 test("受信箱の提案カード: 営業日の列の値もエスケープする（手で書き換えた data.json でも HTML を差し込めない）", () => {
@@ -964,8 +950,8 @@ test("renderSchedule: 土日祝を営業日に数える設定がオンなら、�
   assert.doesNotMatch(col("2026-10-24"), /weekend/, "土曜");
   assert.doesNotMatch(col("2026-10-25"), /weekend/, "日曜");
   const day = (date) => renderSchedule(d, TODAY, { view: "day", date, now: NOW, showPrio: false });
-  assert.ok(day("2026-10-25").includes('data-free='), "日曜にも空き枠が出る");
-  assert.ok(!day("2026-10-22").includes('data-free='), "手動の休みの日には出ない");
+  assert.ok(!day("2026-10-25").includes("この日は休みです"), "日曜は休みでない");
+  assert.ok(day("2026-10-22").includes("この日は休みです"), "手動の休みの日は休み");
 });
 
 test("設定: 「営業日の数え方」の説明は、営業日後の期限とスケジュールの作業枠について書き、日程の移動（暦日で計算）には触れない", () => {

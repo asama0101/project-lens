@@ -419,12 +419,8 @@ test("app.js: 回答予定日の欄は、入力の途中（validity.badInput）�
   assert.match(line, /validity\.badInput/);
 });
 
-test("app.js: 空き時間（週・日）を押すと、突発タスクの入力欄を開き、addUrgentTask で確定する。Enter は変換確定中は確定しない", () => {
-  const fr = src.slice(src.indexOf('const fr = q("[data-free]")'));
-  const body = fr.slice(0, fr.indexOf("if (cleared)"));
-  assert.ok(body.includes('S.urgentDraft = { date: fr.dataset.freedate ?? S.sdate, start: toHHMM(snapFreeStart(+fr.dataset.free, wd)), title: "", projectId: "", minutes: 30 }'), "週表示は列の日付、日表示は表示中の日");
-  assert.ok(!body.includes("addSession"), "空き時間を押してタスクを配置する方法は持たない（ドラッグだけ）");
-  assert.ok(!fr.slice(0, 400).includes("先にタスクを選んでください"));
+test("app.js: 突発タスクの入力欄は、ヘッダーのボタンからだけ開く（空き時間を押す経路 data-free・data-freedate を持たない）。addUrgentTask で確定し、Enter は変換確定中は確定しない", () => {
+  for (const s of ["data-free", "freedate", "snapFreeStart"]) assert.ok(!src.includes(s), s);
   assert.ok(src.includes("addUrgentTask(d,"));
   assert.ok(src.includes('e.key === "Enter" && !e.isComposing && e.target.matches("[data-ug=\\"title\\"]")'));
   assert.match(src, /e\.key === "Escape" && S\.screen === "schedule" && \([^)]*S\.urgentDraft/);
@@ -451,11 +447,8 @@ test("theme.css: 週表示の今日の列は背景色を持たず、上端の線
   assert.ok(!css.includes("--today-col"));
 });
 
-test("theme.css: 週表示の空き時間のボタンは、押すまで透明。hover・フォーカスで日表示と同じ色", () => {
-  const rule = (sel) => css.slice(css.indexOf(sel + "{"), css.indexOf("}", css.indexOf(sel + "{")));
-  assert.ok(rule(".week button.free").includes("background:transparent"));
-  assert.ok(css.includes("button.free:hover,button.free:focus-visible{"));
-  assert.ok(css.indexOf(".week button.free{") < css.indexOf("button.free:hover,button.free:focus-visible{"), "同じ強さの規則なので、hover を後に置く（週表示でも hover の色が出る）");
+test("theme.css: 空き時間のボタン（button.free）と凡例の空き時間（.sw.free）の規則を持たない", () => {
+  assert.ok(!css.includes("button.free") && !css.includes(".sw.free"));
 });
 
 test("theme.css: 重要のバッジは 12px の太字、角の丸い帯（pill）", () => {

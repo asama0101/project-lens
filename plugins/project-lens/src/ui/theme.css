@@ -115,9 +115,6 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 .blk.task{background:var(--accent-soft);color:var(--ink);border:1px solid var(--accent);border-left-width:4px}
 .blk .tm{font-family:var(--f-mono);font-size:10px;opacity:.8;display:block}
 .week .blk .tm{white-space:nowrap}
-button.free{position:absolute;left:2px;right:2px;border:1px dashed var(--ok);background:var(--free);border-radius:5px;color:var(--ok);font:inherit;font-size:12px;cursor:pointer;padding:0 6px;text-align:left}
-.week button.free{border-color:transparent;background:transparent;color:transparent;overflow:hidden;white-space:nowrap;font-size:11px} /* 週表示は押すまで目立たせない（hover・フォーカスで日表示と同じ色） */
-button.free:hover,button.free:focus-visible{background:var(--accent-soft);border:1px dashed var(--accent);color:var(--accent)}
 .summary{display:flex;flex-wrap:wrap;gap:6px 20px;margin-bottom:12px;color:var(--muted);font-size:13px}
 .summary b{color:var(--ink)}
 .week{display:grid;grid-template-columns:44px repeat(7,minmax(120px,1fr));min-width:44px}
@@ -317,7 +314,6 @@ tr.hl td{transition:background .3s}
 .sw.plan{background:var(--accent-soft);border:1px solid var(--accent);border-left-width:4px}
 .sw.act{background:color-mix(in srgb,var(--ok) 22%,var(--surface));border:1px solid var(--ok);border-left-width:4px}
 .sw.unconf{background:var(--warn-soft);border:1px dashed var(--warn);border-left:4px dashed var(--warn)}
-.sw.free{background:var(--free);border:1px dashed var(--ok)}
 .sw.now{height:0;border-radius:0;border-top:2px solid var(--bad)}
 .sw.sel{background:transparent;outline:2px solid var(--ink);outline-offset:-1px}
 .btn:disabled{opacity:.5;cursor:default;border-color:var(--line);color:var(--muted)}

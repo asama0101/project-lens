@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300" font-family="'Yu Gothic','Meiryo','Hiragino Sans',sans-serif" role="img" aria-labelledby="t d">
   <title id="t">突発タスクを登録する流れ</title>
-  <desc id="d">スケジュールの空き時間（週表示・日表示）を押す。入力欄に件名・プロジェクト・長さを入れて Enter か追加を押すと、タスクと作業枠が同時に作られる。Esc・欄の外のクリック・キャンセルでは、何も作らずに閉じる。</desc>
+  <desc id="d">画面上部の「＋ 突発タスク」を押す。スケジュール画面に入力欄が開き、日付と開始が入る。件名・プロジェクト・長さ（日付・開始も変えられる）を入れて Enter か追加を押すと、タスクと作業枠が同時に作られる。Esc・欄の外のクリック・キャンセルでは、何も作らずに閉じる。</desc>
   <defs>
     <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#334155"/>
@@ -9,16 +9,16 @@
   <rect width="800" height="300" fill="#ffffff"/>
 
   <rect x="6" y="14" width="196" height="120" rx="10" fill="#ffffff" stroke="#0369a1" stroke-width="2"/>
-  <text x="104" y="42" text-anchor="middle" font-size="16" font-weight="bold" fill="#0c4a6e">1. 開く</text>
-  <text x="104" y="70" text-anchor="middle" font-size="14" fill="#1e293b">「スケジュール」を</text>
-  <text x="104" y="90" text-anchor="middle" font-size="14" fill="#1e293b">開く（週表示・</text>
-  <text x="104" y="110" text-anchor="middle" font-size="14" fill="#1e293b">日表示のどちらでも）</text>
+  <text x="104" y="42" text-anchor="middle" font-size="16" font-weight="bold" fill="#0c4a6e">1. ボタンを押す</text>
+  <text x="104" y="70" text-anchor="middle" font-size="14" fill="#1e293b">画面上部の</text>
+  <text x="104" y="90" text-anchor="middle" font-size="14" fill="#1e293b">「＋ 突発タスク」</text>
+  <text x="104" y="110" text-anchor="middle" font-size="14" fill="#1e293b">（どの画面でも）</text>
 
   <rect x="228" y="14" width="164" height="120" rx="10" fill="#ffffff" stroke="#0369a1" stroke-width="2"/>
-  <text x="310" y="42" text-anchor="middle" font-size="16" font-weight="bold" fill="#0c4a6e">2. 空き時間を押す</text>
-  <text x="310" y="74" text-anchor="middle" font-size="14" fill="#1e293b">入力欄が開き、</text>
-  <text x="310" y="94" text-anchor="middle" font-size="14" fill="#1e293b">開始時刻が出る</text>
-  <text x="310" y="114" text-anchor="middle" font-size="14" fill="#1e293b">（例: 17:30 から）</text>
+  <text x="310" y="42" text-anchor="middle" font-size="16" font-weight="bold" fill="#0c4a6e">2. 入力欄が開く</text>
+  <text x="310" y="74" text-anchor="middle" font-size="14" fill="#1e293b">スケジュールに開き、</text>
+  <text x="310" y="94" text-anchor="middle" font-size="14" fill="#1e293b">日付と開始が入る</text>
+  <text x="310" y="114" text-anchor="middle" font-size="14" fill="#1e293b">（変えられる）</text>
 
   <rect x="418" y="14" width="376" height="120" rx="10" fill="#ffffff" stroke="#0369a1" stroke-width="2"/>
   <text x="606" y="42" text-anchor="middle" font-size="16" font-weight="bold" fill="#0c4a6e">3. 入力欄に入れる</text>
@@ -36,8 +36,8 @@
 
   <rect x="418" y="190" width="376" height="100" rx="10" fill="#dcfce7" stroke="#15803d" stroke-width="2"/>
   <text x="606" y="216" text-anchor="middle" font-size="16" font-weight="bold" fill="#14532d">タスクと作業枠を、同時に作る</text>
-  <text x="606" y="244" text-anchor="middle" font-size="14" fill="#14532d">タスク: 期限・開始日は押した日、In Progress</text>
-  <text x="606" y="268" text-anchor="middle" font-size="14" fill="#14532d">作業枠: 押した空き時間から、選んだ長さ</text>
+  <text x="606" y="244" text-anchor="middle" font-size="14" fill="#14532d">タスク: 期限・開始日は入力欄の日付、In Progress</text>
+  <text x="606" y="268" text-anchor="middle" font-size="14" fill="#14532d">作業枠: 入力欄の開始から、選んだ長さ</text>
   <line x1="606" y1="138" x2="606" y2="186" stroke="#334155" stroke-width="2" marker-end="url(#a)"/>
   <text x="616" y="168" font-size="14" fill="#1e293b">追加</text>
 
