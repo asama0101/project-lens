@@ -1,6 +1,6 @@
 // 「今日のタスク」「今日の優先」パネル（プロジェクト画面・スケジュール画面で共通。右の列に並ぶ）
 import { rankTasks } from "../../core/schedule.js";
-import { taskActual } from "../../core/sessions.js";
+import { taskActual, runningActual } from "../../core/sessions.js";
 import { isClosed, isImportantMark } from "../../core/schema.js";
 import { esc, checkMeterHtml } from "../common.js";
 
@@ -8,12 +8,12 @@ const PILL = { "To Do": "off", "In Progress": "ok", Waiting: "wait", Done: "done
 const IMP_BADGE = `<span class="impbadge">重要</span>`;
 const statusPill = (t) => `<span class="pill ${PILL[t.status] ?? "off"}">${esc(t.status)}</span>`;
 
-/** 着手（To Do・Waiting のとき）と完了（Done・Cancelled 以外）のボタン。今日のタスクが使う */
-function statusButtons(t) {
-  const btn = (status, label) => `<button class="btn" data-setstatus="${esc(t.id)}|${status}" aria-label="${esc(t.id)} を${label}にする">${label}</button>`;
-  const start = t.status === "To Do" || t.status === "Waiting" ? btn("In Progress", "着手") : "";
-  const done = !isClosed(t) ? btn("Done", "完了") : "";
-  return start || done ? `<span class="bb">${start}${done}</span>` : "";
+/** 実績を記録するボタン。実行中の実績の枠（runningActual）があれば「終了」、無ければ「開始」。今日のタスクの、終わっていないタスクの行に出す */
+function recordButton(data, t, now) {
+  const id = esc(t.id);
+  return runningActual(data, t.id, now)
+    ? `<span class="bb"><button class="btn" data-rec-end="${id}" aria-label="${id} の実績を終了する（今の時刻で枠を終える）">終了</button></span>`
+    : `<span class="bb"><button class="btn" data-rec-start="${id}" aria-label="${id} の実績を開始する（今の時刻から枠を作る）">開始</button></span>`;
 }
 
 /** Done・Cancelled にする前の確認（今日のタスクの行と、リストの状態の欄が使う）。
@@ -38,15 +38,17 @@ function todayList(data, today) {
 export const todayTaskIds = (data, today) => todayList(data, today).map((r) => r.t.id);
 
 /** 今日のタスク。今日に枠が無ければ空文字
- *  @param opts.pendingDone  未来の予定の枠を解除する確認待ち { id, status, n }（その行に確認を出す） */
+ *  @param opts.pendingDone  未来の予定の枠を解除する確認待ち { id, status, n }（その行に確認を出す）
+ *  @param opts.now          {date, time} 現在時刻（「開始」「終了」のどちらを出すかに使う。省略は today の 00:00） */
 export function renderTodayTasks(data, today, opts = {}) {
   const rows = todayList(data, today);
+  const now = opts.now ?? { date: today, time: "00:00" };
   if (!rows.length) return "";
   const items = rows.map(({ t, slots }) => {
     const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? (t.projectId == null ? "プロジェクトなし" : ""));
     const times = slots.map((s) => esc(`${s.start}–${s.end}`)).join("、");
     const ask = opts.pendingDone?.id === t.id ? doneAskHtml(opts.pendingDone) : "";
-    return `<li data-today="${esc(t.id)}"${isClosed(t) ? ' class="closed"' : ""}><span class="pj">${proj}</span><span class="t">${esc(t.title)} ${statusPill(t)}${isImportantMark(t) ? IMP_BADGE : ""}</span><span class="why mono">${times}</span>${isClosed(t) ? "" : checkMeterHtml(t, { remain: true })}${isClosed(t) ? "" : statusButtons(t)}${ask}</li>`;
+    return `<li data-today="${esc(t.id)}"${isClosed(t) ? ' class="closed"' : ""}><span class="pj">${proj}</span><span class="t">${esc(t.title)} ${statusPill(t)}${isImportantMark(t) ? IMP_BADGE : ""}</span><span class="why mono">${times}</span>${isClosed(t) ? "" : checkMeterHtml(t, { remain: true })}${isClosed(t) ? "" : recordButton(data, t, now)}${ask}</li>`;
   }).join("");
   return `<section class="panel todaytasks" aria-labelledby="h-td"><h2 id="h-td">今日のタスク</h2><ul class="rank tl">${items}</ul></section>`;
 }

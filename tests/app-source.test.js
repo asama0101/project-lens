@@ -13,11 +13,11 @@ test("app.js: apply の編集は、必ず引数のデータを受け取る（決
   assert.doesNotMatch(src, /next: \(\) =>/);
 });
 
-test("app.js: 状態の変更は changeStatus に集め、select とスケジュールのボタンが共用する", () => {
+test("app.js: 状態の変更は changeStatus に集める（リストの select・編集欄）。今日のタスクに着手・完了のボタンは無い", () => {
   assert.match(src, /function changeStatus\(/);
   const onChangeStatus = src.slice(src.indexOf('if (f === "status")'), src.indexOf('if (f === "party")'));
   assert.match(onChangeStatus, /changeStatus\(/);
-  assert.ok(src.includes("[data-setstatus]"));
+  assert.ok(!src.includes("data-setstatus"), "今日のタスクの着手・完了のボタンは無い");
   assert.match(src, /const scheduleOpts = \(\) => \(\{[^\n]*pendingDone: S\.pendingDone/);
 });
 
@@ -559,4 +559,13 @@ test("app.js: 作業枠を押して選ぶと（selectSession）、そのタス�
 
 test("theme.css: カレンダーの上の入力欄（#mtgslot）は、中身があるときヘッダーの下に固定する（#view の中だけ）", () => {
   assert.ok(css.includes("#view #mtgslot:not(:empty){position:sticky;top:var(--hh,0px);"));
+});
+
+test("app.js: 今日のタスクの「開始」「終了」は、clock() の時刻で startActual・stopActual を apply で保存し、時刻を通知する。プロジェクト画面にも now を渡す", () => {
+  const a = src.slice(src.indexOf('q("[data-rec-start]")'), src.indexOf('q("[data-rec-start]")') + 700);
+  assert.ok(a.includes("startActual(d, id, now)") && a.includes("apply("), a);
+  assert.ok(a.includes("の実績を開始しました"));
+  const b = src.slice(src.indexOf('q("[data-rec-end]")'), src.indexOf('q("[data-rec-end]")') + 700);
+  assert.ok(b.includes("stopActual(d, id, now)") && b.includes("の実績を終了しました"), b);
+  assert.match(src, /renderProjects\(S\.data, today, \{[^}]*now: clock\(\)/);
 });

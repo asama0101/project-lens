@@ -1179,7 +1179,7 @@ return { taskStart, ganttRows, ganttLayout, timeTicks, projectProgress, taskFlag
 })();
 
 /* src/core/sessions.js */
-const { LAST_END, allSessions, sessionKind, addSession, moveSession, resizeSession, confirmSession, removeSession, taskActual, runningPlanned, futurePlanned } = (() => {
+const { LAST_END, allSessions, sessionKind, addSession, moveSession, resizeSession, confirmSession, removeSession, taskActual, runningActual, runningPlanned, futurePlanned } = (() => {
 // 作業枠（予定／実績）の規則。枠は「作業した時間の記録」で、タスクの状態は変えない。すべて不変更新。
 
 
@@ -1276,6 +1276,16 @@ function taskActual(data, taskId) {
   return { hours: minutes / 60, firstDate: actual.length ? actual.map((s) => s.date).sort()[0] : null, count: ss.length };
 }
 
+/**
+ * 実行中の実績の枠（今日のタスクの「開始」で作り、「終了」で終える枠）。今日の、このタスクの実績の枠のうち開始が最も遅いもので、
+ * 開始 ≦ 今 < 終了のときだけ、その枠を返す（ほかは null）。実行中かどうかはデータに持たず、時刻から決める
+ */
+function runningActual(data, taskId, now) {
+  const t = data.tasks.find((x) => x.id === taskId);
+  const last = (t?.sessions ?? []).filter((s) => s.kind === "actual" && s.date === now.date).sort((a, b) => a.start.localeCompare(b.start)).at(-1);
+  return last && last.start <= now.time && now.time < last.end ? last : null;
+}
+
 /** 進行中（開始済みで未終了）の予定枠の ID。タスクを完了にしても残す枠（futurePlanned に含めない） */
 function runningPlanned(data, taskId, now) {
   const t = data.tasks.find((x) => x.id === taskId);
@@ -1290,7 +1300,7 @@ function futurePlanned(data, taskId, now) {
   return (t?.sessions ?? []).filter((s) => s.kind === "planned" && notStarted(s)).map((s) => s.id);
 }
 
-return { LAST_END, allSessions, sessionKind, addSession, moveSession, resizeSession, confirmSession, removeSession, taskActual, runningPlanned, futurePlanned };
+return { LAST_END, allSessions, sessionKind, addSession, moveSession, resizeSession, confirmSession, removeSession, taskActual, runningActual, runningPlanned, futurePlanned };
 })();
 
 /* src/core/impact.js */
@@ -2479,7 +2489,7 @@ return { depPath, depMarkup, drawDeps, focusDeps };
 })();
 
 /* src/ui/edit.js */
-const { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, duplicateTask, addTaskQuick, addUrgentTask, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject } = (() => {
+const { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, duplicateTask, addTaskQuick, addUrgentTask, startActual, stopActual, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject } = (() => {
 // 画面からの編集（追加・削除・更新）。すべて不変更新で、不正な入力は例外にする（呼び出し側が理由を表示する）。
 
 
@@ -2865,6 +2875,37 @@ function addUrgentTask(data, { title, projectId, date, start, minutes }) {
   return { data: r.data, id: t.id, ...(r.warning && { warning: r.warning }) };
 }
 
+/**
+ * 今日のタスクの「開始」: 今の時刻（分）から、このタスクの実績の枠を作り、To Do・Waiting なら In Progress にする（updateTask の規則で、待ち先は外れる）。
+ * 今の時刻にかかる、このタスクの予定の枠があれば、その枠を実績にして開始を今にする（終了は予定のまま）。無ければ新しい実績の枠を作る。
+ * 実行中（runningActual）の目印は「終了が今より後」なので、新しい枠の終了は仮に、その日の次の枠・会議（参加しないものを除く）の開始か 23:59 の早いほう（最短 15 分）にする。
+ * 置けないとき（ほかの枠との重なり・休みの日・23:59 を超える）と、すでに実行中のときは Error
+ */
+function startActual(data, taskId, now) {
+  if (runningActual(data, taskId, now)) throw new Error(`${taskId} の実績は、すでに開始しています`);
+  const toActual = (d, sid, patch) => ({ ...d, tasks: d.tasks.map((t) => (t.id === taskId ? { ...t, sessions: t.sessions.map((s) => (s.id === sid ? { ...s, ...patch, kind: "actual" } : s)) } : t)) });
+  const inProgress = (d) => (["To Do", "Waiting"].includes(d.tasks.find((t) => t.id === taskId).status) ? updateTask(d, taskId, { status: "In Progress" }, now.date) : d);
+  // 今の時刻にかかる、このタスクの予定の枠があれば、新しい枠を作らず、その枠を実績にして開始を今にする（予定どおりに始めた、の形）
+  const own = (data.tasks.find((t) => t.id === taskId)?.sessions ?? []).find((s) => s.kind === "planned" && s.date === now.date && s.start <= now.time && now.time < s.end);
+  if (own) return { data: inProgress(toActual(data, own.id, { start: now.time })), sessionId: own.id };
+  const st = toMin(now.time);
+  const next = [...allSessions(data), ...(data.events ?? []).filter((m) => !m.skip)].filter((x) => x.date === now.date && toMin(x.start) > st).map((x) => toMin(x.start));
+  const end = Math.max(st + 15, Math.min(LAST_END, ...next));
+  const r = addSession(data, taskId, { date: now.date, start: now.time, end: toHHMM(end) }); // 23:59 を超える終了（24:00 以降）は、addSession が「終了は 23:59 まで」のエラーにする
+  if (r.error) throw new Error(r.error);
+  const sessionId = r.data.tasks.find((t) => t.id === taskId).sessions.at(-1).id;
+  return { data: inProgress(toActual(r.data, sessionId, {})), sessionId, ...(r.warning && { warning: r.warning }) };
+}
+
+/** 今日のタスクの「終了」: 実行中の実績の枠の終了を、今の時刻（分）にする。状態は変えない（完了は状態の欄で選ぶ）。実行中が無い・開始と同じ時刻は Error */
+function stopActual(data, taskId, now) {
+  const cur = runningActual(data, taskId, now);
+  if (!cur) throw new Error(`${taskId} に、実行中の実績の枠がありません`);
+  if (now.time <= cur.start) throw new Error("開始と同じ時刻には終了できません（1 分以上たってから押してください）");
+  const tasks = data.tasks.map((t) => (t.id === taskId ? { ...t, sessions: t.sessions.map((s) => (s.id === cur.id ? { ...s, end: now.time } : s)) } : t));
+  return { data: { ...data, tasks }, start: cur.start, end: now.time, minutes: toMin(now.time) - toMin(cur.start) };
+}
+
 function addTask(data, task) {
   if (!data.projects.some((p) => p.id === task.projectId)) throw new Error(`プロジェクト ${task.projectId} がありません`);
   const title = String(task.title ?? "").trim();
@@ -2990,7 +3031,7 @@ function deleteProject(data, projectId) {
   return { ...data, settings, events, ...(inbox ? { inbox } : {}), projects: data.projects.filter((p) => p.id !== projectId), tasks: data.tasks.filter((t) => t.projectId !== projectId) };
 }
 
-return { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, duplicateTask, addTaskQuick, addUrgentTask, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject };
+return { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, duplicateTask, addTaskQuick, addUrgentTask, startActual, stopActual, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject };
 })();
 
 /* src/ui/donecheck.js */
@@ -3245,12 +3286,12 @@ const PILL = { "To Do": "off", "In Progress": "ok", Waiting: "wait", Done: "done
 const IMP_BADGE = `<span class="impbadge">重要</span>`;
 const statusPill = (t) => `<span class="pill ${PILL[t.status] ?? "off"}">${esc(t.status)}</span>`;
 
-/** 着手（To Do・Waiting のとき）と完了（Done・Cancelled 以外）のボタン。今日のタスクが使う */
-function statusButtons(t) {
-  const btn = (status, label) => `<button class="btn" data-setstatus="${esc(t.id)}|${status}" aria-label="${esc(t.id)} を${label}にする">${label}</button>`;
-  const start = t.status === "To Do" || t.status === "Waiting" ? btn("In Progress", "着手") : "";
-  const done = !isClosed(t) ? btn("Done", "完了") : "";
-  return start || done ? `<span class="bb">${start}${done}</span>` : "";
+/** 実績を記録するボタン。実行中の実績の枠（runningActual）があれば「終了」、無ければ「開始」。今日のタスクの、終わっていないタスクの行に出す */
+function recordButton(data, t, now) {
+  const id = esc(t.id);
+  return runningActual(data, t.id, now)
+    ? `<span class="bb"><button class="btn" data-rec-end="${id}" aria-label="${id} の実績を終了する（今の時刻で枠を終える）">終了</button></span>`
+    : `<span class="bb"><button class="btn" data-rec-start="${id}" aria-label="${id} の実績を開始する（今の時刻から枠を作る）">開始</button></span>`;
 }
 
 /** Done・Cancelled にする前の確認（今日のタスクの行と、リストの状態の欄が使う）。
@@ -3275,15 +3316,17 @@ function todayList(data, today) {
 const todayTaskIds = (data, today) => todayList(data, today).map((r) => r.t.id);
 
 /** 今日のタスク。今日に枠が無ければ空文字
- *  @param opts.pendingDone  未来の予定の枠を解除する確認待ち { id, status, n }（その行に確認を出す） */
+ *  @param opts.pendingDone  未来の予定の枠を解除する確認待ち { id, status, n }（その行に確認を出す）
+ *  @param opts.now          {date, time} 現在時刻（「開始」「終了」のどちらを出すかに使う。省略は today の 00:00） */
 function renderTodayTasks(data, today, opts = {}) {
   const rows = todayList(data, today);
+  const now = opts.now ?? { date: today, time: "00:00" };
   if (!rows.length) return "";
   const items = rows.map(({ t, slots }) => {
     const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? (t.projectId == null ? "プロジェクトなし" : ""));
     const times = slots.map((s) => esc(`${s.start}–${s.end}`)).join("、");
     const ask = opts.pendingDone?.id === t.id ? doneAskHtml(opts.pendingDone) : "";
-    return `<li data-today="${esc(t.id)}"${isClosed(t) ? ' class="closed"' : ""}><span class="pj">${proj}</span><span class="t">${esc(t.title)} ${statusPill(t)}${isImportantMark(t) ? IMP_BADGE : ""}</span><span class="why mono">${times}</span>${isClosed(t) ? "" : checkMeterHtml(t, { remain: true })}${isClosed(t) ? "" : statusButtons(t)}${ask}</li>`;
+    return `<li data-today="${esc(t.id)}"${isClosed(t) ? ' class="closed"' : ""}><span class="pj">${proj}</span><span class="t">${esc(t.title)} ${statusPill(t)}${isImportantMark(t) ? IMP_BADGE : ""}</span><span class="why mono">${times}</span>${isClosed(t) ? "" : checkMeterHtml(t, { remain: true })}${isClosed(t) ? "" : recordButton(data, t, now)}${ask}</li>`;
   }).join("");
   return `<section class="panel todaytasks" aria-labelledby="h-td"><h2 id="h-td">今日のタスク</h2><ul class="rank tl">${items}</ul></section>`;
 }
@@ -4061,7 +4104,7 @@ function renderProjects(data, today, opts = {}) {
   // チップはプロジェクトの数だけ並ぶので、1 行に収めて横にスクロールする(折り返すと、固定の行が高くなり、表が見えなくなる)。プロジェクト名のプルダウンと追加ボタンは、スクロールの外
   return `<div class="toolbar ptool"><div class="chips-row" role="group" aria-label="プロジェクトで絞り込み">${chips}</div>
     <div class="ptool-end">${pick}${addBtn}</div></div>
-    <div class="cols${showPrio ? "" : " one"}">${body}${renderSideToggle(showPrio)}${showPrio ? renderSide(data, today, { sched: false, pendingDone: opts.pendingDone }) : ""}</div>${pop}`;
+    <div class="cols${showPrio ? "" : " one"}">${body}${renderSideToggle(showPrio)}${showPrio ? renderSide(data, today, { sched: false, pendingDone: opts.pendingDone, now: opts.now }) : ""}</div>${pop}`;
 }
 
 return { statusCellHtml, renderProjects };
@@ -4253,7 +4296,7 @@ function renderSchedule(data, today, opts) {
     <div class="summary"><span>実績 <b class="mono">${hours.toFixed(1)}時間</b></span><span>予定 <b class="mono">${planned}件</b></span>${unconf ? `<span class="pill wait">未確認 ${unconf}件（作業枠 ${unconfS}・会議 ${unconfM}）</span><button class="btn" data-confirmall>未確認をすべて実績にする</button>` : ""}<button class="btn danger" data-delsel ${delOk ? "" : "disabled"}>${delLabel}</button></div>`;
   const et = selSess && opts.taskEdit ? data.tasks.find((t) => t.id === opts.taskEdit.id) : null; // 編集欄は、表示中の枠を選んでいる間だけ出す（枠を選ぶと、そのタスクの編集欄になる）
   const editPanel = et ? renderTaskEditPanel(data, opts.taskEdit, statusCellHtml(et, { ...opts, todayIds: opts.showPrio === false ? new Set() : new Set(todayTaskIds(data, today)) }, taskFlags(et, today, data.settings).includes("overdue"))) : "";
-  return `<div class="cols${opts.showPrio === false ? " one" : ""}"><section class="panel">${nav}<div id="mtgslot">${meetingForm(data, { mtgDraft: opts.mtgDraft, selMtg: selMtg?.id })}${urgentForm(data, opts.urgentDraft)}${editPanel}</div><div id="calslot">${renderCalendar(data, today, calOpts)}</div></section>${renderSideToggle(opts.showPrio !== false)}${opts.showPrio === false ? "" : renderSide(data, today, { sched: true, pendingDone: opts.pendingDone })}</div>`;
+  return `<div class="cols${opts.showPrio === false ? " one" : ""}"><section class="panel">${nav}<div id="mtgslot">${meetingForm(data, { mtgDraft: opts.mtgDraft, selMtg: selMtg?.id })}${urgentForm(data, opts.urgentDraft)}${editPanel}</div><div id="calslot">${renderCalendar(data, today, calOpts)}</div></section>${renderSideToggle(opts.showPrio !== false)}${opts.showPrio === false ? "" : renderSide(data, today, { sched: true, pendingDone: opts.pendingDone, now })}</div>`;
 }
 
 
@@ -4433,7 +4476,7 @@ function renderBody() {
   const { date: today } = clock();
   if (!S.data) return startScreen();
   if (S.screen === "gantt" || S.screen === "list") {
-    return renderProjects(S.data, today, { filter: S.filter, view: S.screen, window: S.gwin, hideDone: S.hideDone, askDel: S.askDel, askDelProject: S.askDelProject, pendingWait: S.pendingWait, pendingDone: S.pendingDone, checkOpen: S.checkOpen, addAt: S.addAt, tpop: S.screen === "gantt" ? S.tpop : null, showPrio: S.prefs.showPrio, showActual: S.prefs.showActual });
+    return renderProjects(S.data, today, { filter: S.filter, view: S.screen, window: S.gwin, hideDone: S.hideDone, askDel: S.askDel, askDelProject: S.askDelProject, pendingWait: S.pendingWait, pendingDone: S.pendingDone, checkOpen: S.checkOpen, addAt: S.addAt, tpop: S.screen === "gantt" ? S.tpop : null, showPrio: S.prefs.showPrio, showActual: S.prefs.showActual, now: clock() });
   }
   if (S.screen === "settings") return renderSettings(S.data, today, { ruleError: S.ruleError, closed: S.settingsClosed });
   if (S.screen === "workload") return renderWorkload(S.data, today, { period: S.wperiod, date: S.wdate, now: clock() });
@@ -4953,8 +4996,18 @@ view.addEventListener("click", (e) => {
   if (q("[data-wtoday]")) { S.wdate = today; render(); return; }
 
   /* スケジュール画面 */
-  const ss = q("[data-setstatus]");
-  if (ss) { const [id, status] = ss.dataset.setstatus.split("|"); changeStatus(id, status); return; }
+  const rs = q("[data-rec-start]");
+  if (rs) {
+    const id = rs.dataset.recStart; let r;
+    if (apply((d) => { r = startActual(d, id, now); return r.data; }, null)) toast(`${id} の実績を開始しました（${now.time}）${r.warning ? `(${r.warning})` : ""}`);
+    return;
+  }
+  const re = q("[data-rec-end]");
+  if (re) {
+    const id = re.dataset.recEnd; let r;
+    if (apply((d) => { r = stopActual(d, id, now); return r.data; }, null)) toast(`${id} の実績を終了しました（${r.start}〜${r.end}・${r.minutes} 分）`);
+    return;
+  }
   const sv = q("[data-sview]"); if (sv) { S.sview = sv.dataset.sview; render(); return; }
   const nv = q("[data-nav]"); if (nv) { S.sdate = addDays(S.sdate, +nv.dataset.nav); render(); return; }
   if (q("[data-sgoto]")) { S.sdate = today; render(); return; }
@@ -5015,7 +5068,7 @@ function submitUrgent() {
   }
 }
 
-/** 状態の変更（リストの select と、スケジュール画面の着手・完了ボタンが共用）。待ち先・未来の予定枠の確認が要るときは、確認待ちにする */
+/** 状態の変更（リストの select・編集の窓・スケジュールの編集欄）。待ち先・未来の予定枠の確認が要るときは、確認待ちにする */
 function changeStatus(id, status) {
   const t = S.data.tasks.find((x) => x.id === id);
   if (status === "Waiting" && !t.waitingOn?.party) { S.pendingWait = id; S.focusSel = `[data-waitparty="${id}"]`; render(); return; }

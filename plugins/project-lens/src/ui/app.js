@@ -49,7 +49,7 @@ function renderBody() {
   const { date: today } = clock();
   if (!S.data) return startScreen();
   if (S.screen === "gantt" || S.screen === "list") {
-    return renderProjects(S.data, today, { filter: S.filter, view: S.screen, window: S.gwin, hideDone: S.hideDone, askDel: S.askDel, askDelProject: S.askDelProject, pendingWait: S.pendingWait, pendingDone: S.pendingDone, checkOpen: S.checkOpen, addAt: S.addAt, tpop: S.screen === "gantt" ? S.tpop : null, showPrio: S.prefs.showPrio, showActual: S.prefs.showActual });
+    return renderProjects(S.data, today, { filter: S.filter, view: S.screen, window: S.gwin, hideDone: S.hideDone, askDel: S.askDel, askDelProject: S.askDelProject, pendingWait: S.pendingWait, pendingDone: S.pendingDone, checkOpen: S.checkOpen, addAt: S.addAt, tpop: S.screen === "gantt" ? S.tpop : null, showPrio: S.prefs.showPrio, showActual: S.prefs.showActual, now: clock() });
   }
   if (S.screen === "settings") return renderSettings(S.data, today, { ruleError: S.ruleError, closed: S.settingsClosed });
   if (S.screen === "workload") return renderWorkload(S.data, today, { period: S.wperiod, date: S.wdate, now: clock() });
@@ -569,8 +569,18 @@ view.addEventListener("click", (e) => {
   if (q("[data-wtoday]")) { S.wdate = today; render(); return; }
 
   /* スケジュール画面 */
-  const ss = q("[data-setstatus]");
-  if (ss) { const [id, status] = ss.dataset.setstatus.split("|"); changeStatus(id, status); return; }
+  const rs = q("[data-rec-start]");
+  if (rs) {
+    const id = rs.dataset.recStart; let r;
+    if (apply((d) => { r = startActual(d, id, now); return r.data; }, null)) toast(`${id} の実績を開始しました（${now.time}）${r.warning ? `(${r.warning})` : ""}`);
+    return;
+  }
+  const re = q("[data-rec-end]");
+  if (re) {
+    const id = re.dataset.recEnd; let r;
+    if (apply((d) => { r = stopActual(d, id, now); return r.data; }, null)) toast(`${id} の実績を終了しました（${r.start}〜${r.end}・${r.minutes} 分）`);
+    return;
+  }
   const sv = q("[data-sview]"); if (sv) { S.sview = sv.dataset.sview; render(); return; }
   const nv = q("[data-nav]"); if (nv) { S.sdate = addDays(S.sdate, +nv.dataset.nav); render(); return; }
   if (q("[data-sgoto]")) { S.sdate = today; render(); return; }
@@ -631,7 +641,7 @@ function submitUrgent() {
   }
 }
 
-/** 状態の変更（リストの select と、スケジュール画面の着手・完了ボタンが共用）。待ち先・未来の予定枠の確認が要るときは、確認待ちにする */
+/** 状態の変更（リストの select・編集の窓・スケジュールの編集欄）。待ち先・未来の予定枠の確認が要るときは、確認待ちにする */
 function changeStatus(id, status) {
   const t = S.data.tasks.find((x) => x.id === id);
   if (status === "Waiting" && !t.waitingOn?.party) { S.pendingWait = id; S.focusSel = `[data-waitparty="${id}"]`; render(); return; }

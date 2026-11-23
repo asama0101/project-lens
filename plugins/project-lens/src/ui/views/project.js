@@ -125,5 +125,5 @@ export function renderProjects(data, today, opts = {}) {
   // チップはプロジェクトの数だけ並ぶので、1 行に収めて横にスクロールする(折り返すと、固定の行が高くなり、表が見えなくなる)。プロジェクト名のプルダウンと追加ボタンは、スクロールの外
   return `<div class="toolbar ptool"><div class="chips-row" role="group" aria-label="プロジェクトで絞り込み">${chips}</div>
     <div class="ptool-end">${pick}${addBtn}</div></div>
-    <div class="cols${showPrio ? "" : " one"}">${body}${renderSideToggle(showPrio)}${showPrio ? renderSide(data, today, { sched: false, pendingDone: opts.pendingDone }) : ""}</div>${pop}`;
+    <div class="cols${showPrio ? "" : " one"}">${body}${renderSideToggle(showPrio)}${showPrio ? renderSide(data, today, { sched: false, pendingDone: opts.pendingDone, now: opts.now }) : ""}</div>${pop}`;
 }

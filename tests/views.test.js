@@ -682,11 +682,24 @@ test("todayTaskIds・renderTodayTasks: 今日に枠があるタスクだけを�
   assert.deepEqual(items(html).map((x) => x.id), ["AA-0005", "AA-0007", done.id], "Done は末尾（開始は一番早くても）");
   const [a5, a7, dn] = items(html);
   assert.ok(a5.html.includes("In Progress") && a5.html.includes("11:00–12:00"), "状態と今日の枠の時間");
-  assert.ok(a5.html.includes('data-setstatus="AA-0005|Done"') && !a5.html.includes('data-setstatus="AA-0005|In Progress"'), "着手中は完了だけ");
-  assert.ok(a7.html.includes('data-setstatus="AA-0007|In Progress"') && a7.html.includes('data-setstatus="AA-0007|Done"'), "To Do は着手・完了が同じ行");
-  assert.ok(!dn.html.includes("data-setstatus") && html.includes('class="closed"'), "Done はボタン無しで薄い");
+  assert.ok(a5.html.includes('data-rec-start="AA-0005"') && !a5.html.includes("data-rec-end"), "実行中の実績が無ければ「開始」だけ");
+  assert.ok(a7.html.includes('data-rec-start="AA-0007"'), "To Do も「開始」");
+  assert.ok(!html.includes("data-setstatus") && !html.includes("着手</button>") && !html.includes("完了</button>"), "着手・完了のボタンは無い");
+  assert.ok(!dn.html.includes("data-rec-") && html.includes('class="closed"'), "Done はボタン無しで薄い");
   assert.equal(renderTodayTasks(load(), TODAY), "", "今日の枠が無ければ出さない");
   assert.deepEqual(todayTaskIds(load(), TODAY), []);
+});
+
+test("renderTodayTasks: 実行中の実績の枠（runningActual）があるタスクは「終了」、無ければ「開始」。now は opts.now（スケジュール・プロジェクトの右の列も渡す）", () => {
+  const { d } = withToday();
+  d.tasks.find((t) => t.id === "AA-0007").sessions.push({ id: "S13", date: TODAY, start: "10:00", end: "13:00", kind: "actual" });
+  const at = (time) => items(renderTodayTasks(d, TODAY, { now: { date: TODAY, time } })).find((x) => x.id === "AA-0007").html;
+  assert.ok(at("10:15").includes('data-rec-end="AA-0007"') && !at("10:15").includes("data-rec-start"), "実行中は「終了」だけ");
+  assert.ok(at("10:15").includes(">終了</button>"));
+  assert.ok(at("13:00").includes('data-rec-start="AA-0007"') && at("13:00").includes(">開始</button>"), "終了の時刻を過ぎたら「開始」");
+  const side = (html) => items(html).find((x) => x.id === "AA-0007").html;
+  assert.ok(side(sched(d, { now: { date: TODAY, time: "10:15" } })).includes("data-rec-end"), "スケジュールの右の列");
+  assert.ok(side(renderProjects(d, TODAY, { filter: "all", view: "list", now: { date: TODAY, time: "10:15" } })).includes("data-rec-end"), "プロジェクト画面の右の列");
 });
 
 test("renderTodayTasks: 複数の枠は時間を並べる。pendingDone の行にだけ確認（data-doneok / data-doneno）を出す", () => {

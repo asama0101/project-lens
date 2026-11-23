@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { sessionKind, addSession, moveSession, resizeSession, confirmSession, removeSession, taskActual, futurePlanned, runningPlanned } from "../plugins/project-lens/src/core/sessions.js";
+import { sessionKind, addSession, moveSession, resizeSession, confirmSession, removeSession, taskActual, futurePlanned, runningPlanned, runningActual } from "../plugins/project-lens/src/core/sessions.js";
 
 const load = () => JSON.parse(readFileSync(new URL("../plugins/project-lens/data/sample.json", import.meta.url), "utf8"));
 const NOW = { date: "2026-10-20", time: "12:00" }; // 火曜
@@ -204,4 +204,20 @@ test("resizeSession: 会議と重なると warning を返す（moveSession と�
   assert.equal(over.error, undefined);
   assert.match(over.warning, /会議「会議X」/);
   assert.equal(resizeSession(d, "SX", "09:45", NOW0).warning, undefined);
+});
+
+test("runningActual: 今日のこのタスクの実績の枠のうち開始が最も遅いもので、開始 ≦ 今 < 終了なら、その枠（実行中）。それ以外は null", () => {
+  const d = load();
+  const T = task(d, "AA-0004");
+  const now = (time) => ({ date: "2026-10-20", time });
+  assert.equal(runningActual(d, "AA-0004", now("10:15")), null, "枠が無い");
+  T.sessions.push({ id: "S20", date: "2026-10-20", start: "08:00", end: "09:00", kind: "actual" });
+  T.sessions.push({ id: "S21", date: "2026-10-20", start: "10:00", end: "13:00", kind: "actual" });
+  T.sessions.push({ id: "S22", date: "2026-10-20", start: "15:00", end: "16:00", kind: "planned" });
+  assert.equal(runningActual(d, "AA-0004", now("10:15")).id, "S21");
+  assert.equal(runningActual(d, "AA-0004", now("13:00")), null, "終了の時刻になったら実行中でない");
+  assert.equal(runningActual(d, "AA-0004", now("08:30")), null, "開始が最も遅い実績の枠だけを見る（まだ始まっていない）");
+  assert.equal(runningActual(d, "AA-0004", { date: "2026-10-21", time: "10:15" }), null, "今日の枠だけ");
+  assert.equal(runningActual(d, "AA-0004", now("15:30")), null, "予定の枠は実行中にならない");
+  assert.equal(runningActual(d, "ZZ-9999", now("10:15")), null, "タスクが無いときも null");
 });

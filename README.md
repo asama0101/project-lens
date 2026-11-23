@@ -38,9 +38,9 @@
 
 ### 毎朝の流れ
 
-| 1. 「今日の優先」を見る | 2. 時間枠に置く | 3. 「着手」を押す |
+| 1. 「今日の優先」を見る | 2. 時間枠に置く | 3. 「開始」を押す |
 |---|---|---|
-| <img src="docs/images/morning-1-priority.png" alt="ガントチャートの右側に「今日のタスク」と「今日の優先」が並ぶ" width="260"> | <img src="docs/images/morning-2-schedule.png" alt="スケジュールの週の枠に、作業枠と会議が並ぶ" width="260"> | <img src="docs/images/morning-3-started.png" alt="タスクが In Progress になり、「着手」のボタンが消える" width="260"> |
+| <img src="docs/images/morning-1-priority.png" alt="ガントチャートの右側に「今日のタスク」と「今日の優先」が並ぶ" width="260"> | <img src="docs/images/morning-2-schedule.png" alt="スケジュールの週の枠に、作業枠と会議が並ぶ" width="260"> | <img src="docs/images/morning-3-started.png" alt="タスクが In Progress になり、ボタンが「終了」に変わる" width="260"> |
 
 ### 今日の優先の決まり方
 

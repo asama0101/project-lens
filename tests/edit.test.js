@@ -12,7 +12,8 @@ import {
   nextTaskId, nextProjectId, addUrgentTask, moveToProject,
 } from "../plugins/project-lens/src/ui/edit.js";
 
-import { addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist } from "../plugins/project-lens/src/ui/edit.js";
+import { addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, startActual, stopActual } from "../plugins/project-lens/src/ui/edit.js";
+import { runningActual } from "../plugins/project-lens/src/core/sessions.js";
 
 const load = () => JSON.parse(readFileSync(new URL("../plugins/project-lens/data/sample.json", import.meta.url), "utf8"));
 const TODAY = "2026-10-20";
@@ -628,4 +629,63 @@ test("removeOrphanSessions: orphanSessions だけを空にし、タスクと枠�
   assert.deepEqual(n.orphanSessions, []);
   assert.deepEqual(n.tasks, d.tasks);
   assert.equal(validate(n, { date: TODAY, time: "10:15" }).warnings.some((w) => w.includes("共有ファイルに無い")), false);
+});
+
+// ---- 今日のタスクの「開始」「終了」（実績の記録） ----
+test("startActual: 今の時刻から実績の枠を作る。終了は、次の枠・会議の開始（無ければ 23:59）。To Do は In Progress にする。元のデータは変えない", () => {
+  const d = load();
+  const now = { date: TODAY, time: "10:15" };
+  const r = startActual(d, "AA-0004", now);
+  const s = task(r.data, "AA-0004").sessions.at(-1);
+  assert.deepEqual([s.date, s.start, s.end, s.kind], [TODAY, "10:15", "13:00", "actual"], "次の会議（ベンダーX 打合せ 13:00）まで");
+  assert.equal(r.sessionId, s.id);
+  assert.match(r.warning, /NW運用定例/, "今の会議と重なると warning");
+  assert.equal(task(r.data, "AA-0004").status, "In Progress");
+  assert.equal(runningActual(r.data, "AA-0004", now).id, s.id, "実行中になる");
+  assert.equal(task(d, "AA-0004").sessions.length, 0, "元のデータは変えない");
+  ok(r.data);
+  const late = startActual(load(), "AA-0004", { date: TODAY, time: "20:00" });
+  assert.equal(task(late.data, "AA-0004").sessions.at(-1).end, "23:59", "後に何も無ければ 23:59");
+  const w = startActual(load(), "AC-0002", { date: TODAY, time: "11:00" });
+  assert.deepEqual([task(w.data, "AC-0002").status, task(w.data, "AC-0002").waitingOn], ["In Progress", null], "Waiting も In Progress にし、待ち先は外れる（updateTask の規則）");
+  const ip = startActual(load(), "AA-0005", { date: TODAY, time: "11:00" });
+  assert.equal(task(ip.data, "AA-0005").status, "In Progress", "In Progress はそのまま");
+});
+
+test("startActual: 次の枠・会議まで 15 分ないときは、最短の 15 分。ほかの枠と重なれば Error。実行中なら Error", () => {
+  const near = startActual(load(), "AA-0004", { date: TODAY, time: "12:50" });
+  assert.equal(task(near.data, "AA-0004").sessions.at(-1).end, "13:05", "会議（13:00）までが 15 分未満なら、最短の 15 分（会議との重なりは warning）");
+  assert.match(near.warning, /ベンダーX 打合せ/);
+  const d = load();
+  task(d, "AA-0005").sessions.push({ id: "S30", date: TODAY, start: "10:00", end: "11:00", kind: "planned" });
+  assert.throws(() => startActual(d, "AA-0004", { date: TODAY, time: "10:15" }), /他の枠/);
+  const r = startActual(load(), "AA-0004", { date: TODAY, time: "10:15" });
+  assert.throws(() => startActual(r.data, "AA-0004", { date: TODAY, time: "10:20" }), /すでに開始/);
+  assert.throws(() => startActual(load(), "AA-0004", { date: TODAY, time: "23:50" }), /23:59/, "23:45 より後は 15 分が収まらない");
+});
+
+test("stopActual: 実行中の実績の枠の終了を今の時刻にする。状態は変えない。実行中が無い・開始と同じ時刻は Error", () => {
+  const r = startActual(load(), "AA-0004", { date: TODAY, time: "10:15" });
+  const st = stopActual(r.data, "AA-0004", { date: TODAY, time: "10:40" });
+  const s = task(st.data, "AA-0004").sessions.at(-1);
+  assert.deepEqual([s.start, s.end, s.kind], ["10:15", "10:40", "actual"]);
+  assert.deepEqual([st.start, st.end, st.minutes], ["10:15", "10:40", 25]);
+  assert.equal(task(st.data, "AA-0004").status, "In Progress", "終了は状態を変えない");
+  assert.equal(runningActual(st.data, "AA-0004", { date: TODAY, time: "10:40" }), null, "終了後は実行中でない");
+  ok(st.data);
+  assert.equal(task(stopActual(r.data, "AA-0004", { date: TODAY, time: "10:20" }).data, "AA-0004").sessions.at(-1).end, "10:20", "15 分より短くてもよい");
+  assert.throws(() => stopActual(r.data, "AA-0004", { date: TODAY, time: "10:15" }), /開始と同じ/);
+  assert.throws(() => stopActual(load(), "AA-0004", { date: TODAY, time: "10:15" }), /実行中の実績/);
+});
+
+test("startActual: 今の時刻にかかる、このタスクの予定の枠があれば、その枠を実績にして開始を今の時刻にする（新しい枠は作らない）", () => {
+  const d = load();
+  task(d, "AA-0004").sessions.push({ id: "S40", date: TODAY, start: "10:00", end: "12:00", kind: "planned" });
+  const r = startActual(d, "AA-0004", { date: TODAY, time: "10:15" });
+  assert.equal(r.sessionId, "S40");
+  assert.deepEqual(task(r.data, "AA-0004").sessions.map((s) => [s.id, s.start, s.end, s.kind]), [["S40", "10:15", "12:00", "actual"]]);
+  assert.equal(task(r.data, "AA-0004").status, "In Progress");
+  const st = stopActual(r.data, "AA-0004", { date: TODAY, time: "11:05" });
+  assert.deepEqual([st.start, st.end, st.minutes], ["10:15", "11:05", 50]);
+  ok(st.data);
 });

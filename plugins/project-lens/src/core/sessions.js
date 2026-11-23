@@ -94,6 +94,16 @@ export function taskActual(data, taskId) {
   return { hours: minutes / 60, firstDate: actual.length ? actual.map((s) => s.date).sort()[0] : null, count: ss.length };
 }
 
+/**
+ * 実行中の実績の枠（今日のタスクの「開始」で作り、「終了」で終える枠）。今日の、このタスクの実績の枠のうち開始が最も遅いもので、
+ * 開始 ≦ 今 < 終了のときだけ、その枠を返す（ほかは null）。実行中かどうかはデータに持たず、時刻から決める
+ */
+export function runningActual(data, taskId, now) {
+  const t = data.tasks.find((x) => x.id === taskId);
+  const last = (t?.sessions ?? []).filter((s) => s.kind === "actual" && s.date === now.date).sort((a, b) => a.start.localeCompare(b.start)).at(-1);
+  return last && last.start <= now.time && now.time < last.end ? last : null;
+}
+
 /** 進行中（開始済みで未終了）の予定枠の ID。タスクを完了にしても残す枠（futurePlanned に含めない） */
 export function runningPlanned(data, taskId, now) {
   const t = data.tasks.find((x) => x.id === taskId);
