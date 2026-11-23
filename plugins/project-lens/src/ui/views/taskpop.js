@@ -67,8 +67,8 @@ function taskRowFieldsHtml(data, t, { full, statusHtml }) {
   const repeat = `<option value="">なし</option><option value="week" ${t.repeat?.unit === "week" ? "selected" : ""}>毎週</option><option value="month" ${t.repeat?.unit === "month" ? "selected" : ""}>毎月${t.repeat?.unit === "month" ? `（${esc(t.repeat.day)} 日）` : ""}</option>`;
   const fields = [
     field("tp-title", "件名", `<input class="in" data-f="title" data-id="${id}" value="${esc(t.title)}">`),
-    field("", "期限", `<input class="in" type="date" data-f="due" data-id="${id}" value="${esc(t.due)}">`),
     field("", "開始", startInputHtml(data, t)),
+    field("", "期限", `<input class="in" type="date" data-f="due" data-id="${id}" value="${esc(t.due)}">`),
     `<div class="tp-st"><span>状態</span><div>${statusHtml}</div></div>`,
     `<label class="chk"><input type="checkbox" data-f="important" data-id="${id}" ${t.important === true ? "checked" : ""}>重要</label>`,
     field("", "プロジェクト", `<select class="in sm" data-f="projectId" data-id="${id}">${projects}</select>`),

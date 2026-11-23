@@ -1689,3 +1689,12 @@ test("orphanSessions の枠は、カレンダー・優先度・稼働に描か�
   assert.equal(renderPrio(d, TODAY, { now: NOW }), renderPrio(base, TODAY, { now: NOW }));
   assert.equal(renderWorkload(d, TODAY, { now: NOW }), renderWorkload(base, TODAY, { now: NOW }));
 });
+
+test("renderTaskEditPanel: スケジュールの編集欄は、開始の欄が期限の欄より前。ガントの窓（renderTaskPop）も開始が先", () => {
+  const d = load();
+  const p = renderTaskEditPanel(d, { id: "AA-0005", full: false }, "");
+  assert.ok(p.indexOf('data-f="start"') > 0 && p.indexOf('data-f="start"') < p.indexOf('data-f="due"'), "編集欄");
+  assert.ok(p.indexOf("<span>開始</span>") < p.indexOf("<span>期限</span>"));
+  const w = renderTaskPop(d, { id: "AA-0005", x: 0, y: 0 }, "");
+  assert.ok(w.indexOf('data-f="start"') < w.indexOf('data-f="due"'), "窓");
+});
