@@ -65,7 +65,8 @@ test("renderWorkload: 内訳の横棒は合計に比例し、操作用の属性�
   const html = wl(d);
   assert.ok(!html.includes("<img src=x") && html.includes("&lt;img src=x"));
   assert.ok(html.includes('data-wnav="-1"') && html.includes('data-wnav="1"') && html.includes("data-wtoday"));
-  assert.ok(html.includes('data-wperiod="week" aria-pressed="true"') && html.includes('data-wperiod="month" aria-pressed="false"'));
+  assert.ok(html.includes('data-wperiod="week" aria-pressed="true"') && html.includes('data-wperiod="month" aria-pressed="false"') && html.includes('data-wperiod="day" aria-pressed="false"'));
+  assert.ok(html.indexOf('data-wperiod="day"') < html.indexOf('data-wperiod="week"') && html.indexOf('data-wperiod="week"') < html.indexOf('data-wperiod="month"'), "日・週・月の順");
   assert.match(html, /class="wl-bar" style="width:100(\.0+)?%/, "最大の行は 100%");
 });
 
@@ -81,7 +82,18 @@ test("プロジェクトの見出しが『稼働 …（タスク …・会議 �
 
 import { shiftWorkloadDate } from "../plugins/project-lens/src/ui/views/workload.js";
 
-test("shiftWorkloadDate: 週は7日、月は1か月（年またぎ・月末の日付でもずれない）", () => {
+test("renderWorkload(day): その日だけを集計し、見出しは 2026/10/20(火)、今日へのボタンは「今日」", () => {
+  const d = mk();
+  d.tasks[0].sessions.push(sess("S3", "2026-10-21", "09:00", "11:00"));
+  const html = wl(d, { period: "day" });
+  assert.ok(html.includes("2026/10/20(火)") && html.includes(">今日</button>") && html.includes('data-wperiod="day" aria-pressed="true"'));
+  assert.match(html, /拠点A[\s\S]*?1\.5h[\s\S]*?1\.0h[\s\S]*?2\.5h/, "10/21 の 2 時間は入らない");
+  assert.match(wl(d, { period: "day", date: "2026-10-21" }), /拠点A[\s\S]*?2\.0h[\s\S]*?0\.0h[\s\S]*?2\.0h/);
+});
+
+test("shiftWorkloadDate: 日は1日、週は7日、月は1か月（年またぎ・月末の日付でもずれない）", () => {
+  assert.equal(shiftWorkloadDate("day", "2026-12-31", 1), "2027-01-01");
+  assert.equal(shiftWorkloadDate("day", "2026-10-20", -1), "2026-10-19");
   assert.equal(shiftWorkloadDate("week", "2026-10-20", 1), "2026-10-27");
   assert.equal(shiftWorkloadDate("week", "2026-10-20", -1), "2026-10-13");
   assert.equal(shiftWorkloadDate("month", "2026-12-31", 1), "2027-01-01");

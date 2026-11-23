@@ -41,8 +41,9 @@ export function workload(data, range, now) {
   return { rows, unassigned, total: sumBy(rows, (r) => r.total) + unassigned.task + unassigned.meeting, unconfirmed: unconfirmedTasks + unconfirmedMeetings, unconfirmedTasks, unconfirmedMeetings };
 }
 
-/** 週（月曜〜日曜）または月（月初〜月末）の範囲 */
+/** 日（その日だけ）・週（月曜〜日曜）・月（月初〜月末）の範囲 */
 export function periodRange(period, date) {
+  if (period === "day") return { start: date, end: date };
   if (period === "week") {
     const start = addDays(date, -((weekday(date) + 6) % 7));
     return { start, end: addDays(start, 6) };

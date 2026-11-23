@@ -56,7 +56,8 @@ test("workload: unconfirmed は過ぎた未確認の枠と会議の件数（now 
   assert.equal(workload(d, r).unconfirmed, 0);
 });
 
-test("periodRange: week は月曜〜日曜、month は 2028-02 で 29 日まで", () => {
+test("periodRange: day はその日だけ、week は月曜〜日曜、month は 2028-02 で 29 日まで", () => {
+  assert.deepEqual(periodRange("day", "2026-10-20"), { start: "2026-10-20", end: "2026-10-20" });
   assert.deepEqual(periodRange("week", "2026-10-20"), { start: "2026-10-19", end: "2026-10-25" });
   assert.deepEqual(periodRange("week", "2026-10-25"), { start: "2026-10-19", end: "2026-10-25" });
   assert.deepEqual(periodRange("month", "2028-02-10"), { start: "2028-02-01", end: "2028-02-29" });
