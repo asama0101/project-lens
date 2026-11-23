@@ -242,7 +242,7 @@ push のたびには `version` を上げない。リリースするときだけ�
 - 「今日のタスク」は、`views/prio.js` の `renderTodayTasks` が、今日の日付に作業枠があるタスクを枠から導く（保存しない）。ガントチャート・リスト・スケジュール画面の右の列（`renderSide`。`showPrio` に従う）で、「今日の優先」の上に出る。
   - 行に状態の pill と、「着手」（To Do・Waiting のとき。In Progress にする）・「完了」（Done・Cancelled 以外。Done にする）のボタンがある。
   - Done・Cancelled は薄く、ボタン無しで末尾に出る。
-  - 未完了で重要（`isImportantMark`）のタスクには、状態 pill の直後に赤の「重要」バッジ（`impbadge`）が付く（Done・Cancelled には付けない）。「今日の優先」では、重要の理由の文字の代わりに、同じバッジを理由の欄の先頭に出す。バッジの見た目は、実ブラウザでは未確認。
+  - 未完了で重要（`isImportantMark`）のタスクには、状態 pill の直後に赤の「重要」バッジ（`impbadge`。12px の太字、角の丸い帯）が付く（Done・Cancelled には付けない）。「今日の優先」では、重要の理由の文字の代わりに、同じバッジを理由の欄の先頭に出す。右の列の幅（約 300px）で行からはみ出さないことは、Chromium で確かめた。
   - 今日のタスクに入ったタスクは、`renderPrio` が一覧から除く（`rankTasks` は変えない）。
   - ボタンは、リストの状態の select と同じ関数（`app.js` の `changeStatus`）を通る。
   - 日表示の作業枠は、ボタンの代わりにタスクの状態の文字を出す。

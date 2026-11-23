@@ -429,6 +429,11 @@ test("app.js: 空き時間を押すと、タスク未選択なら突発タスク
   assert.match(src, /e\.key === "Escape" && S\.screen === "schedule" && \([^)]*S\.urgentDraft/);
 });
 
+test("theme.css: 重要のバッジは 12px の太字、角の丸い帯（pill）", () => {
+  const r = css.slice(css.indexOf("#view .impbadge{"), css.indexOf("}", css.indexOf("#view .impbadge{")));
+  for (const s of ["font-size:12px", "font-weight:700", "border-radius:999px", "padding:2px 9px"]) assert.ok(r.includes(s), s);
+});
+
 test("app.js: ヘッダーの「＋ 突発タスク」は、clearSel() で選択を外し、スケジュール画面へ移り、firstFreeStart で開始を決めて件名にフォーカスする", () => {
   assert.ok(src.includes("data-urgent-open") && src.includes("＋ 突発タスク"));
   const h = src.slice(src.indexOf('e.target.closest("[data-urgent-open]")'));
