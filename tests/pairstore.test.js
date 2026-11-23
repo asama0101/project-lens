@@ -22,7 +22,7 @@ function fakeHandle(initial, name) {
 const memIdb = () => { const m = new Map(); return { get: async (k) => m.get(k), set: async (k, v) => { m.set(k, v); } }; };
 
 const S0 = { version: 1, projects: [{ id: "AA" }], tasks: [{ id: "AA-0001", projectId: "AA", title: "a" }], changeLog: [], settings: { labels: [] } };
-const P0 = { version: 1, sessions: [{ taskId: "AA-0001", date: "2026-11-23", start: "09:00", end: "10:00" }], events: [], settings: { workday: { start: "09:00" } } };
+const P0 = { version: 1, sessions: [{ taskId: "AA-0001", date: "2026-11-23", start: "09:00", end: "10:00" }], events: [], settings: { selfNames: ["a"] } };
 
 /** 2 つのファイルを選んだストア。deps を渡すと、記憶（idb）を共有する */
 async function opened(shared = S0, personal = P0) {
@@ -49,7 +49,7 @@ test("(a) 2 つ選ぶと、結合したデータを返し、reload も結合し�
   const fresh = await s.reload();
   assert.deepEqual(fresh.tasks.map((t) => t.id), ["AA-0001", "AA-0002"]);
   assert.equal(fresh.tasks[0].sessions.length, 1);
-  assert.equal(fresh.settings.workday.start, "09:00");
+  assert.deepEqual(fresh.settings.selfNames, ["a"]);
   assert.deepEqual(await s.lastFile(), { shared: { name: "data.json" }, personal: { name: "personal.json" } });
 });
 

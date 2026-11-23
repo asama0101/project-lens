@@ -4,7 +4,6 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { DEFAULT_WORKDAY } from "../src/core/schema.js";
 import { splitData, emptyPersonal, isOldShared } from "../src/core/split.js";
 import { takeMineOrExit } from "./cli.js";
 
@@ -18,7 +17,7 @@ const IGNORE = ".project-lens/";
 
 const SKELETON = {
   version: 1,
-  settings: { workday: DEFAULT_WORKDAY, waitingLongDays: 7, projectRules: [], labels: { group: "大項目", subgroup: "中項目" } },
+  settings: { waitingLongDays: 7, projectRules: [], labels: { group: "大項目", subgroup: "中項目" } },
   projects: [], tasks: [], events: [], changeLog: [],
 };
 

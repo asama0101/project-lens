@@ -1,6 +1,5 @@
 // ダッシュボード本体: 状態の保持、描画、保存、イベントの結線。判断ロジックは src/core、見た目は src/ui/views、データ編集は src/ui/edit.js。
 const store = createPairStore();
-let settingTimer = null; // 勤務時間の保存待ちのタイマー（changeSettingSoon）。render が最初に呼ばれる前に宣言しておく
 const params = new URLSearchParams(location.search);
 // ?today=2026-10-20&time=10:15 で「現在」を固定できる(デモ・動作確認用)
 const clock = () => (params.get("today") ? { date: params.get("today"), time: params.get("time") ?? "10:15" } : nowLocal());
@@ -30,7 +29,7 @@ function toast(msg) {
 /** 開始画面の、まだ開いていないファイルごとの案内と選ぶボタン */
 const PICK = {
   shared: `<p><b>共有ファイルを選んでください。</b>プロジェクトとタスク（<code>/project-lens:init</code> が作った <code>.project-lens/data.json</code>）です。</p><button class="btn" data-open="shared">共有ファイルを選ぶ</button>`,
-  personal: `<p><b>個人ファイルを選んでください。</b>自分の作業枠・予定・勤務時間（既定は <code>.project-lens/personal.json</code>）です。</p><button class="btn" data-open="personal">個人ファイルを選ぶ</button>`,
+  personal: `<p><b>個人ファイルを選んでください。</b>自分の作業枠・予定・休み（既定は <code>.project-lens/personal.json</code>）です。</p><button class="btn" data-open="personal">個人ファイルを選ぶ</button>`,
 };
 function startScreen() {
   const canPick = typeof window.showOpenFilePicker === "function";
@@ -81,7 +80,6 @@ function drawAllDeps() {
 function render() {
   hideTip();
   sync.rendered(); // 読み直しで待たせた描き直しは、この描き直しで済む
-  clearTimeout(settingTimer); settingTimer = null; // 描き直しで入力欄を取り除くときに focusout が走り、保存が入れ子の描き直しになるのを防ぐ（待っていた入力は、描き直しで消えるのと同じ）
   if (S.tpop && !S.data.tasks.some((t) => t.id === S.tpop.id)) S.tpop = null; // 読み直しで対象のタスクが消えたら、窓も閉じる
   if (S.taskEdit && (S.screen !== "schedule" || !S.data.tasks.some((t) => t.id === S.taskEdit.id))) S.taskEdit = null; // スケジュールの編集欄も同じ
   const c = clock();
@@ -97,6 +95,7 @@ function render() {
   view.innerHTML = renderBody();
   if (keepFocus && !S.focusSel) view.querySelector(keepFocus)?.focus();
   const bars = [...view.querySelectorAll(".gscroll")];
+  const reset = S.resetScroll;
   if (S.resetScroll || !prevCount || !bars.length) scrollToday(false); // 枠の数が変わっても(完了を隠すなど)、位置は保つ
   else bars.forEach((c) => { c.scrollLeft = prevLeft; });
   S.resetScroll = false;
@@ -119,6 +118,7 @@ function render() {
   }
   window.scrollTo(0, prevY); view.style.minHeight = "";
   syncSticky();
+  if (reset && S.screen === "schedule") scrollToNow();
   drawAllDeps();
   placeTaskPop();
   if (S.hlId) {
@@ -170,6 +170,14 @@ function scrollToday(smooth) {
       c.scrollTo({ left: Math.max(0, Math.round(lane.offsetWidth * +c.dataset.todayfrac - 120)), behavior: smooth ? "smooth" : "auto" });
     }
   }));
+}
+
+/** スケジュールを開いたとき（画面の切り替え・ファイルを開いたとき）、今の時刻の 1 時間前が、ヘッダー（週表示は日付の見出し）のすぐ下に来るまでページを縦にスクロールする（時間の軸は 00:00〜24:00 で、先頭は夜中のため） */
+function scrollToNow() {
+  const grid = view.querySelector(".cal-grid, .week .hrs");
+  if (!grid) return;
+  const r = grid.getBoundingClientRect(), hh = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--hh")) || 0) + (view.querySelector(".week .dh")?.offsetHeight ?? 0); // 週表示は、固定した日付の見出しの下
+  window.scrollTo(0, Math.max(0, window.scrollY + r.top + r.height * calendarGeometry().pc(Math.max(0, toMin(clock().time) - 60)) / 100 - hh - 8));
 }
 
 /* ---------- 保存 ---------- */
@@ -409,7 +417,7 @@ $("filebar").addEventListener("click", async (e) => {
     clearSel(); S.tpop = null; S.pendingDone = null; S.ruleError = "";
     const date = S.screen === "schedule" ? S.sdate : clock().date;
     S.screen = "schedule"; S.sdate = date; S.resetScroll = true;
-    S.urgentDraft = { date, start: firstFreeStart(S.data, date, clock()), title: "", projectId: "", minutes: 30 };
+    S.urgentDraft = { date, start: urgentDefaultStart(date, clock()), title: "", projectId: "", minutes: 30 };
     render(); view.querySelector('[data-ug="title"]')?.focus();
     return;
   }
@@ -580,9 +588,8 @@ view.addEventListener("click", (e) => {
   const mb = q("[data-mtg]");
   if (mb && !q("[data-rzm]")) { S.selMtg = S.selMtg === mb.dataset.mtg ? null : mb.dataset.mtg; S.selSess = null; S.mtgDraft = null; S.urgentDraft = null; S.taskEdit = null; render(); return; }
   if (q("[data-mtgadd]")) {
-    const wd = S.data.settings?.workday ?? DEFAULT_WORKDAY;
     const base = S.sdate === today ? Math.ceil((toMin(time) + 1) / 60) * 60 : 10 * 60;
-    const st = Math.max(toMin(wd.start), Math.min(base, toMin(wd.end) - 60));
+    const st = Math.min(base, 22 * 60); // 1 時間の会議が 23:59 までに収まる、最後の正時
     clearSel(); S.mtgDraft = { date: S.sdate, start: toHHMM(st), end: toHHMM(st + 60), title: "", skip: false };
     render(); toast("会議の内容を入力して「追加」を押してください"); return;
   }
@@ -678,16 +685,14 @@ view.addEventListener("toggle", (e) => {
   saveSettingsClosed(S.settingsClosed);
 }, true);
 
-/** 設定タブの基本の設定を保存する。勤務時間は開始・終了を組で渡す（片方だけだと、両方が不正なファイルを直せない）。不正な値は通知して、入力を元に戻す */
+/** 設定タブの基本の設定を保存する。不正な値は通知して、入力を元に戻す */
 function changeSetting(el) {
   const k = el.dataset.set;
   if (k === "countWeekendsAndHolidays") { apply((d) => updateSettings(d, { countWeekendsAndHolidays: el.checked }), "設定を保存しました"); return; } // 描き直して、祝日・休みの節の説明を切り替える
-  const val = (name) => view.querySelector(`[data-set="${name}"]`)?.value ?? "";
   let patch;
-  if (k === "workday-start" || k === "workday-end") patch = { workday: { start: val("workday-start"), end: val("workday-end") } };
-  else if (k === "waitingLongDays") patch = { waitingLongDays: Number(el.value) };
+  if (k === "waitingLongDays") patch = { waitingLongDays: Number(el.value) };
   else patch = { labels: { [k.slice("label-".length)]: el.value } }; // label-group / label-subgroup
-  // 成功したら描き直さない（時刻は時・分を打つたびに change が起き、描き直すと入力の位置が「時」に戻って続きが打てない）。不正な値は、先に検査して通知し、入力欄だけを元に戻す（restoreSettingInputs。描き直すとフォーカスが消える）
+  // 成功したら描き直さない（描き直すとフォーカスが消える）。不正な値は、先に検査して通知し、入力欄だけを元に戻す（restoreSettingInputs）
   const edit = (d) => updateSettings(d, patch);
   try { edit(S.data); } catch (e) { toast(e.message); restoreSettingInputs(); return; } // 描き直すとフォーカスが消えるので、入力欄だけ元に戻す
   apply(edit, "設定を保存しました", { quiet: true });
@@ -699,20 +704,9 @@ function changeSetting(el) {
 function restoreSettingInputs() {
   const v = settingsInputValues(S.data);
   const set = (name, value) => { const input = view.querySelector(`[data-set="${name}"]`); if (input) input.value = value; };
-  set("workday-start", v.workdayStart); set("workday-end", v.workdayEnd); set("waitingLongDays", v.waitingLongDays); // 呼び名は不正にならない（updateSettings が例外にするのは勤務時間と待ち長期化の日数だけ）
+  set("waitingLongDays", v.waitingLongDays); // 呼び名は不正にならない（updateSettings が例外にするのは待ち長期化の日数だけ）
 }
 
-/** 勤務時間は、打っている途中の値（「1」だけで 01:00 になり、開始より前など）で保存・検査しない。打ち終わる（少し止まる）か、入力欄を離れたら保存する */
-function changeSettingSoon(el) {
-  clearTimeout(settingTimer);
-  settingTimer = setTimeout(() => { settingTimer = null; if (view.contains(el)) changeSetting(el); }, 800);
-}
-view.addEventListener("focusout", (e) => {
-  if (!settingTimer || !e.target.matches('[data-set^="workday-"]')) return;
-  clearTimeout(settingTimer);
-  settingTimer = null;
-  changeSetting(e.target);
-});
 // 読み直しで待たせた描き直しは、入力が確定した（onChange のあと）・フォーカスが移り終わったあとに行う
 // マウスを押している間はしない（押したボタンが描き直しで作り直されると、離したときのクリックが届かない）。離したあと（click の処理のあと）に行う
 let pressing = false, pressTimer = null;
@@ -753,10 +747,10 @@ function onChange(el) {
       return;
     }
     if (!v && f !== "title" && f !== "skip" && f !== "projectId") { el.value = old; toast("日付と時刻を入力してください"); return; }
-    if (!apply((d) => updateMeeting(d, m.id, { [f]: v }), f === "skip" ? (v ? "参加しない会議にしました。空き時間として扱います" : "参加する会議に戻しました") : "会議を更新しました", { partial: true })) { el.value = old; }
+    if (!apply((d) => updateMeeting(d, m.id, { [f]: v }), f === "skip" ? (v ? "参加しない会議にしました。稼働に数えず、作業枠と重なっても注意しません" : "参加する会議に戻しました") : "会議を更新しました", { partial: true })) { el.value = old; }
     return;
   }
-  if (el.dataset.set !== undefined) { el.dataset.set.startsWith("workday-") ? changeSettingSoon(el) : changeSetting(el); return; }
+  if (el.dataset.set !== undefined) { changeSetting(el); return; }
   if (el.dataset.hrowkind !== undefined) {
     const date = el.dataset.hrowkind, kind = el.value;
     apply((d) => addHoliday(d, { date, kind, note: (d.settings?.holidays ?? []).find((h) => h?.date === date)?.note }), "区分を変更しました");
@@ -811,25 +805,24 @@ function onChange(el) {
 
 /* ---------- ドラッグ&ドロップ(枠・会議の配置と移動) ---------- */
 let ghost = null, drag = null;
-const wdOf = () => S.data.settings?.workday ?? DEFAULT_WORKDAY;
-const minAtEl = (y, el) => { const g = calendarGeometry(S.data), r = el.getBoundingClientRect(); return g.h0 + ((y - r.top) / r.height) * g.span; };
+const minAtEl = (y, el) => { const g = calendarGeometry(), r = el.getBoundingClientRect(); return g.h0 + ((y - r.top) / r.height) * g.span; };
 const findSession = (id) => allSessions(S.data).find((s) => s.id === id);
 
 /** ドロップ先の判定(データは変えない): { st, end, error?, warning?, commit() } */
 function planDrop(dz, clientY) {
-  const date = dz.dataset.date, now = clock(), wd = wdOf(), at = minAtEl(clientY, dz);
+  const date = dz.dataset.date, now = clock(), at = minAtEl(clientY, dz);
   if (drag.kind === "mtg") {
-    const m = S.data.events.find((o) => o.id === drag.id), dur = toMin(m.end) - toMin(m.start), st = snapStart(at, dur, wd);
+    const m = S.data.events.find((o) => o.id === drag.id), dur = toMin(m.end) - toMin(m.start), st = snapStart(at, dur);
     const clash = S.data.tasks.some((t) => (t.sessions ?? []).some((s) => s.date === date && toMin(s.start) < st + dur && toMin(s.end) > st));
     return { st, end: st + dur, warning: clash ? "配置済みの枠と重なっています" : "", next: (d) => updateMeeting(d, m.id, { date, start: toHHMM(st), end: toHHMM(st + dur) }), msg: `会議「${m.title}」を ${fmtMD(date)} ${hm(st)} に移動しました` };
   }
   if (drag.kind === "sess") {
-    const s = findSession(drag.id), dur = toMin(s.end) - toMin(s.start), st = snapStart(at, dur, wd);
+    const s = findSession(drag.id), dur = toMin(s.end) - toMin(s.start), st = snapStart(at, dur);
     const to = { date, start: toHHMM(st) };
     const r = moveSession(S.data, s.id, to, now);
     return { st, end: st + dur, error: r.error, warning: r.warning, next: asEdit((d) => moveSession(d, s.id, to, now)), msg: `${S.data.tasks.find((t) => t.id === s.taskId).title} を ${fmtMD(date)} ${hm(st)} に移動しました` };
   }
-  const st = snapStart(at, 60, wd);
+  const st = snapStart(at, 60);
   const did = drag.id, put = { date, start: toHHMM(st), end: toHHMM(st + 60) };
   const r = addSession(S.data, did, put, now);
   const kind = r.error ? "" : r.data.tasks.find((t) => t.id === drag.id).sessions.at(-1).kind;
@@ -920,7 +913,7 @@ view.addEventListener("dragover", (e) => {
   const dz = e.target.closest(".dz");
   if (!dz || !drag) return;
   e.preventDefault();
-  const p = planDrop(dz, e.clientY), g = calendarGeometry(S.data);
+  const p = planDrop(dz, e.clientY), g = calendarGeometry();
   if (!ghost || !ghost.isConnected || ghost.parentNode !== dz) { ghost?.remove(); ghost = document.createElement("div"); ghost.className = "ghost"; dz.appendChild(ghost); }
   ghost.style.top = g.tp(p.st);
   ghost.style.height = g.ht(p.st, p.end);
@@ -964,12 +957,12 @@ view.addEventListener("mousedown", (e) => {
   e.preventDefault(); e.stopPropagation();
   const isMtg = h.dataset.rzm !== undefined, id = isMtg ? h.dataset.rzm : h.dataset.rz, blk = h.closest(".blk");
   blk.draggable = false; // つまみの操作中にブラウザ標準のドラッグが始まらないようにする
-  const g = calendarGeometry(S.data);
+  const g = calendarGeometry();
   const rec = isMtg ? S.data.events.find((o) => o.id === id) : findSession(id);
   const a0 = Math.max(toMin(rec.start), g.h0);
   let end = null;
   const move = (ev) => {
-    end = Math.max(a0 + 15, Math.min(g.h0 + g.span, Math.round(minAtEl(ev.clientY, blk.parentNode) / 15) * 15));
+    end = Math.min(LAST_END, Math.max(a0 + 15, Math.round(minAtEl(ev.clientY, blk.parentNode) / 15) * 15)); // 終了は 23:59 まで（24:00 は時刻に書けない）
     blk.style.height = g.ht(a0, end);
     showTip(`${hm(a0)}–${hm(end)}`, ev.clientX, ev.clientY);
   };

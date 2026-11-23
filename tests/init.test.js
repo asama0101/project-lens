@@ -35,7 +35,7 @@ test("空のフォルダ: project-lens.html と .project-lens/ の data.json・p
   const rd = (f) => JSON.parse(readFileSync(join(cwd, ".project-lens", f), "utf8"));
   const data = mergeData(rd("data.json"), rd("personal.json"));
   assert.deepEqual(validate(data).errors, []);
-  assert.equal(rd("personal.json").settings.workday !== undefined, true, "勤務時間は個人ファイル");
+  assert.ok(!("workday" in rd("personal.json").settings) && !("workday" in rd("data.json").settings), "勤務時間の設定は作らない");
   assert.equal(status(r, "project-lens.html"), "created");
 });
 

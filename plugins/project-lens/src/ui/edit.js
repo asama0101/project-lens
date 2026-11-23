@@ -1,5 +1,5 @@
 // 画面からの編集（追加・削除・更新）。すべて不変更新で、不正な入力は例外にする（呼び出し側が理由を表示する）。
-import { addDays, diffDays, isDate, isTime, isWeekend, toMin, toHHMM, nowLocal } from "../core/dates.js";
+import { addDays, diffDays, isDate, isWeekend, toMin, toHHMM, nowLocal } from "../core/dates.js";
 import { calendarOf } from "../core/holidays.js";
 import { taskStart } from "../core/metrics.js";
 import { groupSections } from "../core/groups.js";
@@ -400,16 +400,11 @@ export function deleteTask(data, taskId) {
 }
 
 /**
- * 設定（勤務時間・待ち長期化の日数・土日祝を営業日に数えるか・見出しの呼び名）の変更。patch に含まれる項目だけ変える。
- * 勤務時間は開始・終了を組で渡す。呼び名は空にするとそのキーを消す（既定の呼び名に戻る）。不正な値は例外
+ * 設定（待ち長期化の日数・土日祝を営業日に数えるか・見出しの呼び名）の変更。patch に含まれる項目だけ変える。
+ * 呼び名は空にするとそのキーを消す（既定の呼び名に戻る）。不正な値は例外
  */
 export function updateSettings(data, patch) {
   const s = { ...(data.settings ?? {}) };
-  if ("workday" in patch) {
-    const { start, end } = patch.workday ?? {};
-    if (!isTime(start) || !isTime(end) || toMin(start) >= toMin(end)) throw new Error("勤務時間は HH:MM で、開始を終了より前にしてください");
-    s.workday = { start, end };
-  }
   if ("waitingLongDays" in patch) {
     if (!Number.isInteger(patch.waitingLongDays) || patch.waitingLongDays < 1) throw new Error("待ち長期化の日数は 1 以上の整数にしてください");
     s.waitingLongDays = patch.waitingLongDays;

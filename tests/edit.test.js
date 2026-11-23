@@ -3,11 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { validate } from "../plugins/project-lens/src/core/schema.js";
 import { taskStart } from "../plugins/project-lens/src/core/metrics.js";
-import { addDays, toMin, toHHMM } from "../plugins/project-lens/src/core/dates.js";
-import { allSessions } from "../plugins/project-lens/src/core/sessions.js";
-import { freeSlots } from "../plugins/project-lens/src/core/schedule.js";
-import { DEFAULT_WORKDAY } from "../plugins/project-lens/src/core/schema.js";
-import { snapFreeStart } from "../plugins/project-lens/src/ui/views/schedule.js";
+import { addDays } from "../plugins/project-lens/src/core/dates.js";
 import { groupSections } from "../plugins/project-lens/src/core/groups.js";
 import {
   updateTask, updateProject, addMilestone, updateMilestone, deleteMilestone, moveTaskDates, moveProjectDates, moveMilestone,
@@ -224,26 +220,23 @@ test("deleteProject: そのプロジェクトを指す会議のひも付け・�
   assert.equal(deleteProject({ ...d, settings: undefined }, "AA").settings, undefined, "settings が無くても落ちない");
 });
 
-test("updateSettings: 勤務時間・待ち長期化・呼び名。他の設定は保つ。元のデータは変えない", async () => {
+test("updateSettings: 待ち長期化・呼び名。他の設定は保つ。元のデータは変えない。勤務時間（workday）は受けない", async () => {
   const { updateSettings } = await import("../plugins/project-lens/src/ui/edit.js");
   const d = load();
   d.settings = { projectRules: [{ keyword: "ベンダーX", projectId: "AA" }] };
   const n = updateSettings(d, { workday: { start: "08:30", end: "17:30" }, waitingLongDays: 3, labels: { group: " フェーズ ", subgroup: "作業" } });
   assert.deepEqual(n.settings, {
-    projectRules: [{ keyword: "ベンダーX", projectId: "AA" }], workday: { start: "08:30", end: "17:30" }, waitingLongDays: 3,
+    projectRules: [{ keyword: "ベンダーX", projectId: "AA" }], waitingLongDays: 3,
     labels: { group: "フェーズ", subgroup: "作業" },
   });
   assert.deepEqual(d.settings, { projectRules: [{ keyword: "ベンダーX", projectId: "AA" }] });
   assert.deepEqual(validate(n).errors, []);
 });
 
-test("updateSettings: 不正な勤務時間（形式・開始 >= 終了）・待ち長期化は例外", async () => {
+test("updateSettings: 不正な待ち長期化は例外", async () => {
   const { updateSettings } = await import("../plugins/project-lens/src/ui/edit.js");
   const d = load();
-  for (const patch of [
-    { workday: { start: "9:00", end: "18:00" } }, { workday: { start: "18:00", end: "09:00" } }, { workday: { start: "09:00", end: "09:00" } }, { workday: { start: "", end: "" } },
-    { waitingLongDays: 0 }, { waitingLongDays: 1.5 }, { waitingLongDays: "3" },
-  ]) assert.throws(() => updateSettings(d, patch), /勤務時間|待ち長期化/, JSON.stringify(patch));
+  for (const patch of [{ waitingLongDays: 0 }, { waitingLongDays: 1.5 }, { waitingLongDays: "3" }]) assert.throws(() => updateSettings(d, patch), /待ち長期化/, JSON.stringify(patch));
 });
 
 test("updateSettings: 呼び名を空にするとそのキーが消え、両方空なら labels ごと消える", async () => {
@@ -257,8 +250,8 @@ test("updateSettings: 呼び名を空にするとそのキーが消え、両方�
 
 test("updateSettings: 1 項目だけの patch は他の項目を保つ。labels がオブジェクトでないファイルでも、ゴミのキーを残さない", async () => {
   const { updateSettings } = await import("../plugins/project-lens/src/ui/edit.js");
-  const d = { ...load(), settings: { workday: { start: "08:30", end: "17:30" }, waitingLongDays: 3 } };
-  assert.deepEqual(updateSettings(d, { waitingLongDays: 5 }).settings, { workday: { start: "08:30", end: "17:30" }, waitingLongDays: 5 });
+  const d = { ...load(), settings: { selfNames: ["自分"], waitingLongDays: 3 } };
+  assert.deepEqual(updateSettings(d, { waitingLongDays: 5 }).settings, { selfNames: ["自分"], waitingLongDays: 5 });
   assert.deepEqual(updateSettings({ ...d, settings: { labels: "xy" } }, { labels: { group: "G" } }).settings.labels, { group: "G" });
   assert.ok(!("labels" in updateSettings({ ...d, settings: { labels: ["a"] } }, { labels: { group: "" } }).settings));
 });
@@ -547,15 +540,10 @@ test("addUrgentTask: プロジェクトなしのタスクと枠を 1 操作で�
   assert.equal(d.tasks.some((x) => x.id === "ZZ-0002"), false);
 });
 
-test("addUrgentTask: 1 時間より短い最後の空き枠（サンプル 10/19 の 17:30-18:00）の開始に、30 分の枠を置ける", () => {
-  const d = load();
-  const wd = d.settings?.workday ?? DEFAULT_WORKDAY;
-  const free = freeSlots([...d.events, ...allSessions(d)], "2026-10-19", wd).at(-1);
-  assert.equal(free.start, "17:30");
-  const start = toHHMM(snapFreeStart(toMin(free.start), wd));
-  assert.equal(start, "17:30");
-  const r = addUrgentTask(load(), { title: "x", projectId: null, date: "2026-10-19", start, minutes: 30 }, { date: "2026-10-19", time: "12:00" });
-  assert.deepEqual(task(r.data, "ZZ-0002").sessions.map((s) => [s.start, s.end]), [["17:30", "18:00"]]);
+test("addUrgentTask: 勤務時間の制限はなく、夜（23:15〜23:45）にも置ける。23:59 を超える終了は Error で何も作らない", () => {
+  const r = addUrgentTask(load(), { title: "x", projectId: null, date: "2026-10-19", start: "23:15", minutes: 30 }, { date: "2026-10-19", time: "12:00" });
+  assert.deepEqual(task(r.data, "ZZ-0002").sessions.map((s) => [s.start, s.end]), [["23:15", "23:45"]]);
+  assert.throws(() => addUrgentTask(load(), { title: "x", projectId: null, date: "2026-10-19", start: "23:45", minutes: 30 }, { date: "2026-10-19", time: "12:00" }), /23:59/);
 });
 
 test("addUrgentTask: 枠が過去なら actual", () => {

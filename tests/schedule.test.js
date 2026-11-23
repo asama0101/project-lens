@@ -1,23 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { freeSlots, rankTasks, addMeeting, updateMeeting, deleteMeeting, syncMcpEvents } from "../plugins/project-lens/src/core/schedule.js";
+import { rankTasks, addMeeting, updateMeeting, deleteMeeting, syncMcpEvents } from "../plugins/project-lens/src/core/schedule.js";
 
-const WD = { start: "09:00", end: "18:00" };
 const ev = (start, end, extra = {}) => ({ id: `${start}${end}`, date: "2026-10-20", start, end, title: "会議", source: "manual", skip: false, externalId: null, ...extra });
-const base = (events = []) => ({ settings: { workday: WD, waitingLongDays: 7 }, projects: [{ id: "AA" }], tasks: [], events, changeLog: [] });
-
-test("freeSlots: 重なる会議の統合と勤務時間への切り詰め", () => {
-  const f = freeSlots([ev("10:00", "11:00"), ev("10:30", "12:00"), ev("08:00", "09:30")], "2026-10-20", WD);
-  assert.deepEqual(f, [{ start: "09:30", end: "10:00" }, { start: "12:00", end: "18:00" }]);
-});
-
-test("freeSlots: 会議なし／終日会議／別の日／skip", () => {
-  assert.deepEqual(freeSlots([], "2026-10-20", WD), [{ start: "09:00", end: "18:00" }]);
-  assert.deepEqual(freeSlots([ev("08:00", "19:00")], "2026-10-20", WD), []);
-  assert.deepEqual(freeSlots([ev("10:00", "11:00", { date: "2026-10-21" })], "2026-10-20", WD), [{ start: "09:00", end: "18:00" }]);
-  assert.deepEqual(freeSlots([ev("10:00", "11:00", { skip: true })], "2026-10-20", WD), [{ start: "09:00", end: "18:00" }]);
-  assert.deepEqual(freeSlots([ev("09:00", "12:00"), ev("12:00", "18:00")], "2026-10-20", WD), []);
-});
+const base = (events = []) => ({ settings: { waitingLongDays: 7 }, projects: [{ id: "AA" }], tasks: [], events, changeLog: [] });
 
 test("addMeeting: manual を付け、空白の件名は「会議」、終了≦開始は例外、ID は重複しない", () => {
   const a = addMeeting(base([{ id: "m5" }]), { title: "  ", date: "2026-10-20", start: "10:00", end: "11:00" });

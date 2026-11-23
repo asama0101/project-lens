@@ -1,11 +1,11 @@
 // 作業枠（予定／実績）の規則。枠は「作業した時間の記録」で、タスクの状態は変えない。すべて不変更新。
-import { toMin, toHHMM, isWeekend } from "./dates.js";
+import { toMin, toHHMM, isTime, isWeekend } from "./dates.js";
 import { offDayChecker } from "./holidays.js";
-import { DEFAULT_WORKDAY } from "./schema.js";
 
 const MIN_LEN = 15;
+/** 枠の終了の上限（分）。時刻は HH:MM（00:00〜23:59）で持つので、24:00 は書けない */
+export const LAST_END = 23 * 60 + 59;
 
-const workdayOf = (data) => data.settings?.workday ?? DEFAULT_WORKDAY;
 /** 全タスクの枠に taskId・title を付けて平らに */
 export const allSessions = (data) => data.tasks.flatMap((t) => (t.sessions ?? []).map((s) => ({ ...s, taskId: t.id, title: t.title })));
 const findSession = (data, id) => allSessions(data).find((s) => s.id === id);
@@ -25,11 +25,10 @@ const nextId = (data) => {
 
 /** 枠の置き場所の検証。他の枠との重なりは error、会議との重なりは warning */
 function check(data, slot, ignoreId) {
-  const wd = workdayOf(data);
+  if (!isTime(slot.end)) return { error: `終了は ${toHHMM(LAST_END)} までにしてください` }; // 24:00 以降（開始 + 長さが日をまたぐ）
   const [s, e] = [toMin(slot.start), toMin(slot.end)];
   if (e <= s) return { error: "終了は開始より後にしてください" };
   if (e - s < MIN_LEN) return { error: `枠は${MIN_LEN}分以上にしてください` };
-  if (s < toMin(wd.start) || e > toMin(wd.end)) return { error: `勤務時間（${wd.start}〜${wd.end}）の中に置いてください` };
   // 休みの日に置けないのは、新しく置く・別の日から動かすとき。休みの日にすでにある枠は、同じ日の中なら直せる
   const stays = ignoreId && allSessions(data).some((x) => x.id === ignoreId && x.date === slot.date);
   if (!stays && offDayChecker(data.settings)(slot.date)) return { error: `${isWeekend(slot.date) && data.settings?.countWeekendsAndHolidays !== true ? "土日" : "休みの日"}には置けません（設定タブの「営業日として扱う日」に指定すると置けます）` };
@@ -59,7 +58,7 @@ export function moveSession(data, sessionId, slot, now) {
   if (!cur) return { data, error: `枠 ${sessionId} がありません` };
   const len = toMin(cur.end) - toMin(cur.start);
   const next = { date: slot.date, start: slot.start, end: toHHMM(toMin(slot.start) + len) };
-  if (toMin(slot.start) + len > 24 * 60) return { data, error: "勤務時間の外になります" };
+  if (toMin(slot.start) + len > LAST_END) return { data, error: `終了は ${toHHMM(LAST_END)} までにしてください` };
   const r = check(data, next, sessionId);
   if (r.error) return { data, error: r.error };
   // 実績の枠を未来へ動かしたら予定に戻す（未来の枠は実績にできない）

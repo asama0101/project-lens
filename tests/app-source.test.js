@@ -31,10 +31,8 @@ test("app.js・index.html: 開始画面の案内、帯の対象の引き継ぎ�
   assert.match(html, /<div id="toast"[^>]*role="status"/);
 });
 
-test("app.js: 設定タブの data-set は updateSettings で保存し（勤務時間は開始・終了を組で）、data-rmove は moveProjectRule、focusSelector も data-set を扱う", () => {
+test("app.js: 設定タブの data-set は updateSettings で保存し、data-rmove は moveProjectRule、focusSelector も data-set を扱う", () => {
   assert.match(src, /updateSettings\(/);
-  const set = src.slice(src.indexOf("el.dataset.set"), src.indexOf("el.dataset.set") + 900);
-  assert.match(set, /workday:\s*\{\s*start:\s*val\("workday-start"\),\s*end:\s*val\("workday-end"\)\s*\}/, "開始・終了を DOM から組で読む");
   assert.match(src, /moveProjectRule\(/);
   assert.match(src, /data-rmove/);
   const fs = src.slice(src.indexOf("function focusSelector"), src.indexOf("function focusSelector") + 900);
@@ -117,23 +115,11 @@ test("app.js: 設定タブの入力の保存は、成功しても描き直さな
   assert.match(fn, /\.note\.err/);
 });
 
-test("app.js: 勤務時間の入力は、打っている途中の値（開始 > 終了など）で保存せず、打ち終わる（少し止まる）か入力欄を離れてから保存する", () => {
-  assert.match(src, /function changeSettingSoon\(el\)/);
-  const soon = src.slice(src.indexOf("function changeSettingSoon"), src.indexOf("function changeSettingSoon") + 700);
-  assert.match(soon, /setTimeout\(/);
-  assert.match(soon, /clearTimeout\(/);
-  assert.match(src, /el\.dataset\.set\.startsWith\("workday-"\) \? changeSettingSoon\(el\) : changeSetting\(el\)/);
-  const out = src.slice(src.indexOf('addEventListener("focusout"'), src.indexOf('addEventListener("focusout"') + 400);
-  assert.match(out, /workday-/);
-  assert.match(out, /changeSetting\(/);
+test("app.js: 勤務時間（workday）の入力・保存待ちのタイマーを持たない", () => {
+  for (const x of ["workday", "changeSettingSoon", "settingTimer", "DEFAULT_WORKDAY", "wdOf"]) assert.ok(!src.includes(x), x);
 });
 
-test("app.js: render の先頭で、保存待ちの勤務時間のタイマーを止める（描き直しの途中で focusout が走り、入れ子の描き直しになるのを防ぐ）", () => {
-  const head = src.slice(src.indexOf("function render() {"), src.indexOf("function render() {") + 200);
-  assert.match(head, /clearTimeout\(settingTimer\); settingTimer = null;/);
-});
-
-test("app.js: 設定タブの入力の保存後、古い注意を消すのは勤務時間と待ち長期化の日数だけ（呼び名は片方だけ直しても、もう片方の注意を残す）。呼び名は保存された値（空なら既定）を入力欄に出す", () => {
+test("app.js: 設定タブの入力の保存後、古い注意を消すのは待ち長期化の日数だけ（呼び名は片方だけ直しても、もう片方の注意を残す）。呼び名は保存された値（空なら既定）を入力欄に出す", () => {
   const fn = src.slice(src.indexOf("function changeSetting(el)"), src.indexOf("function changeSetting(el)") + 1500);
   assert.match(fn, /k\.startsWith\("label-"\)/);
   assert.match(fn, /groupLabels\(S\.data\.settings\)/);
@@ -157,11 +143,11 @@ test("app.js: 帯の対象は、利用者が選び直したあとは、画面の
   assert.ok(src.includes('!S.ib.projectTouched && !S.ib.projectId && S.filter !== "all"'));
 });
 
-test("app.js: 設定タブの保存の編集は updateSettings(d, patch)。不正な入力の復元は、不正になりうる勤務時間と待ち長期化の日数だけ（呼び名は不正にならない）", () => {
+test("app.js: 設定タブの保存の編集は updateSettings(d, patch)。不正な入力の復元は、不正になりうる待ち長期化の日数だけ（呼び名は不正にならない）", () => {
   const fn = src.slice(src.indexOf("function changeSetting(el)"), src.indexOf("function changeSetting(el)") + 2000);
   assert.ok(fn.includes("const edit = (d) => updateSettings(d, patch);"));
   const rs = src.slice(src.indexOf("function restoreSettingInputs()"), src.indexOf("function restoreSettingInputs()") + 600);
-  assert.ok(rs.includes('set("workday-start"') && rs.includes('set("waitingLongDays"'));
+  assert.ok(rs.includes('set("waitingLongDays"') && !rs.includes("workday"));
   assert.ok(!rs.includes("label-"));
 });
 
@@ -456,13 +442,13 @@ test("theme.css: 重要のバッジは 12px の太字、角の丸い帯（pill�
   for (const s of ["font-size:12px", "font-weight:700", "border-radius:999px", "padding:2px 9px"]) assert.ok(r.includes(s), s);
 });
 
-test("app.js: ヘッダーの「＋ 突発タスク」は、clearSel() で選択を外し、スケジュール画面へ移り、firstFreeStart で開始を決めて件名にフォーカスする", () => {
+test("app.js: ヘッダーの「＋ 突発タスク」は、clearSel() で選択を外し、スケジュール画面へ移り、urgentDefaultStart で開始を決めて件名にフォーカスする", () => {
   assert.ok(src.includes("data-urgent-open") && src.includes("＋ 突発タスク"));
   const h = src.slice(src.indexOf('e.target.closest("[data-urgent-open]")'));
   const body = h.slice(0, 900);
   assert.match(body, /clearSel\(\)/);
   assert.match(body, /S\.screen = "schedule"/);
-  assert.match(body, /firstFreeStart\(/);
+  assert.match(body, /urgentDefaultStart\(date, clock\(\)\)/);
   assert.match(body, /\[data-ug="title"\]'?\)?\??\.focus/);
 });
 
@@ -550,4 +536,15 @@ test("app.js: 読み直しの描き直しを、打ちかけの入力の間は待
   const onChange = src.slice(src.indexOf("function onChange(el) {"), src.indexOf("function onChange(el) {") + 1500);
   assert.match(onChange, /el\.dataset\.ug !== undefined[^\n]*S\.urgentDraft = \{ \.\.\.S\.urgentDraft/, "突発タスクの欄は change で下書きへ");
   assert.match(src, /if \(d\.ug\) return q\("data-ug", d\.ug\)/, "欄を移ったときの描き直しでも、フォーカスを保つ");
+});
+
+test("app.js: スケジュールを開いたとき（resetScroll）は、今の時刻の 1 時間前の位置までページを縦にスクロールする（時間の軸が 00:00〜24:00 のため）", () => {
+  const r = src.slice(src.indexOf("function render() {"), src.indexOf("function render() {") + 4000);
+  assert.match(r, /if \(reset && S\.screen === "schedule"\) scrollToNow\(\);/);
+  const fn = src.slice(src.indexOf("function scrollToNow()"), src.indexOf("function scrollToNow()") + 600);
+  assert.ok(fn.includes("toMin(clock().time) - 60") && fn.includes("--hh"), fn);
+});
+
+test("theme.css: カレンダーの高さは固定（日 1320px・週 1056px）。画面の高さに合わせて縮めない", () => {
+  assert.ok(css.includes(".cal{position:relative;--calh:1320px}") && css.includes(".cal.wk{--calh:1056px}"));
 });

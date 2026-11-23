@@ -224,9 +224,8 @@ test("inbox: 不正な status・重複 id・不明な projectId・不正な op�
 const withSettings = (s) => { const d = load(); d.settings = { ...d.settings, ...s }; return d; };
 const settingsWarn = (d, key) => v(d).warnings.filter((m) => m.startsWith(`settings.${key}:`));
 
-test("settings: 形が違う workday・waitingLongDays・labels は注意（エラーにしない）", () => {
+test("settings: 形が違う waitingLongDays・labels は注意（エラーにしない）", () => {
   const bad = {
-    workday: [{ start: "9:00", end: "18:00" }, { start: "18:00", end: "09:00" }, { start: "09:00" }, "x"],
     waitingLongDays: ["7", 0, 1.5, -2],
     labels: ["x", { group: 1 }, { subgroup: null }],
   };
@@ -240,7 +239,8 @@ test("settings: 形が違う workday・waitingLongDays・labels は注意（エ�
 });
 
 test("settings: 正しい値と settings なしのファイルに、settings の注意は出ない", () => {
-  const ok = withSettings({ workday: { start: "08:30", end: "17:30" }, waitingLongDays: 3, labels: { group: "フェーズ" } });
+  const ok = withSettings({ waitingLongDays: 3, labels: { group: "フェーズ" } });
+  assert.deepEqual(v(withSettings({ workday: "x" })).warnings.filter((m) => m.startsWith("settings.")), [], "古いファイルに残った workday は、形が違っても何も言わない（使わない）");
   assert.deepEqual(v(ok).warnings.filter((m) => m.startsWith("settings.")), []);
   const none = load();
   delete none.settings;
@@ -249,7 +249,7 @@ test("settings: 正しい値と settings なしのファイルに、settings の
 });
 
 test("settings: null は未設定として扱い（読む側は既定で動く）、注意を出さない。waitingLongDays の注意は既定で動くとは言わない", () => {
-  for (const key of ["workday", "waitingLongDays", "labels"]) assert.equal(settingsWarn(withSettings({ [key]: null }), key).length, 0, key);
+  for (const key of ["waitingLongDays", "labels"]) assert.equal(settingsWarn(withSettings({ [key]: null }), key).length, 0, key);
   const [w] = settingsWarn(withSettings({ waitingLongDays: 0 }), "waitingLongDays");
   assert.ok(!w.includes("既定の 7 で動きます") && w.includes("遅延バッジ"), w);
 });

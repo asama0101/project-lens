@@ -28,11 +28,12 @@ test("addSession: 過去は actual／未来は planned／同じタスクに複�
   assert.equal(task(d, "AA-0004").sessions.length, 0, "元のデータは変えない");
 });
 
-test("addSession: 勤務時間外・土日・重なり・終了≦開始は error、会議との重なりは warning", () => {
+test("addSession: 土日・重なり・終了≦開始・23:59 を超える終了は error、会議との重なりは warning。勤務時間の制限はない", () => {
   const d = load();
   const add = (slot) => addSession(d, "AA-0004", slot, NOW);
-  assert.ok(add({ date: "2026-10-22", start: "08:00", end: "09:30" }).error);
-  assert.ok(add({ date: "2026-10-22", start: "17:30", end: "18:30" }).error);
+  assert.equal(add({ date: "2026-10-22", start: "06:00", end: "07:30" }).error, undefined, "早朝にも置ける");
+  assert.equal(add({ date: "2026-10-22", start: "22:00", end: "23:59" }).error, undefined, "夜にも置ける（終了は 23:59 まで）");
+  assert.match(add({ date: "2026-10-22", start: "23:00", end: "24:00" }).error, /23:59/);
   assert.ok(add({ date: "2026-10-24", start: "10:00", end: "11:00" }).error); // 土曜
   assert.ok(add({ date: "2026-10-22", start: "11:00", end: "11:00" }).error);
   assert.ok(add({ date: "2026-10-22", start: "11:00", end: "10:00" }).error);
@@ -56,14 +57,17 @@ test("moveSession: 別の日へ移動、長さを保つ、自分の旧枠とは�
   const self = moveSession(d, "S5", { date: "2026-10-22", start: "10:30" }, NOW);
   assert.equal(self.error, undefined);
   assert.ok(moveSession(d, "S5", { date: "2026-10-21", start: "14:30" }, NOW).error, "S3(14-16)と重なる");
-  assert.ok(moveSession(d, "S5", { date: "2026-10-22", start: "17:00" }, NOW).error, "18:00 を超える");
+  assert.equal(moveSession(d, "S5", { date: "2026-10-22", start: "17:00" }, NOW).error, undefined, "勤務時間の制限はない（18:00 を超えてよい）");
+  assert.equal(moveSession(d, "S5", { date: "2026-10-22", start: "21:59" }, NOW).error, undefined, "終了 23:59 まで");
+  assert.match(moveSession(d, "S5", { date: "2026-10-22", start: "22:15" }, NOW).error, /23:59/, "23:59 を超える");
 });
 
-test("resizeSession: 15分未満・18:00 超過・重なりは error", () => {
+test("resizeSession: 15分未満・23:59 超過・重なりは error", () => {
   const d = load();
   assert.equal(sess(resizeSession(d, "S5", "13:00").data, "S5").end, "13:00");
   assert.ok(resizeSession(d, "S5", "10:10").error);
-  assert.ok(resizeSession(d, "S3", "18:15").error);
+  assert.equal(resizeSession(d, "S3", "18:15").error, undefined, "勤務時間の制限はない");
+  assert.match(resizeSession(d, "S3", "24:00").error, /23:59/);
   const d2 = load(); task(d2, "AA-0004").sessions.push({ id: "S9", date: "2026-10-22", start: "12:30", end: "13:30", kind: "planned" });
   assert.ok(resizeSession(d2, "S5", "13:00").error);
 });

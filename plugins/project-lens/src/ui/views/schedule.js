@@ -1,10 +1,10 @@
-// スケジュール画面（週／日）。位置と高さは勤務時間に対する % で表し、カレンダーの高さは CSS で画面に追従させる。
+// スケジュール画面（週／日）。位置と高さは 1 日（00:00〜24:00）に対する % で表し、カレンダーの高さは CSS で決める。
 import { addDays, toMin, toHHMM, weekday } from "../../core/dates.js";
-import { freeSlots, meetingKind } from "../../core/schedule.js";
+import { meetingKind } from "../../core/schedule.js";
 import { matchProject } from "../../core/rules.js";
 import { offDayChecker } from "../../core/holidays.js";
-import { sessionKind, allSessions } from "../../core/sessions.js";
-import { DEFAULT_WORKDAY, isImportantMark } from "../../core/schema.js";
+import { sessionKind, allSessions, LAST_END } from "../../core/sessions.js";
+import { isImportantMark } from "../../core/schema.js";
 import { esc, fmtMD, wdJa, STATUS_UI } from "../common.js";
 import { renderSide, renderSideToggle, todayTaskIds } from "./prio.js";
 import { statusCellHtml } from "./project.js";
@@ -13,24 +13,19 @@ import { taskFlags } from "../../core/metrics.js";
 
 const SLOT_STEP = 15;
 
-/** 15 分刻みに丸め、勤務時間内に収める（開始の分を返す） */
-export function snapStart(minutes, durationMin, workday = DEFAULT_WORKDAY) {
-  const [ws, we] = [toMin(workday.start), toMin(workday.end)];
-  return Math.max(ws, Math.min(Math.round(minutes / SLOT_STEP) * SLOT_STEP, we - durationMin));
+/** 15 分刻みに丸め、その日（終了が 23:59 まで）に収める（開始の分を返す） */
+export function snapStart(minutes, durationMin) {
+  const last = Math.floor((LAST_END - durationMin) / SLOT_STEP) * SLOT_STEP;
+  return Math.max(0, Math.min(Math.round(minutes / SLOT_STEP) * SLOT_STEP, last));
 }
-
-/** 押した空き枠の開始を、15 分刻みに丸める。長さは最短（15 分）で収めるので、1 時間より短い最後の空き枠でも前へ引かれない */
-export const snapFreeStart = (minutes, workday = DEFAULT_WORKDAY) => snapStart(minutes, SLOT_STEP, workday);
 
 export const weekStartOf = (d) => addDays(d, -((weekday(d) + 6) % 7));
 
-/** 勤務時間 → 位置計算（すべて % ） */
-export function calendarGeometry(data) {
-  const wd = data.settings?.workday ?? DEFAULT_WORKDAY;
-  const h0 = toMin(wd.start);
-  const span = toMin(wd.end) - h0;
+/** 時間の軸（00:00〜24:00 の固定）→ 位置計算（すべて % ） */
+export function calendarGeometry() {
+  const h0 = 0, span = 24 * 60;
   const pc = (m) => ((m - h0) / span) * 100;
-  return { wd, h0, span, pc, tp: (m) => `${pc(m).toFixed(3)}%`, ht: (a, b) => `calc(${(pc(b) - pc(a)).toFixed(3)}% - 2px)` };
+  return { h0, span, pc, tp: (m) => `${pc(m).toFixed(3)}%`, ht: (a, b) => `calc(${(pc(b) - pc(a)).toFixed(3)}% - 2px)` };
 }
 
 const hoursHtml = (g) => {
@@ -73,23 +68,13 @@ function sessionBlocks(data, d, full, g, ctx) {
   }).join("");
 }
 
-/** 会議と配置済みの枠を除いた空き時間 */
-function freeOf(data, d, g, isOff) {
-  if (isOff(d)) return [];
-  const busy = [...(data.events ?? []), ...allSessions(data)].filter((x) => x.date === d);
-  return freeSlots(busy, d, g.wd);
-}
+/** 今日以外の日に開いたときの、突発タスクの開始の初期値 */
+const URGENT_OTHER_DAY_START = "09:00";
 
-/** 突発タスクの既定の開始: その日の勤務時間内で、会議・枠と重ならない最初の空き（今日なら現在時刻以降）の開始（15 分刻み）。なければ勤務の開始 */
-export function firstFreeStart(data, date, now) {
-  const g = calendarGeometry(data);
-  const from = date === now.date ? toMin(now.time) : 0;
-  for (const x of freeOf(data, date, g, offDayChecker(data.settings))) {
-    let st = snapFreeStart(Math.max(toMin(x.start), from), g.wd);
-    if (st < from) st += SLOT_STEP; // 現在時刻より前へ戻さない
-    if (st + SLOT_STEP <= toMin(x.end)) return toHHMM(st);
-  }
-  return g.wd.start;
+/** 突発タスクの開始の初期値: 今日なら現在時刻を 15 分刻みに切り上げた時刻（23:45 まで）、ほかの日は 09:00 */
+export function urgentDefaultStart(date, now) {
+  if (date !== now.date) return URGENT_OTHER_DAY_START;
+  return toHHMM(Math.min(Math.ceil(toMin(now.time) / SLOT_STEP) * SLOT_STEP, 24 * 60 - SLOT_STEP));
 }
 
 /** 突発タスクの入力欄の値 → addUrgentTask への入力。件名・日付・開始のどれかが空なら null（何も作らない） */
@@ -116,7 +101,7 @@ function meetingForm(data, ctx) {
     <label>開始<input class="in" type="time" step="900" data-mt="start" value="${esc(m.start)}" ${lock}></label>
     <label>終了<input class="in" type="time" step="900" data-mt="end" value="${esc(m.end)}" ${lock}></label>
     <label>プロジェクト<select class="in" data-mt="projectId" aria-label="会議のプロジェクト">${projOpts}</select></label>
-    <label class="chk"><input type="checkbox" data-mt="skip" ${m.skip ? "checked" : ""}>参加しない(空き時間として扱う)</label>
+    <label class="chk"><input type="checkbox" data-mt="skip" ${m.skip ? "checked" : ""}>参加しない(稼働に数えず、作業枠と重なっても注意しない)</label>
     <div style="display:flex;gap:6px;align-items:center">${isNew ? `<button class="btn" data-mtgsave>追加</button><button class="btn" data-mtgcancel>キャンセル</button>` : `${m.source === "manual" ? `<button class="btn danger" data-delsel>会議を削除</button>` : ""}<button class="btn" data-mtgclose>閉じる</button>`}</div>
     ${!isNew && m.source === "manual" ? `<p class="note" style="flex-basis:100%;margin:0">カレンダー上でドラッグして移動（別の日へも）、下端をドラッグして長さを変えられます。</p>` : ""}${!isNew && m.source === "mcp" ? `<p class="note" style="flex-basis:100%;margin:0">予定表から取得した会議です。件名と時間は取得内容が正のため変更できません。プロジェクトは、規則で自動に付き、ここで手動に変えられます。出席しない会議は「参加しない」にします（削除しても、次の取得で戻ります）。</p>` : ""}
   </div>`;
@@ -141,15 +126,12 @@ export function urgentForm(data, draft) {
 export function renderCalendar(data, today, opts) {
   const { view = "week", date = today } = opts;
   const ctx = { now: opts.now ?? { date: today, time: "00:00" }, selSess: opts.selSess ?? null, selMtg: opts.selMtg ?? null, showSkipped: opts.showSkipped === true };
-  const g = calendarGeometry(data);
+  const g = calendarGeometry();
   const isOff = offDayChecker(data.settings);
   let cal;
   if (view === "week") {
     const days = [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(weekStartOf(date), i));
-    const heads = days.map((d) => {
-      const free = freeOf(data, d, g, isOff).reduce((a, x) => a + toMin(x.end) - toMin(x.start), 0);
-      return `<button class="dh ${d === today ? "t" : ""}" data-day="${d}" aria-label="${fmtMD(d)}の1日表示">${fmtMD(d)}(${wdJa(d)})<small class="mono">${isOff(d) ? "—" : `空き ${(free / 60).toFixed(1)}h`}</small></button>`;
-    }).join("");
+    const heads = days.map((d) => `<button class="dh ${d === today ? "t" : ""}" data-day="${d}" aria-label="${fmtMD(d)}の1日表示">${fmtMD(d)}(${wdJa(d)})${isOff(d) ? '<small class="mono">—</small>' : ""}</button>`).join("");
     const cols = days.map((d) => `<div class="col dz ${d === today ? "today" : ""} ${isOff(d) ? "weekend" : ""}" data-date="${d}">${meetingBlocks(data, d, false, g, ctx)}${sessionBlocks(data, d, false, g, ctx)}</div>`).join("");
     const dues = days.map((d) => {
       const due = data.tasks.filter((t) => t.due === d && t.status !== "Done" && t.status !== "Cancelled");
@@ -174,7 +156,7 @@ export function renderCalendar(data, today, opts) {
  * @param opts.now       {date, time}  現在時刻（過ぎた予定の判定に使う）
  * @param opts.selSess   選択中の枠 ID / opts.selMtg 選択中の会議 ID / opts.mtgDraft 追加中の会議の下書き / opts.urgentDraft 追加中の突発タスクの下書き / opts.taskEdit 編集欄を開いているタスク { id, full, askDel }
  * @param opts.showPrio  false なら今日の優先を出さない
- * @param opts.showSkipped  true なら「参加しない」の会議も出す（既定は出さない。選択中の会議だけは、隠さない。空き時間の計算は変わらない）
+ * @param opts.showSkipped  true なら「参加しない」の会議も出す（既定は出さない。選択中の会議だけは、隠さない）
  */
 export function renderSchedule(data, today, opts) {
   const { view = "week", date = today } = opts;

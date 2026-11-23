@@ -11,7 +11,7 @@ import { checklistEditorHtml } from "../plugins/project-lens/src/ui/views/checkl
 import { renderTaskPop, renderTaskEditPanel } from "../plugins/project-lens/src/ui/views/taskpop.js";
 import { renderInboxBar, ibExamples } from "../plugins/project-lens/src/ui/views/inboxpanel.js";
 import { ruleMeetingCounts } from "../plugins/project-lens/src/core/rules.js";
-import { renderSchedule, snapStart, snapFreeStart, firstFreeStart, urgentInput } from "../plugins/project-lens/src/ui/views/schedule.js";
+import { renderSchedule, snapStart, calendarGeometry, urgentDefaultStart, urgentInput } from "../plugins/project-lens/src/ui/views/schedule.js";
 import { taskActual } from "../plugins/project-lens/src/core/sessions.js";
 import { rankTasks } from "../plugins/project-lens/src/core/schedule.js";
 import { bannerHtml } from "../plugins/project-lens/src/ui/common.js";
@@ -207,18 +207,21 @@ test("addDays は表示範囲の計算に使える", () => {
 const NOW = { date: "2026-10-20", time: "10:15" };
 const sched = (d, o = {}) => renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW, ...o });
 
-test("snapStart: 15分刻み・勤務時間内に収める", () => {
-  const wd = { start: "09:00", end: "18:00" };
-  assert.equal(snapStart(10 * 60 + 7, 60, wd), 10 * 60);
-  assert.equal(snapStart(17 * 60 + 50, 60, wd), 17 * 60);
-  assert.equal(snapStart(8 * 60, 60, wd), 9 * 60);
+test("snapStart: 15分刻み・その日（00:00〜23:59）の中に収める", () => {
+  assert.equal(snapStart(10 * 60 + 7, 60), 10 * 60);
+  assert.equal(snapStart(7 * 60 + 50, 60), 7 * 60 + 45, "勤務時間の制限はない（朝 7 時台にも置ける）");
+  assert.equal(snapStart(-20, 60), 0);
+  assert.equal(snapStart(23 * 60 + 50, 60), 22 * 60 + 45, "終了が 23:59 を超えない 15 分刻みの最後");
+  assert.equal(snapStart(23 * 60 + 50, 15), 23 * 60 + 30);
 });
 
-test("snapFreeStart: 押した空き枠の開始を 15 分刻みに丸める。1 時間より短い最後の空き枠でも、前へ引かれない", () => {
-  const wd = { start: "09:00", end: "18:00" };
-  assert.equal(snapFreeStart(17 * 60 + 30, wd), 17 * 60 + 30);
-  assert.equal(snapFreeStart(10 * 60 + 7, wd), 10 * 60);
-  assert.equal(snapFreeStart(8 * 60, wd), 9 * 60);
+test("calendarGeometry: 時間の軸は 00:00〜24:00 の固定（設定に依らない）", () => {
+  const g = calendarGeometry();
+  assert.deepEqual([g.h0, g.span], [0, 24 * 60]);
+  assert.equal(g.tp(12 * 60), "50.000%");
+  const html = renderSchedule(load(), TODAY, { view: "day", date: TODAY, now: NOW, showPrio: false });
+  assert.equal(count(html, /class="hour"/g), 25, "0:00〜24:00 の 25 本");
+  assert.ok(html.includes("<span>0:00</span>") && html.includes("<span>24:00</span>"));
 });
 
 test("renderSchedule(day): 優先タスクと理由・枠の種別クラス・実績時間", () => {
@@ -281,7 +284,7 @@ test("renderSchedule: 手入力の会議だけドラッグ可、参加しない�
   assert.ok(html.includes("予定表から取得した会議です") && html.includes("data-mt=\"title\" value=\"NW運用定例\" placeholder=\"会議名\" style=\"min-width:200px\" disabled"));
 });
 
-test("renderSchedule: 優先リストはドラッグ可で、置いた回数と実績時間を出す。勤務時間外の会議は表示しない", () => {
+test("renderSchedule: 優先リストはドラッグ可で、置いた回数と実績時間を出す。早朝の会議も表示する（勤務時間の切り詰めはない）", () => {
   const d = load();
   d.events.push({ id: "m9", date: "2026-10-20", start: "07:00", end: "08:30", title: "早朝作業", source: "manual", skip: false, externalId: null });
   const html = sched(d);
@@ -290,7 +293,7 @@ test("renderSchedule: 優先リストはドラッグ可で、置いた回数と�
   assert.ok(!/<li[^>]*data-dragtask[^>]*tabindex/.test(html), "行はフォーカスを受けない");
   assert.ok(html.includes("タスクをカレンダーへドラッグして配置します(15分刻み・長さ1時間)。配置済みの枠もドラッグで移動できます。</p>") && !html.includes("キーボード"), "注記に選んで配置する文がない");
   assert.ok(html.includes("2回・実績 1.0h"));
-  assert.ok(!html.includes("早朝作業"));
+  assert.ok(html.includes("早朝作業"));
 });
 
 test("リスト: 「重要」のチェックボックスとメモを編集できる。重要で未完了の行にだけ印（imp）が付く", () => {
@@ -743,24 +746,22 @@ test("設定タブ: 基本の設定の入力。settings が無ければ既定値
   const none = load();
   delete none.settings;
   const html = setv(none);
-  assert.ok(setTag(html, "workday-start").includes('value="09:00"') && setTag(html, "workday-end").includes('value="18:00"'));
+  assert.ok(!html.includes("workday-") && !html.includes("勤務時間"), "勤務時間の行は無い");
   assert.ok(setTag(html, "waitingLongDays").includes('value="7"'));
   assert.ok(setTag(html, "label-group").includes('value="大項目"') && setTag(html, "label-subgroup").includes('value="中項目"'));
   const set = load();
-  set.settings = { workday: { start: "08:30", end: "17:30" }, waitingLongDays: 3, labels: { group: "フェーズ" } };
+  set.settings = { waitingLongDays: 3, labels: { group: "フェーズ" } };
   const h2 = setv(set);
-  assert.ok(setTag(h2, "workday-start").includes('value="08:30"') && setTag(h2, "workday-end").includes('value="17:30"'));
   assert.ok(setTag(h2, "waitingLongDays").includes('value="3"') && setTag(h2, "label-group").includes('value="フェーズ"') && setTag(h2, "label-subgroup").includes('value="中項目"'));
-  assert.ok(!h2.includes("settings.workday:"), "正しい値に注意は出ない");
 });
 
-test("設定タブ: workday が不正なファイルでも描画でき、入力欄には既定値、横に注意の文言が出る", () => {
+test("設定タブ: 古いファイルに残った workday は無視する（行も注意も出さない）。不正な待ち長期化は既定値と注意", () => {
   const d = load();
   d.settings = { ...d.settings, workday: { start: "9:00", end: "18:00" }, waitingLongDays: "7" };
   const html = setv(d);
-  assert.ok(setTag(html, "workday-start").includes('value="09:00"'));
+  assert.ok(!html.includes("workday"));
   assert.ok(setTag(html, "waitingLongDays").includes('value="7"'));
-  assert.ok(html.includes("settings.workday:") && html.includes("settings.waitingLongDays:"));
+  assert.ok(html.includes("settings.waitingLongDays:"));
 });
 
 test("設定タブ: 規則の↑↓。先頭の↑と末尾の↓は無効", () => {
@@ -844,7 +845,7 @@ test("今日のタスクのパネルは、ヘッダーの日付ラベル用の�
   assert.doesNotMatch(renderTodayTasks(d, TODAY), /class="panel today"/);
 });
 
-test("renderSchedule: 休みの日（土日・手動の休み・日本の祝日）は空き時間を出さず weekend 扱い。営業日の指定の日は空きを出す", () => {
+test("renderSchedule: 休みの日（土日・手動の休み・日本の祝日）は weekend 扱いで、日付の見出しに「—」。営業日の指定の日は休みでない。空き時間の表示はない", () => {
   const d = load();
   d.settings = { ...d.settings, holidays: [{ date: "2026-10-22", kind: "有給" }], workdays: [{ date: "2026-10-24" }] };
   const week = renderSchedule(d, TODAY, { view: "week", date: TODAY, now: NOW, showPrio: false });
@@ -855,8 +856,8 @@ test("renderSchedule: 休みの日（土日・手動の休み・日本の祝日�
   assert.doesNotMatch(col("2026-10-24"), /weekend/, "営業日の指定の土曜");
   assert.equal(head("2026-10-22"), "—");
   assert.equal(head("2026-10-25"), "—");
-  assert.match(head("2026-10-24"), /^空き /);
-  assert.match(head("2026-10-21"), /^空き /);
+  assert.ok(!/data-day="2026-10-24"[^>]*>[^<]*<small/.test(week) && !/data-day="2026-10-21"[^>]*>[^<]*<small/.test(week), "休みでない日は、日付だけ");
+  assert.ok(!week.includes("空き"));
   const day = (date) => renderSchedule(d, TODAY, { view: "day", date, now: NOW, showPrio: false });
   assert.ok(day("2026-10-22").includes("この日は休みです"), "休みの日の日表示は、休みの案内を出す");
   assert.ok(!day("2026-10-24").includes("この日は休みです"), "営業日の指定の土曜は休みでない");
@@ -879,13 +880,10 @@ test("受信箱の提案カード: 営業日の列の値もエスケープする
 
 test("settingsInputValues: 基本の設定の入力に出す値（形が違う・無い項目は既定値）", async () => {
   const { settingsInputValues } = await import("../plugins/project-lens/src/ui/views/settings.js");
-  assert.deepEqual(settingsInputValues({}), { workdayStart: "09:00", workdayEnd: "18:00", waitingLongDays: 7, labelGroup: "大項目", labelSubgroup: "中項目" });
+  assert.deepEqual(settingsInputValues({}), { waitingLongDays: 7, labelGroup: "大項目", labelSubgroup: "中項目" });
   const s = { settings: { workday: { start: "08:30", end: "17:30" }, waitingLongDays: 3, labels: { group: " フェーズ ", subgroup: "" } } };
-  assert.deepEqual(settingsInputValues(s), { workdayStart: "08:30", workdayEnd: "17:30", waitingLongDays: 3, labelGroup: "フェーズ", labelSubgroup: "中項目" });
-  for (const bad of [{ workday: { start: "18:00", end: "09:00" } }, { workday: "x" }, { waitingLongDays: 0 }, { waitingLongDays: "3" }]) {
-    const v = settingsInputValues({ settings: bad });
-    assert.deepEqual([v.workdayStart, v.workdayEnd, v.waitingLongDays], ["09:00", "18:00", 7], JSON.stringify(bad));
-  }
+  assert.deepEqual(settingsInputValues(s), { waitingLongDays: 3, labelGroup: "フェーズ", labelSubgroup: "中項目" }, "残った workday は使わない");
+  for (const bad of [{ waitingLongDays: 0 }, { waitingLongDays: "3" }]) assert.equal(settingsInputValues({ settings: bad }).waitingLongDays, 7, JSON.stringify(bad));
 });
 
 test("renderSchedule(day): 休みの日（土日・手動の休み・日本の祝日）の日表示には、置けない旨と指定の方法の注意を出す。営業日の指定の日・平日には出さない", () => {
@@ -915,7 +913,7 @@ test("設定: 「営業日の数え方」は基本の設定の表の先頭の行
   assert.doesNotMatch(html.match(/<input type="checkbox" data-set="countWeekendsAndHolidays"[^>]*>/)[0], /checked/);
   assert.ok(html.includes("土日祝を営業日に数える"));
   const basic = html.slice(html.indexOf('id="h-basic"'), html.indexOf('id="h-days"'));
-  assert.ok(basic.includes("営業日の数え方") && basic.indexOf("営業日の数え方") < basic.indexOf("勤務時間"), "基本の設定の中で、先頭の行");
+  assert.ok(basic.includes("営業日の数え方") && basic.indexOf("営業日の数え方") < basic.indexOf("待ち長期化の日数"), "基本の設定の中で、先頭の行");
   assert.ok(!html.includes("この一覧は日数計算に使いません"));
   assert.ok(!html.includes("期間内の土日と日本の祝日も除きません"));
 });
@@ -956,7 +954,7 @@ test("renderSchedule: 土日祝を営業日に数える設定がオンなら、�
 
 test("設定: 「営業日の数え方」の説明は、営業日後の期限とスケジュールの作業枠について書き、日程の移動（暦日で計算）には触れない", () => {
   const html = setv(load());
-  const sec = html.slice(html.indexOf("営業日の数え方"), html.indexOf("勤務時間"));
+  const sec = html.slice(html.indexOf("営業日の数え方"), html.indexOf("待ち長期化の日数"));
   assert.ok(sec.includes("営業日後の期限") && sec.includes("スケジュールの作業枠"));
   assert.ok(!sec.includes("日程の移動"));
 });
@@ -1451,18 +1449,15 @@ test("renderSchedule: 突発タスクの入力欄は、下書きの件名・プ�
   assert.match(html, /<option value="45" selected>/);
 });
 
-test("firstFreeStart: その日の最初の空き（今日なら現在時刻以降）の開始。なければ勤務の開始", () => {
-  const d = { settings: { workday: { start: "09:00", end: "18:00" } }, tasks: [], events: [{ id: "M", date: "2026-10-21", start: "09:30", end: "10:30", title: "m" }] };
-  const f = (date, time) => firstFreeStart(d, date, { date: "2026-10-21", time });
-  assert.equal(f("2026-10-21", "09:00"), "09:00");
-  assert.equal(f("2026-10-21", "09:20"), "10:30");
-  assert.equal(f("2026-10-21", "10:40"), "10:45");
-  assert.equal(f("2026-10-22", "15:00"), "09:00", "別の日は勤務の開始以降");
-  assert.equal(f("2026-10-21", "17:50"), "09:00", "今日の残りに 15 分の空きがなければ勤務の開始");
-  d.events[0] = { id: "M", date: "2026-10-22", start: "09:00", end: "18:00", title: "終日" };
-  assert.equal(f("2026-10-22", "09:00"), "09:00", "1 日埋まっていれば勤務の開始");
-  d.events[0] = { id: "M", date: "2026-10-22", start: "09:00", end: "10:00", title: "m" };
-  assert.equal(f("2026-10-22", "09:00"), "10:00");
+test("urgentDefaultStart: 突発タスクの開始の初期値。今日は現在時刻を 15 分刻みに切り上げ（23:45 まで）、ほかの日は 09:00", () => {
+  const now = (time) => ({ date: "2026-10-21", time });
+  assert.equal(urgentDefaultStart("2026-10-21", now("10:15")), "10:15", "刻みちょうどはそのまま");
+  assert.equal(urgentDefaultStart("2026-10-21", now("10:16")), "10:30");
+  assert.equal(urgentDefaultStart("2026-10-21", now("00:00")), "00:00");
+  assert.equal(urgentDefaultStart("2026-10-21", now("23:44")), "23:45");
+  assert.equal(urgentDefaultStart("2026-10-21", now("23:50")), "23:45", "23:45 を超えない");
+  assert.equal(urgentDefaultStart("2026-10-22", now("15:07")), "09:00", "今日以外は 09:00");
+  assert.equal(urgentDefaultStart("2026-10-20", now("15:07")), "09:00", "過去の日も 09:00");
 });
 
 test("urgentForm: 日付・開始時刻の欄に下書きの値が入る", () => {

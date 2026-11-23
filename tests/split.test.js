@@ -22,9 +22,9 @@ test("(b) shared のタスクに sessions が無い。personal の枠は taskId 
 });
 
 test("(c) 設定の振り分け", () => {
-  const d = { ...sample(), settings: { workday: { start: "09:00", end: "18:00" }, holidays: ["2026-12-30"], selfNames: ["a"], nationalHolidays: ["2026-01-01"], projectRules: [], reportShowMeetingTitles: true, waitingLongDays: 7 } };
+  const d = { ...sample(), settings: { holidays: ["2026-12-30"], selfNames: ["a"], nationalHolidays: ["2026-01-01"], projectRules: [], reportShowMeetingTitles: true, waitingLongDays: 7 } };
   const { shared, personal } = splitData(d);
-  assert.deepEqual(Object.keys(personal.settings).sort(), ["holidays", "selfNames", "workday"]);
+  assert.deepEqual(Object.keys(personal.settings).sort(), ["holidays", "selfNames"]);
   assert.deepEqual(Object.keys(shared.settings).sort(), ["nationalHolidays", "projectRules", "reportShowMeetingTitles", "waitingLongDays"]);
 });
 
