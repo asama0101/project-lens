@@ -2,12 +2,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createPairStore } from "../plugins/project-lens/src/ui/store.js";
 import { mergeData } from "../plugins/project-lens/src/core/split.js";
+import { createSync } from "../plugins/project-lens/src/ui/sync.js";
 
 // 偽のファイルハンドル（tests/store.test.js と同じ作り。名前だけ受ける）
 function fakeHandle(initial, name) {
   const h = {
     name, text: JSON.stringify(initial), modified: 1000, writes: 0, failWrite: null, perm: "granted", reqPerm: null,
-    async getFile() { return { lastModified: h.modified, text: async () => h.text }; },
+    async getFile() { if (h.failRead) { h.failRead--; throw new Error("読めません"); } return { lastModified: h.modified, text: async () => h.text }; },
     async createWritable() {
       if (h.failWrite) throw h.failWrite;
       let buf = "";
@@ -217,4 +218,42 @@ test("reopen: 記憶の無い方は開かず、権限の誤った文言を出さ
   const s = createPairStore(deps);
   assert.equal(await s.reopen(), null);
   assert.deepEqual(s.missing(), ["personal"]);
+});
+
+test("reload: 片方の読み直しが失敗したら、何も変えない（両方の読み込み時点が元のまま。その後の外の更新にも、当て直しで追いつく）", async () => {
+  const { s, data, sh, pe } = await opened();
+  const ext = (ids) => { sh.text = JSON.stringify({ ...S0, tasks: [...S0.tasks, ...ids.map((id) => ({ id, projectId: "P1", title: "他" }))] }); sh.modified += 5; };
+  ext(["EXT"]);
+  pe.failRead = 1;
+  await assert.rejects(s.reload(), /読めません/);
+  ext(["EXT", "EXT2"]); // 失敗のあと、さらに外で更新
+  assert.equal((await s.save(data)).ok, true, "画面のデータは読み込んだ内容と同じなので、何も書かない");
+  assert.equal(sh.writes, 0);
+  const d = clone(data); d.tasks[0].title = "b";
+  const plain = await s.save(d);
+  assert.deepEqual([plain.ok, plain.reason], [false, "conflict"], "共有の読み込み時点は元のまま");
+  const edit = (x) => ({ ...x, tasks: x.tasks.map((t) => (t.id === "T1" ? { ...t, title: "自分" } : t)) });
+  const r = await s.saveMerged(edit, edit(data));
+  assert.equal(r.ok, true);
+  assert.deepEqual(file(sh).tasks.map((t) => [t.id, t.title]), [["T1", "自分"], ["EXT", "他"], ["EXT2", "他"]]);
+});
+
+test("sync と組み合わせて: 個人の書き込み失敗 → 読み直しの失敗 → 次の編集で、前の編集を 2 回当てない", async () => {
+  const { s, data: d0, sh, pe } = await opened();
+  let data = d0;
+  const sync = createSync({ store: s, getData: () => data, setData: (d) => { data = d; }, render() {}, renderBar() {}, banner() {}, toast() {}, visible: () => true, wantFast: () => false });
+  const persist = (e) => { data = e(data); sync.persist(e); return sync.whenIdle(); };
+  const E1 = (d) => ({ ...d, changeLog: [...d.changeLog, { id: "L" + (d.changeLog.length + 1) }], tasks: d.tasks.map((t) => ({ ...t, sessions: t.sessions.map((x) => ({ ...x, end: "11:00" })) })) });
+  const E2 = (d) => ({ ...d, tasks: d.tasks.map((t) => (t.id === "T1" ? { ...t, title: "自分" } : t)) });
+  pe.failWrite = new Error("disk full");
+  await persist(E1);
+  assert.equal(sync.failed, true);
+  pe.failRead = 1; // バナーの「再読込」で、個人ファイルが読めない（app.js は、例外のとき sync.reset を呼ばない）
+  await assert.rejects(s.reload());
+  pe.failWrite = null;
+  await persist(E2);
+  assert.equal(sync.failed, false);
+  assert.deepEqual(file(sh).changeLog, [{ id: "L1" }], "E1 は 1 回だけ");
+  assert.equal(file(sh).tasks[0].title, "自分");
+  assert.equal(file(pe).sessions[0].end, "11:00");
 });
