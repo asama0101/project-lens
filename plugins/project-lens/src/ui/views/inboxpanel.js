@@ -57,7 +57,7 @@ function detailHtml(data, r, ui) {
       <div class="ib-ctl"><label>原因<select class="in" data-ib-cause="${esc(r.id)}" aria-label="原因">${CAUSES.map((c) => `<option${c === cause ? " selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
       <label style="flex:1 1 220px">変更履歴に残す理由<input class="in" data-ib-reason="${esc(r.id)}" value="${esc(reason)}" aria-label="変更履歴に残す理由"></label></div>
       <div class="ib-act"><button class="btn primary" data-ib-approve="${esc(r.id)}">承認して反映する</button><button class="btn" data-ib-reject="${esc(r.id)}">却下する</button></div>
-      <div class="ib-ctl"><input class="in" data-ib-reply="${esc(r.id)}" value="${esc(ui.replies?.[r.id] ?? "")}" placeholder="修正の依頼（例: A5 は 5 営業日にして）" aria-label="修正の依頼" style="flex:1 1 240px"><button class="btn warm" data-ib-replysend="${esc(r.id)}">修正を依頼する</button></div></div>`;
+      <div class="ib-ctl"><input class="in" data-ib-reply="${esc(r.id)}" value="${esc(ui.replies?.[r.id] ?? "")}" placeholder="修正の依頼（例: AA-0005 は 5 営業日にして）" aria-label="修正の依頼" style="flex:1 1 240px"><button class="btn warm" data-ib-replysend="${esc(r.id)}">修正を依頼する</button></div></div>`;
   }
   if (r.status === "pending" || r.status === "working") {
     // 見張りが止まって、受け取られない・処理が止まった依頼を、画面から取り下げられるようにする
@@ -96,7 +96,7 @@ function inboxBarHtml(data, ui) {
   const watching = isWatching(data, ui.nowMs);
   const state = `<span class="ib-state ${watching ? "on" : "off"}"><i></i>${watching ? "Claude Code が見ています" : "Claude Code が見ていません"}</span>`;
   const badge = proposed ? `<span class="ib-badge">提案が ${proposed} 件届いています</span>` : "";
-  const head = `<div class="ib-bar"><button class="ib-toggle" data-ib-toggle aria-expanded="${ui.open}">${ui.open ? "▼ 閉じる" : "▲ 開く"}</button><b>Claude Code に依頼する</b>${ui.open ? "" : `<span class="ib-hint">「A3 が 5 日遅れた」「このタスクを登録して」など</span>`}<span class="ib-sp"></span>${badge}${state}</div>`;
+  const head = `<div class="ib-bar"><button class="ib-toggle" data-ib-toggle aria-expanded="${ui.open}">${ui.open ? "▼ 閉じる" : "▲ 開く"}</button><b>Claude Code に依頼する</b>${ui.open ? "" : `<span class="ib-hint">「AA-0003 が 5 日遅れた」「このタスクを登録して」など</span>`}<span class="ib-sp"></span>${badge}${state}</div>`;
   if (!ui.open) return `<div class="ib">${head}</div>`;
 
   const projects = data.projects ?? [];
