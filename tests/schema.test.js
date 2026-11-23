@@ -327,6 +327,22 @@ test("作業枠の ID が別のタスクで重複していたら warning（保�
   assert.ok(!hit(v(load()).warnings, "作業枠の ID が重複"), "サンプルは重複なし");
 });
 
+test("共有ファイルに無いタスクの作業枠(orphanSessions)も、作業枠の ID の重複を warning にする（error にはしない）", () => {
+  const orphan = (id) => ({ id, taskId: "ZZ-0001", date: "2026-10-21", start: "09:00", end: "10:00", kind: "planned" });
+  const live = load().tasks.flatMap((t) => t.sessions ?? [])[0].id;
+  const withLive = load();
+  withLive.orphanSessions = [orphan(live)];
+  const r = v(withLive);
+  assert.deepEqual(r.errors, []);
+  assert.ok(hit(r.warnings, `作業枠の ID が重複しています: ${live}`), "生きている枠と同じ ID");
+  const twoOrphans = load();
+  twoOrphans.orphanSessions = [orphan("S900"), orphan("S900")];
+  assert.ok(hit(v(twoOrphans).warnings, "作業枠の ID が重複しています: S900"), "共有に無い枠どうし");
+  const distinct = load();
+  distinct.orphanSessions = [orphan("S900"), orphan("S901")];
+  assert.ok(!hit(v(distinct).warnings, "作業枠の ID が重複"), "ID が別なら出さない");
+});
+
 test("reportShowMeetingTitles が残っていても検証は何も言わない", () => {
   const r = v(withSettings({ reportShowMeetingTitles: "x" }));
   assert.deepEqual(r.errors, []);

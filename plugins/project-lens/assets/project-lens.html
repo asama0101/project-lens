@@ -857,8 +857,9 @@ function validate(data, now = nowLocal()) {
   dup(data.tasks, "タスク");
   dup(data.events, "会議");
   // 作業枠の ID は、移動・削除が ID だけで探すので、重複すると両方に効く。保存は止めず、注意に出す
+  // 共有ファイルに無いタスクの作業枠（orphanSessions）も、同じ個人ファイルの枠なので含める
   const sessionIds = new Set();
-  for (const t of data.tasks) for (const s of t.sessions ?? []) {
+  for (const s of [...data.tasks.flatMap((t) => t.sessions ?? []), ...(data.orphanSessions ?? [])]) {
     if (sessionIds.has(s.id)) warn(`作業枠の ID が重複しています: ${s.id}（移動・削除が両方に効きます。data.json から直接直してください）`);
     sessionIds.add(s.id);
   }
