@@ -523,3 +523,7 @@ body:has(.ptool){padding-block-start:8px}
 
 /* 今日の優先・今日のタスクの「重要」バッジ */
 #view .impbadge{background:var(--bad);color:#fff;font-size:10px;font-weight:700;border-radius:8px;padding:0 6px;margin-left:4px}
+
+/* スケジュールの重要の印: 枠は左に赤い線と赤い太字の件名、期限の行は赤い太字の件名 */
+#view .blk.imp{box-shadow:inset 5px 0 0 var(--bad);color:var(--bad);font-weight:700}
+#view .impt{color:var(--bad);font-weight:700}

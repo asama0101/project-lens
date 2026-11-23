@@ -1522,3 +1522,22 @@ test("重要バッジ: 今日の優先は理由の欄に impbadge を 1 つ（�
   assert.ok(!rows.find((x) => x.id === done.id).html.includes("impbadge"), "Done には無い");
   assert.ok(!rows.find((x) => x.id === "A7").html.includes("impbadge"), "重要でなければ無い");
 });
+
+test("renderCalendar: 重要で未完了のタスクの枠に imp、期限の行の件名に impt。Done には付けない", () => {
+  const d = load();
+  const A7 = d.tasks.find((t) => t.id === "A7");
+  A7.important = true;
+  A7.due = TODAY;
+  A7.sessions.push({ id: "S10", date: TODAY, start: "14:00", end: "15:00", kind: "planned" });
+  const done = d.tasks.find((t) => t.status === "Done");
+  done.important = true;
+  done.sessions = [...(done.sessions ?? []), { id: "S11", date: TODAY, start: "09:30", end: "10:00", kind: "actual" }];
+  for (const view of ["day", "week"]) {
+    const html = renderSchedule(d, TODAY, { view, date: TODAY, now: NOW });
+    const blk = (id) => html.match(new RegExp(`<div class="blk task [^"]*"[^>]*data-dragsess="${id}"`))[0];
+    assert.match(blk("S10"), /class="blk task plan imp /, `${view}: 重要の枠は imp（予定の class は残る）`);
+    assert.doesNotMatch(blk("S11"), /\bimp\b/, `${view}: Done の枠には付けない`);
+  }
+  const wk = renderSchedule(d, TODAY, { view: "week", date: TODAY, now: NOW });
+  assert.ok(wk.includes(`<span class="impt">${A7.title}</span>`), "期限の行の件名に impt");
+});
