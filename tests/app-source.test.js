@@ -434,6 +434,14 @@ test("theme.css: 重要のバッジは 12px の太字、角の丸い帯（pill�
   for (const s of ["font-size:12px", "font-weight:700", "border-radius:999px", "padding:2px 9px"]) assert.ok(r.includes(s), s);
 });
 
+test("app.js・theme.css: ヘッダーの「＋ 突発タスク」は、塗りの強調ボタン（btn primary）。hover でも文字が背景と同じ色にならない。暗い配色でも読める文字色", () => {
+  assert.ok(src.includes('<button class="btn primary" data-urgent-open'));
+  const rule = (sel) => css.slice(css.indexOf(sel + "{"), css.indexOf("}", css.indexOf(sel + "{")));
+  assert.ok(rule(".btn.primary").includes("background:var(--accent)") && rule(".btn.primary").includes("color:var(--on-accent)"), rule(".btn.primary"));
+  assert.ok(rule(".btn.primary:hover,.btn.primary:focus-visible").includes("color:var(--on-accent)"), "hover の .btn:hover（文字が accent）で、塗りと文字が同じ色にならない");
+  assert.equal(css.split("--on-accent:").length - 1, 3, "明るい配色と、暗い配色の 2 か所");
+});
+
 test("app.js: ヘッダーの「＋ 突発タスク」は、clearSel() で選択を外し、スケジュール画面へ移り、firstFreeStart で開始を決めて件名にフォーカスする", () => {
   assert.ok(src.includes("data-urgent-open") && src.includes("＋ 突発タスク"));
   const h = src.slice(src.indexOf('e.target.closest("[data-urgent-open]")'));
