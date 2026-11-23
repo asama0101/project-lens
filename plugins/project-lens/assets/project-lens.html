@@ -246,7 +246,6 @@ tr.drop-after>td,.g-row.drop-after>.g-label,.g-row.drop-after>.g-lane{box-shadow
 .g-lane{min-width:0}
 .week{grid-template-columns:44px repeat(7,minmax(0,1fr))}
 .week .dh{font:inherit;background:var(--surface);border:0;border-bottom:1px solid var(--line);text-align:left;cursor:pointer;color:var(--ink);min-width:0;position:sticky;top:var(--hh,0px);z-index:7} /* 時間の軸が 24 時間で長いので、日付の見出しはヘッダーの下に固定する */
-.cal.wk .week:first-child>div:first-child{position:sticky;top:var(--hh,0px);z-index:7;background:var(--surface)} /* 見出しの行の左端（時刻の列の上）も固定し、時刻の文字が透けないようにする */
 .week .dh:hover{background:var(--accent-soft)}
 .week .blk{overflow:hidden;text-overflow:ellipsis}
 .duecell{padding:6px;border-left:1px solid var(--line-soft);font-size:12px;min-height:34px;min-width:0;overflow-wrap:anywhere}
@@ -379,7 +378,7 @@ code{font-family:var(--f-mono);font-size:12px;background:var(--line-soft);paddin
 
 /* 狭い画面では、週表示のカレンダーの中だけを横スクロールにする(ページ全体は横スクロールさせない) */
 .cal.wk{overflow-x:clip} /* clip はスクロールの枠を作らないので、日付の見出し（.dh）の sticky がページの縦スクロールに効く */
-@media (max-width:640px){.cal.wk{overflow-x:auto}} /* 狭い画面だけ横スクロール（この幅では、日付の見出しは固定しない） */
+@media (max-width:640px){#view .cal.wk{overflow-x:auto}} /* 狭い画面だけ横スクロール（この幅では、日付の見出しは固定しない）。末尾の節は @media を置かない規則なので、ここに #view 付きで置く */
 .cal.wk .week{min-width:560px}
 
 /* 画面下端の「Claude Code に依頼する」の帯と引き出し（帯は常に出し、引き出しは開いたときだけ） */
@@ -549,6 +548,9 @@ body:has(.ptool){padding-block-start:8px}
 #view #mtgslot:not(:empty){position:sticky;top:var(--hh,0px);z-index:9;max-height:calc(100vh - var(--hh,0px) - 160px);overflow-y:auto;background:var(--surface);padding-top:4px}
 /* 作業枠・会議のブロックは、短い枠（「開始」「終了」の 1 分など）でも押せるよう、最低 14px の高さで描く（データは変えない） */
 #view .cal .blk{min-height:14px}
+/* 週表示の日付の見出しの行は、ヘッダーと、カレンダーの上の入力欄（#mtgslot。高さは --slot-h、sticky.js が測る）の下に固定する。左端のセル（時刻の列の上）も固定し、時刻の文字が透けないようにする */
+#view .cal.wk .week .dh{top:calc(var(--hh,0px) + var(--slot-h,0px))}
+#view .cal.wk .week:first-child>div:first-child{position:sticky;top:calc(var(--hh,0px) + var(--slot-h,0px));z-index:7;background:var(--surface)}
 </style>
 </head>
 <body>
@@ -4421,6 +4423,7 @@ function syncSticky() {
   root.setProperty("--hh", `${topbar.offsetHeight}px`);
   const tool = view.querySelector(".ptool");
   root.setProperty("--th", `${tool ? tool.offsetHeight : 0}px`);
+  root.setProperty("--slot-h", `${view.querySelector("#mtgslot")?.offsetHeight ?? 0}px`); // スケジュールのカレンダーの上の入力欄（固定）の高さ。週表示の日付の見出しは、その下に固定する
   // ガントの操作の帯(.gtop)の高さ(プロジェクトの見出し .pgstick の固定位置)と、プロジェクトごとの見出しの高さ(日付軸の複製の固定位置)。スクロールには連動させない
   root.setProperty("--gh", `${view.querySelector(".gtop")?.offsetHeight ?? 0}px`);
   for (const pg of view.querySelectorAll("section.pg")) pg.style.setProperty("--pgh", `${pg.querySelector(".pgstick").getBoundingClientRect().height}px`);
@@ -4563,14 +4566,17 @@ function render() {
   hideTip();
   sync.rendered(); // 読み直しで待たせた描き直しは、この描き直しで済む
   if (S.tpop && !S.data.tasks.some((t) => t.id === S.tpop.id)) S.tpop = null; // 読み直しで対象のタスクが消えたら、窓も閉じる
+  if (S.selSess && !allSessions(S.data).some((s) => s.id === S.selSess)) { S.selSess = null; S.taskEdit = null; } // 読み直しなどで選択中の枠が無くなったら、選択と編集欄を外す
   if (S.taskEdit && (S.screen !== "schedule" || !S.data.tasks.some((t) => t.id === S.taskEdit.id))) { S.taskEdit = null; S.selSess = null; } // スケジュールの編集欄も同じ（編集欄は枠の選択と一緒なので、選択も外す）
   const c = clock();
   $("todaylabel").textContent = `${c.date.replace(/-/g, "/")}(${wdJa(c.date)})`;
   document.querySelectorAll("nav [role=tab]").forEach((b) => b.setAttribute("aria-selected", String(b.id === "tab-" + S.screen)));
-  $("filebar").innerHTML = S.data ? `<button class="chip-btn pref" data-pref="actual" aria-pressed="${S.prefs.showActual}" title="ガントの実績の線を出したり隠したりします">ガント実績</button><span class="fsep" aria-hidden="true"></span><button class="btn primary" data-urgent-open title="突発タスクの入力欄を開きます">＋ 突発タスク</button><button class="btn" data-refresh title="ファイルを読み直します(Claude Code などが更新した内容を反映)">更新</button><button class="btn" data-open="shared" title="別の共有ファイル（data.json）を選びます">別の共有ファイル</button><button class="btn" data-open="personal" title="別の個人ファイル（personal.json）を選びます">別の個人ファイル</button>${typeof window.showOpenFilePicker === "function" ? "" : `<button class="btn" data-download>JSON を書き出す</button>`}` : "";  renderBar();
+  $("filebar").innerHTML = S.data ? `<button class="chip-btn pref" data-pref="actual" aria-pressed="${S.prefs.showActual}" title="ガントの実績の線を出したり隠したりします">ガント実績</button><span class="fsep" aria-hidden="true"></span><button class="btn primary" data-urgent-open title="突発タスクの入力欄を開きます">＋ 突発タスク</button><button class="btn" data-refresh title="ファイルを読み直します(Claude Code などが更新した内容を反映)">更新</button><button class="btn" data-open="shared" title="別の共有ファイル（data.json）を選びます">別の共有ファイル</button><button class="btn" data-open="personal" title="別の個人ファイル（personal.json）を選びます">別の個人ファイル</button>${typeof window.showOpenFilePicker === "function" ? "" : `<button class="btn" data-download>JSON を書き出す</button>`}` : "";
+  renderBar();
   // ガントの横スクロール位置(全プロジェクトで同じ)とページの縦の位置は、編集で描き直しても保つ(表示期間・絞り込みなどを変えたときだけ今日の位置へ戻す)。
   // 描き直しの間、ページが縮んで scrollY が飛ばないよう、#view の高さを保つ
   const prevCount = view.querySelectorAll(".gscroll").length;
+  const calTop = S.screen === "schedule" ? view.querySelector("#calslot")?.getBoundingClientRect().top : null; // スケジュールは、カレンダーの画面上の位置を保つ（上の入力欄が開閉しても、押した枠が動かない）
   const prevLeft = view.querySelector(".gscroll")?.scrollLeft ?? 0, prevY = window.scrollY, chipsLeft = view.querySelector(".chips-row")?.scrollLeft ?? 0;
   view.style.minHeight = `${view.offsetHeight}px`;
   const keepFocus = focusSelector(document.activeElement);
@@ -4601,6 +4607,7 @@ function render() {
   window.scrollTo(0, prevY); view.style.minHeight = "";
   syncSticky();
   if (reset && S.screen === "schedule") scrollToNow();
+  else if (calTop != null && !reset && S.screen === "schedule") { const nt = view.querySelector("#calslot")?.getBoundingClientRect().top; if (nt != null) window.scrollBy(0, nt - calTop); }
   drawAllDeps();
   placeTaskPop();
   if (S.hlId) {
@@ -4658,7 +4665,8 @@ function scrollToday(smooth) {
 function scrollToNow() {
   const grid = view.querySelector(".cal-grid, .week .hrs");
   if (!grid) return;
-  const r = grid.getBoundingClientRect(), hh = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--hh")) || 0) + (view.querySelector(".week .dh")?.offsetHeight ?? 0); // 週表示は、固定した日付の見出しの下
+  const cs = getComputedStyle(document.documentElement), px = (k) => parseFloat(cs.getPropertyValue(k)) || 0;
+  const r = grid.getBoundingClientRect(), hh = px("--hh") + px("--slot-h") + (view.querySelector(".week .dh")?.offsetHeight ?? 0); // ヘッダー・入力欄・（週表示は）日付の見出しの下
   window.scrollTo(0, Math.max(0, window.scrollY + r.top + r.height * calendarGeometry().pc(Math.max(0, toMin(clock().time) - 60)) / 100 - hh - 8));
 }
 
@@ -4868,7 +4876,7 @@ function deleteSelected() {
 /** 表示の好み（今日の優先・ガント実績）を反転して保存する。今日の優先を閉じると、パネル内にしか出ない確認待ちは出す場所がなくなるので捨てる */
 function togglePref(key) {
   S.pendingDone = null;
-  if (key === "showPrio") S.resetScroll = true; // 右の列の開け閉めでガントの幅が変わるので、横スクロールを今日の位置へ戻す
+  if (key === "showPrio" && S.screen === "gantt") S.resetScroll = true; // 右の列の開け閉めでガントの幅が変わるので、横スクロールを今日の位置へ戻す（スケジュールでは戻さない。scrollToNow でページが跳ぶため）
   S.prefs = { ...S.prefs, [key]: !S.prefs[key] };
   savePrefs(S.prefs);
   render();
@@ -5570,7 +5578,7 @@ view.addEventListener("mousedown", (e) => {
 
 /* ---------- キーボード ---------- */
 document.addEventListener("keydown", (e) => {
-  const typing = e.target.matches?.("input,select,textarea");
+  const typing = e.target.matches?.("input,select,textarea") || !!e.target.closest?.("[data-tedit], .mtgform"); // 編集欄・入力欄のボタンでも、枠を消さない
   if ((e.key === "Delete" || e.key === "Backspace") && S.screen === "schedule" && (S.selSess || S.selMtg) && !typing) { e.preventDefault(); deleteSelected(); }
   if (e.key === "Escape" && S.tpop) { S.tpop = null; render(); return; }
   if (e.key === "Escape" && S.screen === "schedule" && (S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.taskEdit)) { clearSel(); render(); }
@@ -5583,7 +5591,8 @@ view.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.isComposing && e.target.matches("[data-hnew],[data-hto],[data-hnote]")) { e.preventDefault(); addHolidayFromInput(); return; }
   if (e.key === "Enter" && !e.isComposing && e.target.matches("[data-wnew],[data-wnote]")) { e.preventDefault(); addWorkdayFromInput(); return; }
   if (e.key === "Escape" && e.target.matches("[data-gadd]")) { S.addAt = null; render(); return; }
-  if (e.key === "Enter" && !e.isComposing && e.target.matches("[data-waitparty]")) { e.preventDefault(); submitWait(e.target.dataset.waitparty); return; }});
+  if (e.key === "Enter" && !e.isComposing && e.target.matches("[data-waitparty]")) { e.preventDefault(); submitWait(e.target.dataset.waitparty); return; }
+});
 
 /* ---------- Claude Code への依頼（画面下の帯） ---------- */
 const nowIso = () => new Date().toISOString();

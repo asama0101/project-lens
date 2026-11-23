@@ -578,3 +578,40 @@ test("app.js: 「開始」で Waiting の待ち先を外したときは、通知
 test("theme.css: 作業枠・会議のブロックは、短い枠（1 分など）でも 14px の高さで描く（#view の中だけ）", () => {
   assert.ok(css.includes("#view .cal .blk{min-height:14px}"));
 });
+
+// ---- 24 時間の軸と、カレンダーの上の入力欄の固定（レビューの指摘） ----
+test("sticky.js・theme.css: #mtgslot の高さを --slot-h に測り、週表示の日付の見出し（と左端のセル）は、ヘッダーと入力欄の下に固定する。規則は #view の中だけ", () => {
+  assert.match(stk, /root\.setProperty\("--slot-h", `\$\{view\.querySelector\("#mtgslot"\)\?\.offsetHeight \?\? 0\}px`\)/);
+  assert.ok(css.includes("#view .cal.wk .week .dh{top:calc(var(--hh,0px) + var(--slot-h,0px))}"));
+  assert.ok(css.includes("#view .cal.wk .week:first-child>div:first-child{position:sticky;top:calc(var(--hh,0px) + var(--slot-h,0px));"));
+  assert.ok(css.includes("@media (max-width:640px){#view .cal.wk{overflow-x:auto}}"));
+  assert.ok(!/\n\.cal\.wk \.week:first-child/.test(css) && !css.includes("@media (max-width:640px){.cal.wk{"), "#view の外の規則として残さない");
+});
+
+test("app.js: scrollToNow は、ヘッダー・入力欄（--slot-h）・日付の見出しの下に、今の 1 時間前を置く", () => {
+  const fn = src.slice(src.indexOf("function scrollToNow()"), src.indexOf("function scrollToNow()") + 900);
+  assert.ok(fn.includes('"--slot-h"'), fn);
+});
+
+test("app.js: スケジュールの描き直しでは、カレンダー（#calslot）の画面上の位置を保つ（入力欄が開いて上に高さが足されても、押した枠が動かない）", () => {
+  const r = src.slice(src.indexOf("function render() {"), src.indexOf("function render() {") + 5000);
+  assert.match(r, /const calTop = S\.screen === "schedule" \? view\.querySelector\("#calslot"\)\?\.getBoundingClientRect\(\)\.top : null;/);
+  assert.match(r, /if \(calTop != null && !reset && S\.screen === "schedule"\)/);
+});
+
+test("app.js: 右の列の開け閉めで今日の位置へ戻すのは、ガントのときだけ（スケジュールでは scrollToNow で跳ばない）", () => {
+  const fn = src.slice(src.indexOf("function togglePref(key)"), src.indexOf("function togglePref(key)") + 400);
+  assert.match(fn, /if \(key === "showPrio" && S\.screen === "gantt"\) S\.resetScroll = true;/);
+});
+
+test("app.js: Delete・Backspace は、編集欄・入力欄（[data-tedit]・.mtgform）の中のボタンにフォーカスがあるときは枠を消さない", () => {
+  assert.ok(src.includes('const typing = e.target.matches?.("input,select,textarea") || !!e.target.closest?.("[data-tedit], .mtgform");'));
+});
+
+test("app.js: 読み直しなどで選択中の枠が無くなったら、選択と編集欄を外す", () => {
+  assert.ok(src.includes("if (S.selSess && !allSessions(S.data).some((s) => s.id === S.selSess)) { S.selSess = null; S.taskEdit = null; }"));
+});
+
+test("app.js: 書式（filebar の行の renderBar、keydown の閉じ）", () => {
+  assert.ok(!src.includes('` : "";  renderBar();') && !src.includes("return; }});"));
+});
