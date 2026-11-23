@@ -6,15 +6,15 @@
 /project-lens:init --sample
 ```
 
-<img src="docs/images/overview.svg" alt="project-lens の全体図。画面（project-lens.html）と Claude Code が、同じ data.json を読み書きする" width="800">
+<img src="docs/images/overview.svg" alt="project-lens の全体図。画面（project-lens.html）と Claude Code が、共有の data.json（プロジェクト・タスク）と個人の personal.json（作業枠・会議・休み・依頼）を読み書きする" width="800">
 
 *図 1: 全体図。画面と Claude Code が、同じデータ（共有の `data.json` と個人の `personal.json`）を読み書きします。*
 
 ## 機能
 
-<img src="docs/images/features.svg" alt="5 つの機能。一覧と優先、日程の調整、突発タスク、取り込み、稼働の集計" width="800">
+<img src="docs/images/features.svg" alt="5 つの機能（一覧と優先、日程の調整、突発タスク、取り込み、スケジュールと稼働）と、データの 2 つのファイル（全員で使う共有の data.json、各自の personal.json）" width="800">
 
-*図 2: 5 つの機能。*
+*図 2: 5 つの機能と、データの 2 つのファイル。複数人では、共有ファイルを全員で使い、個人ファイルは各自で持ちます。*
 
 ## 導入方法
 
@@ -30,7 +30,7 @@
 /project-lens:init
 ```
 
-そのあと、Edge か Chrome で `project-lens.html` を開き、共有ファイル（`.project-lens/data.json`）と個人ファイル（`.project-lens/personal.json`）を選びます。複数人では、共有ファイルを全員で使い、個人ファイルは各自で持ちます（[利用ガイド](docs/guide.md)）。
+そのあと、Edge か Chrome で `project-lens.html` を開き、共有ファイル（`.project-lens/data.json`）と個人ファイル（`.project-lens/personal.json`）を選びます。2 つとも選ぶと画面が開き、左上の `project-lens` の横に版の表記（`v` で始まる番号）が出ます。複数人での置き方と、個人ファイルの場所を変える `--mine` は、[利用ガイド](docs/guide.md#2-初回の準備)を見てください。
 
 **すでに `project-lens.html` があると、`init` は新しい版に置き換えます。** 手で直していたときは、先に別の名前でコピーします（`data.json`・`personal.json` は変わりません）。オフラインでの導入、更新、アンインストール、動作環境の確認（`/project-lens:doctor`）は、[利用ガイド](docs/guide.md)を見てください。
 
@@ -38,9 +38,11 @@
 
 ### 毎朝の流れ
 
-| 1. 「今日の優先」を見る | 2. 時間枠に置く | 3. 「実績にする」を押す |
+| 1. 「今日の優先」を見る | 2. 時間枠へドラッグする | 3. 「実績にする」を押す |
 |---|---|---|
-| <img src="docs/images/morning-1-priority.png" alt="ガントチャートの右側に「今日のタスク」と「今日の優先」が並ぶ" width="260"> | <img src="docs/images/morning-2-schedule.png" alt="スケジュールの週の枠に、作業枠と会議が並ぶ" width="260"> | <img src="docs/images/morning-3-started.png" alt="枠が実績になり、タスクが In Progress になる" width="260"> |
+| <img src="docs/images/morning-1-priority.png" alt="ガントチャートの画面。右側の「今日のタスク」に、予定・実績・未確認の札つきの枠の時間と「実績にする」のボタンが並び、その下の「今日の優先」に、重要の印つきのタスクが優先順に並ぶ" width="260"> | <img src="docs/images/morning-2-schedule.png" alt="スケジュールの週の画面。上の行に色の凡例、日付の下に期限の行があり、「今日の優先」からドラッグした「週次の構成バックアップ確認」が、今日の 11:30〜12:30 に予定の枠として置かれた" width="260"> | <img src="docs/images/morning-3-started.png" alt="「今日のタスク」の「実績にする」を押したあとの画面。「ルータ設定の作成」の 08:00〜09:00 の枠が実績（緑）になり、行の札が「実績」に変わった" width="260"> |
+
+「今日の優先」のタスクを、スケジュールの今日の列へドラッグすると、1 時間の予定の枠が置かれます（15 分刻み）。長さは、枠の下端をつかんで変えます。詳しい手順は、[利用ガイド](docs/guide.md#毎朝の流れ)にあります。
 
 ### 今日の優先の決まり方
 
@@ -58,7 +60,7 @@
 
 ### 突発タスクの登録
 
-<img src="docs/images/urgent-flow.svg" alt="突発タスクの流れ。画面上部の「＋ 突発タスク」を押し、件名・プロジェクト・長さを入れると、タスクと作業枠が作られる。やめると何も作らない" width="800">
+<img src="docs/images/urgent-flow.svg" alt="突発タスクの流れ。画面上部の「＋ 突発タスク」を押し、件名・プロジェクト・長さ・日付・開始を入れると、タスクと作業枠が作られる。やめると何も作らない" width="800">
 
 *図 4: 「＋ 突発タスク」から登録する流れ。承認と見張りは要りません。*
 
@@ -80,7 +82,7 @@ Claude Code で `/project-lens:watch` を 1 回実行し、画面下端の帯に
 
 | コマンド | 使いどころ |
 |---|---|
-| `/project-lens:init` | セットアップ（`--sample` でサンプルデータ入り） |
+| `/project-lens:init` | セットアップ（`--sample` でサンプルデータ入り。`--mine <ファイル>` で個人ファイルの場所を指定） |
 | `/project-lens:watch` | 依頼の帯から届く依頼を処理する |
 | `/project-lens:intake` | Excel の WBS・予定表の会議の取り込み |
 | `/project-lens:mcp` | 予定表で使う MCP の指定 |
@@ -88,9 +90,11 @@ Claude Code で `/project-lens:watch` を 1 回実行し、画面下端の帯に
 
 ### 画面の見方
 
-<img src="docs/images/screens.svg" alt="画面の 5 つのタブ。ガントチャート、リスト、スケジュール、稼働、設定" width="800">
+<img src="docs/images/screens.svg" alt="画面のヘッダーと 5 つのタブ。ヘッダー（タイトルと版の表記・タブ・「＋ 突発タスク」）はどのタブでも上に固定される。ガントチャート、リスト、スケジュール、稼働、設定" width="800">
 
-*図 7: 画面上部の 5 つのタブ。*
+*図 7: 画面上部のヘッダーと 5 つのタブ。*
+
+日付の欄は、`2026/10/20`・`20261020`・`2026年10月20日` のどれでも打てます。横の「📅」で、カレンダーからも選べます。各タブの操作は、[利用ガイド](docs/guide.md#画面の見方)にあります。
 
 ## 困ったとき
 
