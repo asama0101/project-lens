@@ -111,7 +111,7 @@ function main() {
   catch (e) { console.error(`失敗しました: ${e.message}`); process.exit(1); }
   if (!r.ok) { console.error(r.error); process.exit(1); }
   for (const x of r.results) console.log(`${x.path}: ${LABEL[x.status]}${x.note ? `（${x.note}）` : ""}`);
-  console.log(`\n次の手順: ブラウザで ${HTML} を開き、「ファイルを開く」で ${DATA} を選びます。`);
+  console.log(`\n次の手順: ブラウザで ${HTML} を開き、「共有ファイルを選ぶ」で ${DATA}、「個人ファイルを選ぶ」で ${mine ?? PERSONAL} を選びます。`);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();

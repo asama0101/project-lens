@@ -37,4 +37,4 @@ node "${CLAUDE_PLUGIN_ROOT}/tools/init.js"
 成功したら、作成・更新されたファイルを短く伝え、次の手順を案内する。
 
 1. ブラウザ（Edge または Chrome）で、プロジェクト直下の `project-lens.html` を開く。
-2. 「ファイルを開く」で `.project-lens/data.json` を選ぶ。
+2. 「共有ファイルを選ぶ」で `.project-lens/data.json`、「個人ファイルを選ぶ」で `.project-lens/personal.json`（`--mine` で別の場所を指したときは、そのファイル）を選ぶ。

@@ -158,11 +158,11 @@
 
   <div class="n">6</div>
   <div class="cell empty"></div>
-  <div class="cell c">作成・更新したファイルを短く伝え、次の手順（ブラウザで画面を開く → 「ファイルを開く」でデータファイルを選ぶ）を案内する。<small class="src">skills/init/SKILL.md</small></div>
+  <div class="cell c">作成・更新したファイルを短く伝え、次の手順（ブラウザで画面を開く → 共有ファイルと個人ファイルを選ぶ）を案内する。<small class="src">skills/init/SKILL.md</small></div>
   <div class="cell s">ファイルごとの結果を 1 行ずつ出す（作りました／更新しました／そのままです／追記しました／変更しませんでした）。<small class="src">tools/init.js LABEL</small></div>
 
   <div class="n">7</div>
-  <div class="cell u">Edge か Chrome で <code>project-lens.html</code> を開き、「ファイルを開く」で <code>.project-lens/data.json</code> を選ぶ。以後の画面の変更は、このファイルに直接保存される（画面が <code>personal.json</code> をどう扱うかは、この図では未確認）。<small class="src">README.md 初回の準備</small></div>
+  <div class="cell u">Edge か Chrome で <code>project-lens.html</code> を開き、「共有ファイルを選ぶ」で <code>.project-lens/data.json</code>、「個人ファイルを選ぶ」で <code>.project-lens/personal.json</code> を選ぶ。2 つ選ぶと画面が開き、以後の変更は、変えた方のファイルに直接保存される。<small class="src">README.md 初回の準備</small></div>
   <div class="cell empty"></div>
   <div class="cell empty"></div>
 </div>
@@ -490,7 +490,7 @@
   <div class="cell s">（画面の中の処理）依頼を <code>R1</code>、<code>R2</code>… の番号で、状態「送信済み」としてデータファイルの受信箱に <span class="tag write">書き込み</span>。履歴は 20 件まで（超えたら、済んだ古いものから消す。処理中は消えない）。<small class="src">src/core/inbox.js submitRequest・pruneRequests / src/ui/app.js sendRequest</small></div>
 
   <div class="branch"><p class="bt">送るときの分岐</p><div class="flow">
-    <div class="case">データファイルを「ファイルを開く」で直接開いていない（直接保存に対応しないブラウザ、または Edge・Chrome でもまだ開いていないとき） → 帯は使えず、「ファイルへの直接保存が必要です」と出る<small class="src">src/ui/app.js（canWrite: store.hasFile） / inboxpanel.js</small></div>
+    <div class="case">データファイル（共有・個人の 2 つ）を、画面から直接開いていない（直接保存に対応しないブラウザ、または Edge・Chrome でもまだ開いていないとき） → 帯は使えず、「ファイルへの直接保存が必要です」と出る<small class="src">src/ui/app.js（canWrite: store.hasFile） / inboxpanel.js</small></div>
     <div class="case">文章が空 → 「依頼を入力してください」</div>
     <div class="case">文章が 4000 文字を超える → 「依頼は 4000 文字までにしてください」<small class="src">src/core/inbox.js MAX_TEXT</small></div>
     <div class="case">保存が他の更新と重なった → 画面が最新のファイルを読み直し、同じ編集を当ててから保存する（編集は消えない）。当て直せなかったときだけ「他で更新されました。再読込してください」<small class="src">src/ui/sync.js / docs/development.md 保存と競合</small></div>
