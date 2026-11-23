@@ -44,11 +44,12 @@ const mapSessions = (data, id, fn) => ({
   tasks: data.tasks.map((t) => ((t.sessions ?? []).some((s) => s.id === id) ? { ...t, sessions: t.sessions.map((s) => (s.id === id ? fn(s) : s)) } : t)),
 });
 
-export function addSession(data, taskId, slot, now) {
+/** 新しい枠は、過去の時間に置いても予定（planned）。過ぎた予定は未確認として出て、確認（confirmSession）で実績になる */
+export function addSession(data, taskId, slot) {
   if (!data.tasks.some((t) => t.id === taskId)) return { data, error: `タスク ${taskId} がありません` };
   const r = check(data, slot);
   if (r.error) return { data, error: r.error };
-  const s = { id: nextId(data), date: slot.date, start: slot.start, end: slot.end, kind: isPast(slot, now) ? "actual" : "planned" };
+  const s = { id: nextId(data), date: slot.date, start: slot.start, end: slot.end, kind: "planned" };
   return { data: withTask(data, taskId, (t) => ({ ...t, sessions: [...(t.sessions ?? []), s] })), ...(r.warning && { warning: r.warning }) };
 }
 

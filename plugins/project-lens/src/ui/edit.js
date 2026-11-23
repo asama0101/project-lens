@@ -373,12 +373,12 @@ export function addTaskQuick(data, projectId, title, today = nowLocal().date, pl
 }
 
 /** 突発タスク。タスク（開始・期限は当日、In Progress）と作業枠を 1 操作で作る。projectId は null でもよい。失敗は Error（データは変わらない） */
-export function addUrgentTask(data, { title, projectId, date, start, minutes }, now) {
+export function addUrgentTask(data, { title, projectId, date, start, minutes }) {
   if (projectId != null && !data.projects.some((p) => p.id === projectId)) throw new Error(`プロジェクト ${projectId} がありません`);
   const name = String(title ?? "").trim();
   if (!name) throw new Error("件名を入力してください");
   const t = newTask(data, projectId, name, date, { start: date, status: "In Progress" });
-  const r = addSession({ ...data, tasks: [...data.tasks, t] }, t.id, { date, start, end: toHHMM(toMin(start) + minutes) }, now);
+  const r = addSession({ ...data, tasks: [...data.tasks, t] }, t.id, { date, start, end: toHHMM(toMin(start) + minutes) });
   if (r.error) throw new Error(r.error);
   return { data: r.data, id: t.id, ...(r.warning && { warning: r.warning }) };
 }

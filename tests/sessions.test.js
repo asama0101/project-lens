@@ -16,12 +16,13 @@ test("sessionKind: 実績は常に actual、過ぎた予定は unconfirmed、途
   assert.equal(sessionKind(p, { date: "2026-10-21", time: "08:00" }), "unconfirmed");
 });
 
-test("addSession: 過去は actual／未来は planned／同じタスクに複数／ID は重複しない", () => {
+test("addSession: 過去に置いても planned（未確認として出て、確認で実績になる）／未来も planned／同じタスクに複数／ID は重複しない", () => {
   const d = load();
-  const a = addSession(d, "AA-0004", { date: "2026-10-19", start: "13:00", end: "14:00" }, NOW);
+  const a = addSession(d, "AA-0004", { date: "2026-10-19", start: "13:00", end: "14:00" });
   assert.equal(a.error, undefined);
-  assert.equal(task(a.data, "AA-0004").sessions[0].kind, "actual");
-  const b = addSession(a.data, "AA-0004", { date: "2026-10-22", start: "13:00", end: "14:00" }, NOW);
+  assert.equal(task(a.data, "AA-0004").sessions[0].kind, "planned");
+  assert.equal(sessionKind(task(a.data, "AA-0004").sessions[0], NOW), "unconfirmed");
+  const b = addSession(a.data, "AA-0004", { date: "2026-10-22", start: "13:00", end: "14:00" });
   assert.equal(task(b.data, "AA-0004").sessions[1].kind, "planned");
   const ids = b.data.tasks.flatMap((t) => t.sessions.map((s) => s.id));
   assert.equal(new Set(ids).size, ids.length);
@@ -30,7 +31,7 @@ test("addSession: 過去は actual／未来は planned／同じタスクに複�
 
 test("addSession: 土日・重なり・終了≦開始・23:59 を超える終了は error、会議との重なりは warning。勤務時間の制限はない", () => {
   const d = load();
-  const add = (slot) => addSession(d, "AA-0004", slot, NOW);
+  const add = (slot) => addSession(d, "AA-0004", slot);
   assert.equal(add({ date: "2026-10-22", start: "06:00", end: "07:30" }).error, undefined, "早朝にも置ける");
   assert.equal(add({ date: "2026-10-22", start: "22:00", end: "23:59" }).error, undefined, "夜にも置ける（終了は 23:59 まで）");
   assert.match(add({ date: "2026-10-22", start: "23:00", end: "24:00" }).error, /23:59/);
@@ -45,7 +46,7 @@ test("addSession: 土日・重なり・終了≦開始・23:59 を超える終�
 
 test("スキップした会議とは重ならない扱い", () => {
   const d = load(); d.events.find((e) => e.id === "m3").skip = true;
-  const r = addSession(d, "AA-0004", { date: "2026-10-21", start: "10:00", end: "11:00" }, NOW);
+  const r = addSession(d, "AA-0004", { date: "2026-10-21", start: "10:00", end: "11:00" });
   assert.equal(r.warning, undefined);
 });
 
@@ -85,7 +86,7 @@ test("removeSession と、枠の操作でタスクの状態は変わらない", 
   assert.equal(sess(r, "S1"), undefined);
   assert.ok(sess(r, "S2"));
   const before = JSON.stringify(d.tasks.map((t) => [t.id, t.status, t.doneAt]));
-  let x = addSession(d, "AA-0004", { date: "2026-10-19", start: "13:00", end: "14:00" }, NOW).data;
+  let x = addSession(d, "AA-0004", { date: "2026-10-19", start: "13:00", end: "14:00" }).data;
   x = moveSession(x, "S5", { date: "2026-10-23", start: "14:00" }, NOW).data;
   x = resizeSession(x, "S5", "17:00").data;
   x = removeSession(x, "S2");
@@ -122,7 +123,7 @@ test("addSession・moveSession: 土日・手動の休み・日本の祝日には
     nationalHolidays: { fetchedAt: "2026-10-25", source: "u", dates: [{ date: "2026-11-03", name: "文化の日" }] },
   };
   const slot = (date) => ({ date, start: "10:00", end: "11:00" });
-  const add = (date, data = d) => addSession(data, "AA-0004", slot(date), NOW);
+  const add = (date, data = d) => addSession(data, "AA-0004", slot(date));
   assert.match(add("2026-10-24").error, /土日には置けません/);
   assert.match(add("2026-10-27").error, /休みの日には置けません/);
   assert.match(add("2026-11-03").error, /休みの日には置けません/);
@@ -145,7 +146,7 @@ test("休みの日にすでにある枠は、同じ日の中なら伸縮も移�
 });
 
 test("置けない日のエラーは、どこで指定するかを添える（設定タブ）", () => {
-  const e = addSession(load(), "AA-0004", { date: "2026-10-24", start: "10:00", end: "11:00" }, NOW).error;
+  const e = addSession(load(), "AA-0004", { date: "2026-10-24", start: "10:00", end: "11:00" }).error;
   assert.match(e, /設定タブ.*営業日として扱う日/);
 });
 
@@ -181,7 +182,7 @@ test("addSession: 土日祝を営業日に数える設定がオンなら、土�
     holidays: [{ date: "2026-10-31", kind: "有給" }],
     nationalHolidays: { fetchedAt: "2026-10-25", source: "u", dates: [{ date: "2026-11-03", name: "文化の日" }] },
   };
-  const add = (date, data = d) => addSession(data, "AA-0004", { date, start: "10:00", end: "11:00" }, NOW);
+  const add = (date, data = d) => addSession(data, "AA-0004", { date, start: "10:00", end: "11:00" });
   assert.equal(add("2026-10-24").error, undefined, "土");
   assert.equal(add("2026-10-25").error, undefined, "日");
   assert.equal(add("2026-11-03").error, undefined, "祝日");

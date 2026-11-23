@@ -1226,11 +1226,12 @@ const mapSessions = (data, id, fn) => ({
   tasks: data.tasks.map((t) => ((t.sessions ?? []).some((s) => s.id === id) ? { ...t, sessions: t.sessions.map((s) => (s.id === id ? fn(s) : s)) } : t)),
 });
 
-function addSession(data, taskId, slot, now) {
+/** 新しい枠は、過去の時間に置いても予定（planned）。過ぎた予定は未確認として出て、確認（confirmSession）で実績になる */
+function addSession(data, taskId, slot) {
   if (!data.tasks.some((t) => t.id === taskId)) return { data, error: `タスク ${taskId} がありません` };
   const r = check(data, slot);
   if (r.error) return { data, error: r.error };
-  const s = { id: nextId(data), date: slot.date, start: slot.start, end: slot.end, kind: isPast(slot, now) ? "actual" : "planned" };
+  const s = { id: nextId(data), date: slot.date, start: slot.start, end: slot.end, kind: "planned" };
   return { data: withTask(data, taskId, (t) => ({ ...t, sessions: [...(t.sessions ?? []), s] })), ...(r.warning && { warning: r.warning }) };
 }
 
@@ -2854,12 +2855,12 @@ function addTaskQuick(data, projectId, title, today = nowLocal().date, place = {
 }
 
 /** 突発タスク。タスク（開始・期限は当日、In Progress）と作業枠を 1 操作で作る。projectId は null でもよい。失敗は Error（データは変わらない） */
-function addUrgentTask(data, { title, projectId, date, start, minutes }, now) {
+function addUrgentTask(data, { title, projectId, date, start, minutes }) {
   if (projectId != null && !data.projects.some((p) => p.id === projectId)) throw new Error(`プロジェクト ${projectId} がありません`);
   const name = String(title ?? "").trim();
   if (!name) throw new Error("件名を入力してください");
   const t = newTask(data, projectId, name, date, { start: date, status: "In Progress" });
-  const r = addSession({ ...data, tasks: [...data.tasks, t] }, t.id, { date, start, end: toHHMM(toMin(start) + minutes) }, now);
+  const r = addSession({ ...data, tasks: [...data.tasks, t] }, t.id, { date, start, end: toHHMM(toMin(start) + minutes) });
   if (r.error) throw new Error(r.error);
   return { data: r.data, id: t.id, ...(r.warning && { warning: r.warning }) };
 }
@@ -5008,7 +5009,7 @@ function submitUrgent() {
   if (!r) return;
   const { input } = r, title = input.title;
   let warning;
-  if (apply((d) => { const r = addUrgentTask(d, input, clock()); warning = r.warning; return r.data; }, null, { quiet: true })) {
+  if (apply((d) => { const r = addUrgentTask(d, input); warning = r.warning; return r.data; }, null, { quiet: true })) {
     S.urgentDraft = null; S.sdate = input.date; render();
     toast(`${title} を ${input.start} に ${input.minutes} 分で登録しました${warning ? `(${warning})` : ""}`);
   }
@@ -5211,9 +5212,8 @@ function planDrop(dz, clientY) {
   }
   const st = snapStart(at, 60);
   const did = drag.id, put = { date, start: toHHMM(st), end: toHHMM(st + 60) };
-  const r = addSession(S.data, did, put, now);
-  const kind = r.error ? "" : r.data.tasks.find((t) => t.id === drag.id).sessions.at(-1).kind;
-  return { st, end: st + 60, error: r.error, warning: r.warning, next: asEdit((d) => addSession(d, did, put, now)), msg: `${S.data.tasks.find((t) => t.id === did).title} を ${fmtMD(date)} ${hm(st)} に${kind === "actual" ? "実績として記録" : "予定として配置"}しました` };
+  const r = addSession(S.data, did, put);
+  return { st, end: st + 60, error: r.error, warning: r.warning, next: asEdit((d) => addSession(d, did, put)), msg: `${S.data.tasks.find((t) => t.id === did).title} を ${fmtMD(date)} ${hm(st)} に予定として配置しました` };
 }
 
 /** ドラッグ中の時刻（10:00–11:00）を、ポインタの近くに出す。終わり・Esc・描き直しで消す */

@@ -530,7 +530,7 @@ const URGENT = { title: " 障害対応 ", projectId: null, date: TODAY, start: "
 
 test("addUrgentTask: プロジェクトなしのタスクと枠を 1 操作で作る（未来の枠は planned）", () => {
   const d = load();
-  const r = addUrgentTask(d, URGENT, { date: TODAY, time: "12:00" });
+  const r = addUrgentTask(d, URGENT);
   const t = task(r.data, "ZZ-0002");
   assert.equal(r.id, "ZZ-0002");
   assert.deepEqual([t.projectId, t.title, t.due, t.start, t.status], [null, "障害対応", TODAY, TODAY, "In Progress"]);
@@ -541,40 +541,39 @@ test("addUrgentTask: プロジェクトなしのタスクと枠を 1 操作で�
 });
 
 test("addUrgentTask: 勤務時間の制限はなく、夜（23:15〜23:45）にも置ける。23:59 を超える終了は Error で何も作らない", () => {
-  const r = addUrgentTask(load(), { title: "x", projectId: null, date: "2026-10-19", start: "23:15", minutes: 30 }, { date: "2026-10-19", time: "12:00" });
+  const r = addUrgentTask(load(), { title: "x", projectId: null, date: "2026-10-19", start: "23:15", minutes: 30 });
   assert.deepEqual(task(r.data, "ZZ-0002").sessions.map((s) => [s.start, s.end]), [["23:15", "23:45"]]);
-  assert.throws(() => addUrgentTask(load(), { title: "x", projectId: null, date: "2026-10-19", start: "23:45", minutes: 30 }, { date: "2026-10-19", time: "12:00" }), /23:59/);
+  assert.throws(() => addUrgentTask(load(), { title: "x", projectId: null, date: "2026-10-19", start: "23:45", minutes: 30 }), /23:59/);
 });
 
-test("addUrgentTask: 枠が過去なら actual", () => {
-  const r = addUrgentTask(load(), URGENT, { date: TODAY, time: "14:00" });
-  assert.equal(task(r.data, "ZZ-0002").sessions[0].kind, "actual");
+test("addUrgentTask: 枠はいつでも planned（過去なら未確認として出て、確認で実績になる）", () => {
+  const r = addUrgentTask(load(), URGENT);
+  assert.equal(task(r.data, "ZZ-0002").sessions[0].kind, "planned");
 });
 
 test("addUrgentTask: 会議と重なると warning が付き、タスクと枠は作られる", () => {
-  const r = addUrgentTask(load(), URGENT, { date: TODAY, time: "12:00" });
+  const r = addUrgentTask(load(), URGENT);
   assert.match(r.warning, /ベンダーX 打合せ/);
   assert.equal(task(r.data, "ZZ-0002").sessions.length, 1);
-  assert.equal(addUrgentTask(load(), { ...URGENT, start: "15:00" }, { date: TODAY, time: "12:00" }).warning, undefined);
+  assert.equal(addUrgentTask(load(), { ...URGENT, start: "15:00" }).warning, undefined);
 });
 
 test("addUrgentTask: 他の枠と重なると Error で、データは変わらない", () => {
   const d = load();
   const n = d.tasks.length;
-  assert.throws(() => addUrgentTask(d, { ...URGENT, date: "2026-10-21", start: "14:30" }, { date: TODAY, time: "12:00" }), /他の枠/);
+  assert.throws(() => addUrgentTask(d, { ...URGENT, date: "2026-10-21", start: "14:30" }), /他の枠/);
   assert.equal(d.tasks.length, n);
 });
 
 test("addUrgentTask: 件名が空白だけ・プロジェクトが不明は Error", () => {
-  const now = { date: TODAY, time: "12:00" };
-  assert.throws(() => addUrgentTask(load(), { ...URGENT, title: "  " }, now), /件名を入力してください/);
-  assert.throws(() => addUrgentTask(load(), { ...URGENT, projectId: "ZZ" }, now), /プロジェクト ZZ がありません/);
+  assert.throws(() => addUrgentTask(load(), { ...URGENT, title: "  " }), /件名を入力してください/);
+  assert.throws(() => addUrgentTask(load(), { ...URGENT, projectId: "ZZ" }), /プロジェクト ZZ がありません/);
 });
 
 test("addUrgentTask: projectId を指定すると、そのプロジェクトの採番になる", () => {
   const d = load();
-  const r = addUrgentTask(d, { ...URGENT, start: "15:00" }, { date: TODAY, time: "12:00" });
-  const r2 = addUrgentTask(d, { ...URGENT, projectId: "AA", start: "15:00" }, { date: TODAY, time: "12:00" });
+  const r = addUrgentTask(d, { ...URGENT, start: "15:00" });
+  const r2 = addUrgentTask(d, { ...URGENT, projectId: "AA", start: "15:00" });
   assert.equal(r.id, nextTaskId(d, null));
   assert.equal(r2.id, nextTaskId(d, "AA"));
   assert.equal(task(r2.data, r2.id).projectId, "AA");

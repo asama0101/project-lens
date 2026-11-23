@@ -625,7 +625,7 @@ function submitUrgent() {
   if (!r) return;
   const { input } = r, title = input.title;
   let warning;
-  if (apply((d) => { const r = addUrgentTask(d, input, clock()); warning = r.warning; return r.data; }, null, { quiet: true })) {
+  if (apply((d) => { const r = addUrgentTask(d, input); warning = r.warning; return r.data; }, null, { quiet: true })) {
     S.urgentDraft = null; S.sdate = input.date; render();
     toast(`${title} を ${input.start} に ${input.minutes} 分で登録しました${warning ? `(${warning})` : ""}`);
   }
@@ -828,9 +828,8 @@ function planDrop(dz, clientY) {
   }
   const st = snapStart(at, 60);
   const did = drag.id, put = { date, start: toHHMM(st), end: toHHMM(st + 60) };
-  const r = addSession(S.data, did, put, now);
-  const kind = r.error ? "" : r.data.tasks.find((t) => t.id === drag.id).sessions.at(-1).kind;
-  return { st, end: st + 60, error: r.error, warning: r.warning, next: asEdit((d) => addSession(d, did, put, now)), msg: `${S.data.tasks.find((t) => t.id === did).title} を ${fmtMD(date)} ${hm(st)} に${kind === "actual" ? "実績として記録" : "予定として配置"}しました` };
+  const r = addSession(S.data, did, put);
+  return { st, end: st + 60, error: r.error, warning: r.warning, next: asEdit((d) => addSession(d, did, put)), msg: `${S.data.tasks.find((t) => t.id === did).title} を ${fmtMD(date)} ${hm(st)} に予定として配置しました` };
 }
 
 /** ドラッグ中の時刻（10:00–11:00）を、ポインタの近くに出す。終わり・Esc・描き直しで消す */
