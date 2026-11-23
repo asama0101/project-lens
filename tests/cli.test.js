@@ -1,6 +1,6 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, readFileSync, readdirSync, linkSync, rmSync, mkdirSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, readdirSync, linkSync, rmSync, mkdirSync, renameSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { save } from "../plugins/project-lens/tools/cli.js";
@@ -120,4 +120,109 @@ test("save: 自分が保存したあとは、続けて保存できる（readJson
   const d = readJson(path);
   save(path, d);
   save(path, { ...d, settings: { a: 1 } });
+});
+
+// ---- 共有ファイル（data.json）と個人ファイル（personal.json）の 2 ファイル ----
+import { readData, saveData, takeMine, personalPathOf } from "../plugins/project-lens/tools/cli.js";
+import { splitData } from "../plugins/project-lens/src/core/split.js";
+import { statSync, existsSync } from "node:fs";
+
+const sample = JSON.parse(readFileSync(new URL("../plugins/project-lens/data/sample.json", import.meta.url), "utf8"));
+const json = (v) => JSON.stringify(v, null, 2) + "\n";
+function twoFiles(extra = "") {
+  const d = mkdtempSync(join(dir, `two${extra}-`));
+  const { shared, personal } = splitData(sample);
+  writeFileSync(join(d, "data.json"), json(shared));
+  writeFileSync(join(d, "personal.json"), json(personal));
+  return d;
+}
+const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+test("readData: 2 ファイルを読むと、sample.json と等しい", () => {
+  const d = twoFiles();
+  assert.deepEqual(readData(join(d, "data.json")), sample);
+});
+
+test("readData: 個人ファイルが無ければ、共有だけ読めて events は空", () => {
+  const d = twoFiles();
+  rmSync(join(d, "personal.json"));
+  const data = readData(join(d, "data.json"));
+  assert.deepEqual(data.events, []);
+  assert.equal(data.tasks.length, sample.tasks.length);
+  rmSync(join(d, "data.json"));
+  assert.throws(() => readData(join(d, "data.json")), /ENOENT/);
+});
+
+test("saveData: 共有だけが変わるなら、personal.json を書かない", () => {
+  const d = twoFiles();
+  const p = join(d, "data.json"), pp = join(d, "personal.json");
+  const data = readData(p);
+  const before = statSync(pp).mtimeMs;
+  sleep(30);
+  data.tasks[0].title = "変えた件名";
+  saveData(p, data);
+  assert.equal(statSync(pp).mtimeMs, before);
+  assert.equal(JSON.parse(readFileSync(p, "utf8")).tasks[0].title, "変えた件名");
+  assert.deepEqual(readData(p), data);
+});
+
+test("saveData: 検証エラーなら、どちらも変えず例外", () => {
+  const d = twoFiles();
+  const p = join(d, "data.json"), pp = join(d, "personal.json");
+  const a = readFileSync(p, "utf8"), b = readFileSync(pp, "utf8");
+  const data = readData(p);
+  data.projects[0].status = "でたらめ";
+  assert.throws(() => saveData(p, data));
+  assert.equal(readFileSync(p, "utf8"), a);
+  assert.equal(readFileSync(pp, "utf8"), b);
+});
+
+test("--mine: 別の場所の個人ファイルを読み書きできる", () => {
+  const d = twoFiles();
+  const elsewhere = mkdtempSync(join(dir, "mine-"));
+  const mine = join(elsewhere, "me.json");
+  writeFileSync(mine, readFileSync(join(d, "personal.json")));
+  rmSync(join(d, "personal.json"));
+  assert.equal(personalPathOf(join(d, "data.json"), mine), mine);
+  const p = join(d, "data.json");
+  const data = readData(p, mine);
+  assert.deepEqual(data, sample);
+  data.events = [];
+  saveData(p, data, undefined, { mine });
+  assert.deepEqual(JSON.parse(readFileSync(mine, "utf8")).events, []);
+  assert.ok(!existsSync(join(d, "personal.json")));
+});
+
+test("takeMine: --mine と値を取り除く", () => {
+  assert.deepEqual(takeMine(["a.json", "--mine", "p.json", "x"]), { mine: "p.json", rest: ["a.json", "x"] });
+  assert.deepEqual(takeMine(["a.json"]), { mine: null, rest: ["a.json"] });
+});
+
+test("saveData: 読んだあとに他が片方を書き換えていたら、どちらも書かず例外", () => {
+  for (const other of ["data.json", "personal.json"]) {
+    const d = twoFiles(other.slice(0, 1));
+    const p = join(d, "data.json"), pp = join(d, "personal.json");
+    const data = readData(p);
+    writeFileSync(join(d, other), readFileSync(join(d, other), "utf8") + " "); // 他の更新
+    const a = readFileSync(p, "utf8"), b = readFileSync(pp, "utf8");
+    data.tasks[0].title = "x";
+    data.events = [];
+    assert.throws(() => saveData(p, data), /他で更新されました/);
+    assert.equal(readFileSync(p, "utf8"), a);
+    assert.equal(readFileSync(pp, "utf8"), b);
+  }
+});
+
+test("saveData: 2 つ目の置き換えが失敗したら、1 つ目はそのままで、書けた方と書けなかった方を例外に書く", () => {
+  const d = twoFiles("f");
+  const p = join(d, "data.json"), pp = join(d, "personal.json");
+  const data = readData(p);
+  data.tasks[0].title = "x";
+  data.events = [];
+  const b = readFileSync(pp, "utf8");
+  let n = 0;
+  const rename = (from, to) => { if (to === pp) throw new Error("EBUSY"); n++; renameSync(from, to); };
+  assert.throws(() => saveData(p, data, rename), (e) => e.message.includes(`${p} は書けました`) && e.message.includes(`${pp} は書けませんでした`));
+  assert.equal(JSON.parse(readFileSync(p, "utf8")).tasks[0].title, "x");
+  assert.equal(readFileSync(pp, "utf8"), b);
 });

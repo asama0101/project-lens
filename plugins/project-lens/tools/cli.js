@@ -1,7 +1,8 @@
 // CLI（tools/*.js）で共有する data.json の読み書き。save は検証に通ったときだけ書く。
 import { readFileSync, writeFileSync, renameSync, rmSync, statSync, copyFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, join, dirname } from "node:path";
 import { validate } from "../src/core/schema.js";
+import { splitData, mergeData, emptyPersonal, checkSharedShape, checkPersonalShape } from "../src/core/split.js";
 
 // 読んだ時点のファイルの印（更新日時とサイズ）。save が、読んでから書くまでの間に他が書き換えていないかを確かめる
 const seen = new Map();
@@ -11,7 +12,7 @@ const stamp = (p) => { const s = statSync(p); return `${s.mtimeMs}:${s.size}`; }
 export function readJson(p) {
   let sig = null;
   try { sig = stamp(p); } catch { /* 読めないときは、次の readFileSync が例外を投げる */ }
-  const data = JSON.parse(readFileSync(p, "utf8").replace(/^﻿/, "")); // メモ帳などが付ける BOM は除く（画面は BOM を除いて開くので、CLI も合わせる）
+  const data = JSON.parse(readFileSync(p, "utf8").replace(/^\uFEFF/, "")); // メモ帳などが付ける BOM は除く（画面は BOM を除いて開くので、CLI も合わせる）
   if (sig) seen.set(resolve(p), sig);
   return data;
 }
@@ -31,13 +32,23 @@ export function renameWithRetry(from, to, rename = renameSync, sleep = (ms) => A
  * 直前の版は、先に `<path>.bak.tmp` へコピーしておき、置き換えに成功したあとで `<path>.bak` にする（1 世代。backup: false で省く。置き換えに失敗したときは、`.bak` を変えない）。
  * 置き換えに 3 回失敗したときは、直接上書きせず例外にする（上書きの途中で止まると、ファイルが壊れるため）。rename は、テストで置き換えを失敗させるための差し込み口。
  */
-export function save(path, data, rename = renameSync, { backup = true } = {}) {
-  const { errors } = validate(data);
-  if (errors.length) throw new Error(errors.join(" / "));
-  const key = resolve(path), read = seen.get(key);
-  const assertFresh = () => { if (read && read !== stamp(path)) throw new Error("他で更新されました。読み直して、もう一度実行してください"); };
-  assertFresh();
-  const text = JSON.stringify(data, null, 2) + "\n";
+export function save(path, data, rename = renameSync, { backup = true, validate: check = true } = {}) {
+  if (check) {
+    const { errors } = validate(data);
+    if (errors.length) throw new Error(errors.join(" / "));
+  }
+  assertFresh(path);
+  writeText(path, JSON.stringify(data, null, 2) + "\n", rename, backup);
+}
+
+/** readJson で読んだあとに他が書き換えていたら例外 */
+function assertFresh(path) {
+  const read = seen.get(resolve(path));
+  if (read && read !== stamp(path)) throw new Error("他で更新されました。読み直して、もう一度実行してください");
+}
+
+/** 一時ファイルに書いて置き換える（.bak の扱いは save の説明のとおり）。成功したら、いまの印を覚える */
+function writeText(path, text, rename, backup) {
   const tmp = `${path}.${process.pid}.tmp`, bakTmp = `${path}.bak.tmp`;
   try {
     writeFileSync(tmp, text);
@@ -49,5 +60,49 @@ export function save(path, data, rename = renameSync, { backup = true } = {}) {
   } finally {
     try { rmSync(tmp, { force: true }); rmSync(bakTmp, { force: true }); } catch { /* 消せなくても、データは書けている */ }
   }
-  seen.set(key, stamp(path));
+  seen.set(resolve(path), stamp(path));
+}
+
+/** `--mine <ファイル>` を引数から取り除く（takeData と同じ書き方）。値が無ければ mine は ""（未指定と同じ扱い） */
+export function takeMine(args) {
+  const i = args.indexOf("--mine");
+  if (i < 0) return { mine: null, rest: args };
+  return { mine: args[i + 1] ?? "", rest: args.filter((_, j) => j !== i && j !== i + 1) };
+}
+
+/** 個人ファイルの場所。--mine があればそれ（いまのフォルダからの相対パスも可）、なければ共有ファイルと同じフォルダの personal.json */
+export const personalPathOf = (path, mine) => mine ? resolve(mine) : join(dirname(path), "personal.json");
+
+/** 共有ファイルと個人ファイルを読んで 1 つのデータにする。個人ファイルが無い（ENOENT）ときは空の個人として扱う。共有ファイルが読めなければ例外 */
+export function readData(path, mine) {
+  const shared = readJson(path);
+  checkSharedShape(shared);
+  let personal;
+  try { personal = readJson(personalPathOf(path, mine)); } catch (e) { if (e.code !== "ENOENT") throw e; personal = emptyPersonal(); }
+  checkPersonalShape(personal);
+  return mergeData(shared, personal);
+}
+
+const text = (v) => JSON.stringify(v, null, 2) + "\n";
+const textOf = (p) => { try { return readFileSync(p, "utf8").replace(/^\uFEFF/, ""); } catch (e) { if (e.code === "ENOENT") return null; throw e; } };
+
+/**
+ * 結合したデータを 1 回検証し（エラーなら何も書かない）、共有と個人へ分けて、中身が変わった方だけ書く。
+ * 書く前に、両方の競合を確かめる。書く順は共有 → 個人。2 つ目が失敗しても、1 つ目は戻さず、例外の文言に書けた方・書けなかった方を書く。
+ */
+export function saveData(path, data, rename = renameSync, { backup = true, mine } = {}) {
+  const { errors } = validate(data);
+  if (errors.length) throw new Error(errors.join(" / "));
+  const pPath = personalPathOf(path, mine);
+  assertFresh(path);
+  assertFresh(pPath);
+  const { shared, personal } = splitData(data);
+  const files = [[path, text(shared), textOf(path)], [pPath, text(personal), textOf(pPath) ?? text(emptyPersonal())]]
+    .filter(([, next, now]) => next !== now);
+  files.forEach(([p, t], i) => {
+    try { writeText(p, t, rename, backup); } catch (e) {
+      if (i === 0) throw e;
+      throw new Error(`${files[0][0]} は書けましたが、${p} は書けませんでした（${e.message}）。${p} を確かめて、もう一度実行してください`);
+    }
+  });
 }
