@@ -1060,7 +1060,7 @@ test("ibExamples: 依頼の例は、対象のプロジェクトの終わって�
   assert.match(ibExamples(data, "", "2026-11-01").due, /^X2 /, "対象が空なら、先頭のタスクのプロジェクト");
   assert.match(ibExamples(data, "Y", "2026-11-01").due, /^Y1 /);
   assert.ok(!Object.values(ex).some((s) => /[<>]/.test(s)), "<…> の穴埋めを残さない");
-  assert.match(ibExamples({ tasks: [] }, "", "2026-11-01").due, /^A1 /);
+  assert.match(ibExamples({ tasks: [] }, "", "2026-11-01").due, /^AA-0001 /);
 });
 
 test("renderTaskPop: 件名・メモ・ID はエスケープされ、窓には編集の入力と「リストで開く」「削除」が出る", () => {
