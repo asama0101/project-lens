@@ -21,8 +21,8 @@ function fakeHandle(initial, name) {
 }
 const memIdb = () => { const m = new Map(); return { get: async (k) => m.get(k), set: async (k, v) => { m.set(k, v); } }; };
 
-const S0 = { version: 1, projects: [{ id: "P1" }], tasks: [{ id: "T1", projectId: "P1", title: "a" }], changeLog: [], settings: { labels: [] } };
-const P0 = { version: 1, sessions: [{ taskId: "T1", date: "2026-11-23", start: "09:00", end: "10:00" }], events: [], settings: { workday: { start: "09:00" } } };
+const S0 = { version: 1, projects: [{ id: "AA" }], tasks: [{ id: "AA-0001", projectId: "AA", title: "a" }], changeLog: [], settings: { labels: [] } };
+const P0 = { version: 1, sessions: [{ taskId: "AA-0001", date: "2026-11-23", start: "09:00", end: "10:00" }], events: [], settings: { workday: { start: "09:00" } } };
 
 /** 2 つのファイルを選んだストア。deps を渡すと、記憶（idb）を共有する */
 async function opened(shared = S0, personal = P0) {
@@ -45,9 +45,9 @@ test("(a) 2 つ選ぶと、結合したデータを返し、reload も結合し�
   assert.equal(s.hasFile, true);
   assert.deepEqual(data, mergeData(S0, P0));
   assert.equal(data.tasks[0].sessions.length, 1);
-  sh.text = JSON.stringify({ ...S0, tasks: [...S0.tasks, { id: "T2", projectId: "P1", title: "他" }] }); sh.modified += 5;
+  sh.text = JSON.stringify({ ...S0, tasks: [...S0.tasks, { id: "AA-0002", projectId: "AA", title: "他" }] }); sh.modified += 5;
   const fresh = await s.reload();
-  assert.deepEqual(fresh.tasks.map((t) => t.id), ["T1", "T2"]);
+  assert.deepEqual(fresh.tasks.map((t) => t.id), ["AA-0001", "AA-0002"]);
   assert.equal(fresh.tasks[0].sessions.length, 1);
   assert.equal(fresh.settings.workday.start, "09:00");
   assert.deepEqual(await s.lastFile(), { shared: { name: "data.json" }, personal: { name: "personal.json" } });
@@ -77,14 +77,14 @@ test("(c) 個人ファイルだけが外から更新されていたら、個人�
 
 test("(d) saveMerged: 他が共有ファイルに足したタスクを消さずに、自分の編集を当て直す", async () => {
   const { s, data, sh, pe } = await opened();
-  sh.text = JSON.stringify({ ...S0, tasks: [...S0.tasks, { id: "T2", projectId: "P1", title: "他" }] }); sh.modified += 5;
-  const edit = (d) => ({ ...d, tasks: d.tasks.map((t) => (t.id === "T1" ? { ...t, title: "自分" } : t)) });
+  sh.text = JSON.stringify({ ...S0, tasks: [...S0.tasks, { id: "AA-0002", projectId: "AA", title: "他" }] }); sh.modified += 5;
+  const edit = (d) => ({ ...d, tasks: d.tasks.map((t) => (t.id === "AA-0001" ? { ...t, title: "自分" } : t)) });
   const input = edit(data);
   const r = await s.saveMerged(edit, input);
   assert.equal(r.ok, true);
   assert.notEqual(r.data, input, "当て直したので、別のデータを返す");
-  assert.deepEqual(file(sh).tasks.map((t) => [t.id, t.title]), [["T1", "自分"], ["T2", "他"]]);
-  assert.deepEqual(r.data.tasks.map((t) => [t.id, t.sessions.length]), [["T1", 1], ["T2", 0]]);
+  assert.deepEqual(file(sh).tasks.map((t) => [t.id, t.title]), [["AA-0001", "自分"], ["AA-0002", "他"]]);
+  assert.deepEqual(r.data.tasks.map((t) => [t.id, t.sessions.length]), [["AA-0001", 1], ["AA-0002", 0]]);
   assert.equal(pe.writes, 0, "個人は変わっていないので書かない");
   const again = clone(r.data); again.tasks[1].title = "続けて";
   assert.deepEqual(await s.save(again), { ok: true }, "その後の保存も通る");
@@ -146,7 +146,7 @@ test("(f) 片方の保存が失敗したら ok: false（ファイル名つき）
 });
 
 test("(g) 共有に無いタスクの枠は、保存しても個人ファイルに残る。peek は結合したデータ（orphanSessions を含む）", async () => {
-  const P = { ...P0, sessions: [...P0.sessions, { taskId: "T9", date: "2026-11-24", start: "13:00", end: "14:00" }] };
+  const P = { ...P0, sessions: [...P0.sessions, { taskId: "AA-0009", date: "2026-11-24", start: "13:00", end: "14:00" }] };
   const { s, data, sh, pe } = await opened(S0, P);
   assert.equal(data.orphanSessions.length, 1);
   assert.deepEqual(await s.peek(), data);
@@ -156,52 +156,52 @@ test("(g) 共有に無いタスクの枠は、保存しても個人ファイル�
   const d2 = clone(d); d2.events = [{ id: "E1", title: "予定" }];
   assert.deepEqual(await s.save(d2), { ok: true });
   assert.equal(pe.writes, 1);
-  assert.deepEqual(file(pe).sessions.map((x) => x.taskId).sort(), ["T1", "T9"]);
+  assert.deepEqual(file(pe).sessions.map((x) => x.taskId).sort(), ["AA-0001", "AA-0009"]);
 });
 
 test("片方を当て直して書けたが、もう片方が失敗したとき、次の保存は画面の古いデータで、他の更新を上書きしない", async () => {
   const { s, data, sh, pe } = await opened();
-  sh.text = JSON.stringify({ ...S0, tasks: [...S0.tasks, { id: "T2", projectId: "P1", title: "他" }] }); sh.modified += 5;
+  sh.text = JSON.stringify({ ...S0, tasks: [...S0.tasks, { id: "AA-0002", projectId: "AA", title: "他" }] }); sh.modified += 5;
   pe.failWrite = new Error("disk full");
-  const edit = (d) => ({ ...d, tasks: d.tasks.map((t) => (t.id === "T1" ? { ...t, title: "自分", sessions: t.sessions.map((x) => ({ ...x, end: "11:00" })) } : t)) });
+  const edit = (d) => ({ ...d, tasks: d.tasks.map((t) => (t.id === "AA-0001" ? { ...t, title: "自分", sessions: t.sessions.map((x) => ({ ...x, end: "11:00" })) } : t)) });
   const r = await s.saveMerged(edit, edit(data));
   assert.equal(r.ok, false);
-  assert.deepEqual(file(sh).tasks.map((t) => t.id), ["T1", "T2"], "共有は当て直して書けた");
+  assert.deepEqual(file(sh).tasks.map((t) => t.id), ["AA-0001", "AA-0002"], "共有は当て直して書けた");
   assert.equal((await s.save(edit(data))).reason, "conflict", "当て直さない保存は、古い画面のデータで共有を上書きしない");
   pe.failWrite = null;
-  const again = await s.saveMerged(edit, edit(data)); // 画面は、まだ T2 を知らないデータのまま、同じ編集で保存し直す
+  const again = await s.saveMerged(edit, edit(data)); // 画面は、まだ AA-0002 を知らないデータのまま、同じ編集で保存し直す
   assert.equal(again.ok, true);
-  assert.deepEqual(file(sh).tasks.map((t) => [t.id, t.title]), [["T1", "自分"], ["T2", "他"]], "他の更新が残る");
+  assert.deepEqual(file(sh).tasks.map((t) => [t.id, t.title]), [["AA-0001", "自分"], ["AA-0002", "他"]], "他の更新が残る");
   assert.equal(file(pe).sessions[0].end, "11:00");
-  assert.deepEqual(again.data.tasks.map((t) => t.id), ["T1", "T2"], "画面へ、最新を返す");
+  assert.deepEqual(again.data.tasks.map((t) => t.id), ["AA-0001", "AA-0002"], "画面へ、最新を返す");
   assert.equal(sh.writes, 1, "共有は書き直さない（中身が同じ）");
 });
 
 test("reload: 片方の読み込みが失敗したとき（何も読み直さない）、次の保存は他の更新を消さない", async () => {
   const { s, data, sh, pe } = await opened();
-  sh.text = JSON.stringify({ ...S0, tasks: [...S0.tasks, { id: "EXT", projectId: "P1", title: "他" }] }); sh.modified += 5;
+  sh.text = JSON.stringify({ ...S0, tasks: [...S0.tasks, { id: "EXT", projectId: "AA", title: "他" }] }); sh.modified += 5;
   const getFile = pe.getFile;
   pe.getFile = async () => { pe.getFile = getFile; throw new Error("読めません"); }; // 1 回だけ失敗
   await assert.rejects(s.reload(), /読めません/);
-  const edit = (d) => ({ ...d, tasks: d.tasks.map((t) => (t.id === "T1" ? { ...t, title: "自分" } : t)) });
+  const edit = (d) => ({ ...d, tasks: d.tasks.map((t) => (t.id === "AA-0001" ? { ...t, title: "自分" } : t)) });
   const r = await s.saveMerged(edit, edit(data)); // 画面は、まだ EXT を知らない
   assert.equal(r.ok, true);
-  assert.deepEqual(file(sh).tasks.map((t) => [t.id, t.title]), [["T1", "自分"], ["EXT", "他"]], "EXT が残る");
-  assert.deepEqual(r.data.tasks.map((t) => t.id), ["T1", "EXT"]);
+  assert.deepEqual(file(sh).tasks.map((t) => [t.id, t.title]), [["AA-0001", "自分"], ["EXT", "他"]], "EXT が残る");
+  assert.deepEqual(r.data.tasks.map((t) => t.id), ["AA-0001", "EXT"]);
 });
 
 test("当て直して書いたあと、もう片方の失敗中に、そのファイルがまた外から変わったら conflict で、書かない（編集を 2 回当てない）", async () => {
   const { s, data, sh, pe } = await opened();
-  const ext = (ids) => { sh.text = JSON.stringify({ ...S0, tasks: [...S0.tasks, ...ids.map((id) => ({ id, projectId: "P1", title: "他" }))] }); sh.modified += 5; };
-  ext(["T2"]);
+  const ext = (ids) => { sh.text = JSON.stringify({ ...S0, tasks: [...S0.tasks, ...ids.map((id) => ({ id, projectId: "AA", title: "他" }))] }); sh.modified += 5; };
+  ext(["AA-0002"]);
   pe.failWrite = new Error("disk full");
   const log = (d) => ({ ...d, changeLog: [...d.changeLog, { id: "L1" }], tasks: d.tasks.map((t) => ({ ...t, sessions: t.sessions.map((x) => ({ ...x, end: "11:00" })) })) });
   assert.equal((await s.saveMerged(log, log(data))).ok, false);
   assert.equal(sh.writes, 1);
   const afterFirst = JSON.parse(sh.text);
-  ext(["T2", "T3"]); sh.text = JSON.stringify({ ...JSON.parse(sh.text), changeLog: afterFirst.changeLog }); // 他が、さらに T3 を足した
+  ext(["AA-0002", "AA-0003"]); sh.text = JSON.stringify({ ...JSON.parse(sh.text), changeLog: afterFirst.changeLog }); // 他が、さらに AA-0003 を足した
   pe.failWrite = null;
-  const title = (d) => ({ ...d, tasks: d.tasks.map((t) => (t.id === "T1" ? { ...t, title: "自分" } : t)) });
+  const title = (d) => ({ ...d, tasks: d.tasks.map((t) => (t.id === "AA-0001" ? { ...t, title: "自分" } : t)) });
   const both = (d) => title(log(d));
   const r = await s.saveMerged(both, both(data));
   assert.deepEqual([r.ok, r.reason], [false, "conflict"]);
@@ -222,7 +222,7 @@ test("reopen: 記憶の無い方は開かず、権限の誤った文言を出さ
 
 test("reload: 片方の読み直しが失敗したら、何も変えない（両方の読み込み時点が元のまま。その後の外の更新にも、当て直しで追いつく）", async () => {
   const { s, data, sh, pe } = await opened();
-  const ext = (ids) => { sh.text = JSON.stringify({ ...S0, tasks: [...S0.tasks, ...ids.map((id) => ({ id, projectId: "P1", title: "他" }))] }); sh.modified += 5; };
+  const ext = (ids) => { sh.text = JSON.stringify({ ...S0, tasks: [...S0.tasks, ...ids.map((id) => ({ id, projectId: "AA", title: "他" }))] }); sh.modified += 5; };
   ext(["EXT"]);
   pe.failRead = 1;
   await assert.rejects(s.reload(), /読めません/);
@@ -232,10 +232,10 @@ test("reload: 片方の読み直しが失敗したら、何も変えない（両
   const d = clone(data); d.tasks[0].title = "b";
   const plain = await s.save(d);
   assert.deepEqual([plain.ok, plain.reason], [false, "conflict"], "共有の読み込み時点は元のまま");
-  const edit = (x) => ({ ...x, tasks: x.tasks.map((t) => (t.id === "T1" ? { ...t, title: "自分" } : t)) });
+  const edit = (x) => ({ ...x, tasks: x.tasks.map((t) => (t.id === "AA-0001" ? { ...t, title: "自分" } : t)) });
   const r = await s.saveMerged(edit, edit(data));
   assert.equal(r.ok, true);
-  assert.deepEqual(file(sh).tasks.map((t) => [t.id, t.title]), [["T1", "自分"], ["EXT", "他"], ["EXT2", "他"]]);
+  assert.deepEqual(file(sh).tasks.map((t) => [t.id, t.title]), [["AA-0001", "自分"], ["EXT", "他"], ["EXT2", "他"]]);
 });
 
 test("sync と組み合わせて: 個人の書き込み失敗 → 読み直しの失敗 → 次の編集で、前の編集を 2 回当てない", async () => {
@@ -244,7 +244,7 @@ test("sync と組み合わせて: 個人の書き込み失敗 → 読み直し�
   const sync = createSync({ store: s, getData: () => data, setData: (d) => { data = d; }, render() {}, renderBar() {}, banner() {}, toast() {}, visible: () => true, wantFast: () => false });
   const persist = (e) => { data = e(data); sync.persist(e); return sync.whenIdle(); };
   const E1 = (d) => ({ ...d, changeLog: [...d.changeLog, { id: "L" + (d.changeLog.length + 1) }], tasks: d.tasks.map((t) => ({ ...t, sessions: t.sessions.map((x) => ({ ...x, end: "11:00" })) })) });
-  const E2 = (d) => ({ ...d, tasks: d.tasks.map((t) => (t.id === "T1" ? { ...t, title: "自分" } : t)) });
+  const E2 = (d) => ({ ...d, tasks: d.tasks.map((t) => (t.id === "AA-0001" ? { ...t, title: "自分" } : t)) });
   pe.failWrite = new Error("disk full");
   await persist(E1);
   assert.equal(sync.failed, true);
@@ -264,18 +264,18 @@ test("sync と組み合わせて: 共有は書けて個人が失敗（競合で�
   const sync = createSync({ store: s, getData: () => data, setData: (d) => { data = d; }, render() {}, renderBar() {}, banner() {}, toast() {}, visible: () => true, wantFast: () => false });
   const persist = (e) => { data = e(data); sync.persist(e); return sync.whenIdle(); };
   // 急ぎのタスクの追加のように、ID を編集の中で決める
-  const ADD = (d) => { const id = "T" + (d.tasks.length + 1); return { ...d, tasks: [...d.tasks, { id, projectId: "P1", title: "急ぎ", sessions: [{ id: "S-" + id, date: "2026-11-23", start: "13:00", end: "13:30" }] }] }; };
-  const E2 = (d) => ({ ...d, tasks: d.tasks.map((t) => (t.id === "T1" ? { ...t, title: "x" } : t)) });
+  const ADD = (d) => { const id = "AA-" + String(d.tasks.length + 1).padStart(4, "0"); return { ...d, tasks: [...d.tasks, { id, projectId: "AA", title: "急ぎ", sessions: [{ id: "S-" + id, date: "2026-11-23", start: "13:00", end: "13:30" }] }] }; };
+  const E2 = (d) => ({ ...d, tasks: d.tasks.map((t) => (t.id === "AA-0001" ? { ...t, title: "x" } : t)) });
   pe.failWrite = Object.assign(new Error("locked"), { name: "NoModificationAllowedError" });
   await persist(ADD);
   assert.equal(sync.failed, true);
-  assert.deepEqual(file(sh).tasks.map((t) => t.id), ["T1", "T2"]);
+  assert.deepEqual(file(sh).tasks.map((t) => t.id), ["AA-0001", "AA-0002"]);
   pe.failWrite = null;
   pe.text = JSON.stringify({ ...file(pe), inbox: { watching: "now" } }); pe.modified += 5; // 見張りの印（CLI）が個人ファイルを書いた
   await persist(E2);
   assert.equal(sync.failed, false);
-  assert.deepEqual(file(sh).tasks.map((t) => [t.id, t.title]), [["T1", "x"], ["T2", "急ぎ"]]);
-  assert.deepEqual(file(pe).sessions.map((x) => `${x.taskId}:${x.id ?? ""}`), ["T1:", "T2:S-T2"], "枠は T2 に付く（共有に無い T3 の枠にしない）");
+  assert.deepEqual(file(sh).tasks.map((t) => [t.id, t.title]), [["AA-0001", "x"], ["AA-0002", "急ぎ"]]);
+  assert.deepEqual(file(pe).sessions.map((x) => `${x.taskId}:${x.id ?? ""}`), ["AA-0001:", "AA-0002:S-AA-0002"], "枠は AA-0002 に付く（共有に無い AA-0003 の枠にしない）");
   assert.deepEqual(file(pe).inbox, { watching: "now" }, "見張りの印も残る");
   assert.equal(data.orphanSessions, undefined);
 });

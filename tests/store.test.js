@@ -227,7 +227,7 @@ test("choose: 形の違うファイルは例外で、保存先は前のファイ
   const s = withCheck([a, b]);
   await s.choose();
   await assert.rejects(s.choose(), /形が違います/);
-  const r = await s.save({ ...SHAPE, tasks: [{ id: "T1" }] });
+  const r = await s.save({ ...SHAPE, tasks: [{ id: "AA-0001" }] });
   assert.equal(r.ok, true);
   assert.equal(a.writes, 1, "前のファイルへ保存する");
   assert.equal(b.writes, 0, "形の違うファイルには書かない");

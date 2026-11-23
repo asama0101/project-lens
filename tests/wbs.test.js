@@ -3,14 +3,14 @@ import assert from "node:assert/strict";
 import { wbsKey, planWbsImport, applyWbsImport, getWbsMapping, setWbsMapping } from "../plugins/project-lens/src/import/wbs.js";
 import { validate } from "../plugins/project-lens/src/core/schema.js";
 
-const empty = () => ({ version: 1, settings: {}, projects: [{ id: "A", name: "更改", type: "更改", status: "進行中", start: "2026-10-01", due: "2027-03-31", milestones: [] }], tasks: [], events: [], changeLog: [] });
+const empty = () => ({ version: 1, settings: {}, projects: [{ id: "AA", name: "更改", type: "更改", status: "進行中", start: "2026-10-01", due: "2027-03-31", milestones: [] }], tasks: [], events: [], changeLog: [] });
 const rows = () => [
   { group: "設計", subgroup: "要件", title: "要件定義", due: "2026-11-10" },
   { group: "設計", subgroup: "要件", title: "基本設計", due: "2026-11-20", predecessorKeys: ["設計/要件/要件定義"] },
   { group: "構築", title: "機器設定", due: "2026-12-05", start: "2026-11-25", status: "In Progress" },
 ];
 const TODAY = "2026-10-20";
-const run = (d, r) => applyWbsImport(d, "A", planWbsImport(d, "A", r), { today: TODAY });
+const run = (d, r) => applyWbsImport(d, "AA", planWbsImport(d, "AA", r), { today: TODAY });
 const byKey = (d, k) => d.tasks.find((t) => t.wbsKey === k);
 
 test("wbsKey: 空の段は位置を残し（件名だけの行は件名のまま）、全角スペースと前後の空白を除く", () => {
@@ -20,10 +20,10 @@ test("wbsKey: 空の段は位置を残し（件名だけの行は件名のまま
 
 test("plan: 空のプロジェクトへは全行 add。期限なしの新規行と重複キーと不正な状態は rejected", () => {
   const d = empty();
-  const p = planWbsImport(d, "A", rows());
+  const p = planWbsImport(d, "AA", rows());
   assert.equal(p.add.length, 3);
   assert.deepEqual(p.update, []);
-  const bad = planWbsImport(d, "A", [
+  const bad = planWbsImport(d, "AA", [
     { title: "期限なし" }, { title: "重複", due: "2026-11-01" }, { title: "重複", due: "2026-11-02" },
     { title: "状態", due: "2026-11-01", status: "Waiting" }, { title: "日付", due: "2026/11/01" },
   ]);
@@ -43,11 +43,11 @@ test("plan: importance の列は取り込まない（タスクに important・im
 
 test("plan: 再取り込みで同じ内容は same、期限が変わった行は update(before/after)、WBS に無い既存は missing", () => {
   const d = run(empty(), rows());
-  const again = planWbsImport(d, "A", rows());
+  const again = planWbsImport(d, "AA", rows());
   assert.equal(again.add.length + again.update.length, 0);
   assert.equal(again.same.length, 3);
   const changed = rows(); changed[1].due = "2026-11-25"; changed.pop();
-  const p = planWbsImport(d, "A", changed);
+  const p = planWbsImport(d, "AA", changed);
   assert.equal(p.update.length, 1);
   assert.deepEqual([p.update[0].before.due, p.update[0].after.due], ["2026-11-20", "2026-11-25"]);
   assert.deepEqual(p.missing, [byKey(d, "構築//機器設定").id]);
@@ -56,30 +56,30 @@ test("plan: 再取り込みで同じ内容は same、期限が変わった行は
 test("plan: 画面で直した title は update の対象にならない（title だけ違う行は same）", () => {
   let d = run(empty(), rows());
   d = { ...d, tasks: d.tasks.map((t) => (t.wbsKey === "設計/要件/基本設計" ? { ...t, title: "基本設計（改）" } : t)) };
-  const p = planWbsImport(d, "A", rows());
+  const p = planWbsImport(d, "AA", rows());
   assert.equal(p.update.length, 0);
-  const n = applyWbsImport(d, "A", p, { today: TODAY });
+  const n = applyWbsImport(d, "AA", p, { today: TODAY });
   assert.equal(byKey(n, "設計/要件/基本設計").title, "基本設計（改）");
 });
 
 test("plan: predecessorKeys は既存・今回の行へ解決でき、解決できないキーは warnings", () => {
-  const p = planWbsImport(empty(), "A", [{ title: "X", due: "2026-11-01", predecessorKeys: ["存在しない"] }]);
+  const p = planWbsImport(empty(), "AA", [{ title: "X", due: "2026-11-01", predecessorKeys: ["存在しない"] }]);
   assert.equal(p.warnings.length, 1);
   assert.match(p.warnings[0], /存在しない/);
-  assert.equal(planWbsImport(empty(), "A", rows()).warnings.length, 0);
+  assert.equal(planWbsImport(empty(), "AA", rows()).warnings.length, 0);
 });
 
 test("plan は data を変えない（deep equal）", () => {
   const d = run(empty(), rows());
   const before = JSON.stringify(d);
-  planWbsImport(d, "A", rows());
+  planWbsImport(d, "AA", rows());
   assert.equal(JSON.stringify(d), before);
 });
 
 test("apply: 追加のタスクに group/subgroup/wbsKey/predecessors が入り、ID が重複しない。changeLog に source:'wbs'", () => {
   const d = run(empty(), rows());
   const t = byKey(d, "設計/要件/基本設計");
-  assert.deepEqual([t.group, t.subgroup, t.projectId], ["設計", "要件", "A"]);
+  assert.deepEqual([t.group, t.subgroup, t.projectId], ["設計", "要件", "AA"]);
   assert.deepEqual(t.predecessors, [byKey(d, "設計/要件/要件定義").id]);
   const k = byKey(d, "構築//機器設定");
   assert.deepEqual([k.group, k.subgroup ?? null, k.status, k.start], ["構築", null, "In Progress", "2026-11-25"]);
@@ -113,10 +113,10 @@ test("plan・apply: 前のタスクが循環するときは、循環になる指
     { title: "別", due: "2026-11-04" },
   ];
   const d = empty();
-  const p = planWbsImport(d, "A", r);
+  const p = planWbsImport(d, "AA", r);
   assert.equal(p.rejected.length, 0);
   assert.deepEqual(p.warnings.filter((w) => /循環/.test(w)).map((w) => /^行 \d+「[^」]+」/.exec(w)[0]), ["行 2「A2」", "行 3「自分」"]);
-  const out = applyWbsImport(d, "A", p, { today: TODAY });
+  const out = applyWbsImport(d, "AA", p, { today: TODAY });
   assert.equal(out.tasks.length, 4, "ほかの行は取り込まれる");
   assert.deepEqual(byKey(out, "A1").predecessors, [byKey(out, "A2").id]);
   assert.deepEqual(byKey(out, "A2").predecessors, [], "循環になる A2 → A1 は設定しない");
@@ -127,25 +127,25 @@ test("plan・apply: 前のタスクが循環するときは、循環になる指
 test("plan: 既存のタスクの前のタスクを含めて循環を見る（既存の B → A のとき、A の前のタスクに B は指定できない）", () => {
   const d = empty();
   d.tasks.push(
-    { id: "T1", projectId: "A", title: "a", due: "2026-11-01", status: "To Do", wbsKey: "a", predecessors: [] },
-    { id: "T2", projectId: "A", title: "b", due: "2026-11-02", status: "To Do", wbsKey: "b", predecessors: ["T1"] },
+    { id: "AA-0001", projectId: "AA", title: "a", due: "2026-11-01", status: "To Do", wbsKey: "a", predecessors: [] },
+    { id: "AA-0002", projectId: "AA", title: "b", due: "2026-11-02", status: "To Do", wbsKey: "b", predecessors: ["AA-0001"] },
   );
-  const p = planWbsImport(d, "A", [{ title: "a", predecessorKeys: ["b"] }]);
+  const p = planWbsImport(d, "AA", [{ title: "a", predecessorKeys: ["b"] }]);
   assert.equal(p.update.length, 0);
   assert.match(p.warnings.join("\n"), /循環になるため設定しません/);
 });
 
 test("plan: 弾いた行の既存タスクは、「WBS に無い（missing）」に入れない（WBS には書かれているため）", () => {
   const d = empty();
-  d.tasks.push({ id: "T1", projectId: "A", title: "a", due: "2026-11-01", status: "To Do", wbsKey: "a", predecessors: [] }, { id: "T2", projectId: "A", title: "z", due: "2026-11-01", status: "To Do", wbsKey: "z", predecessors: [] });
-  const p = planWbsImport(d, "A", [{ title: "a", due: "2026-13-40" }]);
+  d.tasks.push({ id: "AA-0001", projectId: "AA", title: "a", due: "2026-11-01", status: "To Do", wbsKey: "a", predecessors: [] }, { id: "AA-0002", projectId: "AA", title: "z", due: "2026-11-01", status: "To Do", wbsKey: "z", predecessors: [] });
+  const p = planWbsImport(d, "AA", [{ title: "a", due: "2026-13-40" }]);
   assert.equal(p.rejected.length, 1);
-  assert.deepEqual(p.missing, ["T2"], "WBS に書かれていない z だけが missing");
+  assert.deepEqual(p.missing, ["AA-0002"], "WBS に書かれていない z だけが missing");
 });
 
 test("plan: 開始日が期限より後の行は、前のタスクとして解決せず、その行を前のタスクにした行に警告を出す（黙って消さない）", () => {
   const d = empty();
-  const p = planWbsImport(d, "A", [
+  const p = planWbsImport(d, "AA", [
     { title: "B", start: "2026-12-01", due: "2026-11-01" },
     { title: "C", due: "2026-11-20", predecessorKeys: ["B"] },
   ]);
@@ -154,13 +154,13 @@ test("plan: 開始日が期限より後の行は、前のタスクとして解�
 });
 
 test("setWbsMapping/getWbsMapping: 保存して読み戻せる。title の列が無ければ例外、他のプロジェクトの対応は変わらない", () => {
-  const d = empty(); d.projects.push({ ...d.projects[0], id: "B" });
-  const a = setWbsMapping(d, "A", { title: "作業名", due: "期限" });
-  assert.deepEqual(getWbsMapping(a, "A"), { title: "作業名", due: "期限" });
-  assert.equal(getWbsMapping(a, "B"), null);
-  const b = setWbsMapping(a, "B", { title: "件名" });
-  assert.deepEqual(getWbsMapping(b, "A"), { title: "作業名", due: "期限" });
-  assert.throws(() => setWbsMapping(d, "A", { due: "期限" }), /件名/);
+  const d = empty(); d.projects.push({ ...d.projects[0], id: "AB" });
+  const a = setWbsMapping(d, "AA", { title: "作業名", due: "期限" });
+  assert.deepEqual(getWbsMapping(a, "AA"), { title: "作業名", due: "期限" });
+  assert.equal(getWbsMapping(a, "AB"), null);
+  const b = setWbsMapping(a, "AB", { title: "件名" });
+  assert.deepEqual(getWbsMapping(b, "AA"), { title: "作業名", due: "期限" });
+  assert.throws(() => setWbsMapping(d, "AA", { due: "期限" }), /件名/);
   assert.throws(() => setWbsMapping(d, "ZZ", { title: "x" }));
   assert.deepEqual(validate(b).errors, []);
 });
@@ -169,18 +169,18 @@ test("setWbsMapping/getWbsMapping: 保存して読み戻せる。title の列が
 test("plan/apply: 既存の行で期限・状態のセルが空（\"\" や null）でも、更新案に出さず、apply も失敗しない", () => {
   const d = run(empty(), rows());
   const blank = rows().map((r) => ({ ...r, due: "", status: null, start: null }));
-  const p = planWbsImport(d, "A", blank);
+  const p = planWbsImport(d, "AA", blank);
   assert.equal(p.update.length, 0);
   assert.equal(p.same.length, 3);
-  assert.deepEqual(applyWbsImport(d, "A", p, { today: TODAY }), d);
+  assert.deepEqual(applyWbsImport(d, "AA", p, { today: TODAY }), d);
 });
 
 test("plan: predecessorKeys が null でも落ちず、『指定なし』として扱う", () => {
   const d = run(empty(), rows());
   const r = rows(); r[1].predecessorKeys = null;
-  const p = planWbsImport(d, "A", r);
+  const p = planWbsImport(d, "AA", r);
   assert.equal(p.update.length, 0);
-  assert.doesNotThrow(() => planWbsImport(empty(), "A", [{ title: "X", due: "2026-11-01", predecessorKeys: null }]));
+  assert.doesNotThrow(() => planWbsImport(empty(), "AA", [{ title: "X", due: "2026-11-01", predecessorKeys: null }]));
 });
 
 // ---- 見送った Minor の修正 ----
@@ -192,7 +192,7 @@ test("wbsKey: 空の段の位置や、名前に含まれる / が違えば、別
 });
 
 test("plan: 空の段の位置だけが違う2行は、重複として弾かれず、別の項目になる", () => {
-  const p = planWbsImport(empty(), "A", [
+  const p = planWbsImport(empty(), "AA", [
     { group: "X", subgroup: "", title: "Y", due: "2026-11-01" }, { group: "", subgroup: "X", title: "Y", due: "2026-11-02" },
   ]);
   assert.equal(p.add.length, 2);
@@ -200,51 +200,51 @@ test("plan: 空の段の位置だけが違う2行は、重複として弾かれ�
 });
 
 test("plan: 前のタスクキーは、空の段を詰めた書き方（構築/機器設定）でも、曖昧でなければ解決できる", () => {
-  const p = planWbsImport(empty(), "A", [
+  const p = planWbsImport(empty(), "AA", [
     { group: "構築", title: "機器設定", due: "2026-12-05" },
     { group: "構築", subgroup: "試験", title: "疎通", due: "2026-12-10", predecessorKeys: ["構築/機器設定"] },
   ]);
   assert.equal(p.warnings.length, 0);
   assert.deepEqual(p.add[1].row.predecessorKeys, ["構築//機器設定"]);
-  const d = applyWbsImport(empty(), "A", p, { today: TODAY });
+  const d = applyWbsImport(empty(), "AA", p, { today: TODAY });
   const pre = d.tasks.find((t) => t.title === "疎通").predecessors;
   assert.deepEqual(pre, [d.tasks.find((t) => t.title === "機器設定").id]);
 });
 
-const legacy = (id, title, extra = {}) => ({ id, projectId: "A", title, due: "2026-11-01", start: null, status: "To Do", memo: "", predecessors: [], waitingOn: null, doneAt: null, sessions: [], ...extra });
+const legacy = (id, title, extra = {}) => ({ id, projectId: "AA", title, due: "2026-11-01", start: null, status: "To Do", memo: "", predecessors: [], waitingOn: null, doneAt: null, sessions: [], ...extra });
 
 test("plan/apply: wbsKey の無い手入力のタスクと同じ件名の行は、追加ではなく更新（wbsKey を付ける）として照合する", () => {
-  const d = empty(); d.tasks.push(legacy("A1", "要件定義"));
-  const p = planWbsImport(d, "A", rows());
+  const d = empty(); d.tasks.push(legacy("AA-0001", "要件定義"));
+  const p = planWbsImport(d, "AA", rows());
   assert.equal(p.add.length, 2);
   assert.equal(p.update.length, 1);
-  assert.equal(p.update[0].taskId, "A1");
+  assert.equal(p.update[0].taskId, "AA-0001");
   assert.equal(p.update[0].after.wbsKey, "設計/要件/要件定義");
   assert.equal(p.update[0].after.due, "2026-11-10");
-  const n = applyWbsImport(d, "A", p, { today: TODAY });
+  const n = applyWbsImport(d, "AA", p, { today: TODAY });
   assert.equal(n.tasks.length, 3);
-  const a1 = n.tasks.find((t) => t.id === "A1");
+  const a1 = n.tasks.find((t) => t.id === "AA-0001");
   assert.deepEqual([a1.wbsKey, a1.group, a1.title], ["設計/要件/要件定義", "設計", "要件定義"]);
-  const again = planWbsImport(n, "A", rows());
+  const again = planWbsImport(n, "AA", rows());
   assert.equal(again.add.length + again.update.length, 0);
-  assert.equal(n.tasks.find((t) => t.title === "基本設計").predecessors[0], "A1", "前のタスクも手入力のタスクへ解決される");
+  assert.equal(n.tasks.find((t) => t.title === "基本設計").predecessors[0], "AA-0001", "前のタスクも手入力のタスクへ解決される");
 });
 
 test("plan: 同じ件名の手入力のタスクが複数あるときは曖昧なので、照合せず追加にする", () => {
-  const d = empty(); d.tasks.push(legacy("A1", "要件定義"), legacy("A2", "要件定義"));
-  const p = planWbsImport(d, "A", rows());
+  const d = empty(); d.tasks.push(legacy("AA-0001", "要件定義"), legacy("AA-0002", "要件定義"));
+  const p = planWbsImport(d, "AA", rows());
   assert.equal(p.add.length, 3);
   assert.equal(p.update.length, 0);
 });
 
 test("applyWbsImport: 取り込み記録（ファイル名・日付・件数）を、プロジェクトごとに最後の 1 件だけ書く。変更がなければ書かない", () => {
   const d0 = empty();
-  const d1 = applyWbsImport(d0, "A", planWbsImport(d0, "A", rows()), { today: TODAY, source: "plan.xlsx" });
-  assert.deepEqual(d1.settings.wbsImports.A, { file: "plan.xlsx", at: TODAY, added: 3, updated: 0 });
+  const d1 = applyWbsImport(d0, "AA", planWbsImport(d0, "AA", rows()), { today: TODAY, source: "plan.xlsx" });
+  assert.deepEqual(d1.settings.wbsImports.AA, { file: "plan.xlsx", at: TODAY, added: 3, updated: 0 });
   const changed = rows().map((r, i) => (i === 0 ? { ...r, due: "2026-11-11" } : r));
-  const d2 = applyWbsImport(d1, "A", planWbsImport(d1, "A", changed), { today: "2026-10-25" });
-  assert.deepEqual(d2.settings.wbsImports.A, { file: null, at: "2026-10-25", added: 0, updated: 1 }, "source なしは null で、前の記録を置き換える");
-  const same = applyWbsImport(d2, "A", planWbsImport(d2, "A", changed), { today: "2026-10-30", source: "x.xlsx" });
+  const d2 = applyWbsImport(d1, "AA", planWbsImport(d1, "AA", changed), { today: "2026-10-25" });
+  assert.deepEqual(d2.settings.wbsImports.AA, { file: null, at: "2026-10-25", added: 0, updated: 1 }, "source なしは null で、前の記録を置き換える");
+  const same = applyWbsImport(d2, "AA", planWbsImport(d2, "AA", changed), { today: "2026-10-30", source: "x.xlsx" });
   assert.equal(same, d2, "変更がなければ、データも記録も変えない");
   assert.equal(d0.settings.wbsImports, undefined, "元のデータは変わらない");
 });
@@ -260,11 +260,11 @@ test("apply: 再取り込みで、既存タスクのチェックリストは消�
 test("planWbsImport: 開始日が期限より後の行は、新規でも更新でも弾く（取り込み全体は止めない）", () => {
   const d = empty();
   const bad = { title: "逆転", start: "2026-12-01", due: "2026-11-15" };
-  const p = planWbsImport(d, "A", [bad, { title: "正常", due: "2026-11-20" }]);
+  const p = planWbsImport(d, "AA", [bad, { title: "正常", due: "2026-11-20" }]);
   assert.deepEqual(p.rejected.map((r) => [r.key, r.reason]), [["逆転", "開始日が期限より後です"]]);
   assert.equal(p.add.length, 1);
   const d2 = run(d, [{ title: "既存", start: "2026-11-01", due: "2026-11-30" }]);
-  const p2 = planWbsImport(d2, "A", [{ title: "既存", due: "2026-10-15" }]); // 既存の開始日 11/01 より前の期限
+  const p2 = planWbsImport(d2, "AA", [{ title: "既存", due: "2026-10-15" }]); // 既存の開始日 11/01 より前の期限
   assert.equal(p2.rejected.length, 1);
   assert.equal(p2.update.length, 0);
   assert.deepEqual(validate(run(d, [bad, { title: "正常", due: "2026-11-20" }])).errors, []);
@@ -273,27 +273,27 @@ test("planWbsImport: 開始日が期限より後の行は、新規でも更新�
 // ---- 前のタスクの循環の検出: 別プロジェクトの同じキー・行の順序 ----
 const proj = (id) => ({ id, name: id, type: "更改", status: "進行中", start: "2026-10-01", due: "2027-03-31", milestones: [] });
 const keyed = (id, projectId, key, predecessors = []) => ({ id, projectId, title: key, due: "2026-11-10", start: null, status: "To Do", memo: "", predecessors, waitingOn: null, doneAt: null, checklist: [], sessions: [], wbsKey: key });
-const two = (tasks) => ({ ...empty(), projects: [proj("A"), proj("B")], tasks });
+const two = (tasks) => ({ ...empty(), projects: [proj("AA"), proj("AB")], tasks });
 
 test("plan: 別のプロジェクトの同じ wbsKey の関係は、循環の判定に混ぜない（同じ雛形の WBS を複数のプロジェクトで使える）", () => {
-  const d = two([keyed("A1", "A", "設計"), keyed("A2", "A", "施工"), keyed("B0", "B", "施工"), keyed("B1", "B", "設計", ["B0"])]);
-  const p = planWbsImport(d, "A", [{ title: "設計", due: "2026-11-10" }, { title: "施工", due: "2026-11-10", predecessorKeys: ["設計"] }]);
+  const d = two([keyed("AA-0001", "AA", "設計"), keyed("AA-0002", "AA", "施工"), keyed("AB-0001", "AB", "施工"), keyed("AB-0002", "AB", "設計", ["AB-0001"])]);
+  const p = planWbsImport(d, "AA", [{ title: "設計", due: "2026-11-10" }, { title: "施工", due: "2026-11-10", predecessorKeys: ["設計"] }]);
   assert.deepEqual(p.warnings, [], "A の「施工 → 設計」は、B の「設計 → 施工」と無関係");
   assert.equal(p.update.length, 1);
 });
 
 test("plan: 同じ名前のキーが別のプロジェクトにあっても、このプロジェクトの本物の循環は見逃さない", () => {
-  const d = two([keyed("A1", "A", "設計", ["A2"]), keyed("A2", "A", "施工"), keyed("B1", "B", "設計"), keyed("B2", "B", "施工")]);
-  const p = planWbsImport(d, "A", [{ title: "施工", predecessorKeys: ["設計"] }]);
+  const d = two([keyed("AA-0001", "AA", "設計", ["AA-0002"]), keyed("AA-0002", "AA", "施工"), keyed("AB-0001", "AB", "設計"), keyed("AB-0002", "AB", "施工")]);
+  const p = planWbsImport(d, "AA", [{ title: "施工", predecessorKeys: ["設計"] }]);
   assert.match(p.warnings.join("\n"), /循環になるため設定しません/);
-  assert.doesNotThrow(() => applyWbsImport(d, "A", p, { today: TODAY }), "apply は例外にならない");
+  assert.doesNotThrow(() => applyWbsImport(d, "AA", p, { today: TODAY }), "apply は例外にならない");
 });
 
 test("plan: 行の順序で、結果は変わらない（先の行の判定に、あとの行が置き換える古い関係を残さない）", () => {
-  const d = two([keyed("A1", "A", "A", ["A2"]), keyed("A2", "A", "B")]); // 既存: A の前のタスクは B
+  const d = two([keyed("AA-0001", "AA", "A", ["AA-0002"]), keyed("AA-0002", "AA", "B")]); // 既存: A の前のタスクは B
   const flip = [{ title: "B", predecessorKeys: ["A"] }, { title: "A", predecessorKeys: [] }]; // WBS: B の前が A、A の前は無し
   for (const rows of [flip, [...flip].reverse()]) {
-    const p = planWbsImport(d, "A", rows);
+    const p = planWbsImport(d, "AA", rows);
     assert.deepEqual(p.warnings, [], JSON.stringify(rows));
     assert.equal(p.update.length, 2);
   }

@@ -9,8 +9,8 @@ const TODAY = "2026-10-20";
 const range = (start, days) => ({ start, end: addDays(start, days - 1) });
 const mk = (tasks, extra = {}) => ({
   settings: { waitingLongDays: 7 },
-  projects: [{ id: "P", name: "p", status: "進行中", start: "2026-10-01", due: "2026-12-31", milestones: [], ...extra }],
-  tasks: tasks.map((t) => ({ projectId: "P", status: "To Do", start: null, predecessors: [], sessions: [], waitingOn: null, doneAt: null, ...t })),
+  projects: [{ id: "AA", name: "p", status: "進行中", start: "2026-10-01", due: "2026-12-31", milestones: [], ...extra }],
+  tasks: tasks.map((t) => ({ projectId: "AA", status: "To Do", start: null, predecessors: [], sessions: [], waitingOn: null, doneAt: null, ...t })),
   events: [], changeLog: [],
 });
 
@@ -47,49 +47,49 @@ test("timeTicks: 日・週・月・四半期", () => {
 
 test("taskStart: start があればそれ／なければ前のタスクの期限の最大値／それもなければ due", () => {
   const d = mk([
-    { id: "T1", due: "2026-10-10" }, { id: "T2", due: "2026-10-14" },
-    { id: "T3", due: "2026-10-30", start: "2026-10-01", predecessors: ["T1", "T2"] },
-    { id: "T4", due: "2026-10-30", start: "2026-10-05" }, { id: "T5", due: "2026-10-30" },
-    { id: "T6", due: "2026-10-30", predecessors: ["T1", "T2"] },
+    { id: "AA-0001", due: "2026-10-10" }, { id: "AA-0002", due: "2026-10-14" },
+    { id: "AA-0003", due: "2026-10-30", start: "2026-10-01", predecessors: ["AA-0001", "AA-0002"] },
+    { id: "AA-0004", due: "2026-10-30", start: "2026-10-05" }, { id: "AA-0005", due: "2026-10-30" },
+    { id: "AA-0006", due: "2026-10-30", predecessors: ["AA-0001", "AA-0002"] },
   ]);
-  assert.equal(taskStart(d, "T3"), "2026-10-01"); // start を指定したら、前のタスクがあってもその日
-  assert.equal(taskStart(d, "T6"), "2026-10-14");
-  assert.equal(taskStart(d, "T4"), "2026-10-05");
-  assert.equal(taskStart(d, "T5"), "2026-10-30");
+  assert.equal(taskStart(d, "AA-0003"), "2026-10-01"); // start を指定したら、前のタスクがあってもその日
+  assert.equal(taskStart(d, "AA-0006"), "2026-10-14");
+  assert.equal(taskStart(d, "AA-0004"), "2026-10-05");
+  assert.equal(taskStart(d, "AA-0005"), "2026-10-30");
 });
 
 test("ganttRows: 行・point・actual・マイルストーン", () => {
   const d = load();
-  const g = ganttRows(d, "A", TODAY);
-  assert.equal(g.rows.length, d.tasks.filter((t) => t.projectId === "A").length);
-  const a2 = g.rows.find((r) => r.taskId === "A2");
+  const g = ganttRows(d, "AA", TODAY);
+  assert.equal(g.rows.length, d.tasks.filter((t) => t.projectId === "AA").length);
+  const a2 = g.rows.find((r) => r.taskId === "AA-0002");
   assert.deepEqual([a2.start, a2.end, a2.point], ["2026-07-31", "2026-08-20", false]);
-  const a5 = g.rows.find((r) => r.taskId === "A5");
+  const a5 = g.rows.find((r) => r.taskId === "AA-0005");
   assert.deepEqual(a5.actual, { start: "2026-10-14", end: TODAY }); // 未完了 → 今日まで
-  assert.equal(g.rows.find((r) => r.taskId === "A4").actual, null);
+  assert.equal(g.rows.find((r) => r.taskId === "AA-0004").actual, null);
   assert.deepEqual(g.milestones.map((m) => m.name), ["機器発注", "本番切替"]);
   assert.ok(g.range.start <= "2026-06-01" && g.range.end >= "2027-03-31");
   // 点は、開始も前のタスクもない（期限だけの）タスクに限る。開始が期限以後のタスク・前のタスクがあるタスクは、期限の 1 日分の棒
-  const rowOf = (t) => ganttRows(mk([{ id: "T0", due: "2026-10-01" }, t]), "P", TODAY).rows.find((r) => r.taskId === t.id);
-  assert.deepEqual([rowOf({ id: "T1", due: "2026-10-05" })].map((r) => [r.start, r.end, r.point]), [["2026-10-05", "2026-10-05", true]]);
-  assert.deepEqual([rowOf({ id: "T1", due: "2026-10-05", start: "2026-10-05" })].map((r) => [r.start, r.end, r.point]), [["2026-10-05", "2026-10-05", false]]);
-  assert.deepEqual([rowOf({ id: "T1", due: "2026-10-05", start: "2026-10-20" })].map((r) => [r.start, r.end, r.point]), [["2026-10-05", "2026-10-05", false]]);
-  assert.deepEqual([rowOf({ id: "T1", due: "2026-10-01", predecessors: ["T0"] })].map((r) => [r.start, r.end, r.point]), [["2026-10-01", "2026-10-01", false]], "前のタスクの期限と同じ日");
-  assert.deepEqual(ganttRows(mk([]), "P", TODAY).rows, []);
+  const rowOf = (t) => ganttRows(mk([{ id: "AA-0009", due: "2026-10-01" }, t]), "AA", TODAY).rows.find((r) => r.taskId === t.id);
+  assert.deepEqual([rowOf({ id: "AA-0001", due: "2026-10-05" })].map((r) => [r.start, r.end, r.point]), [["2026-10-05", "2026-10-05", true]]);
+  assert.deepEqual([rowOf({ id: "AA-0001", due: "2026-10-05", start: "2026-10-05" })].map((r) => [r.start, r.end, r.point]), [["2026-10-05", "2026-10-05", false]]);
+  assert.deepEqual([rowOf({ id: "AA-0001", due: "2026-10-05", start: "2026-10-20" })].map((r) => [r.start, r.end, r.point]), [["2026-10-05", "2026-10-05", false]]);
+  assert.deepEqual([rowOf({ id: "AA-0001", due: "2026-10-01", predecessors: ["AA-0009"] })].map((r) => [r.start, r.end, r.point]), [["2026-10-01", "2026-10-01", false]], "前のタスクの期限と同じ日");
+  assert.deepEqual(ganttRows(mk([]), "AA", TODAY).rows, []);
 });
 
 test("ganttRows: 完了したタスクの実績は完了日まで", () => {
-  const d = mk([{ id: "T1", due: "2026-10-10", status: "Done", doneAt: "2026-10-09",
+  const d = mk([{ id: "AA-0001", due: "2026-10-10", status: "Done", doneAt: "2026-10-09",
     sessions: [{ id: "S1", date: "2026-10-05", start: "10:00", end: "11:00", kind: "actual" }] }]);
-  assert.deepEqual(ganttRows(d, "P", TODAY).rows[0].actual, { start: "2026-10-05", end: "2026-10-09" });
+  assert.deepEqual(ganttRows(d, "AA", TODAY).rows[0].actual, { start: "2026-10-05", end: "2026-10-09" });
 });
 
 test("projectProgress: Cancelled を除いた Done の割合", () => {
   const d = mk([{ id: "1", status: "Done" }, { id: "2", status: "Cancelled" }, { id: "3", status: "In Progress" }, { id: "4" }]);
-  const p = projectProgress(d, "P");
+  const p = projectProgress(d, "AA");
   assert.deepEqual([p.done, p.total], [1, 3]);
   assert.equal(p.rate, 1 / 3);
-  assert.equal(projectProgress(mk([]), "P").rate, 0);
+  assert.equal(projectProgress(mk([]), "AA").rate, 0);
 });
 
 test("taskFlags / projectFlags", () => {
@@ -99,9 +99,9 @@ test("taskFlags / projectFlags", () => {
   assert.ok(taskFlags({ status: "Waiting", due: "2027-01-01", waitingOn: { party: "x", since: "2026-10-13" } }, TODAY, s).includes("waiting-long"));
   assert.ok(!taskFlags({ status: "Waiting", due: "2027-01-01", waitingOn: { party: "x", since: "2026-10-14" } }, TODAY, s).includes("waiting-long"));
   const d = load();
-  assert.deepEqual(projectFlags(d, "A", TODAY).sort(), ["overdue-tasks", "waiting-long"]);
+  assert.deepEqual(projectFlags(d, "AA", TODAY).sort(), ["overdue-tasks", "waiting-long"]);
   const late = mk([{ id: "1" }], { due: "2026-10-01" });
-  assert.ok(projectFlags(late, "P", TODAY).includes("past-due"));
+  assert.ok(projectFlags(late, "AA", TODAY).includes("past-due"));
 });
 
 test("週目盛り: 年をまたぐ週に yearStart が付く（M7）", () => {
@@ -120,12 +120,12 @@ test("timeTicks: 年の打ち間違いで範囲が数百年になっても、日
   assert.equal(timeTicks({ start: "2026-01-01", end: "2026-01-31" }, "day").length, 31, "通常の範囲は変わらない");
 });
 
-test("プロジェクトなしのタスク（X1）は、プロジェクトの進捗・旗の数に入らない。ganttRows は projectId が null でも動く", () => {
+test("プロジェクトなしのタスク（ZZ-0001）は、プロジェクトの進捗・旗の数に入らない。ganttRows は projectId が null でも動く", () => {
   const d = load();
-  assert.ok(d.tasks.some((t) => t.id === "X1" && t.projectId === null));
-  assert.equal(projectProgress(d, "A").total, d.tasks.filter((t) => t.projectId === "A" && t.status !== "Cancelled").length);
-  for (const p of d.projects) assert.ok(!ganttRows(d, p.id, TODAY).rows.some((r) => r.taskId === "X1"));
+  assert.ok(d.tasks.some((t) => t.id === "ZZ-0001" && t.projectId === null));
+  assert.equal(projectProgress(d, "AA").total, d.tasks.filter((t) => t.projectId === "AA" && t.status !== "Cancelled").length);
+  for (const p of d.projects) assert.ok(!ganttRows(d, p.id, TODAY).rows.some((r) => r.taskId === "ZZ-0001"));
   const g = ganttRows(d, null, TODAY);
-  assert.deepEqual(g.rows.map((r) => r.taskId), ["X1"]);
+  assert.deepEqual(g.rows.map((r) => r.taskId), ["ZZ-0001"]);
   assert.deepEqual(g.milestones, []);
 });

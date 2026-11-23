@@ -24,9 +24,9 @@ const fakeEl = (attrs = {}) => { const c = new Set(); return { dataset: attrs, c
 const fakeBody = (bars, lines = []) => { const b = fakeEl(); b.querySelectorAll = (sel) => (sel === "[data-gt]" ? bars : sel === ".gdep" ? lines : [...bars, ...lines]); return b; };
 
 test("focusDeps: 前のタスクも次のタスクもないバーでも、マウスを置いたバー自身は光る。ほかは薄くしない", () => {
-  const solo = fakeEl({ gt: "S1" }), other = fakeEl({ gt: "S2" });
+  const solo = fakeEl({ gt: "AA-0001" }), other = fakeEl({ gt: "AA-0002" });
   const body = fakeBody([solo, other]);
-  focusDeps(body, "S1");
+  focusDeps(body, "AA-0001");
   assert.ok(solo.classList.has("dep-self"));
   assert.ok(!body.classList.has("dep-focus"), "全体を薄くしない");
   assert.ok(!other.classList.has("dep-self"));
@@ -35,8 +35,8 @@ test("focusDeps: 前のタスクも次のタスクもないバーでも、マウ
 });
 
 test("focusDeps: 前のタスク・次のタスクがあるバーは、自身・前・次を色分けして、ほかを薄くする", () => {
-  const a = fakeEl({ gt: "A1" }), b = fakeEl({ gt: "A2", pre: "A1" }), c = fakeEl({ gt: "A3", pre: "A2" });
+  const a = fakeEl({ gt: "AA-0001" }), b = fakeEl({ gt: "AA-0002", pre: "AA-0001" }), c = fakeEl({ gt: "AA-0003", pre: "AA-0002" });
   const body = fakeBody([a, b, c]);
-  focusDeps(body, "A2");
+  focusDeps(body, "AA-0002");
   assert.ok(b.classList.has("dep-self") && a.classList.has("dep-pre") && c.classList.has("dep-next") && body.classList.has("dep-focus"));
 });

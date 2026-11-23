@@ -8,7 +8,7 @@ import { updateTask } from "../plugins/project-lens/src/ui/edit.js";
 const TODAY = "2026-10-21";
 const load = () => JSON.parse(readFileSync(new URL("../plugins/project-lens/data/sample.json", import.meta.url), "utf8"));
 const waiting = (expected) => ({
-  tasks: [{ id: "X1", projectId: "X", title: "t", due: "2026-10-26", status: "Waiting", predecessors: [],
+  tasks: [{ id: "AA-0001", projectId: "AA", title: "t", due: "2026-10-26", status: "Waiting", predecessors: [],
     waitingOn: { party: "ベンダーX", since: "2026-10-10", ...(expected ? { expected } : {}) } }],
 });
 const rank = (expected) => rankTasks(waiting(expected), TODAY)[0];

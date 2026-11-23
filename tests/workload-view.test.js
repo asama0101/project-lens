@@ -12,9 +12,9 @@ const task = (id, projectId, sessions = []) => ({ id, projectId, title: id, due:
 const mtg = (id, date, start, end, extra = {}) => ({ id, date, start, end, title: id, source: "manual", skip: false, externalId: null, ...extra });
 const proj = (id, name) => ({ id, name, type: "更改", status: "進行中", start: "2026-09-01", due: "2026-12-31", milestones: [] });
 const mk = () => ({
-  version: 1, settings: {}, projects: [proj("A", "拠点A"), proj("B", "拠点B")],
-  tasks: [task("A1", "A", [sess("S1", D, "09:00", "10:30"), sess("S9", D, "16:00", "17:00", "planned")]), task("B1", "B", [sess("S2", D, "13:00", "14:00")])],
-  events: [mtg("m1", D, "10:30", "11:30", { projectId: "A", confirmed: true }), mtg("m2", D, "14:00", "14:30", { confirmed: true }), mtg("m3", D, "15:00", "16:00", { projectId: "B" })],
+  version: 1, settings: {}, projects: [proj("AA", "拠点A"), proj("AB", "拠点B")],
+  tasks: [task("AA-0001", "AA", [sess("S1", D, "09:00", "10:30"), sess("S9", D, "16:00", "17:00", "planned")]), task("AB-0001", "AB", [sess("S2", D, "13:00", "14:00")])],
+  events: [mtg("m1", D, "10:30", "11:30", { projectId: "AA", confirmed: true }), mtg("m2", D, "14:00", "14:30", { confirmed: true }), mtg("m3", D, "15:00", "16:00", { projectId: "AB" })],
   changeLog: [],
 });
 const NOW = { date: D, time: "17:30" };
@@ -42,7 +42,7 @@ test("renderWorkload: 未設定の会議の行、未確認の注記は該当す�
 test("renderWorkload: プロジェクトなしのタスクの実績は「プロジェクト未設定」の行のタスク列に出る", () => {
   const d = mk();
   d.events = [];
-  d.tasks.push(task("X1", null, [sess("S7", D, "16:30", "17:00")]));
+  d.tasks.push(task("ZZ-0001", null, [sess("S7", D, "16:30", "17:00")]));
   const html = wl(d);
   assert.match(html, /<td>プロジェクト未設定<\/td><td class="num mono">0\.5h<\/td>/);
   assert.ok(!html.includes("プロジェクト未設定の会議"));
@@ -72,11 +72,11 @@ test("renderWorkload: 内訳の横棒は合計に比例し、操作用の属性�
 test("プロジェクトの見出しが『稼働 …（タスク …・会議 …）』になる（リストとガント）", () => {
   const d = JSON.parse(readFileSync(new URL("../plugins/project-lens/data/sample.json", import.meta.url), "utf8"));
   d.events.find((e) => e.id === "m2").confirmed = true; // A に付いた会議 1h を確認済みにする
-  const h = projectHours(d, "A");
+  const h = projectHours(d, "AA");
   const want = `稼働 ${(h.task + h.meeting).toFixed(1)}h（タスク ${h.task.toFixed(1)}h・会議 ${h.meeting.toFixed(1)}h）`;
   assert.ok(h.meeting >= 1, "前提: 会議の時間が入っている");
-  assert.ok(renderProjects(d, D, { filter: "A", view: "list" }).includes(want), "リスト");
-  assert.ok(renderGantt(d, ["A"], D, {}).includes(want), "ガント");
+  assert.ok(renderProjects(d, D, { filter: "AA", view: "list" }).includes(want), "リスト");
+  assert.ok(renderGantt(d, ["AA"], D, {}).includes(want), "ガント");
 });
 
 import { shiftWorkloadDate } from "../plugins/project-lens/src/ui/views/workload.js";

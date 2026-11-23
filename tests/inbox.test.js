@@ -8,7 +8,7 @@ import {
 
 const NOW = "2026-10-21T10:00:00.000Z";
 const later = (s) => new Date(Date.parse(NOW) + s * 1000).toISOString();
-const base = () => ({ projects: [{ id: "A" }], tasks: [], events: [], changeLog: [] });
+const base = () => ({ projects: [{ id: "AA" }], tasks: [], events: [], changeLog: [] });
 const withReq = (status, extra = {}) => ({ ...base(), inbox: { watching: null, requests: [{ id: "R1", at: NOW, projectId: null, status, thread: [{ role: "user", at: NOW, text: "依頼" }], proposal: null, result: null, ...extra }] } });
 const status = (d, id = "R1") => getRequest(d, id).status;
 
@@ -18,10 +18,10 @@ test("定数: 履歴 20 件・1 メッセージ 4000 文字・見ている印 90
 
 test("submitRequest: R1・pending・thread 1 件。連番は履歴の最大＋1。元のデータは変えない", () => {
   const d0 = base();
-  const d1 = submitRequest(d0, { text: "  A3 が 5 日遅れた  ", projectId: "A", now: NOW });
+  const d1 = submitRequest(d0, { text: "  AA-0003 が 5 日遅れた  ", projectId: "AA", now: NOW });
   const r = getRequest(d1, "R1");
-  assert.deepEqual([r.status, r.projectId, r.at, r.proposal, r.result], ["pending", "A", NOW, null, null]);
-  assert.deepEqual(r.thread, [{ role: "user", at: NOW, text: "A3 が 5 日遅れた" }]);
+  assert.deepEqual([r.status, r.projectId, r.at, r.proposal, r.result], ["pending", "AA", NOW, null, null]);
+  assert.deepEqual(r.thread, [{ role: "user", at: NOW, text: "AA-0003 が 5 日遅れた" }]);
   assert.equal(getRequest(submitRequest(d1, { text: "2 件目", now: NOW }), "R2").projectId, null);
   assert.equal(d0.inbox, undefined);
   const gap = { ...base(), inbox: { watching: null, requests: [{ ...r, id: "R7", status: "applied" }] } };
@@ -79,9 +79,9 @@ test("askQuestion → replyToRequest: 質問が thread に入り、返信で pen
   let d = askQuestion(withReq("working"), "R1", "どのプロジェクトですか", later(1));
   assert.equal(status(d), "question");
   assert.equal(getRequest(d, "R1").thread.at(-1).text, "どのプロジェクトですか");
-  d = replyToRequest(d, "R1", "A です", later(2));
-  assert.deepEqual([status(d), getRequest(d, "R1").thread.at(-1)], ["pending", { role: "user", at: later(2), text: "A です" }]);
-  const p = replyToRequest(withReq("proposed", { proposal: { summary: "s", ops: [] } }), "R1", "A5 は 5 日に", NOW);
+  d = replyToRequest(d, "R1", "AA です", later(2));
+  assert.deepEqual([status(d), getRequest(d, "R1").thread.at(-1)], ["pending", { role: "user", at: later(2), text: "AA です" }]);
+  const p = replyToRequest(withReq("proposed", { proposal: { summary: "s", ops: [] } }), "R1", "AA-0005 は 5 日に", NOW);
   assert.equal(getRequest(p, "R1").proposal, null);
   assert.throws(() => replyToRequest(withReq("applied"), "R1", "x", NOW), /applied/);
 });
@@ -114,7 +114,7 @@ test("isWatching: 89 秒前は true、91 秒前・null・印なしは false。to
 });
 
 test("submitRequest: working を指定すると、working・claimedAt つきで作る。そのまま提案まで進める", () => {
-  const d = submitRequest(base(), { text: "文章の要約", projectId: "A", now: NOW, working: true });
+  const d = submitRequest(base(), { text: "文章の要約", projectId: "AA", now: NOW, working: true });
   const r = getRequest(d, "R1");
   assert.equal(r.status, "working");
   assert.equal(r.claimedAt, NOW);
