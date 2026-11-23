@@ -1838,7 +1838,7 @@ return { MAX_REQUESTS, MAX_TEXT, WATCH_FRESH_MS, getRequest, pruneRequests, subm
 })();
 
 /* src/core/split.js */
-const { PERSONAL_SETTINGS, SHARED_SETTINGS, splitData, mergeData, removeOrphanSessions, emptyPersonal, checkSharedShape, checkPersonalShape } = (() => {
+const { PERSONAL_SETTINGS, SHARED_SETTINGS, splitData, mergeData, removeOrphanSessions, emptyPersonal, checkSharedShape, checkPersonalShape, exportFiles, dataFromTexts } = (() => {
 // 1 つのデータ（メモリ上の形）と、共有ファイル（data.json）・個人ファイル（personal.json）の間の変換。純関数。
 // 入力は変えず、新しいオブジェクトを返す。
 
@@ -1899,7 +1899,26 @@ const checkShape = (x, name, keys) => {
 const checkSharedShape = (x) => checkShape(x, "data.json", ["projects", "tasks", "changeLog"]);
 const checkPersonalShape = (x) => checkShape(x, "personal.json", ["sessions", "events"]);
 
-return { PERSONAL_SETTINGS, SHARED_SETTINGS, splitData, mergeData, removeOrphanSessions, emptyPersonal, checkSharedShape, checkPersonalShape };
+/** 直接保存できないブラウザの「JSON を書き出す」: ダウンロードする 2 つのファイル（名前は固定） */
+function exportFiles(data) {
+  const { shared, personal } = splitData(data);
+  return [["data.json", shared], ["personal.json", personal]].map(([name, obj]) => ({ name, text: JSON.stringify(obj, null, 2) + "\n" }));
+}
+
+/** 直接開けないブラウザで選んだファイルの中身（文字列）から、共有・個人を形で見分けて 1 つのデータにする。ちょうど共有 1・個人 1 でなければ例外 */
+function dataFromTexts(texts) {
+  const shared = [], personal = [];
+  for (const t of texts) {
+    const x = JSON.parse(t);
+    if (Array.isArray(x?.projects)) shared.push(x); else personal.push(x);
+  }
+  if (shared.length !== 1 || personal.length !== 1) throw new Error("共有ファイル（data.json）と個人ファイル（personal.json）を 1 つずつ選んでください");
+  checkSharedShape(shared[0]);
+  checkPersonalShape(personal[0]);
+  return mergeData(shared[0], personal[0]);
+}
+
+return { PERSONAL_SETTINGS, SHARED_SETTINGS, splitData, mergeData, removeOrphanSessions, emptyPersonal, checkSharedShape, checkPersonalShape, exportFiles, dataFromTexts };
 })();
 
 /* src/ui/store.js */
@@ -4408,7 +4427,7 @@ function startScreen() {
   return `<section class="panel"><h2>データファイルを開いてください</h2>
     <p>共有ファイル（data.json）と個人ファイル（personal.json）の 2 つを選ぶと、画面が開きます。</p>
     ${canPick ? `${names.length ? `<p><button class="btn primary" data-reopen>前回のファイル（${esc(names.join("・"))}）を開く</button></p>` : ""}${miss.map((w) => PICK[w]).join("")}${miss.length === 1 ? `<p class="note">${miss[0] === "shared" ? "個人" : "共有"}ファイルは選びました。</p>` : ""}${errs.length ? `<p class="note">前回のファイルの記憶を読めませんでした（${esc(errs[0])}）。毎回ファイルを選ぶ必要があります。</p>` : ""}`
-      : `<p class="note">このブラウザはファイルへの直接保存に対応していません。読み込みだけできます。変更したときは、画面上部の「JSON を書き出す」で保存してください(Edge か Chrome なら直接保存できます)。</p><input type="file" accept=".json,application/json" data-fileinput aria-label="データファイルを選ぶ">`}
+      : `<p class="note">このブラウザはファイルへの直接保存に対応していません。読み込みだけできます。共有ファイルと個人ファイルを、一度に 2 つ選んでください。変更したときは、画面上部の「JSON を書き出す」で、2 つのファイルを保存してください(Edge か Chrome なら直接保存できます)。</p><input type="file" multiple accept=".json,application/json" data-fileinput aria-label="共有ファイルと個人ファイルを選ぶ">`}
     ${S.openError ? `<p class="ask" style="max-width:none" role="alert">${esc(S.openError)}</p>` : ""}</section>`;
 }
 
@@ -4555,13 +4574,15 @@ function refreshBanner() {
   banner(errors.length ? `データに問題があります: ${errors.slice(0, 3).join(" / ")}` : warnings.length ? `注意: ${warnings.slice(0, 2).join(" / ")}` : "", { validated: true });
 }
 
+/** 共有・個人の 2 つのファイルを、続けてダウンロードする（ブラウザが連続のダウンロードを確認することがある） */
 function downloadJson() {
-  const blob = new Blob([JSON.stringify(S.data, null, 2) + "\n"], { type: "application/json" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "data.json";
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  exportFiles(S.data).forEach(({ name, text }, i) => setTimeout(() => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }, i * 300));
 }
 
 /** 保存と読み直し（競合の当て直しを含む）。中身は ui/sync.js */
@@ -4607,6 +4628,7 @@ async function openFile(mode, which) {
   } catch (e) {
     if (e?.name === "AbortError") return;
     S.openError = `開けません: ${e.message}`;
+    if (S.data) toast(S.openError); // 開始画面は無いので、画面上部の案内ではなく、通知で知らせる
   }
   render();
 }
@@ -4742,7 +4764,7 @@ async function reloadFile(okMsg) {
   try { S.data = await store.reload(); } catch (e) { err = e; }
   sync.reset();
   S.ruleError = "";
-  if (err) banner(`読み直せません: ${err.message}`, { reload: true, download: true }); else { S.pendingOrphan = false; refreshBanner(); }
+  if (err) banner(`読み直せません: ${err.message}（画面の内容は、まだファイルと違う可能性があります）`, { reload: true, download: true }); else { S.pendingOrphan = false; refreshBanner(); }
   render();
   toast(err ? err.message : okMsg);
 }
@@ -5091,9 +5113,8 @@ view.addEventListener("focusout", (e) => {
 function onChange(el) {
   const { date: today } = clock();
   if (el.dataset.fileinput !== undefined) {
-    const file = el.files?.[0];
-    if (!file) return;
-    file.text().then((text) => { try { loaded(JSON.parse(text)); } catch (err) { S.openError = `開けません: ${err.message}`; } render(); });
+    if (!el.files?.length) return;
+    Promise.all([...el.files].map((f) => f.text())).then((texts) => { try { loaded(dataFromTexts(texts)); } catch (err) { S.openError = `開けません: ${err.message}`; } render(); });
     return;
   }
   if (el.dataset.mt) {

@@ -177,7 +177,7 @@ test("片方を当て直して書けたが、もう片方が失敗したとき�
   assert.equal(sh.writes, 1, "共有は書き直さない（中身が同じ）");
 });
 
-test("reload: 片方だけ読み直せて、もう片方が失敗したとき、次の保存は他の更新を消さない", async () => {
+test("reload: 片方の読み込みが失敗したとき（何も読み直さない）、次の保存は他の更新を消さない", async () => {
   const { s, data, sh, pe } = await opened();
   sh.text = JSON.stringify({ ...S0, tasks: [...S0.tasks, { id: "EXT", projectId: "P1", title: "他" }] }); sh.modified += 5;
   const getFile = pe.getFile;

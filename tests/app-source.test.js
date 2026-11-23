@@ -486,3 +486,18 @@ test("app.js: 共有に無い枠の削除は、確認（S.pendingOrphan）を挟
   assert.match(src, /data-orphan-clear\]"\)\) \{ S\.pendingOrphan = true; again\(\); \}/, "押しても検証の結果で上書きしない");
   assert.match(src, /if \(!msg && !actions\.validated && S\.data\) \{ refreshBanner\(\); return; \}/, "空の文は、検証の結果の出し直し");
 });
+
+test("app.js: 直接保存できないブラウザの書き出しは exportFiles の 2 ファイルを続けて落とし、読み込みは 2 ファイルを dataFromTexts で結合する（1 ファイルを丸ごとデータにしない）", () => {
+  const dl = src.slice(src.indexOf("function downloadJson()"), src.indexOf("/** 保存と読み直し"));
+  assert.match(dl, /exportFiles\(S\.data\)/);
+  assert.match(dl, /a\.download = name/);
+  assert.doesNotMatch(dl, /"data\.json"/, "名前は exportFiles が決める");
+  assert.match(src, /<input type="file" multiple /);
+  assert.match(src, /dataFromTexts\(texts\)/);
+  assert.doesNotMatch(src, /loaded\(JSON\.parse/);
+});
+
+test("app.js: 開いた画面で別のファイルを選べなかったときは、通知で知らせる。読み直せない案内は、画面が古い可能性を伝える", () => {
+  assert.match(src, /if \(S\.data\) toast\(S\.openError\)/);
+  assert.match(src, /読み直せません: \$\{err\.message\}（画面の内容は、まだファイルと違う可能性があります）/);
+});

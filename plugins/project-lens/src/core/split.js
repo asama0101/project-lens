@@ -57,3 +57,22 @@ const checkShape = (x, name, keys) => {
 };
 export const checkSharedShape = (x) => checkShape(x, "data.json", ["projects", "tasks", "changeLog"]);
 export const checkPersonalShape = (x) => checkShape(x, "personal.json", ["sessions", "events"]);
+
+/** 直接保存できないブラウザの「JSON を書き出す」: ダウンロードする 2 つのファイル（名前は固定） */
+export function exportFiles(data) {
+  const { shared, personal } = splitData(data);
+  return [["data.json", shared], ["personal.json", personal]].map(([name, obj]) => ({ name, text: JSON.stringify(obj, null, 2) + "\n" }));
+}
+
+/** 直接開けないブラウザで選んだファイルの中身（文字列）から、共有・個人を形で見分けて 1 つのデータにする。ちょうど共有 1・個人 1 でなければ例外 */
+export function dataFromTexts(texts) {
+  const shared = [], personal = [];
+  for (const t of texts) {
+    const x = JSON.parse(t);
+    if (Array.isArray(x?.projects)) shared.push(x); else personal.push(x);
+  }
+  if (shared.length !== 1 || personal.length !== 1) throw new Error("共有ファイル（data.json）と個人ファイル（personal.json）を 1 つずつ選んでください");
+  checkSharedShape(shared[0]);
+  checkPersonalShape(personal[0]);
+  return mergeData(shared[0], personal[0]);
+}

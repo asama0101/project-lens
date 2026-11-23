@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { splitData, mergeData, removeOrphanSessions, emptyPersonal, checkSharedShape, checkPersonalShape } from "../plugins/project-lens/src/core/split.js";
+import { splitData, mergeData, removeOrphanSessions, emptyPersonal, checkSharedShape, checkPersonalShape, exportFiles, dataFromTexts } from "../plugins/project-lens/src/core/split.js";
 import { moveToProject } from "../plugins/project-lens/src/ui/edit.js";
 
 const sample = () => JSON.parse(readFileSync(new URL("../plugins/project-lens/data/sample.json", import.meta.url), "utf8"));
@@ -77,4 +77,24 @@ test("(h) moveToProject のあとも、枠はタスクに結びついたまま",
   const back = mergeData(shared, personal);
   assert.deepEqual(back.tasks.find((x) => x.id === t.id).sessions, t.sessions);
   assert.deepEqual(back, moved);
+});
+
+test("exportFiles: data.json と personal.json の 2 つを、この順で返し、結合すると元に戻る", () => {
+  const d = sample();
+  const files = exportFiles(d);
+  assert.deepEqual(files.map((f) => f.name), ["data.json", "personal.json"]);
+  assert.ok(files.every((f) => f.text.endsWith("}\n")));
+  const [sh, pe] = files.map((f) => JSON.parse(f.text));
+  assert.ok(Array.isArray(sh.projects) && !("sessions" in sh) && Array.isArray(pe.sessions));
+  assert.deepEqual(mergeData(sh, pe), d);
+});
+
+test("dataFromTexts: 選ぶ順に関係なく、形で共有・個人を見分けて結合する。1 つだけ・同じ種類 2 つは例外", () => {
+  const d = sample();
+  const [a, b] = exportFiles(d).map((f) => f.text);
+  assert.deepEqual(dataFromTexts([a, b]), d);
+  assert.deepEqual(dataFromTexts([b, a]), d);
+  assert.throws(() => dataFromTexts([a]), /1 つずつ/);
+  assert.throws(() => dataFromTexts([a, a]), /1 つずつ/);
+  assert.throws(() => dataFromTexts([b, b]), /1 つずつ/);
 });
