@@ -1618,6 +1618,26 @@ test("スケジュールの編集欄: 枠を選ぶと「タスクを編集」が
   assert.equal(renderTaskEditPanel(d, { id: "ZZ", full: false }, ""), "");
 });
 
+test("スケジュールの編集欄: 会議の入力欄と同じ、ラベル付きの項目が折り返して並ぶ（縦の枠 tp-f・tp-r を使わない）", () => {
+  const d = load();
+  const light = renderTaskEditPanel(d, { id: "AA-0007", full: false }, "<select>状態</select>");
+  assert.ok(light.startsWith('<div class="mtgform tedit"'), "会議の入力欄と同じ .mtgform のまま");
+  assert.ok(!/tp-r|tp-f/.test(light), "窓の縦の枠は使わない");
+  for (const f of ["title", "due", "start", "projectId", "memo"]) assert.ok(new RegExp(`<label[^>]*><span>[^<]+</span>[^]*?data-f="${f}" data-id="AA-0007"`).test(light), `${f} はラベル付き`);
+  assert.ok(/<label class="chk"><input type="checkbox" data-f="important" data-id="AA-0007"[^>]*>重要<\/label>/.test(light), "重要は label.chk");
+  assert.ok(light.includes('<div class="tp-st"><span>状態</span><div><select>状態</select></div></div>'), "状態の欄");
+  assert.ok(/<div class="tp-a"><button class="btn" data-tedit-full[^>]*>詳細を開く<\/button><button class="btn" data-tedit-close>閉じる<\/button><\/div>/.test(light), "末尾のボタンの行は、詳細を開く・閉じる");
+  const full = renderTaskEditPanel(d, { id: "AA-0007", full: true }, "");
+  assert.ok(/<div class="tp-a">.*data-dup="AA-0007".*data-tedit-del="AA-0007".*data-tedit-close/.test(full.replace(/\n/g, "")), "full: 複製・削除は同じボタンの行");
+  assert.ok(/data-f="repeat" data-id="AA-0007"/.test(full) && full.includes('class="tp-wide"') && full.includes("data-ckbox=\"AA-0007\""), "full: 繰り返し・前のタスク・チェックリスト");
+  assert.ok(full.indexOf('class="tp-a"') < full.indexOf("data-ckbox"), "全幅の編集欄はボタンの行のあと");
+});
+
+test("renderTaskPop: 窓は縦の枠（tp-f・tp-r）のまま。編集欄の横並びの変更で変わらない", () => {
+  const h = renderTaskPop(load(), { id: "AA-0007", x: 1, y: 2 }, "");
+  assert.ok(h.includes('class="tp-f"') && h.includes('class="tp-r"') && h.includes("data-tpopclose") && !h.includes("tp-st") && !h.includes("tp-wide"));
+});
+
 test("スケジュールの編集欄: 削除は確認を挟む（askDel）", () => {
   const d = load();
   const html = renderTaskEditPanel(d, { id: "AA-0007", full: true, askDel: true }, "");

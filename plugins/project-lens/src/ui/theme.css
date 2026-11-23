@@ -529,11 +529,14 @@ body:has(.ptool){padding-block-start:8px}
 #view .blk.imp .ttl{color:var(--bad);font-weight:700}
 #view .impt{color:var(--bad);font-weight:700}
 
-/* スケジュールのタスク編集欄（#mtgslot）。窓（.tpop）と同じ項目を、横に並べて出す */
-#view .tedit{flex-direction:column;align-items:stretch;max-width:640px}
-#view .tedit .tp-h{display:flex;align-items:center;gap:8px}
-#view .tedit .tp-h .muted{flex:1;font-size:12px}
-#view .tedit .tp-f{display:flex;flex-direction:column;gap:2px;font-size:12px}
-#view .tedit .tp-f .in{width:100%;box-sizing:border-box;min-width:0}
-#view .tedit .tp-r{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
-#view .tedit .tp-a{display:flex;gap:8px;align-items:center}
+/* スケジュールのタスク編集欄（#mtgslot）。会議の入力欄（.mtgform）と同じ、ラベル付きの項目が折り返して並ぶ形。窓（.tpop）は縦のまま */
+#view .tedit .tp-h{display:flex;align-items:baseline;gap:6px;font-size:13px;color:var(--ink);align-self:flex-end}
+#view .tedit .tp-h .muted{font-size:12px}
+#view .tedit .tp-title{flex:2 1 220px;min-width:220px}
+#view .tedit .tp-memo{flex:1 1 160px;min-width:120px}
+#view .tedit .tp-title .in,#view .tedit .tp-memo .in{width:100%;box-sizing:border-box;min-width:0}
+#view .tedit .tp-st{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted)}
+#view .tedit .tp-st:has(.ask){flex-basis:100%}
+#view .tedit .tp-a{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+#view .tedit .ckedit,#view .tedit .tp-wide{flex-basis:100%}
+#view .tedit .tp-wide{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted)}
