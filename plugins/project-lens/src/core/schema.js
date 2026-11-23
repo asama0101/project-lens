@@ -253,7 +253,7 @@ export function validate(data, now = nowLocal()) {
     if (!isDate(c.at)) err("changeLog: 日付が不正です");
     if (!Number.isInteger(c.deltaDays)) err("changeLog: deltaDays が整数ではありません");
     if (c.cause != null && !CAUSES.includes(c.cause)) err(`changeLog: 不明な原因 "${c.cause}"`);
-    if (c.source != null && !["wbs", "calendar", "inbox", "screen"].includes(c.source)) err(`changeLog: 不明な source "${c.source}"`);
+    if (c.source != null && !["wbs", "calendar", "inbox"].includes(c.source)) err(`changeLog: 不明な source "${c.source}"`);
   }
 
   return { errors, warnings };

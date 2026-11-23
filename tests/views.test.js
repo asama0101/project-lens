@@ -1541,3 +1541,9 @@ test("renderCalendar: 重要で未完了のタスクの枠に imp、期限の行
   const wk = renderSchedule(d, TODAY, { view: "week", date: TODAY, now: NOW });
   assert.ok(wk.includes(`<span class="impt">${A7.title}</span>`), "期限の行の件名に impt");
 });
+
+test("日程変更の履歴: 原因の選択欄（data-logcause）は出さず、取り込み・依頼の原因は表示する", () => {
+  const html = renderProjects(load(), TODAY, { filter: "A", view: "list" });
+  assert.ok(!html.includes("data-logcause"));
+  assert.ok(html.includes("ベンダーX の納期回答が遅れたため"));
+});

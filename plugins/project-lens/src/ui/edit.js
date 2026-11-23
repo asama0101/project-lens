@@ -6,7 +6,7 @@ import { groupSections } from "../core/groups.js";
 import { addSession } from "../core/sessions.js";
 import { nextChecklistId } from "../core/checklist.js";
 import { isRepeat, nextRepeatDue } from "../core/repeat.js";
-import { HOLIDAY_KINDS, CAUSES } from "../core/schema.js";
+import { HOLIDAY_KINDS } from "../core/schema.js";
 
 const mapTask = (data, id, fn) => {
   if (!data.tasks.some((t) => t.id === id)) throw new Error(`タスク ${id} がありません`);
@@ -101,36 +101,6 @@ export function updateTask(data, taskId, patch, today = nowLocal().date) {
     if (n.start && n.start > n.due) throw new Error("開始日は期限以前にしてください");
     return n;
   });
-}
-
-// ---- 画面での期限変更の記録 ----
-const isScreenLog = (l, at, taskId) => l.source === "screen" && l.at === at && l.taskIds?.length === 1 && l.taskIds[0] === taskId;
-
-/**
- * before と after で期限が変わったタスクを、changeLog に残す（source: "screen"）。同じ日・同じタスクの記録は 1 件にまとめ、
- * 合計が 0 日になったら消す。画面の保存だけが使う（依頼・WBS の取り込みは、それぞれ自分で記録する）。
- */
-export function recordDueChanges(before, after, today = nowLocal().date) {
-  const prev = new Map(before.tasks.map((t) => [t.id, t.due]));
-  let log = after.changeLog ?? [];
-  let changed = false;
-  for (const t of after.tasks) {
-    if (!prev.has(t.id) || prev.get(t.id) === t.due) continue;
-    const delta = diffDays(t.due, prev.get(t.id));
-    const i = log.findIndex((l) => isScreenLog(l, today, t.id));
-    changed = true;
-    if (i < 0) { log = [...log, { at: today, taskIds: [t.id], reason: "画面で期限を変更", cause: null, deltaDays: delta, source: "screen" }]; continue; }
-    const sum = log[i].deltaDays + delta;
-    log = sum === 0 ? log.filter((_, k) => k !== i) : log.map((l, k) => (k === i ? { ...l, deltaDays: sum } : l));
-  }
-  return changed ? { ...after, changeLog: log } : after;
-}
-
-/** 画面の変更の行（key: { at, taskId }）の原因を変える。cause は CAUSES のいずれか、または null */
-export function setLogCause(data, { at, taskId }, cause) {
-  if (cause != null && !CAUSES.includes(cause)) throw new Error(`不明な原因 "${cause}"`);
-  if (!(data.changeLog ?? []).some((l) => isScreenLog(l, at, taskId))) throw new Error("該当する履歴がありません");
-  return { ...data, changeLog: data.changeLog.map((l) => (isScreenLog(l, at, taskId) ? { ...l, cause } : l)) };
 }
 
 // ---- チェックリスト（task.checklist = [{ id, text, done }]） ----

@@ -724,11 +724,6 @@ function onChange(el) {
     apply((d) => updateChecklistItem(d, tid, iid, { text })); // 空にすると例外のトーストが出て、描き直しで元に戻る
     return;
   }
-  if (el.dataset.logcause !== undefined) {
-    const [at, taskId] = el.dataset.logcause.split("|");
-    apply((d) => setLogCause(d, { at, taskId }, el.value || null), "原因を保存しました");
-    return;
-  }
   if (el.dataset.addpre !== undefined) {
     if (el.value) {
       const id = el.dataset.addpre, pre = el.value;
@@ -749,7 +744,7 @@ function onChange(el) {
     }
     if (f === "expected") { if (el.validity.badInput) return; apply((d) => updateTask(d, id, { waitingOn: { party: t.waitingOn.party, since: t.waitingOn.since, expected: el.value } }, today), "変更を保存しました"); return; }
     if (f === "group" || f === "subgroup") S.hlId = id; // 該当グループへ移った行を強調して見失わないようにする
-    apply((d) => { const n = updateTask(d, id, { [f]: f === "important" ? el.checked : el.value }, today); return f === "due" ? recordDueChanges(d, n, today) : n; }, "変更を保存しました");
+    apply((d) => updateTask(d, id, { [f]: f === "important" ? el.checked : el.value }, today), "変更を保存しました");
   }
 }
 
@@ -1005,7 +1000,7 @@ view.addEventListener("mousedown", (e) => {
       const m = mode === "l" ? "start" : mode === "r" ? "due" : "both";
       const amt = m === "start" ? ns - s : m === "due" ? ne - en : dd;
       result = moveTaskDates(S.data, t.id, m, amt);
-      dragEdit = (d) => { const r = moveTaskDates(d, t.id, m, amt); if (r.error) throw new Error(r.error); return recordDueChanges(d, r.data, clock().date); };
+      dragEdit = (d) => { const r = moveTaskDates(d, t.id, m, amt); if (r.error) throw new Error(r.error); return r.data; };
       msg = `${t.id}: ${fmtMD(addDays(s0, ns))}〜${fmtMD(addDays(s0, ne))}`;
     } else if (kind === "p") {
       const edge = mode === "l" ? "start" : "due", amt = mode === "l" ? ns - s : ne - en, pid = p.id;

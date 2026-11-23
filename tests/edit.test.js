@@ -611,3 +611,10 @@ test("moveToProject: 前のタスクがある・次のタスクがある・不�
   assert.throws(() => moveToProject(d, "X1", "ZZ"), /プロジェクト ZZ がありません/);
   assert.equal(JSON.stringify(d), snap);
 });
+
+test("updateTask: 画面で期限を動かしても、履歴（changeLog）は増えない", async () => {
+  const { updateTask } = await import("../plugins/project-lens/src/ui/edit.js");
+  const d = load();
+  const n = updateTask(d, "A3", { due: addDays(d.tasks.find((t) => t.id === "A3").due, 3) }, TODAY);
+  assert.equal(n.changeLog.length, d.changeLog.length);
+});

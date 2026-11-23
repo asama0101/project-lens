@@ -391,3 +391,8 @@ test("projectId が null のタスクはエラーなし。存在しない projec
   delete task(d, "C1").projectId;
   assert.ok(hit(v(d).errors, "不明な projectId"));
 });
+
+test("changeLog の source が screen の履歴は error（画面の期限変更は記録しない）", () => {
+  const a = load(); a.changeLog.push({ at: "2026-10-20", taskIds: [], reason: "x", cause: null, deltaDays: 0, source: "screen" });
+  assert.ok(hit(v(a).errors, "不明な source"));
+});

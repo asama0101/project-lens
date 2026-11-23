@@ -2,7 +2,7 @@
 import { projectProgress, projectFlags, taskFlags } from "../../core/metrics.js";
 import { taskActual } from "../../core/sessions.js";
 import { projectHours } from "../../core/workload.js";
-import { TASK_STATUS, PROJECT_STATUS, PROJECT_TYPE, CAUSES, isImportantMark } from "../../core/schema.js";
+import { TASK_STATUS, PROJECT_STATUS, PROJECT_TYPE, isImportantMark } from "../../core/schema.js";
 import { esc, fmtMD, flagPills, NO_PROJECT } from "../common.js";
 import { groupLabels, groupSections } from "../../core/groups.js";
 import { renderGantt } from "./gantt.js";
@@ -33,9 +33,6 @@ function checkCell(t, opts) {
   const label = total ? `${open ? "▾" : "▸"} ${done}/${total}` : "＋ 追加";
   return `<button class="ck-toggle${total ? "" : " ck-empty"}" data-cktoggle="${esc(t.id)}" aria-expanded="${open}" aria-label="${esc(t.id)} のチェックリスト">${label}</button>`;
 }
-
-/** 画面での期限変更の行の原因の選択欄（行は at とタスク ID で探す） */
-const causeSelect = (l) => `<select class="in sm" data-logcause="${esc(l.at)}|${esc(l.taskIds[0])}" aria-label="${esc(l.taskIds[0])} の変更の原因"><option value="">—</option>${CAUSES.map((c) => `<option ${c === l.cause ? "selected" : ""}>${c}</option>`).join("")}</select>`;
 
 function renderList(data, p, today, opts) {
   const none = p.id === null;
@@ -72,7 +69,7 @@ function renderList(data, p, today, opts) {
 
   const projTaskIds = new Set(tasks.map((t) => t.id));
   const log = data.changeLog.filter((l) => l.source == null || Number(l.deltaDays) !== 0).filter((l) => (l.taskIds ?? []).some((id) => projTaskIds.has(id)))
-    .map((l) => `<li><span class="d">${fmtMD(l.at)}</span><span>${l.source === "screen" ? causeSelect(l) : `<span class="pill">${esc(l.cause ?? "—")}</span>`} ${esc(l.reason)} <span class="mono muted">(${esc((l.taskIds ?? []).join(", "))}・${Number(l.deltaDays) > 0 ? "+" : ""}${Number(l.deltaDays)}日)</span></span></li>`).join("")
+    .map((l) => `<li><span class="d">${fmtMD(l.at)}</span><span><span class="pill">${esc(l.cause ?? "—")}</span> ${esc(l.reason)} <span class="mono muted">(${esc((l.taskIds ?? []).join(", "))}・${Number(l.deltaDays) > 0 ? "+" : ""}${Number(l.deltaDays)}日)</span></span></li>`).join("")
     || `<li class="muted">変更履歴はありません。</li>`;
 
   const ms = (p.milestones ?? []).map((m, i) => `<div class="msrow"><input class="in" data-mf="name" data-pid="${esc(p.id)}" data-i="${i}" value="${esc(m.name)}" aria-label="マイルストーン名"><input class="in sm" type="date" data-mf="date" data-pid="${esc(p.id)}" data-i="${i}" value="${esc(m.date)}" aria-label="マイルストーンの日付"><button class="btn" data-msdel="${esc(p.id)}|${i}" aria-label="${esc(m.name)} を削除">削除</button></div>`).join("")
@@ -94,7 +91,7 @@ function renderList(data, p, today, opts) {
     <div style="display:flex;gap:12px;align-items:center;margin-top:12px;flex-wrap:wrap"><span class="note">変更はその場でファイルに保存されます。次のタスクの日程をまとめて見直すときは、画面の下端の「Claude Code に依頼する」に頼みます。</span></div>
     <h2 style="margin:18px 0 8px;font-size:13px">マイルストーン</h2>
     <div class="mslist">${ms}<div><button class="btn" data-msadd="${esc(p.id)}">＋ マイルストーンを追加</button> <span class="note">ガントに◆で表示されます。</span></div></div>
-    <h2 style="margin:18px 0 2px;font-size:13px">日程変更の履歴</h2><p class="note" style="margin:0 0 8px">日程が動いたとき、いつ・何が・なぜ動いたか(原因: ベンダー／社内／自分)の記録です。「Claude Code に依頼する」で期限の変更を反映したときと、画面で期限を変えたときに記録されます。画面での変更は原因が空で記録されるので、行の選択欄で後から選べます。</p><ul class="log">${log}</ul>
+    <h2 style="margin:18px 0 2px;font-size:13px">日程変更の履歴</h2><p class="note" style="margin:0 0 8px">日程が動いたとき、いつ・何が・なぜ動いたか(原因: ベンダー／社内／自分)の記録です。「Claude Code に依頼する」で期限の変更を反映したときと、取り込みで日程が動いたときに記録されます。画面で期限を直接変えたときは記録されません。</p><ul class="log">${log}</ul>
     <div style="margin-top:18px">${delProj}</div></section>`;
 }
 

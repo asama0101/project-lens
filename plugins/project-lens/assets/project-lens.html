@@ -1010,7 +1010,7 @@ function validate(data, now = nowLocal()) {
     if (!isDate(c.at)) err("changeLog: 日付が不正です");
     if (!Number.isInteger(c.deltaDays)) err("changeLog: deltaDays が整数ではありません");
     if (c.cause != null && !CAUSES.includes(c.cause)) err(`changeLog: 不明な原因 "${c.cause}"`);
-    if (c.source != null && !["wbs", "calendar", "inbox", "screen"].includes(c.source)) err(`changeLog: 不明な source "${c.source}"`);
+    if (c.source != null && !["wbs", "calendar", "inbox"].includes(c.source)) err(`changeLog: 不明な source "${c.source}"`);
   }
 
   return { errors, warnings };
@@ -2256,7 +2256,7 @@ return { depPath, depMarkup, drawDeps, focusDeps };
 })();
 
 /* src/ui/edit.js */
-const { predecessorCandidates, updateTask, recordDueChanges, setLogCause, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextTaskId, spawnNextRepeat, duplicateTask, addTaskQuick, addUrgentTask, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject } = (() => {
+const { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextTaskId, spawnNextRepeat, duplicateTask, addTaskQuick, addUrgentTask, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject } = (() => {
 // 画面からの編集（追加・削除・更新）。すべて不変更新で、不正な入力は例外にする（呼び出し側が理由を表示する）。
 
 
@@ -2360,36 +2360,6 @@ function updateTask(data, taskId, patch, today = nowLocal().date) {
     if (n.start && n.start > n.due) throw new Error("開始日は期限以前にしてください");
     return n;
   });
-}
-
-// ---- 画面での期限変更の記録 ----
-const isScreenLog = (l, at, taskId) => l.source === "screen" && l.at === at && l.taskIds?.length === 1 && l.taskIds[0] === taskId;
-
-/**
- * before と after で期限が変わったタスクを、changeLog に残す（source: "screen"）。同じ日・同じタスクの記録は 1 件にまとめ、
- * 合計が 0 日になったら消す。画面の保存だけが使う（依頼・WBS の取り込みは、それぞれ自分で記録する）。
- */
-function recordDueChanges(before, after, today = nowLocal().date) {
-  const prev = new Map(before.tasks.map((t) => [t.id, t.due]));
-  let log = after.changeLog ?? [];
-  let changed = false;
-  for (const t of after.tasks) {
-    if (!prev.has(t.id) || prev.get(t.id) === t.due) continue;
-    const delta = diffDays(t.due, prev.get(t.id));
-    const i = log.findIndex((l) => isScreenLog(l, today, t.id));
-    changed = true;
-    if (i < 0) { log = [...log, { at: today, taskIds: [t.id], reason: "画面で期限を変更", cause: null, deltaDays: delta, source: "screen" }]; continue; }
-    const sum = log[i].deltaDays + delta;
-    log = sum === 0 ? log.filter((_, k) => k !== i) : log.map((l, k) => (k === i ? { ...l, deltaDays: sum } : l));
-  }
-  return changed ? { ...after, changeLog: log } : after;
-}
-
-/** 画面の変更の行（key: { at, taskId }）の原因を変える。cause は CAUSES のいずれか、または null */
-function setLogCause(data, { at, taskId }, cause) {
-  if (cause != null && !CAUSES.includes(cause)) throw new Error(`不明な原因 "${cause}"`);
-  if (!(data.changeLog ?? []).some((l) => isScreenLog(l, at, taskId))) throw new Error("該当する履歴がありません");
-  return { ...data, changeLog: data.changeLog.map((l) => (isScreenLog(l, at, taskId) ? { ...l, cause } : l)) };
 }
 
 // ---- チェックリスト（task.checklist = [{ id, text, done }]） ----
@@ -2788,7 +2758,7 @@ function deleteProject(data, projectId) {
   return { ...data, settings, events, ...(inbox ? { inbox } : {}), projects: data.projects.filter((p) => p.id !== projectId), tasks: data.tasks.filter((t) => t.projectId !== projectId) };
 }
 
-return { predecessorCandidates, updateTask, recordDueChanges, setLogCause, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextTaskId, spawnNextRepeat, duplicateTask, addTaskQuick, addUrgentTask, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject };
+return { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextTaskId, spawnNextRepeat, duplicateTask, addTaskQuick, addUrgentTask, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject };
 })();
 
 /* src/ui/donecheck.js */
@@ -3909,9 +3879,6 @@ function checkCell(t, opts) {
   return `<button class="ck-toggle${total ? "" : " ck-empty"}" data-cktoggle="${esc(t.id)}" aria-expanded="${open}" aria-label="${esc(t.id)} のチェックリスト">${label}</button>`;
 }
 
-/** 画面での期限変更の行の原因の選択欄（行は at とタスク ID で探す） */
-const causeSelect = (l) => `<select class="in sm" data-logcause="${esc(l.at)}|${esc(l.taskIds[0])}" aria-label="${esc(l.taskIds[0])} の変更の原因"><option value="">—</option>${CAUSES.map((c) => `<option ${c === l.cause ? "selected" : ""}>${c}</option>`).join("")}</select>`;
-
 function renderList(data, p, today, opts) {
   const none = p.id === null;
   const prog = none ? null : projectProgress(data, p.id);
@@ -3947,7 +3914,7 @@ function renderList(data, p, today, opts) {
 
   const projTaskIds = new Set(tasks.map((t) => t.id));
   const log = data.changeLog.filter((l) => l.source == null || Number(l.deltaDays) !== 0).filter((l) => (l.taskIds ?? []).some((id) => projTaskIds.has(id)))
-    .map((l) => `<li><span class="d">${fmtMD(l.at)}</span><span>${l.source === "screen" ? causeSelect(l) : `<span class="pill">${esc(l.cause ?? "—")}</span>`} ${esc(l.reason)} <span class="mono muted">(${esc((l.taskIds ?? []).join(", "))}・${Number(l.deltaDays) > 0 ? "+" : ""}${Number(l.deltaDays)}日)</span></span></li>`).join("")
+    .map((l) => `<li><span class="d">${fmtMD(l.at)}</span><span><span class="pill">${esc(l.cause ?? "—")}</span> ${esc(l.reason)} <span class="mono muted">(${esc((l.taskIds ?? []).join(", "))}・${Number(l.deltaDays) > 0 ? "+" : ""}${Number(l.deltaDays)}日)</span></span></li>`).join("")
     || `<li class="muted">変更履歴はありません。</li>`;
 
   const ms = (p.milestones ?? []).map((m, i) => `<div class="msrow"><input class="in" data-mf="name" data-pid="${esc(p.id)}" data-i="${i}" value="${esc(m.name)}" aria-label="マイルストーン名"><input class="in sm" type="date" data-mf="date" data-pid="${esc(p.id)}" data-i="${i}" value="${esc(m.date)}" aria-label="マイルストーンの日付"><button class="btn" data-msdel="${esc(p.id)}|${i}" aria-label="${esc(m.name)} を削除">削除</button></div>`).join("")
@@ -3969,7 +3936,7 @@ function renderList(data, p, today, opts) {
     <div style="display:flex;gap:12px;align-items:center;margin-top:12px;flex-wrap:wrap"><span class="note">変更はその場でファイルに保存されます。次のタスクの日程をまとめて見直すときは、画面の下端の「Claude Code に依頼する」に頼みます。</span></div>
     <h2 style="margin:18px 0 8px;font-size:13px">マイルストーン</h2>
     <div class="mslist">${ms}<div><button class="btn" data-msadd="${esc(p.id)}">＋ マイルストーンを追加</button> <span class="note">ガントに◆で表示されます。</span></div></div>
-    <h2 style="margin:18px 0 2px;font-size:13px">日程変更の履歴</h2><p class="note" style="margin:0 0 8px">日程が動いたとき、いつ・何が・なぜ動いたか(原因: ベンダー／社内／自分)の記録です。「Claude Code に依頼する」で期限の変更を反映したときと、画面で期限を変えたときに記録されます。画面での変更は原因が空で記録されるので、行の選択欄で後から選べます。</p><ul class="log">${log}</ul>
+    <h2 style="margin:18px 0 2px;font-size:13px">日程変更の履歴</h2><p class="note" style="margin:0 0 8px">日程が動いたとき、いつ・何が・なぜ動いたか(原因: ベンダー／社内／自分)の記録です。「Claude Code に依頼する」で期限の変更を反映したときと、取り込みで日程が動いたときに記録されます。画面で期限を直接変えたときは記録されません。</p><ul class="log">${log}</ul>
     <div style="margin-top:18px">${delProj}</div></section>`;
 }
 
@@ -4856,11 +4823,6 @@ function onChange(el) {
     apply((d) => updateChecklistItem(d, tid, iid, { text })); // 空にすると例外のトーストが出て、描き直しで元に戻る
     return;
   }
-  if (el.dataset.logcause !== undefined) {
-    const [at, taskId] = el.dataset.logcause.split("|");
-    apply((d) => setLogCause(d, { at, taskId }, el.value || null), "原因を保存しました");
-    return;
-  }
   if (el.dataset.addpre !== undefined) {
     if (el.value) {
       const id = el.dataset.addpre, pre = el.value;
@@ -4881,7 +4843,7 @@ function onChange(el) {
     }
     if (f === "expected") { if (el.validity.badInput) return; apply((d) => updateTask(d, id, { waitingOn: { party: t.waitingOn.party, since: t.waitingOn.since, expected: el.value } }, today), "変更を保存しました"); return; }
     if (f === "group" || f === "subgroup") S.hlId = id; // 該当グループへ移った行を強調して見失わないようにする
-    apply((d) => { const n = updateTask(d, id, { [f]: f === "important" ? el.checked : el.value }, today); return f === "due" ? recordDueChanges(d, n, today) : n; }, "変更を保存しました");
+    apply((d) => updateTask(d, id, { [f]: f === "important" ? el.checked : el.value }, today), "変更を保存しました");
   }
 }
 
@@ -5137,7 +5099,7 @@ view.addEventListener("mousedown", (e) => {
       const m = mode === "l" ? "start" : mode === "r" ? "due" : "both";
       const amt = m === "start" ? ns - s : m === "due" ? ne - en : dd;
       result = moveTaskDates(S.data, t.id, m, amt);
-      dragEdit = (d) => { const r = moveTaskDates(d, t.id, m, amt); if (r.error) throw new Error(r.error); return recordDueChanges(d, r.data, clock().date); };
+      dragEdit = (d) => { const r = moveTaskDates(d, t.id, m, amt); if (r.error) throw new Error(r.error); return r.data; };
       msg = `${t.id}: ${fmtMD(addDays(s0, ns))}〜${fmtMD(addDays(s0, ne))}`;
     } else if (kind === "p") {
       const edge = mode === "l" ? "start" : "due", amt = mode === "l" ? ns - s : ne - en, pid = p.id;
