@@ -427,11 +427,13 @@ test("共有ファイルに無いタスクの作業枠(orphanSessions): あれ�
   }
 });
 
-test("作業枠の重なりは、実績を含んでも error。古いデータに残った running のキーは読まず、検証も何も言わない", () => {
+test("作業枠の重なりは、同じ種別どうしだけ error（予定と実績は重なってよい）。古いデータに残った running のキーは読まず、検証も何も言わない", () => {
   const base = () => { const d = load(); d.tasks.find((t) => t.id === "AA-0004").sessions = [{ id: "S50", date: "2026-10-20", start: "10:00", end: "10:15", kind: "actual", running: true }]; return d; };
   assert.deepEqual(v(base()).errors, []);
   assert.ok(!v(base()).warnings.some((w) => w.includes("running")));
   for (const running of [false, "true"]) { const d = base(); d.tasks.find((t) => t.id === "AA-0004").sessions[0].running = running; assert.deepEqual(v(d).errors, [], String(running)); }
   const ov = base(); ov.tasks.find((t) => t.id === "AA-0005").sessions.push({ id: "S51", date: "2026-10-20", start: "10:05", end: "11:00", kind: "planned" });
-  assert.ok(v(ov).errors.some((e) => e.includes("S50") && e.includes("S51")), "実績と予定の重なりも error");
+  assert.deepEqual(v(ov).errors, [], "実績と予定の重なりは error にならない");
+  const aa = base(); aa.tasks.find((t) => t.id === "AA-0005").sessions.push({ id: "S52", date: "2026-10-20", start: "10:05", end: "11:00", kind: "actual" });
+  assert.ok(v(aa).errors.some((e) => e.includes("S50") && e.includes("S52")), "実績どうしの重なりは error");
 });

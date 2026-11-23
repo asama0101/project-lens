@@ -157,7 +157,7 @@ export function validate(data, now = nowLocal()) {
   const cycle = findCycle(data.tasks);
   if (cycle) err(`前のタスクが循環しています: ${cycle.join(" → ")}`);
 
-  // 同じ日の枠どうしの重なり（タスクをまたいで判定）。日付で束ねて、同じ日の中だけ総当たりにする（全枠の総当たりは、数年分で秒単位になる）
+  // 同じ日の同じ種別の枠どうしの重なり（予定と実績は重なってよい。タスクをまたいで判定）。日付で束ねて、同じ日の中だけ総当たりにする（全枠の総当たりは、数年分で秒単位になる）
   const byDay = new Map();
   for (const t of data.tasks) {
     for (const s of t.sessions ?? []) {
@@ -169,7 +169,7 @@ export function validate(data, now = nowLocal()) {
   for (const [date, list] of byDay) {
     for (let i = 0; i < list.length; i++) {
       for (let j = i + 1; j < list.length; j++) {
-        if (overlap(list[i], list[j])) err(`枠 ${list[i].id} と ${list[j].id} が重なっています (${date})`);
+        if (list[i].kind === list[j].kind && overlap(list[i], list[j])) err(`枠 ${list[i].id} と ${list[j].id} が重なっています (${date})`);
       }
     }
   }
