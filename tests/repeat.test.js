@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { validate } from "../plugins/project-lens/src/core/schema.js";
 import { nextRepeatDue } from "../plugins/project-lens/src/core/repeat.js";
-import { updateTask, spawnNextRepeat, duplicateTask } from "../plugins/project-lens/src/ui/edit.js";
+import * as edit from "../plugins/project-lens/src/ui/edit.js";
+import { updateTask, spawnNextRepeat } from "../plugins/project-lens/src/ui/edit.js";
 
 const TODAY = "2026-10-21";
 const load = () => JSON.parse(readFileSync(new URL("../plugins/project-lens/data/sample.json", import.meta.url), "utf8"));
@@ -86,15 +87,11 @@ test("updateTask: repeat を保存・削除し、不正な値は例外・validat
   assert.ok(validate(bad).errors.some((e) => e.includes("repeat")));
 });
 
-test("duplicateTask: 期限を今日にした未チェックのコピーを、同じ場所に作る", () => {
-  const { d, id } = doneRepeating();
-  const { data, id: nid } = duplicateTask(d, id, TODAY);
-  const src = data.tasks.find((t) => t.id === id), n = data.tasks.find((t) => t.id === nid);
-  assert.notEqual(nid, id);
-  assert.deepEqual([n.title, n.projectId, n.group, n.subgroup, n.important, n.memo], [src.title, src.projectId, "G", "S", true, "メモ"]);
-  assert.deepEqual([n.due, n.status, n.repeat], [TODAY, "To Do", undefined]);
-  assert.ok(n.checklist.every((c) => c.done === false) && n.checklist.length === 2);
-  assert.deepEqual(validate(data).errors, []);
+test("タスクの複製は持たない（edit.js に duplicateTask がなく、画面にも複製のボタン data-dup がない）", () => {
+  assert.equal(edit.duplicateTask, undefined);
+  const src = (p) => readFileSync(new URL(p, import.meta.url), "utf8");
+  assert.ok(!src("../plugins/project-lens/src/ui/views/taskpop.js").includes("data-dup"));
+  assert.ok(!src("../plugins/project-lens/src/ui/app.js").includes("data-dup"));
 });
 
 test("nextRepeatDue: 期限を毎月の日より前に動かしていても、同じ月の指定日を飛ばさない", () => {

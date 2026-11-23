@@ -355,14 +355,6 @@ export function spawnNextRepeat(data, taskId, today = nowLocal().date) {
   return insertAfter(marked, taskId, next);
 }
 
-/** タスクの複製。期限は今日、状態は To Do、チェックリストは未チェック。繰り返しは引き継がない */
-export function duplicateTask(data, taskId, today = nowLocal().date) {
-  const t = data.tasks.find((x) => x.id === taskId);
-  if (!t) throw new Error(`タスク ${taskId} がありません`);
-  const copy = newTask(data, t.projectId, t.title, today, carriedFields(t));
-  return { data: insertAfter(data, taskId, copy), id: copy.id };
-}
-
 /** place: { group, subgroup }。見出し行の「＋」から、そのグループへ入れる。含まれるキーだけ入れ、空白は null にする */
 export function addTaskQuick(data, projectId, title, today = nowLocal().date, place = {}) {
   if (!data.projects.some((p) => p.id === projectId)) throw new Error(`プロジェクト ${projectId} がありません`);

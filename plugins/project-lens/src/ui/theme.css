@@ -31,6 +31,9 @@ header.top{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;m
 .cols>.side{position:sticky;top:calc(var(--hh,0px) + var(--th,0px) + 8px);align-self:start;max-height:calc(100vh - var(--hh,0px) - var(--th,0px) - 24px);overflow-y:auto;display:flex;flex-direction:column;gap:16px}
 h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.01em}
 .today{color:var(--muted);font-size:13px}
+/* 題名の横の版の表記（ビルドで plugin.json の version を入れる）。小さく薄く、題名と文字の下端をそろえる */
+header.top .brand{display:flex;align-items:baseline;gap:6px}
+header.top .ver{font-size:11px;color:var(--muted)}
 nav[role=tablist]{display:flex;gap:2px;background:var(--line-soft);padding:3px;border-radius:8px}
 nav button{font:inherit;border:0;background:transparent;color:var(--muted);padding:6px 14px;border-radius:6px;cursor:pointer}
 nav button[aria-selected=true]{background:var(--surface);color:var(--ink);font-weight:700;box-shadow:0 1px 2px rgba(20,30,50,.12)}
@@ -538,12 +541,18 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 #view .stop{position:sticky;top:var(--hh,0px);z-index:9;background:var(--surface);display:flow-root}
 #view .stop>.toolbar{margin-bottom:10px}
 #view .stop>.summary{margin-bottom:8px}
-#view #mtgslot:not(:empty){position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px));z-index:9;max-height:max(120px,calc(55vh - var(--hh,0px) - var(--stop-h,0px) - var(--dh-h,0px)));overflow-y:auto;background:var(--surface);padding-top:4px}
+#view #mtgslot:not(:empty){position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px));z-index:9;max-height:max(120px,calc(55vh - var(--hh,0px) - var(--stop-h,0px) - var(--dh-h,0px) - var(--due-h,0px)));overflow-y:auto;background:var(--surface);padding-top:4px}
 /* 作業枠・会議のブロックは、短い枠でも押せるよう、最低 14px の高さで描く（データは変えない） */
 #view .cal .blk{min-height:14px}
 /* 週表示の日付の見出しの行は、ヘッダー・操作の行（--stop-h）・カレンダーの上の入力欄（--slot-h）の下に固定する。左端のセル（時刻の列の上）も固定し、時刻の文字が透けないようにする */
 #view .cal.wk .week .dh{top:calc(var(--hh,0px) + var(--stop-h,0px) + var(--slot-h,0px))}
 #view .cal.wk .week:first-child>div:first-child{position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px) + var(--slot-h,0px));z-index:7;background:var(--surface)}
+/* 週表示の期限の行は、日付の見出しのすぐ下（--dh-h）に固定する（高さは --due-h）。開いたセルは高さ 96px（約 4 件）までで、多い日はセルの中でスクロールする（固定の段が画面を埋めないため）。閉じると、左端のボタンと週の件数の帯だけの 1 行 */
+#view .cal.wk .week>.duehd,#view .cal.wk .week>.duecell,#view .cal.wk .week>.dueoff{position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px) + var(--slot-h,0px) + var(--dh-h,0px));z-index:7;background:var(--surface);border-bottom:1px solid var(--line)}
+#view .cal.wk .week>.duecell{max-height:96px;overflow-y:auto}
+#view .cal.wk .week>.dueoff{grid-column:2 / -1;padding:2px 6px;font-size:12px;color:var(--muted)}
+#view .cal.wk .duetg{font:inherit;font-size:11px;color:var(--muted);background:none;border:0;padding:4px 0;cursor:pointer;white-space:nowrap}
+#view .cal.wk .duetg:hover{color:var(--ink)}
 /* 今日のタスクの枠の時間。枠ごとに、時間と「実績にする」のボタン（予定・未確認の枠だけ）を並べ、折り返す */
 #view .rank.tl .tss{display:flex;flex-wrap:wrap;gap:4px 12px}
 #view .rank.tl .ts{display:inline-flex;align-items:center;gap:6px}
@@ -553,9 +562,10 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 #view .ktag.plan{background:var(--accent-soft);border:1px solid var(--accent)}
 #view .ktag.act{background:color-mix(in srgb,var(--ok) 22%,var(--surface));border:1px solid var(--ok)}
 #view .ktag.unconf{background:var(--warn-soft);border:1px dashed var(--warn);color:var(--warn)}
-/* スケジュールの色の凡例は、上の操作の行（週・日の見出しの横）に小さく並べる。入らないときだけ次の行へ折り返す */
-#view .toolbar .slegend{margin:0 0 0 10px;gap:2px 10px;font-size:11px}
-#view .toolbar .slegend .sw{width:14px;height:10px;margin-right:4px}
+/* スケジュールの色の凡例は、上の操作の行（週・日の見出しの横）に並べる。入らないときだけ次の行へ折り返す。色の見本は 18×14px（線・点線・塗りは .sw の規則のまま）。現在時刻の見本は線なので、高さ 0 のまま行の中央に置く */
+#view .toolbar .slegend{margin:0 0 0 10px;gap:2px 12px;font-size:12px}
+#view .toolbar .slegend .sw{width:18px;height:14px;margin-right:5px}
+#view .toolbar .slegend .sw.now{height:0}
 /* 30 分未満の枠・会議（short）は、時刻と件名を 1 行に並べ、上下の余白を詰める（15 分は 22px） */
 #view .cal .blk.short{padding-top:1px;padding-bottom:1px;white-space:nowrap;text-overflow:ellipsis}
 #view .cal .blk.short .tm{display:inline;margin-right:4px}
@@ -573,7 +583,7 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 #view section.pg{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:0 16px 16px}
 #view section.pg + section.pg{margin-top:16px}
 #view section.pg > .pgstick{padding-top:18px}
-/* スケジュールのタスク編集欄の「詳細を開く」: 詳細の項目（繰り返し・複製・削除・チェックリスト・前のタスク）は、軽い欄のあとの別の入れ物（全幅の行）に出し、その中で折り返して並べる。
+/* スケジュールのタスク編集欄の「詳細を開く」: 詳細の項目（繰り返し・削除・チェックリスト・前のタスク）は、軽い欄のあとの別の入れ物（全幅の行）に出し、その中で折り返して並べる。
    軽い欄とボタンの行は、詳細の開閉で位置も大きさも変わらない。開閉のボタンは、長い方の文字（詳細を閉じる、6 字）の幅を最小にし、文字が変わっても隣を押さない */
 #view .tedit .tedit-detail{flex-basis:100%;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:flex-end;border-top:1px dashed var(--line);padding-top:8px}
 #view .tedit [data-tedit-full]{min-width:calc(6em + 26px)}

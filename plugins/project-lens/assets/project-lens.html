@@ -38,6 +38,9 @@ header.top{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;m
 .cols>.side{position:sticky;top:calc(var(--hh,0px) + var(--th,0px) + 8px);align-self:start;max-height:calc(100vh - var(--hh,0px) - var(--th,0px) - 24px);overflow-y:auto;display:flex;flex-direction:column;gap:16px}
 h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.01em}
 .today{color:var(--muted);font-size:13px}
+/* 題名の横の版の表記（ビルドで plugin.json の version を入れる）。小さく薄く、題名と文字の下端をそろえる */
+header.top .brand{display:flex;align-items:baseline;gap:6px}
+header.top .ver{font-size:11px;color:var(--muted)}
 nav[role=tablist]{display:flex;gap:2px;background:var(--line-soft);padding:3px;border-radius:8px}
 nav button{font:inherit;border:0;background:transparent;color:var(--muted);padding:6px 14px;border-radius:6px;cursor:pointer}
 nav button[aria-selected=true]{background:var(--surface);color:var(--ink);font-weight:700;box-shadow:0 1px 2px rgba(20,30,50,.12)}
@@ -545,12 +548,18 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 #view .stop{position:sticky;top:var(--hh,0px);z-index:9;background:var(--surface);display:flow-root}
 #view .stop>.toolbar{margin-bottom:10px}
 #view .stop>.summary{margin-bottom:8px}
-#view #mtgslot:not(:empty){position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px));z-index:9;max-height:max(120px,calc(55vh - var(--hh,0px) - var(--stop-h,0px) - var(--dh-h,0px)));overflow-y:auto;background:var(--surface);padding-top:4px}
+#view #mtgslot:not(:empty){position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px));z-index:9;max-height:max(120px,calc(55vh - var(--hh,0px) - var(--stop-h,0px) - var(--dh-h,0px) - var(--due-h,0px)));overflow-y:auto;background:var(--surface);padding-top:4px}
 /* 作業枠・会議のブロックは、短い枠でも押せるよう、最低 14px の高さで描く（データは変えない） */
 #view .cal .blk{min-height:14px}
 /* 週表示の日付の見出しの行は、ヘッダー・操作の行（--stop-h）・カレンダーの上の入力欄（--slot-h）の下に固定する。左端のセル（時刻の列の上）も固定し、時刻の文字が透けないようにする */
 #view .cal.wk .week .dh{top:calc(var(--hh,0px) + var(--stop-h,0px) + var(--slot-h,0px))}
 #view .cal.wk .week:first-child>div:first-child{position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px) + var(--slot-h,0px));z-index:7;background:var(--surface)}
+/* 週表示の期限の行は、日付の見出しのすぐ下（--dh-h）に固定する（高さは --due-h）。開いたセルは高さ 96px（約 4 件）までで、多い日はセルの中でスクロールする（固定の段が画面を埋めないため）。閉じると、左端のボタンと週の件数の帯だけの 1 行 */
+#view .cal.wk .week>.duehd,#view .cal.wk .week>.duecell,#view .cal.wk .week>.dueoff{position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px) + var(--slot-h,0px) + var(--dh-h,0px));z-index:7;background:var(--surface);border-bottom:1px solid var(--line)}
+#view .cal.wk .week>.duecell{max-height:96px;overflow-y:auto}
+#view .cal.wk .week>.dueoff{grid-column:2 / -1;padding:2px 6px;font-size:12px;color:var(--muted)}
+#view .cal.wk .duetg{font:inherit;font-size:11px;color:var(--muted);background:none;border:0;padding:4px 0;cursor:pointer;white-space:nowrap}
+#view .cal.wk .duetg:hover{color:var(--ink)}
 /* 今日のタスクの枠の時間。枠ごとに、時間と「実績にする」のボタン（予定・未確認の枠だけ）を並べ、折り返す */
 #view .rank.tl .tss{display:flex;flex-wrap:wrap;gap:4px 12px}
 #view .rank.tl .ts{display:inline-flex;align-items:center;gap:6px}
@@ -560,9 +569,10 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 #view .ktag.plan{background:var(--accent-soft);border:1px solid var(--accent)}
 #view .ktag.act{background:color-mix(in srgb,var(--ok) 22%,var(--surface));border:1px solid var(--ok)}
 #view .ktag.unconf{background:var(--warn-soft);border:1px dashed var(--warn);color:var(--warn)}
-/* スケジュールの色の凡例は、上の操作の行（週・日の見出しの横）に小さく並べる。入らないときだけ次の行へ折り返す */
-#view .toolbar .slegend{margin:0 0 0 10px;gap:2px 10px;font-size:11px}
-#view .toolbar .slegend .sw{width:14px;height:10px;margin-right:4px}
+/* スケジュールの色の凡例は、上の操作の行（週・日の見出しの横）に並べる。入らないときだけ次の行へ折り返す。色の見本は 18×14px（線・点線・塗りは .sw の規則のまま）。現在時刻の見本は線なので、高さ 0 のまま行の中央に置く */
+#view .toolbar .slegend{margin:0 0 0 10px;gap:2px 12px;font-size:12px}
+#view .toolbar .slegend .sw{width:18px;height:14px;margin-right:5px}
+#view .toolbar .slegend .sw.now{height:0}
 /* 30 分未満の枠・会議（short）は、時刻と件名を 1 行に並べ、上下の余白を詰める（15 分は 22px） */
 #view .cal .blk.short{padding-top:1px;padding-bottom:1px;white-space:nowrap;text-overflow:ellipsis}
 #view .cal .blk.short .tm{display:inline;margin-right:4px}
@@ -580,7 +590,7 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 #view section.pg{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:0 16px 16px}
 #view section.pg + section.pg{margin-top:16px}
 #view section.pg > .pgstick{padding-top:18px}
-/* スケジュールのタスク編集欄の「詳細を開く」: 詳細の項目（繰り返し・複製・削除・チェックリスト・前のタスク）は、軽い欄のあとの別の入れ物（全幅の行）に出し、その中で折り返して並べる。
+/* スケジュールのタスク編集欄の「詳細を開く」: 詳細の項目（繰り返し・削除・チェックリスト・前のタスク）は、軽い欄のあとの別の入れ物（全幅の行）に出し、その中で折り返して並べる。
    軽い欄とボタンの行は、詳細の開閉で位置も大きさも変わらない。開閉のボタンは、長い方の文字（詳細を閉じる、6 字）の幅を最小にし、文字が変わっても隣を押さない */
 #view .tedit .tedit-detail{flex-basis:100%;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:flex-end;border-top:1px dashed var(--line);padding-top:8px}
 #view .tedit [data-tedit-full]{min-width:calc(6em + 26px)}
@@ -590,7 +600,7 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 <body>
 <div class="wrap">
   <header class="top">
-    <div><h1>project-lens</h1><div class="today" id="todaylabel"></div></div>
+    <div><div class="brand"><h1>project-lens</h1><span class="ver" title="project-lens の版" aria-label="project-lens の版 v0.1.1">v0.1.1</span></div><div class="today" id="todaylabel"></div></div>
     <nav role="tablist" aria-label="画面">
       <button role="tab" id="tab-gantt" aria-selected="true">ガントチャート</button>
       <button role="tab" id="tab-list" aria-selected="false">リスト</button>
@@ -2353,11 +2363,11 @@ return { createSync };
 
 /* src/ui/prefs.js */
 const { DEFAULT_PREFS, loadPrefs, savePrefs, loadInboxDraft, saveInboxDraft, SETTINGS_FOLDS, loadSettingsClosed, saveSettingsClosed } = (() => {
-// 画面の表示の好み（今日の優先・ガントの実績・スケジュールの参加しない会議を出す／隠す）。データではないので、ブラウザ（localStorage）に保存する。
+// 画面の表示の好み（今日の優先・ガントの実績・スケジュールの参加しない会議・週表示の期限の行を出す／隠す）。データではないので、ブラウザ（localStorage）に保存する。
 // localStorage が使えない・壊れているときは、既定のまま動く。
 
 const KEY = "project-lens.prefs";
-const DEFAULT_PREFS = { showPrio: true, showActual: true, showSkipped: false };
+const DEFAULT_PREFS = { showPrio: true, showActual: true, showSkipped: false, showDue: true };
 
 /** localStorage。サイトのデータが止められているなど、使えないときは null */
 const browserStorage = () => {
@@ -2548,7 +2558,7 @@ return { depPath, depMarkup, drawDeps, focusDeps };
 })();
 
 /* src/ui/edit.js */
-const { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, duplicateTask, addTaskQuick, addUrgentTask, confirmTodaySession, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject } = (() => {
+const { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, confirmTodaySession, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject } = (() => {
 // 画面からの編集（追加・削除・更新）。すべて不変更新で、不正な入力は例外にする（呼び出し側が理由を表示する）。
 
 
@@ -2906,14 +2916,6 @@ function spawnNextRepeat(data, taskId, today = nowLocal().date) {
   return insertAfter(marked, taskId, next);
 }
 
-/** タスクの複製。期限は今日、状態は To Do、チェックリストは未チェック。繰り返しは引き継がない */
-function duplicateTask(data, taskId, today = nowLocal().date) {
-  const t = data.tasks.find((x) => x.id === taskId);
-  if (!t) throw new Error(`タスク ${taskId} がありません`);
-  const copy = newTask(data, t.projectId, t.title, today, carriedFields(t));
-  return { data: insertAfter(data, taskId, copy), id: copy.id };
-}
-
 /** place: { group, subgroup }。見出し行の「＋」から、そのグループへ入れる。含まれるキーだけ入れ、空白は null にする */
 function addTaskQuick(data, projectId, title, today = nowLocal().date, place = {}) {
   if (!data.projects.some((p) => p.id === projectId)) throw new Error(`プロジェクト ${projectId} がありません`);
@@ -3071,7 +3073,7 @@ function deleteProject(data, projectId) {
   return { ...data, settings, events, ...(inbox ? { inbox } : {}), projects: data.projects.filter((p) => p.id !== projectId), tasks: data.tasks.filter((t) => t.projectId !== projectId) };
 }
 
-return { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, duplicateTask, addTaskQuick, addUrgentTask, confirmTodaySession, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject };
+return { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, confirmTodaySession, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject };
 })();
 
 /* src/ui/donecheck.js */
@@ -3974,7 +3976,7 @@ function renderTaskPop(data, pop, statusHtml) {
   return `<div class="tpop" role="dialog" aria-label="${id} を編集" data-tpop style="left:${Math.round(pop.x)}px;top:${Math.round(pop.y)}px">
     <div class="tp-h"><b class="mono">${id}</b><span class="muted">${fmtMD(taskStart(data, t.id))}〜${fmtMD(t.due)}</span><button class="gx" data-tpopclose aria-label="編集を閉じる" style="opacity:1">×</button></div>
     ${taskFieldsHtml(data, t, { full: true, statusHtml })}
-    <div class="tp-a"><button class="btn" data-goto="${id}">リストで開く</button><button class="btn" data-dup="${id}">複製</button><button class="btn danger" data-del="${id}">削除</button></div>
+    <div class="tp-a"><button class="btn" data-goto="${id}">リストで開く</button><button class="btn danger" data-del="${id}">削除</button></div>
   </div>`;
 }
 
@@ -4003,7 +4005,7 @@ function taskRowFieldsHtml(data, t, { full, statusHtml }) {
 
 /**
  * スケジュール画面の編集欄（#mtgslot に出す）。対象のタスクが無ければ空。見出しに ID は出さない（スケジュールは件名だけで表す）。会議の入力欄と同じ、ラベル付きの項目が折り返して並ぶ形
- * @param edit { id, full, askDel }  askDel が真なら削除の確認を出す。full が真なら、繰り返し・チェックリスト・前のタスク・複製・削除も出す
+ * @param edit { id, full, askDel }  askDel が真なら削除の確認を出す。full が真なら、繰り返し・チェックリスト・前のタスク・削除も出す
  */
 function renderTaskEditPanel(data, edit, statusHtml) {
   const t = data.tasks.find((x) => x.id === edit.id);
@@ -4013,7 +4015,7 @@ function renderTaskEditPanel(data, edit, statusHtml) {
   const del = edit.askDel ? `<span class="ask">このタスクを削除します。<button class="btn danger" data-delyes="${id}">削除する</button><button class="btn" data-tedit-delno>やめる</button></span>` : `<button class="btn danger" data-tedit-del="${id}">削除</button>`;
   // 詳細の項目は、軽い欄のあとの別の入れ物（全幅の行）に出す。軽い欄とボタンの行は、詳細の開閉で位置も大きさも変わらない
   const detail = edit.full ? `
-    <div class="tedit-detail">${repeatField}<div class="tp-a"><button class="btn" data-dup="${id}">複製</button>${del}</div>${wide}</div>` : "";
+    <div class="tedit-detail">${repeatField}<div class="tp-a">${del}</div>${wide}</div>` : "";
   return `<div class="mtgform tedit" role="group" aria-label="${id} を編集" data-tedit>
     <span class="tp-h"><span class="muted">${fmtMD(taskStart(data, t.id))}〜${fmtMD(t.due)}</span></span>
     ${fields}
@@ -4307,11 +4309,14 @@ function renderCalendar(data, today, opts) {
     const days = [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(weekStartOf(date), i));
     const heads = days.map((d) => `<button class="dh ${d === today ? "t" : ""}" data-day="${d}" aria-label="${fmtMD(d)}の1日表示">${fmtMD(d)}(${wdJa(d)})${isOff(d) ? '<small class="mono">—</small>' : ""}</button>`).join("");
     const cols = days.map((d) => `<div class="col dz ${d === today ? "today" : ""} ${isOff(d) ? "weekend" : ""}" data-date="${d}">${meetingBlocks(data, d, false, g, ctx)}${sessionBlocks(data, d, false, g, ctx)}</div>`).join("");
-    const dues = days.map((d) => {
-      const due = data.tasks.filter((t) => t.due === d && t.status !== "Done" && t.status !== "Cancelled");
-      return `<div class="duecell">${due.map((t) => `<div style="display:flex;gap:6px;align-items:baseline"><i class="dot ${STATUS_UI[t.status]?.dot ?? ""}${t.due < today ? " is-late" : ""}"></i><span${isImportantMark(t) ? ' class="impt"' : ""}>${esc(t.title)}</span></div>`).join("") || '<span class="muted">—</span>'}</div>`;
-    }).join("");
-    cal = `<div class="cal wk"><div class="week"><div></div>${heads}<div class="hrs">${hoursHtml(g)}</div>${cols}</div><div class="week" style="margin-top:8px"><div class="note" style="padding-top:6px">期限</div>${dues}</div></div>
+    const dueByDay = days.map((d) => data.tasks.filter((t) => t.due === d && t.status !== "Done" && t.status !== "Cancelled"));
+    // 期限の行: 日付の見出しのすぐ下に固定する（theme.css）。閉じると、各日のセルの代わりに、週の件数の帯だけを出す
+    const dueOpen = opts.showDue !== false;
+    const dueToggle = `<div class="duehd"><button class="duetg" data-sdue aria-expanded="${dueOpen}" title="期限の行を${dueOpen ? "閉じます" : "開きます"}">期限 ${dueOpen ? "▾" : "▸"}</button></div>`;
+    const dues = dueOpen
+      ? dueByDay.map((due) => `<div class="duecell">${due.map((t) => `<div style="display:flex;gap:6px;align-items:baseline"><i class="dot ${STATUS_UI[t.status]?.dot ?? ""}${t.due < today ? " is-late" : ""}"></i><span${isImportantMark(t) ? ' class="impt"' : ""}>${esc(t.title)}</span></div>`).join("") || '<span class="muted">—</span>'}</div>`).join("")
+      : `<div class="dueoff">この週の期限 ${dueByDay.flat().length} 件</div>`;
+    cal = `<div class="cal wk"><div class="week"><div></div>${heads}${dueToggle}${dues}<div class="hrs">${hoursHtml(g)}</div>${cols}</div></div>
       <p class="note" style="margin:8px 0 0">日付を押すと1日表示に切り替わります。枠をクリックして選び、「枠を削除」か Delete キーで削除できます。</p>`;
   } else {
     const nowLine = date === ctx.now.date && toMin(ctx.now.time) >= g.h0 && toMin(ctx.now.time) <= g.h0 + g.span ? `<span class="nowline" style="top:${g.tp(toMin(ctx.now.time))}" title="現在 ${ctx.now.time}"></span>` : "";
@@ -4329,6 +4334,7 @@ function renderCalendar(data, today, opts) {
  * @param opts.selSess   選択中の枠 ID / opts.selMtg 選択中の会議 ID / opts.mtgDraft 追加中の会議の下書き / opts.urgentDraft 追加中の突発タスクの下書き / opts.taskEdit 編集欄を開いているタスク { id, full, askDel }
  * @param opts.showPrio  false なら今日の優先を出さない
  * @param opts.showSkipped  true なら「参加しない」の会議も出す（既定は出さない。選択中の会議だけは、隠さない）
+ * @param opts.showDue   false なら週表示の期限の行を閉じる（既定は開く）
  */
 function renderSchedule(data, today, opts) {
   const { view = "week", date = today } = opts;
@@ -4424,10 +4430,11 @@ function syncSticky() {
   root.setProperty("--hh", `${topbar.offsetHeight}px`);
   const tool = view.querySelector(".ptool");
   root.setProperty("--th", `${tool ? tool.offsetHeight : 0}px`);
-  // スケジュールは、ヘッダーの下に、操作の行（.stop）・入力欄（#mtgslot）・週表示の日付の見出しを積んで固定する。それぞれの高さを測り、下の段の top に足す
+  // スケジュールは、ヘッダーの下に、操作の行（.stop）・入力欄（#mtgslot）・週表示の日付の見出し・期限の行を積んで固定する。それぞれの高さを測り、下の段の top に足す
   root.setProperty("--stop-h", `${view.querySelector(".stop")?.offsetHeight ?? 0}px`);
   root.setProperty("--slot-h", `${view.querySelector("#mtgslot")?.offsetHeight ?? 0}px`);
   root.setProperty("--dh-h", `${view.querySelector(".cal.wk .week .dh")?.offsetHeight ?? 0}px`);
+  root.setProperty("--due-h", `${view.querySelector(".cal.wk .week .duehd")?.offsetHeight ?? 0}px`); // 週表示の期限の行（日付の見出しの下に固定。左端のセルは行の高さに伸びる）
   // ガントの操作の帯(.gtop)の高さ(プロジェクトの見出し .pgstick の固定位置)と、プロジェクトごとの見出しの高さ(日付軸の複製の固定位置)。スクロールには連動させない
   root.setProperty("--gh", `${view.querySelector(".gtop")?.offsetHeight ?? 0}px`);
   for (const pg of view.querySelectorAll("section.pg")) pg.style.setProperty("--pgh", `${pg.querySelector(".pgstick").getBoundingClientRect().height}px`);
@@ -4535,7 +4542,7 @@ function startScreen() {
     ${S.openError ? `<p class="ask" style="max-width:none" role="alert">${esc(S.openError)}</p>` : ""}</section>`;
 }
 
-const scheduleOpts = () => ({ view: S.sview, date: S.sdate, now: clock(), selSess: S.selSess, selMtg: S.selMtg, mtgDraft: S.mtgDraft, urgentDraft: S.urgentDraft, taskEdit: S.taskEdit, pendingWait: S.pendingWait, showPrio: S.prefs.showPrio, showSkipped: S.prefs.showSkipped, pendingDone: S.pendingDone });
+const scheduleOpts = () => ({ view: S.sview, date: S.sdate, now: clock(), selSess: S.selSess, selMtg: S.selMtg, mtgDraft: S.mtgDraft, urgentDraft: S.urgentDraft, taskEdit: S.taskEdit, pendingWait: S.pendingWait, showPrio: S.prefs.showPrio, showSkipped: S.prefs.showSkipped, showDue: S.prefs.showDue, pendingDone: S.pendingDone });
 
 function renderBody() {
   const { date: today } = clock();
@@ -4644,6 +4651,7 @@ function focusSelector(el) {
   if (d.ckdel) return q("data-ckdel", d.ckdel);
   if (d.cktoggle) return q("data-cktoggle", d.cktoggle);
   if (d.pref) return `[data-pref="${CSS.escape(d.pref)}"]`; // 右の列の取っ手
+  if (d.sdue !== undefined) return "[data-sdue]"; // 週表示の期限の行の開閉
   if (d.set) return q("data-set", d.set);
   // 規則の欄は、書き換えるとキーワードが変わるので、行の位置（data-ri。書き換えても並びは変わらない）で探す
   if (d.rkw !== undefined) return `[data-rkw][data-ri="${CSS.escape(d.ri)}"]`;
@@ -4673,15 +4681,15 @@ function scrollToday(smooth) {
   }));
 }
 
-/** スケジュールの固定の段（ヘッダー・操作の行・入力欄・週表示の日付の見出し）の下端（画面の y）。syncSticky が測った高さの和 */
+/** スケジュールの固定の段（ヘッダー・操作の行・入力欄・週表示の日付の見出し・期限の行）の下端（画面の y）。syncSticky が測った高さの和 */
 function stackBottom() {
   const cs = getComputedStyle(document.documentElement), px = (k) => parseFloat(cs.getPropertyValue(k)) || 0;
-  return px("--hh") + px("--stop-h") + px("--slot-h") + px("--dh-h");
+  return px("--hh") + px("--stop-h") + px("--slot-h") + px("--dh-h") + px("--due-h");
 }
 
 /** スケジュールを開いたとき（画面の切り替え・ファイルを開いたとき・「＋ 突発タスク」）に、時間の軸の先頭に見せる時刻（分） */
 const MORNING = 8 * 60;
-/** スケジュールを開いたとき、今の時刻によらず、08:00 が固定の段（ヘッダー・操作の行・入力欄・週表示の日付の見出し）のすぐ下（10px 下）に来るまで、ページを縦にスクロールする（時間の軸は 00:00〜24:00 で、先頭は夜中のため） */
+/** スケジュールを開いたとき、今の時刻によらず、08:00 が固定の段（ヘッダー・操作の行・入力欄・週表示の日付の見出し・期限の行）のすぐ下（10px 下）に来るまで、ページを縦にスクロールする（時間の軸は 00:00〜24:00 で、先頭は夜中のため） */
 function scrollToMorning() {
   const grid = view.querySelector(".cal-grid, .week .hrs");
   if (!grid) return;
@@ -5043,8 +5051,6 @@ view.addEventListener("click", (e) => {
   if (ma) { const p = S.data.projects.find((x) => x.id === ma.dataset.msadd); apply((d) => addMilestone(d, p.id, { name: "新しいマイルストーン", date: p.due }), "マイルストーンを追加しました"); return; }
   const md = q("[data-msdel]");
   if (md) { const [pid, i] = md.dataset.msdel.split("|"); apply((d) => deleteMilestone(d, pid, +i), "マイルストーンを削除しました"); return; }
-  const dp = q("[data-dup]");
-  if (dp) { S.tpop = null; apply((d) => duplicateTask(d, dp.dataset.dup, clock().date).data, "複製しました（期限は今日です）"); return; }
   const dl = q("[data-del]"); if (dl) { S.askDel = dl.dataset.del; S.tpop = null; render(); return; }
   if (q("[data-delno]")) { S.askDel = null; render(); return; }
   const dy = q("[data-delyes]");
@@ -5091,6 +5097,7 @@ view.addEventListener("click", (e) => {
   const nv = q("[data-nav]"); if (nv) { S.sdate = addDays(S.sdate, +nv.dataset.nav); render(); return; }
   if (q("[data-sgoto]")) { S.sdate = today; render(); return; }
   if (q("[data-sskip]")) { togglePref("showSkipped"); return; }
+  if (q("[data-sdue]")) { togglePref("showDue"); return; }
   const dy0 = q("[data-day]"); if (dy0) { S.sdate = dy0.dataset.day; S.sview = "day"; render(); return; }
   const cf = q("[data-confirm]");
   if (cf) { apply((d) => { const r = confirmSession(d, cf.dataset.confirm, now); if (r.error) throw new Error(r.error); return r.data; }, "実績にしました。時間が違うときは、枠をドラッグして直します"); return; }

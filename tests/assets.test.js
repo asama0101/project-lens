@@ -30,7 +30,7 @@ test("ソースが CRLF（autocrlf の clone）でも、同じビルド結果に
   try {
     const root = join(dir, "repo");
     const repo = fileURLToPath(new URL("../plugins/project-lens/", import.meta.url));
-    for (const f of ["src/ui/index.html", "src/ui/theme.css", ...MODULES]) {
+    for (const f of ["src/ui/index.html", "src/ui/theme.css", ".claude-plugin/plugin.json", ...MODULES]) {
       mkdirSync(dirname(join(root, f)), { recursive: true });
       writeFileSync(join(root, f), readFileSync(join(repo, f), "utf8").replace(/\r?\n/g, "\r\n"));
     }
