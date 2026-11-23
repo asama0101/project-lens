@@ -399,10 +399,15 @@ test("theme.css: 幅 860px 以下で、リストのチェックリストの展�
   assert.match(css, /\.tbl\.edit tr\.ck-tr>td\{grid-column:1\/-1;padding-left:0\}/);
 });
 
-// 日付欄は、年・月・日の一部を消した入力の途中でも値が空文字になる。そのまま保存すると、保存済みの回答予定日が消える。
-test("app.js: 回答予定日の欄は、入力の途中（validity.badInput）では保存しない", () => {
-  const line = src.slice(src.indexOf('if (f === "expected")'), src.indexOf('if (f === "group"'));
-  assert.match(line, /validity\.badInput/);
+test("app.js: 日付の欄（data-date）は、キャプチャ段階の change で parseDateInput により YYYY-MM-DD に直し、読めないときは元の値に戻して通知し、ほかの処理に渡さない。Enter の確定も先に直す。「📅」は showPicker（使えないときは focus・click）", () => {
+  const fn = src.slice(src.indexOf("function normalizeDateField(el)"), src.indexOf("function normalizeDateField(el)") + 600);
+  assert.ok(fn.includes("parseDateInput(v)") && fn.includes("el.value = iso") && fn.includes("el.value = el.defaultValue") && fn.includes("日付は 2026/10/20 の形で入力してください"), fn);
+  assert.match(src, /if \(el\.matches\?\.\("\[data-date\]"\) && !normalizeDateField\(el\)\) e\.stopImmediatePropagation\(\);\r?\n\}, true\);/);
+  assert.match(src, /if \(!normalizeDateField\(e\.target\)\) \{ e\.preventDefault\(\); e\.stopImmediatePropagation\(\); \}\r?\n\}, true\);/);
+  assert.ok(src.includes("try { pick.showPicker(); } catch { pick.focus(); pick.click(); }"));
+  assert.ok(src.includes('field.dispatchEvent(new Event("change", { bubbles: true }))'), "選んだ日は、文字の欄の change として流す");
+  assert.ok(src.indexOf("function normalizeDateField") < src.indexOf('view.addEventListener("change", (e) => { const el = e.target; setTimeout(() => onChange(el), 0); });'), "ほかの change の処理より前に登録する");
+  assert.ok(!src.includes("validity.badInput"), "日付の欄の部分入力の判定は持たない（文字の欄のため）");
 });
 
 test("app.js: 突発タスクの入力欄は、ヘッダーのボタンからだけ開く（空き時間を押す経路 data-free・data-freedate を持たない）。addUrgentTask で確定し、Enter は変換確定中は確定しない", () => {

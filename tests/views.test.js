@@ -6,7 +6,7 @@ import { renderProjects } from "../plugins/project-lens/src/ui/views/project.js"
 import { renderGantt, assignLevels, layoutMilestones } from "../plugins/project-lens/src/ui/views/gantt.js";
 import { renderPrio, renderTodayTasks, todayTaskIds, doneAskHtml } from "../plugins/project-lens/src/ui/views/prio.js";
 import { renderSettings } from "../plugins/project-lens/src/ui/views/settings.js";
-import { checkMeterHtml } from "../plugins/project-lens/src/ui/common.js";
+import { checkMeterHtml, dateInputHtml } from "../plugins/project-lens/src/ui/common.js";
 import { checklistEditorHtml } from "../plugins/project-lens/src/ui/views/checklist.js";
 import { renderTaskPop, renderTaskEditPanel } from "../plugins/project-lens/src/ui/views/taskpop.js";
 import { renderInboxBar, ibExamples } from "../plugins/project-lens/src/ui/views/inboxpanel.js";
@@ -83,7 +83,7 @@ test("renderProjects(list): 状態（英語表記）・待ち先・日程変更�
   assert.ok(html.includes("ベンダーX の納期回答が遅れたため"));
   assert.ok(html.includes("3.5h・初回 10/14・3回"), "AA-0005 の実績");
   assert.ok(html.includes("前のタスクから"), "前のタスクがあり、開始日の指定がないときは、決まる日と『前のタスクから』を添える");
-  assert.ok(html.includes('type="date" data-f="start" data-id="AA-0005"'), "前のタスクなしは開始日を入力できる");
+  assert.ok(html.includes('data-date="1" data-f="start" data-id="AA-0005"'), "前のタスクなしは開始日を入力できる");
   assert.ok(html.includes('data-f="start" data-id="AA-0006"'), "前のタスクありでも開始日を入力できる");
 });
 
@@ -1496,7 +1496,7 @@ test("urgentDefaultStart: 突発タスクの開始の初期値。今日は現在
 
 test("urgentForm: 日付・開始時刻の欄に下書きの値が入る", () => {
   const html = sched(load(), { urgentDraft: { date: "2026-10-22", start: "14:15", title: "", projectId: "", minutes: 30 } });
-  assert.match(html, /<input[^>]*type="date"[^>]*data-ug="date"[^>]*value="2026-10-22"|<input[^>]*data-ug="date"[^>]*type="date"[^>]*value="2026-10-22"/);
+  assert.match(html, /<input[^>]*type="text"[^>]*data-date="1" data-ug="date" value="2026-10-22"/);
   assert.match(html, /data-ug="start"[^>]*value="14:15"/);
   assert.match(html, /type="time"[^>]*data-ug="start"|data-ug="start"[^>]*type="time"/);
 });
@@ -1728,5 +1728,34 @@ test("renderSchedule: 操作の行（← → 今日・見出し・凡例・ボ�
     const top = html.slice(html.indexOf('<div class="stop">'), html.indexOf('<div id="mtgslot">'));
     assert.ok(html.indexOf('<div class="stop">') > 0, view);
     for (const k of ["data-nav", "data-sgoto", 'class="slegend"', "data-sskip", "data-mtgadd", "data-sview", 'class="summary"', "data-delsel"]) assert.ok(top.includes(k), `${view}: ${k}`);
+  }
+});
+
+test("dateInputHtml: 文字の欄（type=text・data-date）に値と例（2026/10/20）を入れ、横に「📅」（data-datepick）と、選ぶための隠れた日付の欄（.dpick-in）を置く。disabled はボタンにも付く", () => {
+  const h = dateInputHtml({ value: "2026-10-20", attrs: 'data-f="due" data-id="A&1"', label: "期限" });
+  assert.ok(h.includes('<input class="in din" type="text" inputmode="numeric" autocomplete="off" data-date="1" data-f="due" data-id="A&1" value="2026-10-20" placeholder="2026/10/20">'), h);
+  assert.ok(h.includes('data-datepick') && h.includes('aria-label="期限をカレンダーから選ぶ"') && h.includes(">📅</button>"), h);
+  assert.ok(/<input type="date" class="dpick-in" tabindex="-1" aria-hidden="true">/.test(h), h);
+  const off = dateInputHtml({ value: "", attrs: "disabled", cls: "in sm" });
+  assert.ok(off.includes('class="in sm din"') && /data-datepick[^>]*disabled/.test(off), off);
+});
+
+test("日付の欄は、すべて文字の欄（data-date）と「📅」。見えている type=date の欄は持たない（リスト・ガントの窓・スケジュールの編集欄・会議・突発タスク・プロジェクト・マイルストーン・回答予定日・設定の休み・営業日）", () => {
+  const d = load();
+  d.tasks.find((t) => t.id === "AA-0003").waitingOn.expected = "2026-10-30";
+  const pages = {
+    list: renderProjects(d, TODAY, { filter: "AA", view: "list" }),
+    pop: renderProjects(d, TODAY, { filter: "AA", view: "gantt", tpop: { id: "AA-0005", x: 0, y: 0 } }),
+    panel: renderSchedule(d, TODAY, { view: "week", date: TODAY, now: NOW, selSess: "S3", taskEdit: { id: "AA-0005", full: true } }),
+    mtg: sched(d, { selMtg: "m2" }),
+    urgent: sched(d, { urgentDraft: { date: TODAY, start: "10:15", title: "", projectId: "", minutes: 30 } }),
+    settings: setv(d),
+  };
+  const want = { list: ['data-f="due"', 'data-f="start"', 'data-f="expected"', 'data-pf="start"', 'data-pf="due"', 'data-mf="date"'], pop: ['data-f="due"', 'data-f="start"'], panel: ['data-f="due"', 'data-f="start"'], mtg: ['data-mt="date"'], urgent: ['data-ug="date"'], settings: ["data-hnew", "data-hto", "data-wnew"] };
+  for (const [k, html] of Object.entries(pages)) {
+    const typeDate = html.match(/<input[^>]*type="date"[^>]*>/g) ?? [];
+    assert.ok(typeDate.every((x) => x.includes('class="dpick-in"')), `${k}: ${typeDate.join(" ")}`);
+    for (const a of want[k]) assert.ok(new RegExp(`data-date="1" ${a}`).test(html), `${k}: ${a}`);
+    assert.equal((html.match(/data-date="1"/g) ?? []).length, (html.match(/data-datepick/g) ?? []).length, k);
   }
 });

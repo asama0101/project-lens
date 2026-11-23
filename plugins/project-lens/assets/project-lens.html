@@ -568,6 +568,13 @@ body:has(.ptool){padding-block-start:8px}
 /* 30 分未満の枠・会議（short）は、時刻と件名を 1 行に並べ、上下の余白を詰める（15 分は 22px） */
 #view .cal .blk.short{padding-top:1px;padding-bottom:1px;white-space:nowrap;text-overflow:ellipsis}
 #view .cal .blk.short .tm{display:inline;margin-right:4px}
+/* 日付の欄: 文字の欄（2026/10/20 を打てる）と「📅」（ブラウザの日付の選択を開く）。選ぶための日付の欄（.dpick-in）は見せず、ボタンの位置に置く */
+#view .dfield{display:inline-flex;align-items:center;gap:2px;position:relative;vertical-align:middle}
+#view .dfield .din{width:11.5ch;min-width:0}
+#view .dpick{font:inherit;font-size:13px;line-height:1;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);padding:4px 4px;cursor:pointer}
+#view .dpick:disabled{opacity:.4;cursor:default}
+#view .dpick-in{position:absolute;right:0;bottom:0;width:1px;height:1px;opacity:0;border:0;padding:0;pointer-events:none}
+#view .din.bad{outline:2px solid var(--bad);outline-offset:1px}
 </style>
 </head>
 <body>
@@ -589,7 +596,7 @@ body:has(.ptool){padding-block-start:8px}
 <div id="claudebar"></div>
 <div id="toast" class="toast" hidden role="status"></div>
 <script>/* src/core/dates.js */
-const { isDate, isTime, addDays, dueAfter, diffDays, weekday, isWeekend, toMin, toHHMM, today, nowLocal } = (() => {
+const { isDate, parseDateInput, isTime, addDays, dueAfter, diffDays, weekday, isWeekend, toMin, toHHMM, today, nowLocal } = (() => {
 // 日付(YYYY-MM-DD)・時刻(HH:MM)の文字列演算。Date の UTC 変換によるずれを避けるため、数値分解で計算する。
 
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -627,6 +634,18 @@ function isDate(s) {
   const [y, mo, d] = [+m[1], +m[2], +m[3]];
   const [y2, m2, d2] = fromDays(toDays(y, mo, d));
   return y === y2 && mo === m2 && d === d2;
+}
+
+/**
+ * 画面の日付の欄に打った文字 → YYYY-MM-DD。2026/10/20・2026-10-20・2026.10.20・20261020・2026/1/5 と、全角の数字・記号、前後や間の空白を受ける。
+ * 実在しない日・年が 4 桁でない・空は null
+ */
+function parseDateInput(text) {
+  const s = String(text ?? "").replace(/[０-９／－．]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0)).replace(/\s+/g, "");
+  const m = /^(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})$/.exec(s) ?? /^(\d{4})(\d{2})(\d{2})$/.exec(s);
+  if (!m) return null;
+  const iso = `${m[1]}-${pad(+m[2])}-${pad(+m[3])}`;
+  return isDate(iso) ? iso : null;
 }
 
 /** HH:MM（00:00〜23:59）か */
@@ -698,7 +717,7 @@ function nowLocal() {
   return { date: today(), time: `${pad(n.getHours())}:${pad(n.getMinutes())}` };
 }
 
-return { isDate, isTime, addDays, dueAfter, diffDays, weekday, isWeekend, toMin, toHHMM, today, nowLocal };
+return { isDate, parseDateInput, isTime, addDays, dueAfter, diffDays, weekday, isWeekend, toMin, toHHMM, today, nowLocal };
 })();
 
 /* src/core/holidays.js */
@@ -2375,7 +2394,7 @@ return { DEFAULT_PREFS, loadPrefs, savePrefs, loadInboxDraft, saveInboxDraft, SE
 })();
 
 /* src/ui/common.js */
-const { esc, fmtMD, wdJa, hm, hh, STATUS_UI, flagPills, checkMeterHtml, NO_PROJECT, bannerHtml } = (() => {
+const { esc, fmtMD, wdJa, hm, hh, dateInputHtml, STATUS_UI, flagPills, checkMeterHtml, NO_PROJECT, bannerHtml } = (() => {
 // 画面共通の小さな道具（HTML エスケープ、日付・時刻の表示、状態の見た目）。DOM には触れない。
 
 
@@ -2392,6 +2411,15 @@ const wdJa = (d) => WD_JA[weekday(d)];
 const hm = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, "0")}`;
 /** 分 → "09:05" */
 const hh = toHHMM;
+
+/**
+ * 日付の入力欄。文字の欄（data-date。2026/10/20・2026-10-20・20261020 を打てる。確定で app.js が YYYY-MM-DD に直す）と、
+ * ブラウザの日付の選択を開く「📅」（data-datepick）と、選ぶための隠れた日付の欄（.dpick-in）。attrs はエスケープ済みの属性の文字列
+ */
+function dateInputHtml({ value = "", attrs = "", cls = "in", label = "" } = {}) {
+  const off = /(^|\s)disabled(\s|$)/.test(attrs) ? " disabled" : "";
+  return `<span class="dfield"><input class="${cls} din" type="text" inputmode="numeric" autocomplete="off" data-date="1" ${attrs} value="${esc(value)}" placeholder="2026/10/20"><button type="button" class="dpick" data-datepick tabindex="-1" aria-label="${label ? `${esc(label)}を` : ""}カレンダーから選ぶ"${off}>📅</button><input type="date" class="dpick-in" tabindex="-1" aria-hidden="true"></span>`;
+}
 
 /** タスク状態 → ドット／バーの CSS クラス */
 const STATUS_UI = {
@@ -2434,7 +2462,7 @@ function bannerHtml(msg, actions = {}, orphans = 0, pending = false) {
   return `<div class="banner">${esc(msg)}${actions.reload ? ` <button class="btn" data-reload>再読込(画面の未保存の変更は破棄)</button>` : ""}${actions.download ? ` <button class="btn" data-download>変更を JSON で書き出す</button>` : ""}${orphan}</div>`;
 }
 
-return { esc, fmtMD, wdJa, hm, hh, STATUS_UI, flagPills, checkMeterHtml, NO_PROJECT, bannerHtml };
+return { esc, fmtMD, wdJa, hm, hh, dateInputHtml, STATUS_UI, flagPills, checkMeterHtml, NO_PROJECT, bannerHtml };
 })();
 
 /* src/ui/deps.js */
@@ -3682,7 +3710,7 @@ function renderSettings(data, today, opts = {}) {
       <p class="note" style="margin:0 0 10px">有給・会社独自の休みなどを登録します。営業日の計算で飛ばします（区分は整理用で、計算は同じです）。${countOn ? "終了日を入れると期間として登録します。土日祝を営業日に数えるときは、期間内の土日と日本の祝日も除きません。" : "終了日を入れると期間として登録し、期間内の土日と日本の祝日は除きます。"}変更はその場でファイルに保存されます。</p>
       ${warnOf("holidays")}
       <div class="tscroll"><table class="tbl edit"><thead><tr><th>日付</th><th>区分</th><th>メモ</th><th></th></tr></thead><tbody>${holidayRows || `<tr><td colspan="4" class="muted">休みは登録されていません。下の行から追加します。</td></tr>`}
-        <tr><td data-l="日付"><input class="in" type="date" data-hnew aria-label="休みの開始日"> 〜 <input class="in" type="date" data-hto aria-label="休みの終了日（期間のとき）"></td><td data-l="区分"><select class="in sm" data-hkind aria-label="追加する休みの区分">${kindOptions()}</select></td><td data-l="メモ"><input class="in" data-hnote placeholder="メモ（任意）" aria-label="休みのメモ"></td><td data-l=""><button class="btn" data-hadd>＋ 追加</button></td></tr></tbody></table></div>
+        <tr><td data-l="日付">${dateInputHtml({ attrs: 'data-hnew aria-label="休みの開始日"', label: "休みの開始日" })} 〜 ${dateInputHtml({ attrs: 'data-hto aria-label="休みの終了日（期間のとき）"', label: "休みの終了日" })}</td><td data-l="区分"><select class="in sm" data-hkind aria-label="追加する休みの区分">${kindOptions()}</select></td><td data-l="メモ"><input class="in" data-hnote placeholder="メモ（任意）" aria-label="休みのメモ"></td><td data-l=""><button class="btn" data-hadd>＋ 追加</button></td></tr></tbody></table></div>
     `, warnN("holidays"));
 
   const workdayRows = entries(st.workdays).map((x) => `<tr><td class="mono" data-l="日付">${esc(x.date)}</td>${noteTd(x)}<td data-l=""><button class="btn" data-wdel="${esc(x.date)}" aria-label="${esc(x.date)} を営業日の指定から外す">削除</button></td></tr>`).join("");
@@ -3690,7 +3718,7 @@ function renderSettings(data, today, opts = {}) {
       <p class="note" style="margin:0 0 10px">土日・祝日・休みでも、この日は営業日として数えます（休日出勤など）。変更はその場でファイルに保存されます。</p>
       ${warnOf("workdays")}
       <div class="tscroll"><table class="tbl edit"><thead><tr><th>日付</th><th>メモ</th><th></th></tr></thead><tbody>${workdayRows || `<tr><td colspan="3" class="muted">営業日の指定はありません。下の行から追加します。</td></tr>`}
-        <tr><td data-l="日付"><input class="in" type="date" data-wnew aria-label="営業日として扱う日"></td><td data-l="メモ"><input class="in" data-wnote placeholder="メモ（任意）" aria-label="営業日の指定のメモ"></td><td data-l=""><button class="btn" data-wadd>＋ 追加</button></td></tr></tbody></table></div>
+        <tr><td data-l="日付">${dateInputHtml({ attrs: 'data-wnew aria-label="営業日として扱う日"', label: "営業日として扱う日" })}</td><td data-l="メモ"><input class="in" data-wnote placeholder="メモ（任意）" aria-label="営業日の指定のメモ"></td><td data-l=""><button class="btn" data-wadd>＋ 追加</button></td></tr></tbody></table></div>
     `, warnN("workdays"));
 
   const ruleRows = rules.map((r, i) => {
@@ -3897,7 +3925,7 @@ function predEditHtml(data, t) {
 function startInputHtml(data, t) {
   const derived = !t.start && (t.predecessors ?? []).length > 0;
   const hint = derived ? ` <small class="muted" title="開始日を指定していないので、前のタスクの期限から決まります">前のタスクから</small>` : "";
-  return `<input class="in" type="date" data-f="start" data-id="${esc(t.id)}" value="${esc(t.start || (derived ? taskStart(data, t.id) : ""))}" aria-label="${esc(t.id)} の開始日">${hint}`;
+  return `${dateInputHtml({ value: t.start || (derived ? taskStart(data, t.id) : ""), attrs: `data-f="start" data-id="${esc(t.id)}" aria-label="${esc(t.id)} の開始日"`, label: "開始日" })}${hint}`;
 }
 
 /**
@@ -3913,7 +3941,7 @@ function taskFieldsHtml(data, t, { full, statusHtml }) {
   return `${field("件名", `<input class="in" data-f="title" data-id="${id}" value="${esc(t.title)}">`)}
     ${field("プロジェクト", `<select class="in sm" data-f="projectId" data-id="${id}">${projects}</select>`)}
     <div class="tp-f"><span class="muted">状態</span><div>${statusHtml}</div></div>
-    <div class="tp-r">${field("開始", startInputHtml(data, t))}${field("期限", `<input class="in" type="date" data-f="due" data-id="${id}" value="${esc(t.due)}">`)}</div>
+    <div class="tp-r">${field("開始", startInputHtml(data, t))}${field("期限", dateInputHtml({ value: t.due, attrs: `data-f="due" data-id="${id}"`, label: "期限" }))}</div>
     ${full ? checklistEditorHtml(t) : ""}
     ${full ? `<div class="tp-f"><span class="muted">前のタスク</span>${predEditHtml(data, t)}</div>` : ""}
     <div class="tp-r">${imp}${full ? repeat : ""}</div>
@@ -3947,7 +3975,7 @@ function taskRowFieldsHtml(data, t, { full, statusHtml }) {
   const fields = [
     field("tp-title", "件名", `<input class="in" data-f="title" data-id="${id}" value="${esc(t.title)}">`),
     field("", "開始", startInputHtml(data, t)),
-    field("", "期限", `<input class="in" type="date" data-f="due" data-id="${id}" value="${esc(t.due)}">`),
+    field("", "期限", dateInputHtml({ value: t.due, attrs: `data-f="due" data-id="${id}"`, label: "期限" })),
     `<div class="tp-st"><span>状態</span><div>${statusHtml}</div></div>`,
     `<label class="chk"><input type="checkbox" data-f="important" data-id="${id}" ${t.important === true ? "checked" : ""}>重要</label>`,
     field("", "プロジェクト", `<select class="in sm" data-f="projectId" data-id="${id}">${projects}</select>`),
@@ -4036,9 +4064,9 @@ function renderList(data, p, today, opts) {
       <td data-l="プロジェクト"><select class="in sm" data-f="projectId" data-id="${esc(t.id)}" aria-label="${esc(t.id)} のプロジェクト"><option value=""${t.projectId == null ? " selected" : ""}>プロジェクトなし</option>${data.projects.map((o) => `<option value="${esc(o.id)}"${o.id === t.projectId ? " selected" : ""}>${esc(o.name)}</option>`).join("")}</select></td>
       <td data-l="状態">${statusCellHtml(t, opts, late)}</td>
       <td data-l="開始">${startInputHtml(data, t)}</td>
-      <td data-l="期限"><input class="in" type="date" data-f="due" data-id="${esc(t.id)}" value="${esc(t.due)}" aria-label="${esc(t.id)} の期限"></td>
+      <td data-l="期限">${dateInputHtml({ value: t.due, attrs: `data-f="due" data-id="${esc(t.id)}" aria-label="${esc(t.id)} の期限"`, label: "期限" })}</td>
       <td data-l="前のタスク">${predEditHtml(data, t)}</td>
-      <td data-l="待ち先"><input class="in" data-f="party" data-id="${esc(t.id)}" value="${esc(t.waitingOn?.party ?? "")}" placeholder="${t.status === "Waiting" ? "ベンダー・部署名" : "—"}" ${t.status === "Waiting" ? "" : "disabled"} aria-label="${esc(t.id)} の待ち先">${needParty}<input class="in sm" type="date" data-f="expected" data-id="${esc(t.id)}" value="${esc(t.waitingOn?.expected ?? "")}" title="回答予定日" ${t.status === "Waiting" && t.waitingOn?.party ? "" : "disabled"} aria-label="${esc(t.id)} の回答予定日"></td>
+      <td data-l="待ち先"><input class="in" data-f="party" data-id="${esc(t.id)}" value="${esc(t.waitingOn?.party ?? "")}" placeholder="${t.status === "Waiting" ? "ベンダー・部署名" : "—"}" ${t.status === "Waiting" ? "" : "disabled"} aria-label="${esc(t.id)} の待ち先">${needParty}${dateInputHtml({ value: t.waitingOn?.expected ?? "", cls: "in sm", attrs: `data-f="expected" data-id="${esc(t.id)}" title="回答予定日" ${t.status === "Waiting" && t.waitingOn?.party ? "" : "disabled"} aria-label="${esc(t.id)} の回答予定日"`, label: "回答予定日" })}</td>
       <td data-l="重要"><input type="checkbox" data-f="important" data-id="${esc(t.id)}" ${t.important === true ? "checked" : ""} aria-label="${esc(t.id)} を重要にする"></td>
       <td data-l="メモ"><input class="in" data-f="memo" data-id="${esc(t.id)}" value="${esc(t.memo ?? "")}" placeholder="メモ" aria-label="${esc(t.id)} のメモ"></td>
       <td data-l="チェック">${checkCell(t, opts)}</td>
@@ -4056,7 +4084,7 @@ function renderList(data, p, today, opts) {
     .map((l) => `<li><span class="d">${fmtMD(l.at)}</span><span><span class="pill">${esc(l.cause ?? "—")}</span> ${esc(l.reason)} <span class="mono muted">(${esc((l.taskIds ?? []).join(", "))}・${Number(l.deltaDays) > 0 ? "+" : ""}${Number(l.deltaDays)}日)</span></span></li>`).join("")
     || `<li class="muted">変更履歴はありません。</li>`;
 
-  const ms = (p.milestones ?? []).map((m, i) => `<div class="msrow"><input class="in" data-mf="name" data-pid="${esc(p.id)}" data-i="${i}" value="${esc(m.name)}" aria-label="マイルストーン名"><input class="in sm" type="date" data-mf="date" data-pid="${esc(p.id)}" data-i="${i}" value="${esc(m.date)}" aria-label="マイルストーンの日付"><button class="btn" data-msdel="${esc(p.id)}|${i}" aria-label="${esc(m.name)} を削除">削除</button></div>`).join("")
+  const ms = (p.milestones ?? []).map((m, i) => `<div class="msrow"><input class="in" data-mf="name" data-pid="${esc(p.id)}" data-i="${i}" value="${esc(m.name)}" aria-label="マイルストーン名">${dateInputHtml({ value: m.date, cls: "in sm", attrs: `data-mf="date" data-pid="${esc(p.id)}" data-i="${i}" aria-label="マイルストーンの日付"`, label: "マイルストーンの日付" })}<button class="btn" data-msdel="${esc(p.id)}|${i}" aria-label="${esc(m.name)} を削除">削除</button></div>`).join("")
     || '<p class="muted" style="margin:0">マイルストーンはありません。</p>';
 
   const delProj = opts.askDelProject === p.id
@@ -4068,8 +4096,8 @@ function renderList(data, p, today, opts) {
 
   return `<section class="panel" aria-label="${esc(p.name)}"><div class="pstick"><div class="prow"><h2><input class="in" data-pf="name" data-pid="${esc(p.id)}" value="${esc(p.name)}" style="font-size:17px;font-weight:700" aria-label="プロジェクト名"></h2><label>状態 <select class="in sm" data-pf="status" data-pid="${esc(p.id)}" aria-label="${esc(p.name)} の状態">${PROJECT_STATUS.map((o) => `<option ${o === p.status ? "selected" : ""}>${o}</option>`).join("")}</select></label></div><div class="phead"><div><div class="kv" style="align-items:center">
       <label>種別 <select class="in sm" data-pf="type" data-pid="${esc(p.id)}" aria-label="種別">${PROJECT_TYPE.map((o) => `<option ${o === p.type ? "selected" : ""}>${o}</option>`).join("")}</select></label>
-      <label>開始 <input class="in sm" type="date" data-pf="start" data-pid="${esc(p.id)}" value="${esc(p.start)}" aria-label="${esc(p.name)} の開始日"></label>
-      <label>期限 <input class="in sm" type="date" data-pf="due" data-pid="${esc(p.id)}" value="${esc(p.due)}" aria-label="${esc(p.name)} の期限"></label>
+      <label>開始 ${dateInputHtml({ value: p.start, cls: "in sm", attrs: `data-pf="start" data-pid="${esc(p.id)}" aria-label="${esc(p.name)} の開始日"`, label: "開始日" })}</label>
+      <label>期限 ${dateInputHtml({ value: p.due, cls: "in sm", attrs: `data-pf="due" data-pid="${esc(p.id)}" aria-label="${esc(p.name)} の期限"`, label: "期限" })}</label>
       <span>進捗 <b class="mono">${prog.done}/${prog.total}</b> (${Math.round(prog.rate * 100)}%)</span><span class="mono hrs">${(() => { const hh = projectHours(data, p.id); return `稼働 ${(hh.task + hh.meeting).toFixed(1)}h（タスク ${hh.task.toFixed(1)}h・会議 ${hh.meeting.toFixed(1)}h）`; })()}</span></div></div><div>${flagPills(data, p.id, today, projectFlags(data, p.id, today))}</div></div>
     </div>${table}
     <div style="display:flex;gap:12px;align-items:center;margin-top:12px;flex-wrap:wrap"><span class="note">変更はその場でファイルに保存されます。次のタスクの日程をまとめて見直すときは、画面の下端の「Claude Code に依頼する」に頼みます。</span></div>
@@ -4218,7 +4246,7 @@ function meetingForm(data, ctx) {
   const projOpts = [`<option value=""${cur === "" ? " selected" : ""}>自動（規則）→ ${esc(autoName)}</option>`, ...projects.map((p) => `<option value="${esc(p.id)}"${cur === p.id ? " selected" : ""}>${esc(p.name)}</option>`)].join("");
   return `<div class="mtgform" role="group" aria-label="会議の${isNew ? "追加" : "編集"}">
     <label>件名<input class="in" data-mt="title" value="${esc(m.title)}" placeholder="会議名" style="min-width:200px" ${lock}></label>
-    <label>日付<input class="in" type="date" data-mt="date" value="${esc(m.date)}" ${lock}></label>
+    <label>日付${dateInputHtml({ value: m.date, attrs: `data-mt="date" ${lock}`, label: "会議の日付" })}</label>
     <label>開始<input class="in" type="time" step="900" data-mt="start" value="${esc(m.start)}" ${lock}></label>
     <label>終了<input class="in" type="time" step="900" data-mt="end" value="${esc(m.end)}" ${lock}></label>
     <label>プロジェクト<select class="in" data-mt="projectId" aria-label="会議のプロジェクト">${projOpts}</select></label>
@@ -4237,7 +4265,7 @@ function urgentForm(data, draft) {
     <label>件名<input class="in" data-ug="title" value="${esc(draft.title)}" placeholder="突発タスクの件名" style="min-width:200px"></label>
     <label>プロジェクト<select class="in" data-ug="projectId" aria-label="突発タスクのプロジェクト">${projOpts}</select></label>
     <label>長さ<select class="in" data-ug="minutes" aria-label="突発タスクの長さ">${minOpts}</select></label>
-    <label>日付<input class="in" type="date" data-ug="date" value="${esc(draft.date)}"></label>
+    <label>日付${dateInputHtml({ value: draft.date, attrs: 'data-ug="date"', label: "突発タスクの日付" })}</label>
     <label>開始<input class="in" type="time" step="900" data-ug="start" value="${esc(draft.start)}"></label>
     <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-urgsave>追加</button><button class="btn" data-urgcancel>キャンセル</button></div>
   </div>`;
@@ -5140,6 +5168,47 @@ view.addEventListener("keydown", (e) => {
   S.focusSel = `[data-ckadd="${id}"]`;
   apply((d) => addChecklistItem(d, id, text));
 });
+/**
+ * 日付の欄（data-date）の確定: 打った文字（2026/10/20・20261020 など）を YYYY-MM-DD に直して el.value に入れる（以後の処理は、いつも YYYY-MM-DD を読む）。
+ * 読めないときは、元の値に戻して通知し、false を返す（呼び出し側が、その確定を止める）。空は、欄ごとの扱いのまま通す
+ */
+function normalizeDateField(el) {
+  const v = el.value.trim();
+  if (!v) { el.value = ""; return true; }
+  const iso = parseDateInput(v);
+  if (iso) { el.value = iso; return true; }
+  el.value = el.defaultValue;
+  el.classList.add("bad");
+  setTimeout(() => el.classList.remove("bad"), 1600);
+  toast("日付は 2026/10/20 の形で入力してください");
+  return false;
+}
+// 日付の欄の確定は、ほかの change の処理より先に（キャプチャ段階で）直す。読めない値は、ほかの処理に渡さない。
+// 「📅」で選んだ日（隠れた日付の欄 .dpick-in の change）は、文字の欄に写して、文字の欄の change として流す
+view.addEventListener("change", (e) => {
+  const el = e.target;
+  if (el.matches?.(".dpick-in")) {
+    e.stopImmediatePropagation();
+    const field = el.closest(".dfield")?.querySelector("[data-date]");
+    if (field && el.value) { field.value = el.value; field.dispatchEvent(new Event("change", { bubbles: true })); }
+    return;
+  }
+  if (el.matches?.("[data-date]") && !normalizeDateField(el)) e.stopImmediatePropagation();
+}, true);
+// Enter で確定する欄（休み・営業日の追加）も、先に日付を直す
+view.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" || e.isComposing || !e.target.matches?.("[data-date]")) return;
+  if (!normalizeDateField(e.target)) { e.preventDefault(); e.stopImmediatePropagation(); }
+}, true);
+// 「📅」: 隠れた日付の欄に今の値を入れて、ブラウザの日付の選択を開く（showPicker が使えないときは、その欄を押す）
+view.addEventListener("click", (e) => {
+  const b = e.target.closest?.("[data-datepick]");
+  if (!b) return;
+  e.stopImmediatePropagation();
+  const box = b.closest(".dfield"), pick = box.querySelector(".dpick-in"), field = box.querySelector("[data-date]");
+  pick.value = parseDateInput(field.value) ?? "";
+  try { pick.showPicker(); } catch { pick.focus(); pick.click(); }
+}, true);
 view.addEventListener("change", (e) => { const el = e.target; setTimeout(() => onChange(el), 0); });
 // 設定タブの節の開閉は、描き直さずに記録して保存する（toggle はバブリングしないので、キャプチャで受ける）。描き直しでは S.settingsClosed から開閉を復元する
 view.addEventListener("toggle", (e) => {
@@ -5263,7 +5332,7 @@ function onChange(el) {
       apply((d) => updateTask(d, id, { repeat: r }, today), "変更を保存しました");
       return;
     }
-    if (f === "expected") { if (el.validity.badInput) return; apply((d) => updateTask(d, id, { waitingOn: { party: t.waitingOn.party, since: t.waitingOn.since, expected: el.value } }, today), "変更を保存しました"); return; }
+    if (f === "expected") { apply((d) => updateTask(d, id, { waitingOn: { party: t.waitingOn.party, since: t.waitingOn.since, expected: el.value } }, today), "変更を保存しました"); return; }
     if (f === "group" || f === "subgroup") S.hlId = id; // 該当グループへ移った行を強調して見失わないようにする
     apply((d) => updateTask(d, id, { [f]: f === "important" ? el.checked : el.value }, today), "変更を保存しました");
   }

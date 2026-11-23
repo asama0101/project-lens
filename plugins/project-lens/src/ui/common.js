@@ -15,6 +15,15 @@ export const hm = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(
 /** 分 → "09:05" */
 export const hh = toHHMM;
 
+/**
+ * 日付の入力欄。文字の欄（data-date。2026/10/20・2026-10-20・20261020 を打てる。確定で app.js が YYYY-MM-DD に直す）と、
+ * ブラウザの日付の選択を開く「📅」（data-datepick）と、選ぶための隠れた日付の欄（.dpick-in）。attrs はエスケープ済みの属性の文字列
+ */
+export function dateInputHtml({ value = "", attrs = "", cls = "in", label = "" } = {}) {
+  const off = /(^|\s)disabled(\s|$)/.test(attrs) ? " disabled" : "";
+  return `<span class="dfield"><input class="${cls} din" type="text" inputmode="numeric" autocomplete="off" data-date="1" ${attrs} value="${esc(value)}" placeholder="2026/10/20"><button type="button" class="dpick" data-datepick tabindex="-1" aria-label="${label ? `${esc(label)}を` : ""}カレンダーから選ぶ"${off}>📅</button><input type="date" class="dpick-in" tabindex="-1" aria-hidden="true"></span>`;
+}
+
 /** タスク状態 → ドット／バーの CSS クラス */
 export const STATUS_UI = {
   "To Do": { dot: "s-todo", bar: "b-todo" },

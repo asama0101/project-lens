@@ -701,6 +701,47 @@ view.addEventListener("keydown", (e) => {
   S.focusSel = `[data-ckadd="${id}"]`;
   apply((d) => addChecklistItem(d, id, text));
 });
+/**
+ * 日付の欄（data-date）の確定: 打った文字（2026/10/20・20261020 など）を YYYY-MM-DD に直して el.value に入れる（以後の処理は、いつも YYYY-MM-DD を読む）。
+ * 読めないときは、元の値に戻して通知し、false を返す（呼び出し側が、その確定を止める）。空は、欄ごとの扱いのまま通す
+ */
+function normalizeDateField(el) {
+  const v = el.value.trim();
+  if (!v) { el.value = ""; return true; }
+  const iso = parseDateInput(v);
+  if (iso) { el.value = iso; return true; }
+  el.value = el.defaultValue;
+  el.classList.add("bad");
+  setTimeout(() => el.classList.remove("bad"), 1600);
+  toast("日付は 2026/10/20 の形で入力してください");
+  return false;
+}
+// 日付の欄の確定は、ほかの change の処理より先に（キャプチャ段階で）直す。読めない値は、ほかの処理に渡さない。
+// 「📅」で選んだ日（隠れた日付の欄 .dpick-in の change）は、文字の欄に写して、文字の欄の change として流す
+view.addEventListener("change", (e) => {
+  const el = e.target;
+  if (el.matches?.(".dpick-in")) {
+    e.stopImmediatePropagation();
+    const field = el.closest(".dfield")?.querySelector("[data-date]");
+    if (field && el.value) { field.value = el.value; field.dispatchEvent(new Event("change", { bubbles: true })); }
+    return;
+  }
+  if (el.matches?.("[data-date]") && !normalizeDateField(el)) e.stopImmediatePropagation();
+}, true);
+// Enter で確定する欄（休み・営業日の追加）も、先に日付を直す
+view.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" || e.isComposing || !e.target.matches?.("[data-date]")) return;
+  if (!normalizeDateField(e.target)) { e.preventDefault(); e.stopImmediatePropagation(); }
+}, true);
+// 「📅」: 隠れた日付の欄に今の値を入れて、ブラウザの日付の選択を開く（showPicker が使えないときは、その欄を押す）
+view.addEventListener("click", (e) => {
+  const b = e.target.closest?.("[data-datepick]");
+  if (!b) return;
+  e.stopImmediatePropagation();
+  const box = b.closest(".dfield"), pick = box.querySelector(".dpick-in"), field = box.querySelector("[data-date]");
+  pick.value = parseDateInput(field.value) ?? "";
+  try { pick.showPicker(); } catch { pick.focus(); pick.click(); }
+}, true);
 view.addEventListener("change", (e) => { const el = e.target; setTimeout(() => onChange(el), 0); });
 // 設定タブの節の開閉は、描き直さずに記録して保存する（toggle はバブリングしないので、キャプチャで受ける）。描き直しでは S.settingsClosed から開閉を復元する
 view.addEventListener("toggle", (e) => {
@@ -824,7 +865,7 @@ function onChange(el) {
       apply((d) => updateTask(d, id, { repeat: r }, today), "変更を保存しました");
       return;
     }
-    if (f === "expected") { if (el.validity.badInput) return; apply((d) => updateTask(d, id, { waitingOn: { party: t.waitingOn.party, since: t.waitingOn.since, expected: el.value } }, today), "変更を保存しました"); return; }
+    if (f === "expected") { apply((d) => updateTask(d, id, { waitingOn: { party: t.waitingOn.party, since: t.waitingOn.since, expected: el.value } }, today), "変更を保存しました"); return; }
     if (f === "group" || f === "subgroup") S.hlId = id; // 該当グループへ移った行を強調して見失わないようにする
     apply((d) => updateTask(d, id, { [f]: f === "important" ? el.checked : el.value }, today), "変更を保存しました");
   }

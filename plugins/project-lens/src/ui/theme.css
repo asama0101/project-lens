@@ -561,3 +561,10 @@ body:has(.ptool){padding-block-start:8px}
 /* 30 分未満の枠・会議（short）は、時刻と件名を 1 行に並べ、上下の余白を詰める（15 分は 22px） */
 #view .cal .blk.short{padding-top:1px;padding-bottom:1px;white-space:nowrap;text-overflow:ellipsis}
 #view .cal .blk.short .tm{display:inline;margin-right:4px}
+/* 日付の欄: 文字の欄（2026/10/20 を打てる）と「📅」（ブラウザの日付の選択を開く）。選ぶための日付の欄（.dpick-in）は見せず、ボタンの位置に置く */
+#view .dfield{display:inline-flex;align-items:center;gap:2px;position:relative;vertical-align:middle}
+#view .dfield .din{width:11.5ch;min-width:0}
+#view .dpick{font:inherit;font-size:13px;line-height:1;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);padding:4px 4px;cursor:pointer}
+#view .dpick:disabled{opacity:.4;cursor:default}
+#view .dpick-in{position:absolute;right:0;bottom:0;width:1px;height:1px;opacity:0;border:0;padding:0;pointer-events:none}
+#view .din.bad{outline:2px solid var(--bad);outline-offset:1px}

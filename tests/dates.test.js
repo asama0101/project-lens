@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { dueAfter } from "../plugins/project-lens/src/core/dates.js";
+import { dueAfter, parseDateInput } from "../plugins/project-lens/src/core/dates.js";
 
 test("dueAfter: 営業日後の日付（土日を飛ばす。0 は同じ日、休日の起点もそのまま）", () => {
   assert.equal(dueAfter("2026-10-23", 1), "2026-10-26"); // 金 → 月
@@ -42,4 +42,10 @@ test("dueAfter: 営業日が 3650 日（約 10 年）を超えるなら、数え
   assert.throws(() => dueAfter("2026-10-23", 3651), /3650/);
   assert.throws(() => dueAfter("2026-10-23", 1000000000), /3650/);
   assert.equal(dueAfter("2026-10-23", 0), "2026-10-23");
+});
+
+test("parseDateInput: 2026/10/20・2026-10-20・20261020・2026/1/5・全角・前後の空白を YYYY-MM-DD にする。実在しない日・2 桁の年・空は null", () => {
+  for (const [t, want] of [["2026/10/20", "2026-10-20"], ["2026-10-20", "2026-10-20"], ["20261020", "2026-10-20"], ["2026/1/5", "2026-01-05"], ["2026-1-5", "2026-01-05"],
+    ["２０２６／１０／２０", "2026-10-20"], ["２０２６－１０－２０", "2026-10-20"], ["  2026/10/20 ", "2026-10-20"], ["2026.10.20", "2026-10-20"], ["2028/02/29", "2028-02-29"]]) assert.equal(parseDateInput(t), want, t);
+  for (const t of ["2026/02/30", "2026/13/01", "26/10/20", "261020", "", "   ", null, undefined, "2026/10", "2026/10/20x", "2026101", "abc"]) assert.equal(parseDateInput(t), null, String(t));
 });

@@ -5,7 +5,7 @@ import { matchProject } from "../../core/rules.js";
 import { offDayChecker } from "../../core/holidays.js";
 import { sessionKind, allSessions, LAST_END } from "../../core/sessions.js";
 import { isImportantMark } from "../../core/schema.js";
-import { esc, fmtMD, wdJa, STATUS_UI } from "../common.js";
+import { esc, fmtMD, wdJa, STATUS_UI, dateInputHtml } from "../common.js";
 import { renderSide, renderSideToggle, todayTaskIds } from "./prio.js";
 import { statusCellHtml } from "./project.js";
 import { renderTaskEditPanel } from "./taskpop.js";
@@ -100,7 +100,7 @@ function meetingForm(data, ctx) {
   const projOpts = [`<option value=""${cur === "" ? " selected" : ""}>自動（規則）→ ${esc(autoName)}</option>`, ...projects.map((p) => `<option value="${esc(p.id)}"${cur === p.id ? " selected" : ""}>${esc(p.name)}</option>`)].join("");
   return `<div class="mtgform" role="group" aria-label="会議の${isNew ? "追加" : "編集"}">
     <label>件名<input class="in" data-mt="title" value="${esc(m.title)}" placeholder="会議名" style="min-width:200px" ${lock}></label>
-    <label>日付<input class="in" type="date" data-mt="date" value="${esc(m.date)}" ${lock}></label>
+    <label>日付${dateInputHtml({ value: m.date, attrs: `data-mt="date" ${lock}`, label: "会議の日付" })}</label>
     <label>開始<input class="in" type="time" step="900" data-mt="start" value="${esc(m.start)}" ${lock}></label>
     <label>終了<input class="in" type="time" step="900" data-mt="end" value="${esc(m.end)}" ${lock}></label>
     <label>プロジェクト<select class="in" data-mt="projectId" aria-label="会議のプロジェクト">${projOpts}</select></label>
@@ -119,7 +119,7 @@ export function urgentForm(data, draft) {
     <label>件名<input class="in" data-ug="title" value="${esc(draft.title)}" placeholder="突発タスクの件名" style="min-width:200px"></label>
     <label>プロジェクト<select class="in" data-ug="projectId" aria-label="突発タスクのプロジェクト">${projOpts}</select></label>
     <label>長さ<select class="in" data-ug="minutes" aria-label="突発タスクの長さ">${minOpts}</select></label>
-    <label>日付<input class="in" type="date" data-ug="date" value="${esc(draft.date)}"></label>
+    <label>日付${dateInputHtml({ value: draft.date, attrs: 'data-ug="date"', label: "突発タスクの日付" })}</label>
     <label>開始<input class="in" type="time" step="900" data-ug="start" value="${esc(draft.start)}"></label>
     <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-urgsave>追加</button><button class="btn" data-urgcancel>キャンセル</button></div>
   </div>`;

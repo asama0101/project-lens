@@ -1,7 +1,7 @@
 // ガントチャートでタスク名・バーをクリックしたときに開く、編集の小さな窓。
 // 入力の属性（data-f・data-id・data-addpre・data-rmpre）は、リストの編集欄と同じ。保存と描き直しは、リストと同じ処理が受け持つ。
 // 窓を閉じる ×: data-tpopclose / 窓: data-tpop。「リストで開く」は data-goto、削除は data-del（どちらも既存の処理）
-import { esc, fmtMD } from "../common.js";
+import { esc, fmtMD, dateInputHtml } from "../common.js";
 import { taskStart } from "../../core/metrics.js";
 import { predecessorCandidates } from "../edit.js";
 import { checklistEditorHtml } from "./checklist.js";
@@ -18,7 +18,7 @@ export function predEditHtml(data, t) {
 export function startInputHtml(data, t) {
   const derived = !t.start && (t.predecessors ?? []).length > 0;
   const hint = derived ? ` <small class="muted" title="開始日を指定していないので、前のタスクの期限から決まります">前のタスクから</small>` : "";
-  return `<input class="in" type="date" data-f="start" data-id="${esc(t.id)}" value="${esc(t.start || (derived ? taskStart(data, t.id) : ""))}" aria-label="${esc(t.id)} の開始日">${hint}`;
+  return `${dateInputHtml({ value: t.start || (derived ? taskStart(data, t.id) : ""), attrs: `data-f="start" data-id="${esc(t.id)}" aria-label="${esc(t.id)} の開始日"`, label: "開始日" })}${hint}`;
 }
 
 /**
@@ -34,7 +34,7 @@ function taskFieldsHtml(data, t, { full, statusHtml }) {
   return `${field("件名", `<input class="in" data-f="title" data-id="${id}" value="${esc(t.title)}">`)}
     ${field("プロジェクト", `<select class="in sm" data-f="projectId" data-id="${id}">${projects}</select>`)}
     <div class="tp-f"><span class="muted">状態</span><div>${statusHtml}</div></div>
-    <div class="tp-r">${field("開始", startInputHtml(data, t))}${field("期限", `<input class="in" type="date" data-f="due" data-id="${id}" value="${esc(t.due)}">`)}</div>
+    <div class="tp-r">${field("開始", startInputHtml(data, t))}${field("期限", dateInputHtml({ value: t.due, attrs: `data-f="due" data-id="${id}"`, label: "期限" }))}</div>
     ${full ? checklistEditorHtml(t) : ""}
     ${full ? `<div class="tp-f"><span class="muted">前のタスク</span>${predEditHtml(data, t)}</div>` : ""}
     <div class="tp-r">${imp}${full ? repeat : ""}</div>
@@ -68,7 +68,7 @@ function taskRowFieldsHtml(data, t, { full, statusHtml }) {
   const fields = [
     field("tp-title", "件名", `<input class="in" data-f="title" data-id="${id}" value="${esc(t.title)}">`),
     field("", "開始", startInputHtml(data, t)),
-    field("", "期限", `<input class="in" type="date" data-f="due" data-id="${id}" value="${esc(t.due)}">`),
+    field("", "期限", dateInputHtml({ value: t.due, attrs: `data-f="due" data-id="${id}"`, label: "期限" })),
     `<div class="tp-st"><span>状態</span><div>${statusHtml}</div></div>`,
     `<label class="chk"><input type="checkbox" data-f="important" data-id="${id}" ${t.important === true ? "checked" : ""}>重要</label>`,
     field("", "プロジェクト", `<select class="in sm" data-f="projectId" data-id="${id}">${projects}</select>`),
