@@ -442,6 +442,13 @@ test("app.js・theme.css: ヘッダーの「＋ 突発タスク」は、塗り�
   assert.equal(css.split("--on-accent:").length - 1, 3, "明るい配色と、暗い配色の 2 か所");
 });
 
+test("theme.css: 週表示の今日の列は、予定の枠（--accent-soft）と違う色にする", () => {
+  const rule = (sel) => css.slice(css.indexOf(sel + "{"), css.indexOf("}", css.indexOf(sel + "{")));
+  const today = rule(".week .col.today");
+  assert.ok(!today.includes("--accent-soft") && today.includes("var(--today-col)"), today);
+  assert.equal(css.split("--today-col:").length - 1, 3);
+});
+
 test("app.js: ヘッダーの「＋ 突発タスク」は、clearSel() で選択を外し、スケジュール画面へ移り、firstFreeStart で開始を決めて件名にフォーカスする", () => {
   assert.ok(src.includes("data-urgent-open") && src.includes("＋ 突発タスク"));
   const h = src.slice(src.indexOf('e.target.closest("[data-urgent-open]")'));
