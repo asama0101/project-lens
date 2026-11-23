@@ -2587,7 +2587,7 @@ return { depPath, depMarkup, drawDeps, focusDeps };
 })();
 
 /* src/ui/edit.js */
-const { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, confirmTodaySession, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject } = (() => {
+const { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, confirmTodaySession, recordActual, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject } = (() => {
 // 画面からの編集（追加・削除・更新）。すべて不変更新で、不正な入力は例外にする（呼び出し側が理由を表示する）。
 
 
@@ -2977,6 +2977,18 @@ function confirmTodaySession(data, sessionId, now) {
   return { data: statusChanged ? updateTask(r.data, t.id, { status: "In Progress" }, now.date) : r.data, taskId: t.id, statusChanged, from: t.status };
 }
 
+/**
+ * 実績の枠を保存する（addActual。ほかの実績の枠と重なる・開始が今より後・タスクが無いは Error）。
+ * タスクが To Do・Waiting なら In Progress にする（updateTask の規則で、Waiting の待ち先は外れる。Done・Cancelled は変えない）。statusChanged・from（元の状態）を返す
+ */
+function recordActual(data, taskId, slot, now) {
+  const r = addActual(data, taskId, slot, now);
+  if (r.error) throw new Error(r.error);
+  const from = data.tasks.find((x) => x.id === taskId).status;
+  const statusChanged = from === "To Do" || from === "Waiting";
+  return { data: statusChanged ? updateTask(r.data, taskId, { status: "In Progress" }, now.date) : r.data, taskId, statusChanged, from };
+}
+
 function addTask(data, task) {
   if (!data.projects.some((p) => p.id === task.projectId)) throw new Error(`プロジェクト ${task.projectId} がありません`);
   const title = String(task.title ?? "").trim();
@@ -3102,7 +3114,7 @@ function deleteProject(data, projectId) {
   return { ...data, settings, events, ...(inbox ? { inbox } : {}), projects: data.projects.filter((p) => p.id !== projectId), tasks: data.tasks.filter((t) => t.projectId !== projectId) };
 }
 
-return { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, confirmTodaySession, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject };
+return { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, confirmTodaySession, recordActual, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject };
 })();
 
 /* src/ui/donecheck.js */

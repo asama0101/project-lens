@@ -3,7 +3,7 @@ import { addDays, diffDays, isDate, isWeekend, toMin, toHHMM, nowLocal } from ".
 import { calendarOf } from "../core/holidays.js";
 import { taskStart } from "../core/metrics.js";
 import { groupSections } from "../core/groups.js";
-import { addSession, confirmSession } from "../core/sessions.js";
+import { addSession, addActual, confirmSession } from "../core/sessions.js";
 import { nextChecklistId } from "../core/checklist.js";
 import { isRepeat, nextRepeatDue } from "../core/repeat.js";
 import { HOLIDAY_KINDS } from "../core/schema.js";
@@ -385,6 +385,18 @@ export function confirmTodaySession(data, sessionId, now) {
   const t = data.tasks.find((x) => (x.sessions ?? []).some((s) => s.id === sessionId));
   const statusChanged = t.status === "To Do" || t.status === "Waiting";
   return { data: statusChanged ? updateTask(r.data, t.id, { status: "In Progress" }, now.date) : r.data, taskId: t.id, statusChanged, from: t.status };
+}
+
+/**
+ * 実績の枠を保存する（addActual。ほかの実績の枠と重なる・開始が今より後・タスクが無いは Error）。
+ * タスクが To Do・Waiting なら In Progress にする（updateTask の規則で、Waiting の待ち先は外れる。Done・Cancelled は変えない）。statusChanged・from（元の状態）を返す
+ */
+export function recordActual(data, taskId, slot, now) {
+  const r = addActual(data, taskId, slot, now);
+  if (r.error) throw new Error(r.error);
+  const from = data.tasks.find((x) => x.id === taskId).status;
+  const statusChanged = from === "To Do" || from === "Waiting";
+  return { data: statusChanged ? updateTask(r.data, taskId, { status: "In Progress" }, now.date) : r.data, taskId, statusChanged, from };
 }
 
 export function addTask(data, task) {

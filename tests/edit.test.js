@@ -12,7 +12,7 @@ import {
   nextTaskId, nextProjectId, addUrgentTask, moveToProject,
 } from "../plugins/project-lens/src/ui/edit.js";
 
-import { addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, confirmTodaySession } from "../plugins/project-lens/src/ui/edit.js";
+import { addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, confirmTodaySession, recordActual } from "../plugins/project-lens/src/ui/edit.js";
 
 const load = () => JSON.parse(readFileSync(new URL("../plugins/project-lens/data/sample.json", import.meta.url), "utf8"));
 const TODAY = "2026-10-20";
@@ -660,4 +660,44 @@ test("confirmTodaySession: ほかの実績の枠と重なる・明日以降の�
   assert.throws(() => confirmTodaySession(d, "S44", at("10:15")), /他の実績の枠（10:00〜11:00）と重なっています/);
   assert.throws(() => confirmTodaySession(load(), "S5", at("10:15")), /明日以降の枠は実績にできません/);
   assert.throws(() => confirmTodaySession(load(), "S99", at("10:15")), /枠 S99 がありません/);
+});
+
+// ---- 実績を保存する（recordActual） ----
+test("recordActual: 実績の枠を足し、To Do は In Progress にする（statusChanged）。元のデータは変えない", () => {
+  const d = load();
+  const r = recordActual(d, "AA-0004", { date: TODAY, start: "09:00", end: "10:00" }, at("10:15"));
+  const s = task(r.data, "AA-0004").sessions.find((x) => x.start === "09:00" && x.end === "10:00");
+  assert.equal(s.kind, "actual");
+  assert.deepEqual([r.taskId, r.statusChanged, r.from, task(r.data, "AA-0004").status], ["AA-0004", true, "To Do", "In Progress"]);
+  assert.equal(task(d, "AA-0004").status, "To Do", "元のデータは変えない");
+  ok(r.data);
+});
+
+test("recordActual: Waiting は In Progress にし、待ち先を外す（from に元の状態）", () => {
+  const w = recordActual(load(), "AC-0002", { date: TODAY, start: "09:00", end: "10:00" }, at("10:15"));
+  assert.deepEqual([task(w.data, "AC-0002").status, task(w.data, "AC-0002").waitingOn, w.statusChanged, w.from], ["In Progress", null, true, "Waiting"]);
+});
+
+test("recordActual: In Progress は状態を変えない（statusChanged は false）", () => {
+  const d = load();
+  task(d, "AA-0004").status = "In Progress";
+  const r = recordActual(d, "AA-0004", { date: TODAY, start: "09:00", end: "10:00" }, at("10:15"));
+  assert.deepEqual([r.statusChanged, r.from, task(r.data, "AA-0004").status], [false, "In Progress", "In Progress"]);
+});
+
+test("recordActual: Done は状態を変えない", () => {
+  const d = load();
+  task(d, "AA-0004").status = "Done";
+  const r = recordActual(d, "AA-0004", { date: TODAY, start: "09:00", end: "10:00" }, at("10:15"));
+  assert.deepEqual([r.statusChanged, task(r.data, "AA-0004").status], [false, "Done"]);
+});
+
+test("recordActual: ほかの実績と重なる・開始が今より後・存在しないタスクは Error で、データは変えない", () => {
+  const d = load();
+  task(d, "AA-0004").sessions.push({ id: "S43", date: TODAY, start: "10:00", end: "11:00", kind: "actual" });
+  const before = JSON.stringify(d);
+  assert.throws(() => recordActual(d, "AA-0005", { date: TODAY, start: "10:30", end: "11:30" }, at("12:00")), /他の実績の枠（10:00〜11:00）と重なっています/);
+  assert.throws(() => recordActual(d, "AA-0005", { date: TODAY, start: "13:00", end: "14:00" }, at("10:15")), /まだ始まっていない/);
+  assert.throws(() => recordActual(d, "ZZ-9999", { date: TODAY, start: "09:00", end: "10:00" }, at("10:15")), /ZZ-9999 がありません/);
+  assert.equal(JSON.stringify(d), before);
 });
