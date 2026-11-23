@@ -25,6 +25,22 @@ test("build: 1 ファイルにまとまり、import/export・外部 URL・外部
   }
 });
 
+test("build: ヘッダーの題名の横に、plugin.json の version を「v」付きで入れる（ソースの index.html は置き場所の印だけを持つ）", () => {
+  const { version } = JSON.parse(readFileSync(new URL("../plugins/project-lens/.claude-plugin/plugin.json", import.meta.url), "utf8"));
+  const src = readFileSync(new URL("../plugins/project-lens/src/ui/index.html", import.meta.url), "utf8");
+  assert.ok(src.includes('<h1>project-lens</h1><span class="ver" title="project-lens の版" aria-label="project-lens の版 <!--__VERSION__-->"><!--__VERSION__--></span>'), "ソースは印だけ（版の数字を書かない）");
+  assert.ok(!src.includes(`v${version}`), "ソースに版を書かない");
+  const dir = mkdtempSync(join(tmpdir(), "project-lens-build-"));
+  try {
+    const html = readFileSync(build(join(dir, "dashboard.html")), "utf8");
+    const header = html.slice(html.indexOf('<header class="top">'), html.indexOf("</header>"));
+    assert.ok(header.includes(`<span class="ver" title="project-lens の版" aria-label="project-lens の版 v${version}">v${version}</span>`), header);
+    assert.ok(!html.includes("__VERSION__"));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("wrapModule: 対応しない import/export の形や、先に並んでいない名前の import は例外にする", async () => {
   const { wrapModule } = await import("../plugins/project-lens/tools/build.js");
   const known = new Set(["a"]);

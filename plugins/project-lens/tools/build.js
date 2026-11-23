@@ -85,7 +85,9 @@ export function build(out = resolve(ROOT, "assets/project-lens.html"), root = RO
   const read = (p) => readFileSync(resolve(root, p), "utf8").replace(/\r\n/g, "\n"); // autocrlf の clone でも同じ出力にする
   const known = new Set();
   const js = MODULES.map((p) => wrapModule(p, read(p), known)).join("\n\n").replace(/<\/script/gi, "<\\/script");
+  const { version } = JSON.parse(read(".claude-plugin/plugin.json")); // ヘッダーの題名の横の版の表記（<!--__VERSION__--> の印に入れる）
   const html = read("src/ui/index.html")
+    .replaceAll("<!--__VERSION__-->", () => `v${version}`)
     .replace("/*__CSS__*/", () => read("src/ui/theme.css"))
     .replace("/*__JS__*/", () => js);
   mkdirSync(dirname(out), { recursive: true });

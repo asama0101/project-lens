@@ -31,6 +31,9 @@ header.top{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;m
 .cols>.side{position:sticky;top:calc(var(--hh,0px) + var(--th,0px) + 8px);align-self:start;max-height:calc(100vh - var(--hh,0px) - var(--th,0px) - 24px);overflow-y:auto;display:flex;flex-direction:column;gap:16px}
 h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.01em}
 .today{color:var(--muted);font-size:13px}
+/* 題名の横の版の表記（ビルドで plugin.json の version を入れる）。小さく薄く、題名と文字の下端をそろえる */
+header.top .brand{display:flex;align-items:baseline;gap:6px}
+header.top .ver{font-size:11px;color:var(--muted)}
 nav[role=tablist]{display:flex;gap:2px;background:var(--line-soft);padding:3px;border-radius:8px}
 nav button{font:inherit;border:0;background:transparent;color:var(--muted);padding:6px 14px;border-radius:6px;cursor:pointer}
 nav button[aria-selected=true]{background:var(--surface);color:var(--ink);font-weight:700;box-shadow:0 1px 2px rgba(20,30,50,.12)}

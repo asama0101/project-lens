@@ -18,6 +18,7 @@ npm run build   # plugins/project-lens/assets/project-lens.html（プラグイ�
 ```
 
 - `plugins/project-lens/src/` を変えたら `npm run build` を実行し、`assets/project-lens.html` をコミットする。古いと `npm test` が失敗する。
+- ヘッダーの題名の横の版の表記（`.ver`。11px・`--muted` の色）は、ビルドのとき、`tools/build.js` が `.claude-plugin/plugin.json` の `version` を読み、`src/ui/index.html` の印 `<!--__VERSION__-->` に「v」付きで入れる（ソースに版の数字は書かない。版はリリースのときだけ上げるので、表記もそのときだけ変わる。版を上げたら `npm run build` も要る）。確認したこと（Chromium・Playwright、`?today` なし、デモの 2 ファイル）: 幅 1400・900・700px の 5 つの画面で、表記を消したときとヘッダーの高さ（`--hh`）・日付の位置が同じ。未確認: 暗い配色。
 - GitHub Actions（`.github/workflows/test.yml`）が、`main` への push と pull request で、Windows・Node 24 の `npm test` を実行する。`engines`（`plugins/project-lens/package.json`）は `>=24`（README の表「Node.js | 24 以上」と同じ。それより古い版は未確認）。`engines` は npm の警告にしかならず、`node` の実行は止めない。ワークフローの実行は、GitHub 上では未確認。
 - このリポジトリを直接開いてプラグインを試すときは、`claude --plugin-dir ./plugins/project-lens` で起動する。
 - 環境変数 `PROJECT_LENS_HOME` は、プラグイン専用のフォルダ（`${CLAUDE_PLUGIN_DATA}`）の場所を固定する。テストと開発用。`--plugin-dir` で読み込むと置き場が本番と別（`project-lens-inline`）になるので、開発時はこれで固定する。
