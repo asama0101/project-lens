@@ -1,51 +1,68 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 230" font-family="'Yu Gothic','Meiryo','Hiragino Sans',sans-serif" role="img" aria-labelledby="t d">
-  <title id="t">画面の 5 つのタブ</title>
-  <desc id="d">画面上部の 5 つのタブ。ガントチャートはバーで期間を見る。リストは表で編集する。スケジュールは作業枠と会議を置く。稼働はプロジェクト別の時間を集計する。設定は営業日・休み・会議名の規則を扱う。</desc>
-  <rect width="800" height="230" fill="#ffffff"/>
-  <rect x="6" y="10" width="788" height="44" rx="22" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.5"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 300" font-family="'Yu Gothic','Meiryo','Hiragino Sans',sans-serif" role="img" aria-labelledby="t d">
+  <title id="t">画面のヘッダーと 5 つのタブ</title>
+  <desc id="d">画面上部のヘッダーには、タイトルと版の表記、5 つのタブ、「＋ 突発タスク」のボタンがあり、どのタブでも上に固定される。ガントチャートは、プロジェクトごとのカードで、タスクの期間をバーで見て、ドラッグで日程を変える。ID（AA-0001 など）も出る。リストは、タスクを表で見て編集する。重要とプロジェクトの列もある。スケジュールは、週／日の 0〜24 時の枠（開くと 08:00 から）に、ドラッグで作業枠を置く。日付の下に期限の行がある。稼働は、日／週／月ごとに、プロジェクト別の時間を集計する（初めは日）。設定は、営業日の数え方・休みと営業日の指定・会議名の規則を扱う。</desc>
+  <rect width="800" height="300" fill="#ffffff"/>
 
-  <rect x="14" y="16" width="148" height="32" rx="16" fill="#ffffff" stroke="#0369a1" stroke-width="2"/>
-  <text x="88" y="38" text-anchor="middle" font-size="15" font-weight="bold" fill="#0c4a6e">ガントチャート</text>
-  <text x="248" y="38" text-anchor="middle" font-size="15" fill="#1e293b">リスト</text>
-  <text x="408" y="38" text-anchor="middle" font-size="15" fill="#1e293b">スケジュール</text>
-  <text x="568" y="38" text-anchor="middle" font-size="15" fill="#1e293b">稼働</text>
-  <text x="728" y="38" text-anchor="middle" font-size="15" fill="#1e293b">設定</text>
+  <rect x="6" y="8" width="788" height="52" rx="10" fill="#f8fafc" stroke="#475569" stroke-width="2"/>
+  <text x="18" y="40" font-size="16" font-weight="bold" fill="#1e293b">project-lens</text>
+  <text x="124" y="40" font-size="12" fill="#64748b">vX.Y.Z</text>
+  <rect x="172" y="16" width="470" height="36" rx="18" fill="#e2e8f0"/>
+  <rect x="176" y="20" width="96" height="28" rx="14" fill="#ffffff" stroke="#0369a1" stroke-width="2"/>
+  <text x="224" y="39" text-anchor="middle" font-size="13" font-weight="bold" fill="#0c4a6e">ガントチャート</text>
+  <text x="318" y="39" text-anchor="middle" font-size="13" fill="#1e293b">リスト</text>
+  <text x="412" y="39" text-anchor="middle" font-size="13" fill="#1e293b">スケジュール</text>
+  <text x="506" y="39" text-anchor="middle" font-size="13" fill="#1e293b">稼働</text>
+  <text x="596" y="39" text-anchor="middle" font-size="13" fill="#1e293b">設定</text>
+  <rect x="652" y="18" width="134" height="32" rx="6" fill="#0f6b7d"/>
+  <text x="719" y="39" text-anchor="middle" font-size="14" font-weight="bold" fill="#ffffff">＋ 突発タスク</text>
+  <text x="400" y="82" text-anchor="middle" font-size="13" fill="#334155">ヘッダー（タイトルと版の表記・タブ・「＋ 突発タスク」）は、どのタブでも画面の上に固定されます</text>
 
-  <rect x="6" y="70" width="148" height="150" rx="10" fill="#e0f2fe" stroke="#0369a1" stroke-width="2"/>
-  <rect x="22" y="86" width="60" height="10" rx="3" fill="#0369a1"/>
-  <rect x="44" y="104" width="70" height="10" rx="3" fill="#0369a1"/>
-  <text x="80" y="148" text-anchor="middle" font-size="14" fill="#0c4a6e">タスクの期間を</text>
-  <text x="80" y="168" text-anchor="middle" font-size="14" fill="#0c4a6e">バーで見る</text>
-  <text x="80" y="196" text-anchor="middle" font-size="14" fill="#0c4a6e">ドラッグで日程変更</text>
+  <rect x="6" y="96" width="148" height="196" rx="10" fill="#e0f2fe" stroke="#0369a1" stroke-width="2"/>
+  <text x="80" y="120" text-anchor="middle" font-size="15" font-weight="bold" fill="#0c4a6e">ガントチャート</text>
+  <rect x="24" y="134" width="60" height="10" rx="3" fill="#0369a1"/>
+  <rect x="46" y="152" width="70" height="10" rx="3" fill="#0369a1"/>
+  <text x="80" y="194" text-anchor="middle" font-size="14" fill="#0c4a6e">プロジェクトごとの</text>
+  <text x="80" y="214" text-anchor="middle" font-size="14" fill="#0c4a6e">カードで期間を見る</text>
+  <text x="80" y="234" text-anchor="middle" font-size="14" fill="#0c4a6e">ドラッグで日程変更</text>
+  <text x="80" y="254" text-anchor="middle" font-size="14" fill="#0c4a6e">ID（AA-0001）つき</text>
 
-  <rect x="166" y="70" width="148" height="150" rx="10" fill="#e0f2fe" stroke="#0369a1" stroke-width="2"/>
-  <line x1="184" y1="92" x2="296" y2="92" stroke="#0369a1" stroke-width="2"/>
-  <line x1="184" y1="108" x2="296" y2="108" stroke="#0369a1" stroke-width="2"/>
-  <line x1="184" y1="124" x2="296" y2="124" stroke="#0369a1" stroke-width="2"/>
-  <text x="240" y="158" text-anchor="middle" font-size="14" fill="#0c4a6e">タスクを表で</text>
-  <text x="240" y="178" text-anchor="middle" font-size="14" fill="#0c4a6e">見て編集する</text>
+  <rect x="166" y="96" width="148" height="196" rx="10" fill="#e0f2fe" stroke="#0369a1" stroke-width="2"/>
+  <text x="240" y="120" text-anchor="middle" font-size="15" font-weight="bold" fill="#0c4a6e">リスト</text>
+  <line x1="184" y1="138" x2="296" y2="138" stroke="#0369a1" stroke-width="2"/>
+  <line x1="184" y1="152" x2="296" y2="152" stroke="#0369a1" stroke-width="2"/>
+  <line x1="184" y1="166" x2="296" y2="166" stroke="#0369a1" stroke-width="2"/>
+  <text x="240" y="194" text-anchor="middle" font-size="14" fill="#0c4a6e">タスクを表で</text>
+  <text x="240" y="214" text-anchor="middle" font-size="14" fill="#0c4a6e">見て編集する</text>
+  <text x="240" y="234" text-anchor="middle" font-size="14" fill="#0c4a6e">重要・プロジェクト</text>
+  <text x="240" y="254" text-anchor="middle" font-size="14" fill="#0c4a6e">の列もある</text>
 
-  <rect x="326" y="70" width="148" height="150" rx="10" fill="#ffedd5" stroke="#c2410c" stroke-width="2"/>
-  <rect x="352" y="84" width="22" height="40" fill="#ffffff" stroke="#c2410c" stroke-width="1.5"/>
-  <rect x="380" y="84" width="22" height="40" fill="#ffffff" stroke="#c2410c" stroke-width="1.5"/>
-  <rect x="408" y="84" width="22" height="40" fill="#ffffff" stroke="#c2410c" stroke-width="1.5"/>
-  <rect x="355" y="92" width="16" height="14" fill="#c2410c"/>
-  <rect x="411" y="100" width="16" height="18" fill="#c2410c" opacity="0.5"/>
-  <text x="400" y="152" text-anchor="middle" font-size="14" fill="#7c2d12">週／日の枠に</text>
-  <text x="400" y="172" text-anchor="middle" font-size="14" fill="#7c2d12">作業枠と会議を置く</text>
+  <rect x="326" y="96" width="148" height="196" rx="10" fill="#ffedd5" stroke="#c2410c" stroke-width="2"/>
+  <text x="400" y="120" text-anchor="middle" font-size="15" font-weight="bold" fill="#7c2d12">スケジュール</text>
+  <rect x="356" y="132" width="22" height="40" fill="#ffffff" stroke="#c2410c" stroke-width="1.5"/>
+  <rect x="384" y="132" width="22" height="40" fill="#ffffff" stroke="#c2410c" stroke-width="1.5"/>
+  <rect x="412" y="132" width="22" height="40" fill="#ffffff" stroke="#c2410c" stroke-width="1.5"/>
+  <rect x="359" y="140" width="16" height="14" fill="#c2410c"/>
+  <rect x="415" y="148" width="16" height="18" fill="#c2410c" opacity="0.5"/>
+  <text x="400" y="194" text-anchor="middle" font-size="14" fill="#7c2d12">週／日の 0〜24 時</text>
+  <text x="400" y="214" text-anchor="middle" font-size="14" fill="#7c2d12">（開くと 08:00 から）</text>
+  <text x="400" y="234" text-anchor="middle" font-size="14" fill="#7c2d12">ドラッグで枠を置く</text>
+  <text x="400" y="254" text-anchor="middle" font-size="14" fill="#7c2d12">日付の下に期限の行</text>
 
-  <rect x="486" y="70" width="148" height="150" rx="10" fill="#dcfce7" stroke="#15803d" stroke-width="2"/>
-  <rect x="528" y="104" width="16" height="22" fill="#15803d"/>
-  <rect x="550" y="88" width="16" height="38" fill="#15803d"/>
-  <rect x="572" y="98" width="16" height="28" fill="#15803d"/>
-  <text x="560" y="152" text-anchor="middle" font-size="14" fill="#14532d">日／週／月ごとに</text>
-  <text x="560" y="172" text-anchor="middle" font-size="14" fill="#14532d">プロジェクト別の</text>
-  <text x="560" y="192" text-anchor="middle" font-size="14" fill="#14532d">時間を集計する</text>
+  <rect x="486" y="96" width="148" height="196" rx="10" fill="#dcfce7" stroke="#15803d" stroke-width="2"/>
+  <text x="560" y="120" text-anchor="middle" font-size="15" font-weight="bold" fill="#14532d">稼働</text>
+  <rect x="528" y="146" width="16" height="22" fill="#15803d"/>
+  <rect x="550" y="130" width="16" height="38" fill="#15803d"/>
+  <rect x="572" y="140" width="16" height="28" fill="#15803d"/>
+  <text x="560" y="194" text-anchor="middle" font-size="14" fill="#14532d">日／週／月ごとに</text>
+  <text x="560" y="214" text-anchor="middle" font-size="14" fill="#14532d">プロジェクト別の</text>
+  <text x="560" y="234" text-anchor="middle" font-size="14" fill="#14532d">時間を集計する</text>
+  <text x="560" y="254" text-anchor="middle" font-size="14" fill="#14532d">（初めは日）</text>
 
-  <rect x="646" y="70" width="148" height="150" rx="10" fill="#f1f5f9" stroke="#475569" stroke-width="2"/>
-  <line x1="668" y1="92" x2="772" y2="92" stroke="#475569" stroke-width="2"/><circle cx="700" cy="92" r="6" fill="#475569"/>
-  <line x1="668" y1="112" x2="772" y2="112" stroke="#475569" stroke-width="2"/><circle cx="745" cy="112" r="6" fill="#475569"/>
-  <text x="720" y="152" text-anchor="middle" font-size="14" fill="#1e293b">営業日の数え方</text>
-  <text x="720" y="172" text-anchor="middle" font-size="14" fill="#1e293b">休み・営業日の指定</text>
-  <text x="720" y="192" text-anchor="middle" font-size="14" fill="#1e293b">会議名の規則</text>
+  <rect x="646" y="96" width="148" height="196" rx="10" fill="#f1f5f9" stroke="#475569" stroke-width="2"/>
+  <text x="720" y="120" text-anchor="middle" font-size="15" font-weight="bold" fill="#1e293b">設定</text>
+  <line x1="668" y1="140" x2="772" y2="140" stroke="#475569" stroke-width="2"/><circle cx="700" cy="140" r="6" fill="#475569"/>
+  <line x1="668" y1="160" x2="772" y2="160" stroke="#475569" stroke-width="2"/><circle cx="745" cy="160" r="6" fill="#475569"/>
+  <text x="720" y="194" text-anchor="middle" font-size="14" fill="#1e293b">営業日の数え方</text>
+  <text x="720" y="214" text-anchor="middle" font-size="14" fill="#1e293b">休み・営業日の指定</text>
+  <text x="720" y="234" text-anchor="middle" font-size="14" fill="#1e293b">会議名の規則</text>
 </svg>

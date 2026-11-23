@@ -1,21 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 250" font-family="'Yu Gothic','Meiryo','Hiragino Sans',sans-serif" role="img" aria-labelledby="t d">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 334" font-family="'Yu Gothic','Meiryo','Hiragino Sans',sans-serif" role="img" aria-labelledby="t d">
   <title id="t">project-lens の機能</title>
-  <desc id="d">5 つの機能。一覧と優先は、進捗を見て、今日やる順を点数で並べる。日程の調整は、バーのドラッグか依頼の帯で行う。突発タスクは、画面上部の「＋ 突発タスク」から、タスクと作業枠を作る。取り込みは、Excel の WBS と予定表の会議を入れる。稼働の集計は、作業枠と会議の時間をプロジェクト別に数える。</desc>
+  <desc id="d">5 つの機能。一覧と優先は、進捗を見て、今日やる順を点数で並べ、重要の印を付けられる。日程の調整は、バーのドラッグか依頼の帯で行う。突発タスクは、画面上部の「＋ 突発タスク」から、日付と開始を選んで、タスクと作業枠を作る。取り込みは、Excel の WBS と予定表の会議を入れる。スケジュールと稼働は、タスクをドラッグで時間枠に置き、「実績にする」で記録し、日・週・月の稼働を集計する。データは、全員で使う共有ファイル（data.json）と、各自の個人ファイル（personal.json）の 2 つ。</desc>
   <defs>
     <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#334155"/>
     </marker>
   </defs>
-  <rect width="800" height="250" fill="#ffffff"/>
+  <rect width="800" height="334" fill="#ffffff"/>
 
   <rect x="7" y="10" width="146" height="230" rx="10" fill="#e0f2fe" stroke="#0369a1" stroke-width="2"/>
+  <rect x="30" y="34" width="4" height="20" fill="#b91c1c"/>
   <rect x="40" y="38" width="50" height="12" rx="3" fill="#0369a1"/>
   <rect x="58" y="60" width="60" height="12" rx="3" fill="#0369a1"/>
   <rect x="76" y="82" width="44" height="12" rx="3" fill="#0369a1"/>
-  <text x="80" y="140" text-anchor="middle" font-size="17" font-weight="bold" fill="#0c4a6e">一覧と優先</text>
-  <text x="80" y="170" text-anchor="middle" font-size="14" fill="#0c4a6e">進捗を 1 枚で見る</text>
-  <text x="80" y="192" text-anchor="middle" font-size="14" fill="#0c4a6e">今日やる順を</text>
-  <text x="80" y="214" text-anchor="middle" font-size="14" fill="#0c4a6e">点数で並べる</text>
+  <text x="80" y="136" text-anchor="middle" font-size="17" font-weight="bold" fill="#0c4a6e">一覧と優先</text>
+  <text x="80" y="164" text-anchor="middle" font-size="14" fill="#0c4a6e">進捗を 1 枚で見る</text>
+  <text x="80" y="186" text-anchor="middle" font-size="14" fill="#0c4a6e">今日やる順を</text>
+  <text x="80" y="208" text-anchor="middle" font-size="14" fill="#0c4a6e">点数で並べる</text>
+  <text x="80" y="230" text-anchor="middle" font-size="14" fill="#0c4a6e">重要の印も付ける</text>
 
   <rect x="167" y="10" width="146" height="230" rx="10" fill="#fef9c3" stroke="#a16207" stroke-width="2"/>
   <rect x="205" y="56" width="70" height="16" rx="3" fill="#a16207"/>
@@ -32,8 +34,8 @@
   <text x="400" y="93" text-anchor="middle" font-size="15" font-weight="bold" fill="#7c2d12">+</text>
   <text x="400" y="140" text-anchor="middle" font-size="17" font-weight="bold" fill="#7c2d12">突発タスク</text>
   <text x="400" y="170" text-anchor="middle" font-size="14" fill="#7c2d12">「＋ 突発タスク」で</text>
-  <text x="400" y="192" text-anchor="middle" font-size="14" fill="#7c2d12">タスクと作業枠を</text>
-  <text x="400" y="214" text-anchor="middle" font-size="14" fill="#7c2d12">作る</text>
+  <text x="400" y="192" text-anchor="middle" font-size="14" fill="#7c2d12">日付と開始を選び</text>
+  <text x="400" y="214" text-anchor="middle" font-size="14" fill="#7c2d12">タスクと作業枠を作る</text>
 
   <rect x="487" y="10" width="146" height="230" rx="10" fill="#dcfce7" stroke="#15803d" stroke-width="2"/>
   <rect x="520" y="34" width="36" height="46" rx="3" fill="#ffffff" stroke="#15803d" stroke-width="2"/>
@@ -51,8 +53,18 @@
   <rect x="704" y="44" width="16" height="56" fill="#475569"/>
   <rect x="726" y="76" width="16" height="24" fill="#475569"/>
   <line x1="676" y1="102" x2="748" y2="102" stroke="#1e293b" stroke-width="2"/>
-  <text x="720" y="140" text-anchor="middle" font-size="17" font-weight="bold" fill="#1e293b">稼働の集計</text>
-  <text x="720" y="170" text-anchor="middle" font-size="14" fill="#1e293b">作業枠と会議の</text>
-  <text x="720" y="192" text-anchor="middle" font-size="14" fill="#1e293b">時間を、プロジェクト</text>
-  <text x="720" y="214" text-anchor="middle" font-size="14" fill="#1e293b">別に数える</text>
+  <text x="720" y="140" text-anchor="middle" font-size="15" font-weight="bold" fill="#1e293b">スケジュールと稼働</text>
+  <text x="720" y="166" text-anchor="middle" font-size="14" fill="#1e293b">ドラッグで枠に置く</text>
+  <text x="720" y="186" text-anchor="middle" font-size="14" fill="#1e293b">実績にして記録する</text>
+  <text x="720" y="206" text-anchor="middle" font-size="14" fill="#1e293b">稼働を日・週・月で</text>
+  <text x="720" y="226" text-anchor="middle" font-size="14" fill="#1e293b">集計する</text>
+  <rect x="7" y="254" width="786" height="72" rx="10" fill="#ffffff" stroke="#475569" stroke-width="2"/>
+  <text x="80" y="286" text-anchor="middle" font-size="15" font-weight="bold" fill="#1e293b">データは</text>
+  <text x="80" y="306" text-anchor="middle" font-size="15" font-weight="bold" fill="#1e293b">2 つのファイル</text>
+  <rect x="160" y="264" width="306" height="52" rx="8" fill="#fef9c3" stroke="#a16207" stroke-width="2"/>
+  <text x="313" y="286" text-anchor="middle" font-size="14" font-weight="bold" fill="#713f12">共有: data.json（全員で 1 つ）</text>
+  <text x="313" y="306" text-anchor="middle" font-size="13" fill="#713f12">プロジェクト・タスク・日程変更の履歴</text>
+  <rect x="478" y="264" width="306" height="52" rx="8" fill="#fce7f3" stroke="#be185d" stroke-width="2" stroke-dasharray="9 4"/>
+  <text x="631" y="286" text-anchor="middle" font-size="14" font-weight="bold" fill="#831843">個人: personal.json（各自で 1 つ）</text>
+  <text x="631" y="306" text-anchor="middle" font-size="13" fill="#831843">作業枠・会議・休み・依頼</text>
 </svg>
