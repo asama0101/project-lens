@@ -285,7 +285,10 @@ test("renderSchedule: 優先リストはドラッグ可で、置いた回数と�
   const d = load();
   d.events.push({ id: "m9", date: "2026-10-20", start: "07:00", end: "08:30", title: "早朝作業", source: "manual", skip: false, externalId: null });
   const html = sched(d);
-  assert.ok(/draggable="true" data-pick="AB-0002"/.test(html));
+  assert.ok(/draggable="true" data-dragtask="AB-0002"/.test(html));
+  assert.ok(!html.includes("data-pick") && !html.includes("picked"), "押して選ぶ方法は持たない（ドラッグだけで配置する）");
+  assert.ok(!/<li[^>]*data-dragtask[^>]*tabindex/.test(html), "行はフォーカスを受けない");
+  assert.ok(html.includes("タスクをカレンダーへドラッグして配置します(15分刻み・長さ1時間)。配置済みの枠もドラッグで移動できます。</p>") && !html.includes("キーボード"), "注記に選んで配置する文がない");
   assert.ok(html.includes("2回・実績 1.0h"));
   assert.ok(!html.includes("早朝作業"));
 });
@@ -704,7 +707,7 @@ test("renderPrio: 今日のタスクに入ったタスクは出さない（プ�
   const inToday = new Set(todayTaskIds(d, TODAY));
   assert.ok(base.some((id) => inToday.has(id)), "検査: 優先に並ぶタスクが今日のタスクに入っている");
   const full = renderPrio(d, TODAY, { sched: true });
-  const ids = [...full.matchAll(/data-pick="([^"]+)"/g)].map((m) => m[1]);
+  const ids = [...full.matchAll(/data-dragtask="([^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual(ids, base.filter((id) => !inToday.has(id)));
   assert.ok(!full.includes("data-setstatus") && full.includes('class="pill'), "ボタン無し・状態 pill");
   assert.equal(count(renderPrio(d, TODAY, { sched: false }), /<li/g), Math.min(4, ids.length), "上位 4 件も除いたうえで");
@@ -862,6 +865,24 @@ test("renderSchedule: 休みの日（土日・手動の休み・日本の祝日�
   const day = (date) => renderSchedule(d, TODAY, { view: "day", date, now: NOW, showPrio: false });
   assert.ok(!day("2026-10-22").includes('data-free='), "休みの日の日表示に空き枠は出ない");
   assert.ok(day("2026-10-24").includes('data-free='), "営業日の指定の土曜には空き枠が出る");
+});
+
+test("renderSchedule(week): 各日の列に、日表示と同じ空き枠（data-free・data-freedate）を出す。休みの日には出さない", () => {
+  const d = load();
+  d.settings = { ...d.settings, holidays: [{ date: "2026-10-22", kind: "有給" }] };
+  const week = renderSchedule(d, TODAY, { view: "week", date: TODAY, now: NOW, showPrio: false });
+  const colHtml = (date) => { const i = week.indexOf(`data-date="${date}"`), j = week.indexOf('<div class="col dz', i); return week.slice(i, j < 0 ? week.indexOf('<div class="week"', i) : j); };
+  const frees = (html) => [...html.matchAll(/<button class="free" data-free="(\d+)" data-freedate="([^"]+)"/g)].map((m) => [m[1], m[2]]);
+  const dayFree = (date) => [...renderSchedule(d, TODAY, { view: "day", date, now: NOW, showPrio: false }).matchAll(/data-free="(\d+)"/g)].map((m) => m[1]);
+  for (const date of ["2026-10-19", "2026-10-20", "2026-10-21"]) {
+    const f = frees(colHtml(date));
+    assert.ok(f.length > 0, date);
+    assert.deepEqual(f.map((x) => x[0]), dayFree(date), `${date}: 日表示と同じ空き枠`);
+    assert.ok(f.every((x) => x[1] === date), "列の日付を持つ");
+  }
+  assert.equal(frees(colHtml("2026-10-22")).length, 0, "手動の休み");
+  assert.equal(frees(colHtml("2026-10-25")).length, 0, "日曜");
+  assert.ok(!renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW, showPrio: false }).includes("data-freedate"), "日表示は S.sdate を使うので日付を持たない");
 });
 
 test("受信箱の提案カード: 営業日の列の値もエスケープする（手で書き換えた data.json でも HTML を差し込めない）", () => {
@@ -1539,7 +1560,7 @@ test("renderTaskPop: プロジェクトの選択欄に、プロジェクトな�
 test("重要バッジ: 今日の優先は理由の欄に impbadge を 1 つ（重要度の文字は出さない）。今日のタスクは未完了の重要だけ、状態 pill の後に出す", () => {
   const d = load();
   const a = d.tasks.find((x) => x.id === "AA-0003"); a.important = true;
-  const row = { html: [...renderPrio(d, TODAY, { sched: true }).matchAll(/<li[^>]*data-pick="AA-0003"[^>]*>[\s\S]*?<\/li>/g)].map((m) => m[0]).join("") };
+  const row = { html: [...renderPrio(d, TODAY, { sched: true }).matchAll(/<li[^>]*data-dragtask="AA-0003"[^>]*>[\s\S]*?<\/li>/g)].map((m) => m[0]).join("") };
   assert.ok(row.html, "AA-0003 が今日の優先にある");
   assert.equal(count(row.html, /impbadge/g), 1);
   assert.ok(/<span class="why">[^]*<span class="impbadge">重要<\/span>/.test(row.html), "why の中");

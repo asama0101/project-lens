@@ -13,12 +13,11 @@ test("app.js: apply の編集は、必ず引数のデータを受け取る（決
   assert.doesNotMatch(src, /next: \(\) =>/);
 });
 
-test("app.js: 状態の変更は changeStatus に集め、select とスケジュールのボタンが共用する。ボタンは data-pick より先に処理する", () => {
+test("app.js: 状態の変更は changeStatus に集め、select とスケジュールのボタンが共用する", () => {
   assert.match(src, /function changeStatus\(/);
   const onChangeStatus = src.slice(src.indexOf('if (f === "status")'), src.indexOf('if (f === "party")'));
   assert.match(onChangeStatus, /changeStatus\(/);
   assert.ok(src.includes("[data-setstatus]"));
-  assert.ok(src.indexOf('q("[data-setstatus]")') < src.indexOf('q("[data-pick]")'), "ボタンの分岐が data-pick より前");
   assert.match(src, /const scheduleOpts = \(\) => \(\{[^\n]*pendingDone: S\.pendingDone/);
 });
 
@@ -420,18 +419,21 @@ test("app.js: 回答予定日の欄は、入力の途中（validity.badInput）�
   assert.match(line, /validity\.badInput/);
 });
 
-test("app.js: 空き時間を押すと、タスク未選択なら突発タスクの入力欄を開き、addUrgentTask で確定する。Enter は変換確定中は確定しない", () => {
+test("app.js: 空き時間（週・日）を押すと、突発タスクの入力欄を開き、addUrgentTask で確定する。Enter は変換確定中は確定しない", () => {
   const fr = src.slice(src.indexOf('const fr = q("[data-free]")'));
-  assert.match(fr.slice(0, 700), /urgentDraft = \{/);
+  const body = fr.slice(0, fr.indexOf("if (cleared)"));
+  assert.ok(body.includes('S.urgentDraft = { date: fr.dataset.freedate ?? S.sdate, start: toHHMM(snapFreeStart(+fr.dataset.free, wd)), title: "", projectId: "", minutes: 30 }'), "週表示は列の日付、日表示は表示中の日");
+  assert.ok(!body.includes("addSession"), "空き時間を押してタスクを配置する方法は持たない（ドラッグだけ）");
   assert.ok(!fr.slice(0, 400).includes("先にタスクを選んでください"));
   assert.ok(src.includes("addUrgentTask(d,"));
   assert.ok(src.includes('e.key === "Enter" && !e.isComposing && e.target.matches("[data-ug=\\"title\\"]")'));
   assert.match(src, /e\.key === "Escape" && S\.screen === "schedule" && \([^)]*S\.urgentDraft/);
 });
 
-test("theme.css: 重要のバッジは 12px の太字、角の丸い帯（pill）", () => {
-  const r = css.slice(css.indexOf("#view .impbadge{"), css.indexOf("}", css.indexOf("#view .impbadge{")));
-  for (const s of ["font-size:12px", "font-weight:700", "border-radius:999px", "padding:2px 9px"]) assert.ok(r.includes(s), s);
+test("app.js: タスクを押して選ぶ状態（S.picked・data-pick・body.picking）を持たない。右の列の行は data-dragtask でドラッグする", () => {
+  for (const s of ["picked", "data-pick]", "dataset.pick", "picking"]) assert.ok(!src.includes(s), s);
+  assert.ok(src.includes('e.target.closest("[data-dragtask]")'));
+  assert.ok(!css.includes("picked") && !css.includes("picking") && !css.includes("data-pick"), "theme.css にも残さない");
 });
 
 test("app.js・theme.css: ヘッダーの「＋ 突発タスク」は、塗りの強調ボタン（btn primary）。hover でも文字が背景と同じ色にならない。暗い配色でも読める文字色", () => {
@@ -447,6 +449,18 @@ test("theme.css: 週表示の今日の列は、予定の枠（--accent-soft）�
   const today = rule(".week .col.today");
   assert.ok(!today.includes("--accent-soft") && today.includes("var(--today-col)"), today);
   assert.equal(css.split("--today-col:").length - 1, 3);
+});
+
+test("theme.css: 週表示の空き時間のボタンは、押すまで透明。hover・フォーカスで日表示と同じ色", () => {
+  const rule = (sel) => css.slice(css.indexOf(sel + "{"), css.indexOf("}", css.indexOf(sel + "{")));
+  assert.ok(rule(".week button.free").includes("background:transparent"));
+  assert.ok(css.includes("button.free:hover,button.free:focus-visible{"));
+  assert.ok(css.indexOf(".week button.free{") < css.indexOf("button.free:hover,button.free:focus-visible{"), "同じ強さの規則なので、hover を後に置く（週表示でも hover の色が出る）");
+});
+
+test("theme.css: 重要のバッジは 12px の太字、角の丸い帯（pill）", () => {
+  const r = css.slice(css.indexOf("#view .impbadge{"), css.indexOf("}", css.indexOf("#view .impbadge{")));
+  for (const s of ["font-size:12px", "font-weight:700", "border-radius:999px", "padding:2px 9px"]) assert.ok(r.includes(s), s);
 });
 
 test("app.js: ヘッダーの「＋ 突発タスク」は、clearSel() で選択を外し、スケジュール画面へ移り、firstFreeStart で開始を決めて件名にフォーカスする", () => {

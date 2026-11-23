@@ -89,7 +89,7 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 .rank .t{font-weight:700;line-height:1.4;overflow-wrap:anywhere}
 .rank .why{grid-column:2;color:var(--muted);font-size:12px;line-height:1.5}
 .rank .act{display:inline-block;font-size:11px;padding:0 6px;border-radius:4px;background:var(--warn-soft);color:var(--warn);margin-right:6px}
-.rank li[data-pick]{cursor:pointer;border-radius:6px}
+.rank li[data-dragtask]{cursor:grab;border-radius:6px}
 .rank .t .pill{vertical-align:1px}
 .rank .bb{display:flex;flex-direction:row;gap:6px;flex-wrap:wrap}
 .rank .bb .btn{padding:0 10px;font-size:12px}
@@ -97,7 +97,6 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 .rank.tl .pj,.rank.tl .why,.rank.tl .bb,.rank.tl .ask{grid-column:1}
 .rank li.closed{opacity:.55}
 .blk .stt{font-size:11px;opacity:.85;margin-left:4px}
-.rank li.picked{background:var(--accent-soft);outline:2px solid var(--accent);outline-offset:-2px}
 /* テーブル */
 .tbl{width:100%;border-collapse:collapse;font-size:13px}
 .tbl th{font-weight:400;color:var(--muted);text-align:left;padding:6px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
@@ -123,9 +122,9 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 .blk.task{background:var(--accent-soft);color:var(--ink);border:1px solid var(--accent);border-left-width:4px}
 .blk .tm{font-family:var(--f-mono);font-size:10px;opacity:.8;display:block}
 .week .blk .tm{white-space:nowrap}
-button.free{position:absolute;left:2px;right:2px;border:1px dashed var(--ok);background:var(--free);border-radius:5px;color:var(--ok);font:inherit;font-size:12px;cursor:default;padding:0 6px;text-align:left}
-body.picking button.free{cursor:copy}
-body.picking button.free:hover{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+button.free{position:absolute;left:2px;right:2px;border:1px dashed var(--ok);background:var(--free);border-radius:5px;color:var(--ok);font:inherit;font-size:12px;cursor:pointer;padding:0 6px;text-align:left}
+.week button.free{border-color:transparent;background:transparent;color:transparent;overflow:hidden;white-space:nowrap;font-size:11px} /* 週表示は押すまで目立たせない（hover・フォーカスで日表示と同じ色） */
+button.free:hover,button.free:focus-visible{background:var(--accent-soft);border:1px dashed var(--accent);color:var(--accent)}
 .summary{display:flex;flex-wrap:wrap;gap:6px 20px;margin-bottom:12px;color:var(--muted);font-size:13px}
 .summary b{color:var(--ink)}
 .week{display:grid;grid-template-columns:44px repeat(7,minmax(120px,1fr));min-width:44px}
@@ -3316,11 +3315,10 @@ function renderTodayTasks(data, today, opts = {}) {
 
 /**
  * @param opts.sched   true ならスケジュール画面用（全件・ドラッグ可）。false なら上位 4 件
- * @param opts.picked  選択中のタスク ID
  * 今日のタスクに入っているタスクは出さない（順位の計算は変えず、表示で除く）
  */
 function renderPrio(data, today, opts = {}) {
-  const { sched = false, picked = null } = opts;
+  const { sched = false } = opts;
   const inToday = new Set(todayTaskIds(data, today));
   const ranked = rankTasks(data, today).filter((r) => !inToday.has(r.taskId));
   const shown = sched ? ranked : ranked.slice(0, 4);
@@ -3329,11 +3327,11 @@ function renderPrio(data, today, opts = {}) {
     const a = taskActual(data, t.id);
     const pill = a.count ? ` <span class="pill ok">${a.count}回・実績 ${a.hours.toFixed(1)}h</span>` : "";
     const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? (t.projectId == null ? "プロジェクトなし" : ""));
-    const drag = sched ? ` draggable="true" data-pick="${esc(t.id)}" tabindex="0"` : "";
-    return `<li${drag} class="${picked === t.id ? "picked" : ""}"><span class="n">${i + 1}</span><span class="pj">${proj}</span><span class="t">${r.action === "chase" ? `<span class="act">${r.reasons.some((x) => x.includes("催促")) ? "催促" : "確認"}</span>` : ""}${esc(t.title)} ${statusPill(t)}${pill}</span>${checkMeterHtml(t, { remain: true })}<span class="why">${isImportantMark(t) ? IMP_BADGE : ""}${esc(r.reasons.filter((x) => x !== "重要").join("。"))}</span></li>`;
+    const drag = sched ? ` draggable="true" data-dragtask="${esc(t.id)}"` : "";
+    return `<li${drag}><span class="n">${i + 1}</span><span class="pj">${proj}</span><span class="t">${r.action === "chase" ? `<span class="act">${r.reasons.some((x) => x.includes("催促")) ? "催促" : "確認"}</span>` : ""}${esc(t.title)} ${statusPill(t)}${pill}</span>${checkMeterHtml(t, { remain: true })}<span class="why">${isImportantMark(t) ? IMP_BADGE : ""}${esc(r.reasons.filter((x) => x !== "重要").join("。"))}</span></li>`;
   }).join("");
   const note = sched
-    ? "タスクをカレンダーへドラッグして配置します(15分刻み・長さ1時間)。配置済みの枠もドラッグで移動できます。キーボードでは、タスクを選んで日表示の空き枠を押します。"
+    ? "タスクをカレンダーへドラッグして配置します(15分刻み・長さ1時間)。配置済みの枠もドラッグで移動できます。"
     : "スケジュール画面で、時間枠に配置できます。";
   return `<section class="panel prio" aria-labelledby="h-rk"><h2 id="h-rk">今日の優先</h2>${shown.length ? `<ol class="rank">${items}</ol>` : `<p class="muted">優先するタスクはありません。</p>`}<p class="note" style="margin:10px 0 0">${note}</p></section>`;
 }
@@ -4155,6 +4153,11 @@ function freeOf(data, d, g, isOff) {
   return freeSlots(busy, d, g.wd);
 }
 
+/** 空き時間のボタン（20 分以上の空き）。押すと突発タスクの入力欄を開く。週表示は列の日付を attr（data-freedate）で持たせる */
+function freeButtons(data, d, g, isOff, attr) {
+  return freeOf(data, d, g, isOff).filter((x) => toMin(x.end) - toMin(x.start) >= 20).map((x) => `<button class="free" data-free="${toMin(x.start)}"${attr} style="top:calc(${g.pc(toMin(x.start)).toFixed(3)}% + 1px);height:calc(${(g.pc(toMin(x.end)) - g.pc(toMin(x.start))).toFixed(3)}% - 3px)" aria-label="空き ${x.start}から${x.end}">${x.start}-${x.end} 空き</button>`).join("");
+}
+
 /** 突発タスクの既定の開始: その日の勤務時間内で、会議・枠と重ならない最初の空き（今日なら現在時刻以降）の開始（15 分刻み）。なければ勤務の開始 */
 function firstFreeStart(data, date, now) {
   const g = calendarGeometry(data);
@@ -4225,16 +4228,15 @@ function renderCalendar(data, today, opts) {
       const free = freeOf(data, d, g, isOff).reduce((a, x) => a + toMin(x.end) - toMin(x.start), 0);
       return `<button class="dh ${d === today ? "t" : ""}" data-day="${d}" aria-label="${fmtMD(d)}の1日表示">${fmtMD(d)}(${wdJa(d)})<small class="mono">${isOff(d) ? "—" : `空き ${(free / 60).toFixed(1)}h`}</small></button>`;
     }).join("");
-    const cols = days.map((d) => `<div class="col dz ${d === today ? "today" : ""} ${isOff(d) ? "weekend" : ""}" data-date="${d}">${meetingBlocks(data, d, false, g, ctx)}${sessionBlocks(data, d, false, g, ctx)}</div>`).join("");
+    const cols = days.map((d) => `<div class="col dz ${d === today ? "today" : ""} ${isOff(d) ? "weekend" : ""}" data-date="${d}">${meetingBlocks(data, d, false, g, ctx)}${sessionBlocks(data, d, false, g, ctx)}${freeButtons(data, d, g, isOff, ` data-freedate="${d}"`)}</div>`).join("");
     const dues = days.map((d) => {
       const due = data.tasks.filter((t) => t.due === d && t.status !== "Done" && t.status !== "Cancelled");
       return `<div class="duecell">${due.map((t) => `<div style="display:flex;gap:6px;align-items:baseline"><i class="dot ${STATUS_UI[t.status]?.dot ?? ""}${t.due < today ? " is-late" : ""}"></i><span${isImportantMark(t) ? ' class="impt"' : ""}>${esc(t.title)}</span></div>`).join("") || '<span class="muted">—</span>'}</div>`;
     }).join("");
     cal = `<div class="cal wk"><div class="week"><div></div>${heads}<div class="hrs">${hoursHtml(g)}</div>${cols}</div><div class="week" style="margin-top:8px"><div class="note" style="padding-top:6px">期限</div>${dues}</div></div>
-      <p class="note" style="margin:8px 0 0">日付を押すと1日表示に切り替わります。枠をクリックして選び、「枠を削除」か Delete キーで削除できます。</p>`;
+      <p class="note" style="margin:8px 0 0">日付を押すと1日表示に切り替わります。空き時間を押すと、突発タスクの入力欄が開きます。枠をクリックして選び、「枠を削除」か Delete キーで削除できます。</p>`;
   } else {
-    const free = freeOf(data, date, g, isOff).filter((x) => toMin(x.end) - toMin(x.start) >= 20);
-    const fb = free.map((x) => `<button class="free" data-free="${toMin(x.start)}" style="top:calc(${g.pc(toMin(x.start)).toFixed(3)}% + 1px);height:calc(${(g.pc(toMin(x.end)) - g.pc(toMin(x.start))).toFixed(3)}% - 3px)" aria-label="空き ${x.start}から${x.end}">${x.start}-${x.end} 空き</button>`).join("");
+    const fb = freeButtons(data, date, g, isOff, "");
     const nowLine = date === ctx.now.date && toMin(ctx.now.time) >= g.h0 && toMin(ctx.now.time) <= g.h0 + g.span ? `<span class="nowline" style="top:${g.tp(toMin(ctx.now.time))}" title="現在 ${ctx.now.time}"></span>` : "";
     const offKinds = data.settings?.countWeekendsAndHolidays === true ? "休み" : "土日・日本の祝日・休み"; // 土日祝を営業日に数える設定のときは、手動の休みだけが休みの日
     const offNote = isOff(date) ? `<p class="note" style="margin:0 0 8px">この日は休みです（${offKinds}）。作業枠は置けません。設定タブの「営業日として扱う日」に指定すると置けます。</p>` : "";
@@ -4250,7 +4252,6 @@ function renderCalendar(data, today, opts) {
  * @param opts.date      表示する日（週表示ではその日を含む週）
  * @param opts.now       {date, time}  現在時刻（過ぎた予定の判定に使う）
  * @param opts.selSess   選択中の枠 ID / opts.selMtg 選択中の会議 ID / opts.mtgDraft 追加中の会議の下書き / opts.urgentDraft 追加中の突発タスクの下書き / opts.taskEdit 編集欄を開いているタスク { id, full, askDel }
- * @param opts.picked    選択中のタスク ID（キーボード配置用）
  * @param opts.showPrio  false なら今日の優先を出さない
  * @param opts.showSkipped  true なら「参加しない」の会議も出す（既定は出さない。選択中の会議だけは、隠さない。空き時間の計算は変わらない）
  */
@@ -4278,7 +4279,7 @@ function renderSchedule(data, today, opts) {
     <div class="summary"><span>実績 <b class="mono">${hours.toFixed(1)}時間</b></span><span>予定 <b class="mono">${planned}件</b></span>${unconf ? `<span class="pill wait">未確認 ${unconf}件（作業枠 ${unconfS}・会議 ${unconfM}）</span><button class="btn" data-confirmall>未確認をすべて実績にする</button>` : ""}<button class="btn danger" data-delsel ${delOk ? "" : "disabled"}>${delLabel}</button>${selSess ? `<button class="btn" data-tedit-open="${esc(selSess.taskId)}">タスクを編集</button>` : ""}</div>`;
   const et = opts.taskEdit ? data.tasks.find((t) => t.id === opts.taskEdit.id) : null;
   const editPanel = et ? renderTaskEditPanel(data, opts.taskEdit, statusCellHtml(et, { ...opts, todayIds: opts.showPrio === false ? new Set() : new Set(todayTaskIds(data, today)) }, taskFlags(et, today, data.settings).includes("overdue"))) : "";
-  return `<div class="cols${opts.showPrio === false ? " one" : ""}"><section class="panel">${nav}<div id="mtgslot">${meetingForm(data, { mtgDraft: opts.mtgDraft, selMtg: selMtg?.id })}${urgentForm(data, opts.urgentDraft)}${editPanel}</div><div id="calslot">${renderCalendar(data, today, calOpts)}</div></section>${renderSideToggle(opts.showPrio !== false)}${opts.showPrio === false ? "" : renderSide(data, today, { sched: true, picked: opts.picked, pendingDone: opts.pendingDone })}</div>`;
+  return `<div class="cols${opts.showPrio === false ? " one" : ""}"><section class="panel">${nav}<div id="mtgslot">${meetingForm(data, { mtgDraft: opts.mtgDraft, selMtg: selMtg?.id })}${urgentForm(data, opts.urgentDraft)}${editPanel}</div><div id="calslot">${renderCalendar(data, today, calOpts)}</div></section>${renderSideToggle(opts.showPrio !== false)}${opts.showPrio === false ? "" : renderSide(data, today, { sched: true, pendingDone: opts.pendingDone })}</div>`;
 }
 
 
@@ -4419,7 +4420,7 @@ const S = {
   screen: "gantt",
   filter: "all", gwin: "m6", hideDone: false,
   askDel: null, askDelProject: null, pendingWait: null, pendingDone: null, checkOpen: new Set(),
-  sview: "week", sdate: clock().date, selSess: null, selMtg: null, mtgDraft: null, urgentDraft: null, taskEdit: null, picked: null,
+  sview: "week", sdate: clock().date, selSess: null, selMtg: null, mtgDraft: null, urgentDraft: null, taskEdit: null,
   prefs: loadPrefs(), settingsClosed: loadSettingsClosed(), tpop: null, addAt: null, last: null, ruleError: "",
   ib: { open: false, text: loadInboxDraft(), projectId: "", replies: {}, reasons: {}, causes: {} },
   wperiod: "week", wdate: clock().date,
@@ -4453,7 +4454,7 @@ function startScreen() {
     ${S.openError ? `<p class="ask" style="max-width:none" role="alert">${esc(S.openError)}</p>` : ""}</section>`;
 }
 
-const scheduleOpts = () => ({ view: S.sview, date: S.sdate, now: clock(), selSess: S.selSess, selMtg: S.selMtg, mtgDraft: S.mtgDraft, urgentDraft: S.urgentDraft, taskEdit: S.taskEdit, pendingWait: S.pendingWait, picked: S.picked, showPrio: S.prefs.showPrio, showSkipped: S.prefs.showSkipped, pendingDone: S.pendingDone });
+const scheduleOpts = () => ({ view: S.sview, date: S.sdate, now: clock(), selSess: S.selSess, selMtg: S.selMtg, mtgDraft: S.mtgDraft, urgentDraft: S.urgentDraft, taskEdit: S.taskEdit, pendingWait: S.pendingWait, showPrio: S.prefs.showPrio, showSkipped: S.prefs.showSkipped, pendingDone: S.pendingDone });
 
 function renderBody() {
   const { date: today } = clock();
@@ -4496,9 +4497,7 @@ function render() {
   const c = clock();
   $("todaylabel").textContent = `${c.date.replace(/-/g, "/")}(${wdJa(c.date)})`;
   document.querySelectorAll("nav [role=tab]").forEach((b) => b.setAttribute("aria-selected", String(b.id === "tab-" + S.screen)));
-  $("filebar").innerHTML = S.data ? `<button class="chip-btn pref" data-pref="actual" aria-pressed="${S.prefs.showActual}" title="ガントの実績の線を出したり隠したりします">ガント実績</button><span class="fsep" aria-hidden="true"></span><button class="btn primary" data-urgent-open title="空き時間を押さずに、突発タスクの入力欄を開きます">＋ 突発タスク</button><button class="btn" data-refresh title="ファイルを読み直します(Claude Code などが更新した内容を反映)">更新</button><button class="btn" data-open="shared" title="別の共有ファイル（data.json）を選びます">別の共有ファイル</button><button class="btn" data-open="personal" title="別の個人ファイル（personal.json）を選びます">別の個人ファイル</button>${typeof window.showOpenFilePicker === "function" ? "" : `<button class="btn" data-download>JSON を書き出す</button>`}` : "";
-  document.body.classList.toggle("picking", !!S.picked && S.screen === "schedule" && S.sview === "day");
-  renderBar();
+  $("filebar").innerHTML = S.data ? `<button class="chip-btn pref" data-pref="actual" aria-pressed="${S.prefs.showActual}" title="ガントの実績の線を出したり隠したりします">ガント実績</button><span class="fsep" aria-hidden="true"></span><button class="btn primary" data-urgent-open title="空き時間を押さずに、突発タスクの入力欄を開きます">＋ 突発タスク</button><button class="btn" data-refresh title="ファイルを読み直します(Claude Code などが更新した内容を反映)">更新</button><button class="btn" data-open="shared" title="別の共有ファイル（data.json）を選びます">別の共有ファイル</button><button class="btn" data-open="personal" title="別の個人ファイル（personal.json）を選びます">別の個人ファイル</button>${typeof window.showOpenFilePicker === "function" ? "" : `<button class="btn" data-download>JSON を書き出す</button>`}` : "";  renderBar();
   // ガントの横スクロール位置(全プロジェクトで同じ)とページの縦の位置は、編集で描き直しても保つ(表示期間・絞り込みなどを変えたときだけ今日の位置へ戻す)。
   // 描き直しの間、ページが縮んで scrollY が飛ばないよう、#view の高さを保つ
   const prevCount = view.querySelectorAll(".gscroll").length;
@@ -4973,8 +4972,6 @@ view.addEventListener("click", (e) => {
   if (q("[data-sgoto]")) { S.sdate = today; render(); return; }
   if (q("[data-sskip]")) { togglePref("showSkipped"); return; }
   const dy0 = q("[data-day]"); if (dy0) { S.sdate = dy0.dataset.day; S.sview = "day"; render(); return; }
-  const pk = q("[data-pick]");
-  if (pk) { S.picked = S.picked === pk.dataset.pick ? null : pk.dataset.pick; if (S.picked && S.sview === "week") toast("日表示にすると、空き枠を押して配置できます"); render(); return; }
   const cf = q("[data-confirm]");
   if (cf) { apply((d) => { const r = confirmSession(d, cf.dataset.confirm, now); if (r.error) throw new Error(r.error); return r.data; }, "実績にしました。時間が違うときは、枠をドラッグして直します"); return; }
   const cm = q("[data-confirmmtg]");
@@ -5018,17 +5015,8 @@ view.addEventListener("click", (e) => {
   const fr = q("[data-free]");
   if (fr) {
     const wd = S.data.settings?.workday ?? DEFAULT_WORKDAY;
-    if (!S.picked) {
-      clearSel(); S.urgentDraft = { date: S.sdate, start: toHHMM(snapFreeStart(+fr.dataset.free, wd)), title: "", projectId: "", minutes: 30 };
-      render(); view.querySelector('[data-ug="title"]')?.focus(); return;
-    }
-    const st = snapStart(+fr.dataset.free, 60, wd), id = S.picked;
-    const sess = { date: S.sdate, start: toHHMM(st), end: toHHMM(st + 60) };
-    const r = addSession(S.data, id, sess, now);
-    if (r.error) { toast(r.error); return; }
-    S.picked = null;
-    apply(asEdit((d) => addSession(d, id, sess, now)), `${S.data.tasks.find((t) => t.id === id).title} を ${hm(st)} に配置しました${r.warning ? `(${r.warning})` : ""}`);
-    return;
+    clearSel(); S.urgentDraft = { date: fr.dataset.freedate ?? S.sdate, start: toHHMM(snapFreeStart(+fr.dataset.free, wd)), title: "", projectId: "", minutes: 30 }; // 週表示は列の日付（data-freedate）、日表示は表示中の日
+    render(); view.querySelector('[data-ug="title"]')?.focus(); return;
   }
   if (cleared) render();
 });
@@ -5283,8 +5271,8 @@ view.addEventListener("dragstart", (e) => {
     e.dataTransfer.effectAllowed = "move";
     return;
   }
-  const li = e.target.closest("[data-pick]"), bl = e.target.closest("[data-dragsess]"), mg = e.target.closest("[data-dragmtg]"), mv = e.target.closest("[data-mvh]");
-  drag = li ? { kind: "task", id: li.dataset.pick } : bl ? { kind: "sess", id: bl.dataset.dragsess } : mg ? { kind: "mtg", id: mg.dataset.dragmtg } : mv ? { kind: "order", id: mv.dataset.mvh } : null;
+  const li = e.target.closest("[data-dragtask]"), bl = e.target.closest("[data-dragsess]"), mg = e.target.closest("[data-dragmtg]"), mv = e.target.closest("[data-mvh]");
+  drag = li ? { kind: "task", id: li.dataset.dragtask } : bl ? { kind: "sess", id: bl.dataset.dragsess } : mg ? { kind: "mtg", id: mg.dataset.dragmtg } : mv ? { kind: "order", id: mv.dataset.mvh } : null;
   if (!drag) return;
   if (mv) e.dataTransfer.setDragImage(mv.closest("tr,.g-label"), 12, 12); // 動かしているタスクの見た目にする（ガントは、横に長い行ではなくラベルだけ）
   e.dataTransfer.setData("text/plain", drag.id);
@@ -5381,7 +5369,6 @@ view.addEventListener("drop", (e) => {
   ghost?.remove(); ghost = null;
   hideTip();
   if (p.error) { toast(p.error); return; }
-  S.picked = null;
   apply((d) => p.next(d), `${p.msg}${p.warning ? `(${p.warning})` : ""}`);
 });
 view.addEventListener("dragend", () => { clearOrderLine(); drag = null; ghost?.remove(); ghost = null; hideTip(); });
@@ -5524,9 +5511,7 @@ view.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.isComposing && e.target.matches("[data-hnew],[data-hto],[data-hnote]")) { e.preventDefault(); addHolidayFromInput(); return; }
   if (e.key === "Enter" && !e.isComposing && e.target.matches("[data-wnew],[data-wnote]")) { e.preventDefault(); addWorkdayFromInput(); return; }
   if (e.key === "Escape" && e.target.matches("[data-gadd]")) { S.addAt = null; render(); return; }
-  if (e.key === "Enter" && !e.isComposing && e.target.matches("[data-waitparty]")) { e.preventDefault(); submitWait(e.target.dataset.waitparty); return; }
-  if ((e.key === "Enter" || e.key === " ") && e.target.matches("[data-pick]")) { e.preventDefault(); e.target.click(); }
-});
+  if (e.key === "Enter" && !e.isComposing && e.target.matches("[data-waitparty]")) { e.preventDefault(); submitWait(e.target.dataset.waitparty); return; }});
 
 /* ---------- Claude Code への依頼（画面下の帯） ---------- */
 const nowIso = () => new Date().toISOString();
