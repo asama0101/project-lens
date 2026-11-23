@@ -545,12 +545,18 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 #view .stop{position:sticky;top:var(--hh,0px);z-index:9;background:var(--surface);display:flow-root}
 #view .stop>.toolbar{margin-bottom:10px}
 #view .stop>.summary{margin-bottom:8px}
-#view #mtgslot:not(:empty){position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px));z-index:9;max-height:max(120px,calc(55vh - var(--hh,0px) - var(--stop-h,0px) - var(--dh-h,0px)));overflow-y:auto;background:var(--surface);padding-top:4px}
+#view #mtgslot:not(:empty){position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px));z-index:9;max-height:max(120px,calc(55vh - var(--hh,0px) - var(--stop-h,0px) - var(--dh-h,0px) - var(--due-h,0px)));overflow-y:auto;background:var(--surface);padding-top:4px}
 /* 作業枠・会議のブロックは、短い枠でも押せるよう、最低 14px の高さで描く（データは変えない） */
 #view .cal .blk{min-height:14px}
 /* 週表示の日付の見出しの行は、ヘッダー・操作の行（--stop-h）・カレンダーの上の入力欄（--slot-h）の下に固定する。左端のセル（時刻の列の上）も固定し、時刻の文字が透けないようにする */
 #view .cal.wk .week .dh{top:calc(var(--hh,0px) + var(--stop-h,0px) + var(--slot-h,0px))}
 #view .cal.wk .week:first-child>div:first-child{position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px) + var(--slot-h,0px));z-index:7;background:var(--surface)}
+/* 週表示の期限の行は、日付の見出しのすぐ下（--dh-h）に固定する（高さは --due-h）。開いたセルは高さ 96px（約 4 件）までで、多い日はセルの中でスクロールする（固定の段が画面を埋めないため）。閉じると、左端のボタンと週の件数の帯だけの 1 行 */
+#view .cal.wk .week>.duehd,#view .cal.wk .week>.duecell,#view .cal.wk .week>.dueoff{position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px) + var(--slot-h,0px) + var(--dh-h,0px));z-index:7;background:var(--surface);border-bottom:1px solid var(--line)}
+#view .cal.wk .week>.duecell{max-height:96px;overflow-y:auto}
+#view .cal.wk .week>.dueoff{grid-column:2 / -1;padding:2px 6px;font-size:12px;color:var(--muted)}
+#view .cal.wk .duetg{font:inherit;font-size:11px;color:var(--muted);background:none;border:0;padding:4px 0;cursor:pointer;white-space:nowrap}
+#view .cal.wk .duetg:hover{color:var(--ink)}
 /* 今日のタスクの枠の時間。枠ごとに、時間と「実績にする」のボタン（予定・未確認の枠だけ）を並べ、折り返す */
 #view .rank.tl .tss{display:flex;flex-wrap:wrap;gap:4px 12px}
 #view .rank.tl .ts{display:inline-flex;align-items:center;gap:6px}
@@ -2353,11 +2359,11 @@ return { createSync };
 
 /* src/ui/prefs.js */
 const { DEFAULT_PREFS, loadPrefs, savePrefs, loadInboxDraft, saveInboxDraft, SETTINGS_FOLDS, loadSettingsClosed, saveSettingsClosed } = (() => {
-// 画面の表示の好み（今日の優先・ガントの実績・スケジュールの参加しない会議を出す／隠す）。データではないので、ブラウザ（localStorage）に保存する。
+// 画面の表示の好み（今日の優先・ガントの実績・スケジュールの参加しない会議・週表示の期限の行を出す／隠す）。データではないので、ブラウザ（localStorage）に保存する。
 // localStorage が使えない・壊れているときは、既定のまま動く。
 
 const KEY = "project-lens.prefs";
-const DEFAULT_PREFS = { showPrio: true, showActual: true, showSkipped: false };
+const DEFAULT_PREFS = { showPrio: true, showActual: true, showSkipped: false, showDue: true };
 
 /** localStorage。サイトのデータが止められているなど、使えないときは null */
 const browserStorage = () => {
@@ -4299,11 +4305,14 @@ function renderCalendar(data, today, opts) {
     const days = [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(weekStartOf(date), i));
     const heads = days.map((d) => `<button class="dh ${d === today ? "t" : ""}" data-day="${d}" aria-label="${fmtMD(d)}の1日表示">${fmtMD(d)}(${wdJa(d)})${isOff(d) ? '<small class="mono">—</small>' : ""}</button>`).join("");
     const cols = days.map((d) => `<div class="col dz ${d === today ? "today" : ""} ${isOff(d) ? "weekend" : ""}" data-date="${d}">${meetingBlocks(data, d, false, g, ctx)}${sessionBlocks(data, d, false, g, ctx)}</div>`).join("");
-    const dues = days.map((d) => {
-      const due = data.tasks.filter((t) => t.due === d && t.status !== "Done" && t.status !== "Cancelled");
-      return `<div class="duecell">${due.map((t) => `<div style="display:flex;gap:6px;align-items:baseline"><i class="dot ${STATUS_UI[t.status]?.dot ?? ""}${t.due < today ? " is-late" : ""}"></i><span${isImportantMark(t) ? ' class="impt"' : ""}>${esc(t.title)}</span></div>`).join("") || '<span class="muted">—</span>'}</div>`;
-    }).join("");
-    cal = `<div class="cal wk"><div class="week"><div></div>${heads}<div class="hrs">${hoursHtml(g)}</div>${cols}</div><div class="week" style="margin-top:8px"><div class="note" style="padding-top:6px">期限</div>${dues}</div></div>
+    const dueByDay = days.map((d) => data.tasks.filter((t) => t.due === d && t.status !== "Done" && t.status !== "Cancelled"));
+    // 期限の行: 日付の見出しのすぐ下に固定する（theme.css）。閉じると、各日のセルの代わりに、週の件数の帯だけを出す
+    const dueOpen = opts.showDue !== false;
+    const dueToggle = `<div class="duehd"><button class="duetg" data-sdue aria-expanded="${dueOpen}" title="期限の行を${dueOpen ? "閉じます" : "開きます"}">期限 ${dueOpen ? "▾" : "▸"}</button></div>`;
+    const dues = dueOpen
+      ? dueByDay.map((due) => `<div class="duecell">${due.map((t) => `<div style="display:flex;gap:6px;align-items:baseline"><i class="dot ${STATUS_UI[t.status]?.dot ?? ""}${t.due < today ? " is-late" : ""}"></i><span${isImportantMark(t) ? ' class="impt"' : ""}>${esc(t.title)}</span></div>`).join("") || '<span class="muted">—</span>'}</div>`).join("")
+      : `<div class="dueoff">この週の期限 ${dueByDay.flat().length} 件</div>`;
+    cal = `<div class="cal wk"><div class="week"><div></div>${heads}${dueToggle}${dues}<div class="hrs">${hoursHtml(g)}</div>${cols}</div></div>
       <p class="note" style="margin:8px 0 0">日付を押すと1日表示に切り替わります。枠をクリックして選び、「枠を削除」か Delete キーで削除できます。</p>`;
   } else {
     const nowLine = date === ctx.now.date && toMin(ctx.now.time) >= g.h0 && toMin(ctx.now.time) <= g.h0 + g.span ? `<span class="nowline" style="top:${g.tp(toMin(ctx.now.time))}" title="現在 ${ctx.now.time}"></span>` : "";
@@ -4321,6 +4330,7 @@ function renderCalendar(data, today, opts) {
  * @param opts.selSess   選択中の枠 ID / opts.selMtg 選択中の会議 ID / opts.mtgDraft 追加中の会議の下書き / opts.urgentDraft 追加中の突発タスクの下書き / opts.taskEdit 編集欄を開いているタスク { id, full, askDel }
  * @param opts.showPrio  false なら今日の優先を出さない
  * @param opts.showSkipped  true なら「参加しない」の会議も出す（既定は出さない。選択中の会議だけは、隠さない）
+ * @param opts.showDue   false なら週表示の期限の行を閉じる（既定は開く）
  */
 function renderSchedule(data, today, opts) {
   const { view = "week", date = today } = opts;
@@ -4416,10 +4426,11 @@ function syncSticky() {
   root.setProperty("--hh", `${topbar.offsetHeight}px`);
   const tool = view.querySelector(".ptool");
   root.setProperty("--th", `${tool ? tool.offsetHeight : 0}px`);
-  // スケジュールは、ヘッダーの下に、操作の行（.stop）・入力欄（#mtgslot）・週表示の日付の見出しを積んで固定する。それぞれの高さを測り、下の段の top に足す
+  // スケジュールは、ヘッダーの下に、操作の行（.stop）・入力欄（#mtgslot）・週表示の日付の見出し・期限の行を積んで固定する。それぞれの高さを測り、下の段の top に足す
   root.setProperty("--stop-h", `${view.querySelector(".stop")?.offsetHeight ?? 0}px`);
   root.setProperty("--slot-h", `${view.querySelector("#mtgslot")?.offsetHeight ?? 0}px`);
   root.setProperty("--dh-h", `${view.querySelector(".cal.wk .week .dh")?.offsetHeight ?? 0}px`);
+  root.setProperty("--due-h", `${view.querySelector(".cal.wk .week .duehd")?.offsetHeight ?? 0}px`); // 週表示の期限の行（日付の見出しの下に固定。左端のセルは行の高さに伸びる）
   // ガントの操作の帯(.gtop)の高さ(プロジェクトの見出し .pgstick の固定位置)と、プロジェクトごとの見出しの高さ(日付軸の複製の固定位置)。スクロールには連動させない
   root.setProperty("--gh", `${view.querySelector(".gtop")?.offsetHeight ?? 0}px`);
   for (const pg of view.querySelectorAll("section.pg")) pg.style.setProperty("--pgh", `${pg.querySelector(".pgstick").getBoundingClientRect().height}px`);
@@ -4527,7 +4538,7 @@ function startScreen() {
     ${S.openError ? `<p class="ask" style="max-width:none" role="alert">${esc(S.openError)}</p>` : ""}</section>`;
 }
 
-const scheduleOpts = () => ({ view: S.sview, date: S.sdate, now: clock(), selSess: S.selSess, selMtg: S.selMtg, mtgDraft: S.mtgDraft, urgentDraft: S.urgentDraft, taskEdit: S.taskEdit, pendingWait: S.pendingWait, showPrio: S.prefs.showPrio, showSkipped: S.prefs.showSkipped, pendingDone: S.pendingDone });
+const scheduleOpts = () => ({ view: S.sview, date: S.sdate, now: clock(), selSess: S.selSess, selMtg: S.selMtg, mtgDraft: S.mtgDraft, urgentDraft: S.urgentDraft, taskEdit: S.taskEdit, pendingWait: S.pendingWait, showPrio: S.prefs.showPrio, showSkipped: S.prefs.showSkipped, showDue: S.prefs.showDue, pendingDone: S.pendingDone });
 
 function renderBody() {
   const { date: today } = clock();
@@ -4636,6 +4647,7 @@ function focusSelector(el) {
   if (d.ckdel) return q("data-ckdel", d.ckdel);
   if (d.cktoggle) return q("data-cktoggle", d.cktoggle);
   if (d.pref) return `[data-pref="${CSS.escape(d.pref)}"]`; // 右の列の取っ手
+  if (d.sdue !== undefined) return "[data-sdue]"; // 週表示の期限の行の開閉
   if (d.set) return q("data-set", d.set);
   // 規則の欄は、書き換えるとキーワードが変わるので、行の位置（data-ri。書き換えても並びは変わらない）で探す
   if (d.rkw !== undefined) return `[data-rkw][data-ri="${CSS.escape(d.ri)}"]`;
@@ -4665,15 +4677,15 @@ function scrollToday(smooth) {
   }));
 }
 
-/** スケジュールの固定の段（ヘッダー・操作の行・入力欄・週表示の日付の見出し）の下端（画面の y）。syncSticky が測った高さの和 */
+/** スケジュールの固定の段（ヘッダー・操作の行・入力欄・週表示の日付の見出し・期限の行）の下端（画面の y）。syncSticky が測った高さの和 */
 function stackBottom() {
   const cs = getComputedStyle(document.documentElement), px = (k) => parseFloat(cs.getPropertyValue(k)) || 0;
-  return px("--hh") + px("--stop-h") + px("--slot-h") + px("--dh-h");
+  return px("--hh") + px("--stop-h") + px("--slot-h") + px("--dh-h") + px("--due-h");
 }
 
 /** スケジュールを開いたとき（画面の切り替え・ファイルを開いたとき・「＋ 突発タスク」）に、時間の軸の先頭に見せる時刻（分） */
 const MORNING = 8 * 60;
-/** スケジュールを開いたとき、今の時刻によらず、08:00 が固定の段（ヘッダー・操作の行・入力欄・週表示の日付の見出し）のすぐ下（10px 下）に来るまで、ページを縦にスクロールする（時間の軸は 00:00〜24:00 で、先頭は夜中のため） */
+/** スケジュールを開いたとき、今の時刻によらず、08:00 が固定の段（ヘッダー・操作の行・入力欄・週表示の日付の見出し・期限の行）のすぐ下（10px 下）に来るまで、ページを縦にスクロールする（時間の軸は 00:00〜24:00 で、先頭は夜中のため） */
 function scrollToMorning() {
   const grid = view.querySelector(".cal-grid, .week .hrs");
   if (!grid) return;
@@ -5081,6 +5093,7 @@ view.addEventListener("click", (e) => {
   const nv = q("[data-nav]"); if (nv) { S.sdate = addDays(S.sdate, +nv.dataset.nav); render(); return; }
   if (q("[data-sgoto]")) { S.sdate = today; render(); return; }
   if (q("[data-sskip]")) { togglePref("showSkipped"); return; }
+  if (q("[data-sdue]")) { togglePref("showDue"); return; }
   const dy0 = q("[data-day]"); if (dy0) { S.sdate = dy0.dataset.day; S.sview = "day"; render(); return; }
   const cf = q("[data-confirm]");
   if (cf) { apply((d) => { const r = confirmSession(d, cf.dataset.confirm, now); if (r.error) throw new Error(r.error); return r.data; }, "実績にしました。時間が違うときは、枠をドラッグして直します"); return; }

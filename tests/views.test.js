@@ -253,6 +253,33 @@ test("renderSchedule(week): 不明な状態のタスクが期限欄にあって�
   assert.ok(html.includes("ルータ設定の作成"));
 });
 
+test("renderCalendar(week): 期限の行は、日付の見出し（.dh）のすぐ下・時間の軸の上にあり、左端に開閉のボタン（既定は開く）。閉じると、各日のセルを出さず、件数の帯だけ", () => {
+  const d = load();
+  const open = renderCalendar(d, TODAY, { view: "week", date: TODAY, now: NOW });
+  const lastDh = open.lastIndexOf('class="dh'), hd = open.indexOf('class="duehd"'), cell = open.indexOf('class="duecell"'), hrs = open.indexOf('class="hrs"');
+  assert.ok(lastDh < hd && hd < cell && cell < hrs, "日付の見出し → 期限の行 → 時間の軸");
+  assert.equal(count(open, /class="duecell"/g), 7);
+  assert.ok(open.includes('<button class="duetg" data-sdue aria-expanded="true"') && open.includes("期限 ▾"), "開いているときのボタン");
+  assert.ok(open.includes("ルータ設定の作成"), "期限の件名を出す");
+  assert.equal(count(open, /class="week"/g), 1, "期限の行は、カレンダーと同じ 1 つの格子の中（下の別の格子は持たない）");
+  assert.ok(!/AB-0002|AA-\d{4}/.test(open), "ID は出さない");
+  const closed = renderCalendar(d, TODAY, { view: "week", date: TODAY, now: NOW, showDue: false });
+  assert.ok(closed.includes('aria-expanded="false"') && closed.includes("期限 ▸"));
+  assert.ok(!closed.includes('class="duecell"') && !closed.includes('class="impt"') && !closed.includes("dot "), "閉じると各日のセル（件名・状態の点）は出さない");
+  assert.match(closed, /class="dueoff"[^>]*>この週の期限 \d+ 件</);
+  assert.ok(closed.indexOf('class="dueoff"') < closed.indexOf('class="hrs"'));
+  const day = renderCalendar(d, TODAY, { view: "day", date: TODAY, now: NOW });
+  assert.ok(!day.includes("data-sdue") && !day.includes("duecell"), "日表示には期限の行が無い（変えない）");
+});
+
+test("renderCalendar(week): 期限の行の重要のタスクの件名に impt が付く", () => {
+  const d = load();
+  const t = d.tasks.find((x) => x.id === "AB-0002");
+  t.important = true;
+  const html = renderCalendar(d, TODAY, { view: "week", date: TODAY, now: NOW });
+  assert.ok(html.includes(`<span class="impt">${t.title}</span>`));
+});
+
 test("renderSchedule: 未確認 0 件なら『すべて実績にする』は出ない／選択がなければ『枠を削除』は無効", () => {
   const d = load();
   const html = sched(d);

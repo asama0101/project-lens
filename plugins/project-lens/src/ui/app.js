@@ -46,7 +46,7 @@ function startScreen() {
     ${S.openError ? `<p class="ask" style="max-width:none" role="alert">${esc(S.openError)}</p>` : ""}</section>`;
 }
 
-const scheduleOpts = () => ({ view: S.sview, date: S.sdate, now: clock(), selSess: S.selSess, selMtg: S.selMtg, mtgDraft: S.mtgDraft, urgentDraft: S.urgentDraft, taskEdit: S.taskEdit, pendingWait: S.pendingWait, showPrio: S.prefs.showPrio, showSkipped: S.prefs.showSkipped, pendingDone: S.pendingDone });
+const scheduleOpts = () => ({ view: S.sview, date: S.sdate, now: clock(), selSess: S.selSess, selMtg: S.selMtg, mtgDraft: S.mtgDraft, urgentDraft: S.urgentDraft, taskEdit: S.taskEdit, pendingWait: S.pendingWait, showPrio: S.prefs.showPrio, showSkipped: S.prefs.showSkipped, showDue: S.prefs.showDue, pendingDone: S.pendingDone });
 
 function renderBody() {
   const { date: today } = clock();
@@ -155,6 +155,7 @@ function focusSelector(el) {
   if (d.ckdel) return q("data-ckdel", d.ckdel);
   if (d.cktoggle) return q("data-cktoggle", d.cktoggle);
   if (d.pref) return `[data-pref="${CSS.escape(d.pref)}"]`; // 右の列の取っ手
+  if (d.sdue !== undefined) return "[data-sdue]"; // 週表示の期限の行の開閉
   if (d.set) return q("data-set", d.set);
   // 規則の欄は、書き換えるとキーワードが変わるので、行の位置（data-ri。書き換えても並びは変わらない）で探す
   if (d.rkw !== undefined) return `[data-rkw][data-ri="${CSS.escape(d.ri)}"]`;
@@ -184,15 +185,15 @@ function scrollToday(smooth) {
   }));
 }
 
-/** スケジュールの固定の段（ヘッダー・操作の行・入力欄・週表示の日付の見出し）の下端（画面の y）。syncSticky が測った高さの和 */
+/** スケジュールの固定の段（ヘッダー・操作の行・入力欄・週表示の日付の見出し・期限の行）の下端（画面の y）。syncSticky が測った高さの和 */
 function stackBottom() {
   const cs = getComputedStyle(document.documentElement), px = (k) => parseFloat(cs.getPropertyValue(k)) || 0;
-  return px("--hh") + px("--stop-h") + px("--slot-h") + px("--dh-h");
+  return px("--hh") + px("--stop-h") + px("--slot-h") + px("--dh-h") + px("--due-h");
 }
 
 /** スケジュールを開いたとき（画面の切り替え・ファイルを開いたとき・「＋ 突発タスク」）に、時間の軸の先頭に見せる時刻（分） */
 const MORNING = 8 * 60;
-/** スケジュールを開いたとき、今の時刻によらず、08:00 が固定の段（ヘッダー・操作の行・入力欄・週表示の日付の見出し）のすぐ下（10px 下）に来るまで、ページを縦にスクロールする（時間の軸は 00:00〜24:00 で、先頭は夜中のため） */
+/** スケジュールを開いたとき、今の時刻によらず、08:00 が固定の段（ヘッダー・操作の行・入力欄・週表示の日付の見出し・期限の行）のすぐ下（10px 下）に来るまで、ページを縦にスクロールする（時間の軸は 00:00〜24:00 で、先頭は夜中のため） */
 function scrollToMorning() {
   const grid = view.querySelector(".cal-grid, .week .hrs");
   if (!grid) return;
@@ -600,6 +601,7 @@ view.addEventListener("click", (e) => {
   const nv = q("[data-nav]"); if (nv) { S.sdate = addDays(S.sdate, +nv.dataset.nav); render(); return; }
   if (q("[data-sgoto]")) { S.sdate = today; render(); return; }
   if (q("[data-sskip]")) { togglePref("showSkipped"); return; }
+  if (q("[data-sdue]")) { togglePref("showDue"); return; }
   const dy0 = q("[data-day]"); if (dy0) { S.sdate = dy0.dataset.day; S.sview = "day"; render(); return; }
   const cf = q("[data-confirm]");
   if (cf) { apply((d) => { const r = confirmSession(d, cf.dataset.confirm, now); if (r.error) throw new Error(r.error); return r.data; }, "実績にしました。時間が違うときは、枠をドラッグして直します"); return; }

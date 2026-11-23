@@ -608,7 +608,7 @@ test("sticky.js・theme.css: スケジュールは、ヘッダー・操作の行
   assert.match(stk, /root\.setProperty\("--slot-h", `\$\{view\.querySelector\("#mtgslot"\)\?\.offsetHeight \?\? 0\}px`\)/);
   assert.match(stk, /root\.setProperty\("--dh-h", `\$\{view\.querySelector\("\.cal\.wk \.week \.dh"\)\?\.offsetHeight \?\? 0\}px`\)/);
   assert.ok(css.includes("#view .stop{position:sticky;top:var(--hh,0px);z-index:9;"));
-  assert.ok(css.includes("#view #mtgslot:not(:empty){position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px));z-index:9;max-height:max(120px,calc(55vh - var(--hh,0px) - var(--stop-h,0px) - var(--dh-h,0px)));overflow-y:auto;"), "入力欄は、積んだ高さが画面の 55% を超えないよう、欄の中でスクロールする（下端の帯があっても、カレンダーに約 40% 残す）");
+  assert.ok(css.includes("#view #mtgslot:not(:empty){position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px));z-index:9;max-height:max(120px,calc(55vh - var(--hh,0px) - var(--stop-h,0px) - var(--dh-h,0px) - var(--due-h,0px)));overflow-y:auto;"), "入力欄は、積んだ高さが画面の 55% を超えないよう、欄の中でスクロールする（下端の帯があっても、カレンダーに約 40% 残す）");
   assert.ok(css.includes("#view .cal.wk .week .dh{top:calc(var(--hh,0px) + var(--stop-h,0px) + var(--slot-h,0px))}"));
   assert.ok(css.includes("#view .cal.wk .week:first-child>div:first-child{position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px) + var(--slot-h,0px));"));
   assert.ok(css.includes("@media (max-width:640px){#view .cal.wk{overflow-x:auto}}"));
@@ -621,7 +621,15 @@ test("app.js: 枠を選んで固定の段（編集欄など）が高くなり、
   assert.ok(r.includes('if (revealSelection(lastSelKey, selKey)) { const b = view.querySelector(".blk.sel")?.getBoundingClientRect(), top = stackBottom(); if (b && b.top < top) window.scrollBy(0, b.top - top - 8); }'), "選択・編集欄が変わった描き直しだけ");
   assert.ok(r.includes("lastSelKey = selKey;"));
   const fn = src.slice(src.indexOf("function stackBottom()"), src.indexOf("function stackBottom()") + 400);
-  for (const k of ["--hh", "--stop-h", "--slot-h", "--dh-h"]) assert.ok(fn.includes(`"${k}"`), k);
+  for (const k of ["--hh", "--stop-h", "--slot-h", "--dh-h", "--due-h"]) assert.ok(fn.includes(`"${k}"`), k);
+});
+
+test("sticky.js・theme.css・app.js: 週表示の期限の行は、日付の見出しの下（--dh-h）に固定し、高さを --due-h に測る。開いたセルは高さの上限で、中でスクロールする。開閉（data-sdue）は showDue を反転して保存する", () => {
+  assert.match(stk, /root\.setProperty\("--due-h", `\$\{view\.querySelector\("\.cal\.wk \.week \.duehd"\)\?\.offsetHeight \?\? 0\}px`\)/);
+  assert.ok(css.includes("#view .cal.wk .week>.duehd,#view .cal.wk .week>.duecell,#view .cal.wk .week>.dueoff{position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px) + var(--slot-h,0px) + var(--dh-h,0px));z-index:7;"));
+  assert.match(css, /#view \.cal\.wk \.week>\.duecell\{max-height:96px;overflow-y:auto/);
+  assert.ok(src.includes('if (q("[data-sdue]")) { togglePref("showDue"); return; }'));
+  assert.ok(src.includes("showDue: S.prefs.showDue"), "scheduleOpts に渡す");
 });
 
 test("app.js: スケジュールの描き直しでは、カレンダー（#calslot）の画面上の位置を保つ（入力欄が開いて上に高さが足されても、押した枠が動かない）", () => {

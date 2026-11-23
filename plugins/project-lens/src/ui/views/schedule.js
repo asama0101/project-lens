@@ -144,11 +144,14 @@ export function renderCalendar(data, today, opts) {
     const days = [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(weekStartOf(date), i));
     const heads = days.map((d) => `<button class="dh ${d === today ? "t" : ""}" data-day="${d}" aria-label="${fmtMD(d)}の1日表示">${fmtMD(d)}(${wdJa(d)})${isOff(d) ? '<small class="mono">—</small>' : ""}</button>`).join("");
     const cols = days.map((d) => `<div class="col dz ${d === today ? "today" : ""} ${isOff(d) ? "weekend" : ""}" data-date="${d}">${meetingBlocks(data, d, false, g, ctx)}${sessionBlocks(data, d, false, g, ctx)}</div>`).join("");
-    const dues = days.map((d) => {
-      const due = data.tasks.filter((t) => t.due === d && t.status !== "Done" && t.status !== "Cancelled");
-      return `<div class="duecell">${due.map((t) => `<div style="display:flex;gap:6px;align-items:baseline"><i class="dot ${STATUS_UI[t.status]?.dot ?? ""}${t.due < today ? " is-late" : ""}"></i><span${isImportantMark(t) ? ' class="impt"' : ""}>${esc(t.title)}</span></div>`).join("") || '<span class="muted">—</span>'}</div>`;
-    }).join("");
-    cal = `<div class="cal wk"><div class="week"><div></div>${heads}<div class="hrs">${hoursHtml(g)}</div>${cols}</div><div class="week" style="margin-top:8px"><div class="note" style="padding-top:6px">期限</div>${dues}</div></div>
+    const dueByDay = days.map((d) => data.tasks.filter((t) => t.due === d && t.status !== "Done" && t.status !== "Cancelled"));
+    // 期限の行: 日付の見出しのすぐ下に固定する（theme.css）。閉じると、各日のセルの代わりに、週の件数の帯だけを出す
+    const dueOpen = opts.showDue !== false;
+    const dueToggle = `<div class="duehd"><button class="duetg" data-sdue aria-expanded="${dueOpen}" title="期限の行を${dueOpen ? "閉じます" : "開きます"}">期限 ${dueOpen ? "▾" : "▸"}</button></div>`;
+    const dues = dueOpen
+      ? dueByDay.map((due) => `<div class="duecell">${due.map((t) => `<div style="display:flex;gap:6px;align-items:baseline"><i class="dot ${STATUS_UI[t.status]?.dot ?? ""}${t.due < today ? " is-late" : ""}"></i><span${isImportantMark(t) ? ' class="impt"' : ""}>${esc(t.title)}</span></div>`).join("") || '<span class="muted">—</span>'}</div>`).join("")
+      : `<div class="dueoff">この週の期限 ${dueByDay.flat().length} 件</div>`;
+    cal = `<div class="cal wk"><div class="week"><div></div>${heads}${dueToggle}${dues}<div class="hrs">${hoursHtml(g)}</div>${cols}</div></div>
       <p class="note" style="margin:8px 0 0">日付を押すと1日表示に切り替わります。枠をクリックして選び、「枠を削除」か Delete キーで削除できます。</p>`;
   } else {
     const nowLine = date === ctx.now.date && toMin(ctx.now.time) >= g.h0 && toMin(ctx.now.time) <= g.h0 + g.span ? `<span class="nowline" style="top:${g.tp(toMin(ctx.now.time))}" title="現在 ${ctx.now.time}"></span>` : "";
@@ -166,6 +169,7 @@ export function renderCalendar(data, today, opts) {
  * @param opts.selSess   選択中の枠 ID / opts.selMtg 選択中の会議 ID / opts.mtgDraft 追加中の会議の下書き / opts.urgentDraft 追加中の突発タスクの下書き / opts.taskEdit 編集欄を開いているタスク { id, full, askDel }
  * @param opts.showPrio  false なら今日の優先を出さない
  * @param opts.showSkipped  true なら「参加しない」の会議も出す（既定は出さない。選択中の会議だけは、隠さない）
+ * @param opts.showDue   false なら週表示の期限の行を閉じる（既定は開く）
  */
 export function renderSchedule(data, today, opts) {
   const { view = "week", date = today } = opts;
