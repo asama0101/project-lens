@@ -545,8 +545,9 @@ test("app.js: スケジュールを開いたとき（resetScroll）は、今の�
   assert.ok(fn.includes("toMin(clock().time) - 60") && fn.includes("--hh"), fn);
 });
 
-test("theme.css: カレンダーの高さは固定（日 1320px・週 1056px）。画面の高さに合わせて縮めない", () => {
-  assert.ok(css.includes(".cal{position:relative;--calh:1320px}") && css.includes(".cal.wk{--calh:1056px}"));
+test("theme.css: カレンダーの高さは固定（日・週とも 1 時間 88px・15 分 22px で 2112px）。画面の高さに合わせて縮めない。15 分・30 分未満の枠は、時刻と件名を 1 行に並べる", () => {
+  assert.ok(css.includes(".cal{position:relative;--calh:2112px}") && !css.includes(".cal.wk{--calh:"));
+  assert.ok(css.includes("#view .cal .blk.short .tm{display:inline;margin-right:4px}"));
 });
 
 test("app.js: 作業枠を押して選ぶと（selectSession）、そのタスクの編集欄を開く。選び直すと切り替わり（詳細の開閉は引き継ぐ）、外すと閉じる。「閉じる」は選択も外す", () => {
@@ -557,8 +558,8 @@ test("app.js: 作業枠を押して選ぶと（selectSession）、そのタス�
   assert.match(src, /if \(q\("\[data-tedit-close\]"\)\) \{ clearSel\(\); render\(\); return; \}/);
 });
 
-test("theme.css: カレンダーの上の入力欄（#mtgslot）は、中身があるときヘッダーの下に固定する（#view の中だけ）", () => {
-  assert.ok(css.includes("#view #mtgslot:not(:empty){position:sticky;top:var(--hh,0px);"));
+test("theme.css: カレンダーの上の入力欄（#mtgslot）は、中身があるとき、ヘッダーと操作の行の下に固定する（#view の中だけ）", () => {
+  assert.ok(css.includes("#view #mtgslot:not(:empty){position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px));"));
 });
 
 test("app.js: 今日のタスクの「実績にする」（data-session-actual）は、confirmTodaySession を 1 回の apply で保存し（枠と状態を一緒に）、状態を変えたら通知で言う。プロジェクト画面にも now を渡す", () => {
@@ -575,10 +576,14 @@ test("theme.css: 作業枠・会議のブロックは、短い枠でも 14px の
 });
 
 // ---- 24 時間の軸と、カレンダーの上の入力欄の固定（レビューの指摘） ----
-test("sticky.js・theme.css: #mtgslot の高さを --slot-h に測り、週表示の日付の見出し（と左端のセル）は、ヘッダーと入力欄の下に固定する。規則は #view の中だけ", () => {
+test("sticky.js・theme.css: スケジュールは、ヘッダー・操作の行（.stop）・入力欄（#mtgslot）・週表示の日付の見出し（と左端のセル）を積んで固定する。高さは --stop-h・--slot-h・--dh-h に測る。規則は #view の中だけ", () => {
+  assert.match(stk, /root\.setProperty\("--stop-h", `\$\{view\.querySelector\("\.stop"\)\?\.offsetHeight \?\? 0\}px`\)/);
   assert.match(stk, /root\.setProperty\("--slot-h", `\$\{view\.querySelector\("#mtgslot"\)\?\.offsetHeight \?\? 0\}px`\)/);
-  assert.ok(css.includes("#view .cal.wk .week .dh{top:calc(var(--hh,0px) + var(--slot-h,0px))}"));
-  assert.ok(css.includes("#view .cal.wk .week:first-child>div:first-child{position:sticky;top:calc(var(--hh,0px) + var(--slot-h,0px));"));
+  assert.match(stk, /root\.setProperty\("--dh-h", `\$\{view\.querySelector\("\.cal\.wk \.week \.dh"\)\?\.offsetHeight \?\? 0\}px`\)/);
+  assert.ok(css.includes("#view .stop{position:sticky;top:var(--hh,0px);z-index:9;"));
+  assert.ok(css.includes("#view #mtgslot:not(:empty){position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px));z-index:9;max-height:max(120px,calc(55vh - var(--hh,0px) - var(--stop-h,0px) - var(--dh-h,0px)));overflow-y:auto;"), "入力欄は、積んだ高さが画面の 55% を超えないよう、欄の中でスクロールする（下端の帯があっても、カレンダーに約 40% 残す）");
+  assert.ok(css.includes("#view .cal.wk .week .dh{top:calc(var(--hh,0px) + var(--stop-h,0px) + var(--slot-h,0px))}"));
+  assert.ok(css.includes("#view .cal.wk .week:first-child>div:first-child{position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px) + var(--slot-h,0px));"));
   assert.ok(css.includes("@media (max-width:640px){#view .cal.wk{overflow-x:auto}}"));
   assert.ok(!/\n\.cal\.wk \.week:first-child/.test(css) && !css.includes("@media (max-width:640px){.cal.wk{"), "#view の外の規則として残さない");
 });
@@ -586,6 +591,13 @@ test("sticky.js・theme.css: #mtgslot の高さを --slot-h に測り、週表�
 test("app.js: scrollToNow は、ヘッダー・入力欄（--slot-h）・日付の見出しの下に、今の 1 時間前を置く", () => {
   const fn = src.slice(src.indexOf("function scrollToNow()"), src.indexOf("function scrollToNow()") + 900);
   assert.ok(fn.includes('"--slot-h"'), fn);
+});
+
+test("app.js: 枠を選んで固定の段（編集欄など）が高くなり、選んだ枠が段の下に隠れたら、その下へページを動かす（stackBottom は --hh・--stop-h・--slot-h・--dh-h の和）", () => {
+  const r = src.slice(src.indexOf("function render() {"), src.indexOf("function render() {") + 5000);
+  assert.ok(r.includes('if (S.screen === "schedule" && S.selSess) { const b = view.querySelector(".blk.sel")?.getBoundingClientRect(), top = stackBottom(); if (b && b.top < top) window.scrollBy(0, b.top - top - 8); }'));
+  const fn = src.slice(src.indexOf("function stackBottom()"), src.indexOf("function stackBottom()") + 400);
+  for (const k of ["--hh", "--stop-h", "--slot-h", "--dh-h"]) assert.ok(fn.includes(`"${k}"`), k);
 });
 
 test("app.js: スケジュールの描き直しでは、カレンダー（#calslot）の画面上の位置を保つ（入力欄が開いて上に高さが足されても、押した枠が動かない）", () => {

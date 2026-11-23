@@ -123,6 +123,7 @@ function render() {
   syncSticky();
   if (reset && S.screen === "schedule") scrollToNow();
   else if (calTop != null && !reset && S.screen === "schedule") { const nt = view.querySelector("#calslot")?.getBoundingClientRect().top; if (nt != null) window.scrollBy(0, nt - calTop); }
+  if (S.screen === "schedule" && S.selSess) { const b = view.querySelector(".blk.sel")?.getBoundingClientRect(), top = stackBottom(); if (b && b.top < top) window.scrollBy(0, b.top - top - 8); } // 固定の段（編集欄など）が高くなって、選んだ枠が隠れたら、その下へ出す
   drawAllDeps();
   placeTaskPop();
   if (S.hlId) {
@@ -174,6 +175,12 @@ function scrollToday(smooth) {
       c.scrollTo({ left: Math.max(0, Math.round(lane.offsetWidth * +c.dataset.todayfrac - 120)), behavior: smooth ? "smooth" : "auto" });
     }
   }));
+}
+
+/** スケジュールの固定の段（ヘッダー・操作の行・入力欄・週表示の日付の見出し）の下端（画面の y）。syncSticky が測った高さの和 */
+function stackBottom() {
+  const cs = getComputedStyle(document.documentElement), px = (k) => parseFloat(cs.getPropertyValue(k)) || 0;
+  return px("--hh") + px("--stop-h") + px("--slot-h") + px("--dh-h");
 }
 
 /** スケジュールを開いたとき（画面の切り替え・ファイルを開いたとき）、今の時刻の 1 時間前が、ヘッダー（週表示は日付の見出し）のすぐ下に来るまでページを縦にスクロールする（時間の軸は 00:00〜24:00 で、先頭は夜中のため） */

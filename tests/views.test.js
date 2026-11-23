@@ -1708,3 +1708,25 @@ test("renderTaskEditPanel: スケジュールの編集欄は、開始の欄が�
   const w = renderTaskPop(d, { id: "AA-0005", x: 0, y: 0 }, "");
   assert.ok(w.indexOf('data-f="start"') < w.indexOf('data-f="due"'), "窓");
 });
+
+test("sessionBlocks・meetingBlocks: 30 分未満の枠と会議には short（時刻と件名を 1 行に）。30 分以上には付けない", () => {
+  const d = load();
+  d.tasks.find((t) => t.id === "AA-0004").sessions = [{ id: "S70", date: TODAY, start: "08:00", end: "08:15", kind: "planned" }, { id: "S71", date: TODAY, start: "11:00", end: "11:30", kind: "planned" }];
+  d.events.push({ id: "m9", date: TODAY, start: "16:00", end: "16:15", title: "短い会議", source: "manual", skip: false, externalId: null, confirmed: false, projectId: null });
+  for (const view of ["day", "week"]) {
+    const html = renderSchedule(d, TODAY, { view, date: TODAY, now: NOW, showPrio: false });
+    const tag = (attr) => html.match(new RegExp(`<div class="blk[^"]*"[^>]*${attr}`))[0];
+    assert.ok(/\bshort\b/.test(tag('data-dragsess="S70"')), view);
+    assert.ok(!/\bshort\b/.test(tag('data-dragsess="S71"')), view);
+    assert.ok(/\bshort\b/.test(tag('data-mtg="m9"')), view);
+  }
+});
+
+test("renderSchedule: 操作の行（← → 今日・見出し・凡例・ボタン）とサマリーを 1 つの箱（.stop）にまとめ、入力欄（#mtgslot）の前に置く（固定表示の 1 段）", () => {
+  for (const view of ["day", "week"]) {
+    const html = renderSchedule(load(), TODAY, { view, date: TODAY, now: NOW });
+    const top = html.slice(html.indexOf('<div class="stop">'), html.indexOf('<div id="mtgslot">'));
+    assert.ok(html.indexOf('<div class="stop">') > 0, view);
+    for (const k of ["data-nav", "data-sgoto", 'class="slegend"', "data-sskip", "data-mtgadd", "data-sview", 'class="summary"', "data-delsel"]) assert.ok(top.includes(k), `${view}: ${k}`);
+  }
+});

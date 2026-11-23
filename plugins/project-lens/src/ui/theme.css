@@ -104,8 +104,7 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 .kv{display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
 .kv b{color:var(--ink);font-weight:700}
 /* 日・週カレンダー */
-.cal{position:relative;--calh:1320px} /* 時間の軸は 00:00〜24:00。1 時間 55px で、1 日分をページの縦スクロールで見る */
-.cal.wk{--calh:1056px} /* 週表示は 1 時間 44px */
+.cal{position:relative;--calh:2112px} /* 時間の軸は 00:00〜24:00。日・週とも 1 時間 88px（15 分 22px）で、1 日分をページの縦スクロールで見る */
 .cal-grid{position:relative;height:var(--calh)}
 .hour{position:absolute;left:0;right:0;border-top:1px solid var(--line-soft);font-family:var(--f-mono);font-size:11px;color:var(--muted)}
 .hour span{position:absolute;left:0;top:-9px;background:var(--surface);padding-right:4px}
@@ -536,13 +535,17 @@ body:has(.ptool){padding-block-start:8px}
 #view .tedit .tp-a{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 #view .tedit .ckedit,#view .tedit .tp-wide{flex-basis:100%}
 #view .tedit .tp-wide{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted)}
-/* カレンダーの上の入力欄（会議・突発タスク・タスクの編集欄）は、時間の軸（00:00〜24:00）が長くページを下へスクロールしていても見えるよう、ヘッダーの下に固定する。高いときは欄の中でスクロールする */
-#view #mtgslot:not(:empty){position:sticky;top:var(--hh,0px);z-index:9;max-height:calc(100vh - var(--hh,0px) - 160px);overflow-y:auto;background:var(--surface);padding-top:4px}
+/* スケジュールは、ページを下へスクロールしても、日付の見出しより上を動かさない: ヘッダーの下に、操作の行とサマリー（.stop）・カレンダーの上の入力欄（会議・突発タスク・タスクの編集欄。#mtgslot）・週表示の日付の見出しを積んで固定する（高さは sticky.js が測る）。
+   入力欄は、積んだ高さが画面の 55% を超えないよう（下端の依頼の帯があっても、カレンダーに約 40% 残す）、高いときは欄の中でスクロールする */
+#view .stop{position:sticky;top:var(--hh,0px);z-index:9;background:var(--surface);display:flow-root}
+#view .stop>.toolbar{margin-bottom:10px}
+#view .stop>.summary{margin-bottom:8px}
+#view #mtgslot:not(:empty){position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px));z-index:9;max-height:max(120px,calc(55vh - var(--hh,0px) - var(--stop-h,0px) - var(--dh-h,0px)));overflow-y:auto;background:var(--surface);padding-top:4px}
 /* 作業枠・会議のブロックは、短い枠でも押せるよう、最低 14px の高さで描く（データは変えない） */
 #view .cal .blk{min-height:14px}
-/* 週表示の日付の見出しの行は、ヘッダーと、カレンダーの上の入力欄（#mtgslot。高さは --slot-h、sticky.js が測る）の下に固定する。左端のセル（時刻の列の上）も固定し、時刻の文字が透けないようにする */
-#view .cal.wk .week .dh{top:calc(var(--hh,0px) + var(--slot-h,0px))}
-#view .cal.wk .week:first-child>div:first-child{position:sticky;top:calc(var(--hh,0px) + var(--slot-h,0px));z-index:7;background:var(--surface)}
+/* 週表示の日付の見出しの行は、ヘッダー・操作の行（--stop-h）・カレンダーの上の入力欄（--slot-h）の下に固定する。左端のセル（時刻の列の上）も固定し、時刻の文字が透けないようにする */
+#view .cal.wk .week .dh{top:calc(var(--hh,0px) + var(--stop-h,0px) + var(--slot-h,0px))}
+#view .cal.wk .week:first-child>div:first-child{position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px) + var(--slot-h,0px));z-index:7;background:var(--surface)}
 /* 今日のタスクの枠の時間。枠ごとに、時間と「実績にする」のボタン（予定・未確認の枠だけ）を並べ、折り返す */
 #view .rank.tl .tss{display:flex;flex-wrap:wrap;gap:4px 12px}
 #view .rank.tl .ts{display:inline-flex;align-items:center;gap:6px}
@@ -555,3 +558,6 @@ body:has(.ptool){padding-block-start:8px}
 /* スケジュールの色の凡例は、上の操作の行（週・日の見出しの横）に小さく並べる。入らないときだけ次の行へ折り返す */
 #view .toolbar .slegend{margin:0 0 0 10px;gap:2px 10px;font-size:11px}
 #view .toolbar .slegend .sw{width:14px;height:10px;margin-right:4px}
+/* 30 分未満の枠・会議（short）は、時刻と件名を 1 行に並べ、上下の余白を詰める（15 分は 22px） */
+#view .cal .blk.short{padding-top:1px;padding-bottom:1px;white-space:nowrap;text-overflow:ellipsis}
+#view .cal .blk.short .tm{display:inline;margin-right:4px}
