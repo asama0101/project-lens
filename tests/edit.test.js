@@ -12,7 +12,7 @@ import {
   nextTaskId, nextProjectId, addUrgentTask, moveToProject,
 } from "../plugins/project-lens/src/ui/edit.js";
 
-import { addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, startActual, stopActual } from "../plugins/project-lens/src/ui/edit.js";
+import { addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, startActual, stopActual, stopRunningIfClosed } from "../plugins/project-lens/src/ui/edit.js";
 import { runningActual, addSession, moveSession, resizeSession, removeSession } from "../plugins/project-lens/src/core/sessions.js";
 
 const load = () => JSON.parse(readFileSync(new URL("../plugins/project-lens/data/sample.json", import.meta.url), "utf8"));
@@ -729,4 +729,19 @@ test("レビューの再現 1・2: 実行中の枠は動かせず、後ろの予
   const o = startActual(r.data, "AA-0005", at("11:00"));
   assert.equal(o.warning, undefined, "ほかのタスクも開始できる（実行中の枠は、保存した終了 10:01 までしか重ならない）");
   assert.equal(task(removeSession(r.data, sid), "AA-0004").sessions.length, 0, "削除はできる");
+});
+
+test("stopRunningIfClosed: Done・Cancelled にするとき、実行中の枠を今で終える（end と running を外す）。ほかの状態・実行中なしは何もしない", () => {
+  const r = startActual(load(), "AA-0004", at("10:00"));
+  for (const status of ["Done", "Cancelled"]) {
+    const c = stopRunningIfClosed(r.data, "AA-0004", status, at("10:40"));
+    assert.equal(c.end, "10:40");
+    const s = last(c.data, "AA-0004");
+    assert.deepEqual([s.start, s.end, "running" in s], ["10:00", "10:40", false]);
+    assert.equal(runningActual(c.data, "AA-0004", at("10:40")), null);
+  }
+  const ip = stopRunningIfClosed(r.data, "AA-0004", "Waiting", at("10:40"));
+  assert.equal(ip.data, r.data); assert.equal(ip.end, undefined);
+  const none = load();
+  assert.equal(stopRunningIfClosed(none, "AA-0005", "Done", at("10:40")).data, none);
 });

@@ -399,6 +399,13 @@ export function stopActual(data, taskId, now) {
   return r;
 }
 
+/** 状態を Done・Cancelled にするとき、実行中の枠を今の時刻で終える（stopRunning）。end は終えた時刻（終えなかったら undefined）。ほかの状態・実行中なしは、同じデータを返す */
+export function stopRunningIfClosed(data, taskId, status, now) {
+  if (status !== "Done" && status !== "Cancelled") return { data };
+  const r = stopRunning(data, taskId, now);
+  return r.error ? { data } : { data: r.data, end: r.end };
+}
+
 export function addTask(data, task) {
   if (!data.projects.some((p) => p.id === task.projectId)) throw new Error(`プロジェクト ${task.projectId} がありません`);
   const title = String(task.title ?? "").trim();

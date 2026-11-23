@@ -597,10 +597,13 @@ view.addEventListener("click", (e) => {
   if (cm) { apply((d) => confirmMeeting(d, cm.dataset.confirmmtg, now), "会議を実績にしました。参加しなかったときは「参加しない」にします"); return; }
   if (q("[data-confirmall]")) {
     const days = S.sview === "week" ? [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(weekStartOf(S.sdate), i)) : [S.sdate];
+    let skipped = 0; // ほかの実績の枠と重なって、実績にできなかった枠（confirmSession が断る）
     apply((d) => {
-      const next = d.tasks.flatMap((t) => t.sessions ?? []).filter((s) => days.includes(s.date) && sessionKind(s, now) === "unconfirmed").reduce((acc, s) => confirmSession(acc, s.id, now).data, d);
+      skipped = 0;
+      const next = d.tasks.flatMap((t) => t.sessions ?? []).filter((s) => days.includes(s.date) && sessionKind(s, now) === "unconfirmed").reduce((acc, s) => { const r = confirmSession(acc, s.id, now); if (r.error) skipped++; return r.data; }, d);
       return next.events.filter((m) => days.includes(m.date) && meetingKind(m, now) === "unconfirmed").reduce((acc, m) => confirmMeeting(acc, m.id, now), next);
-    }, "未確認の枠と会議を実績にしました");
+    }, null);
+    toast(skipped ? `未確認の枠と会議を実績にしました。ほかの実績の枠と重なる ${skipped} 件は、未確認のまま残しました` : "未確認の枠と会議を実績にしました");
     return;
   }
   if (q("[data-delsel]")) { deleteSelected(); return; }
@@ -660,9 +663,13 @@ function setStatus(id, status, future, checkAll = false) {
   const kept = status === "Done" || status === "Cancelled" ? runningPlanned(S.data, id, clock()).length : 0; // 完了にしても進行中の枠は残る
   const keptMsg = kept ? `。進行中の枠 ${kept} 件は残しました（終わったら「実績にする」で確定します）` : "";
   const n0 = S.data.tasks.length;
-  const doneMsg = future.length ? `${id} の状態を ${status} にしました。未来の予定の枠 ${future.length} 件を解除しました${keptMsg}` : `変更を保存しました${keptMsg}`;
+  const running = (status === "Done" || status === "Cancelled") && runningActual(S.data, id, clock()); // 終わったタスクに実行中の枠を残さない
+  const runMsg = running ? `。実行中の実績も終了しました（${clock().time}）` : "";
+  const doneMsg = (future.length ? `${id} の状態を ${status} にしました。未来の予定の枠 ${future.length} 件を解除しました${keptMsg}` : `変更を保存しました${keptMsg}`) + runMsg;
   apply((d) => {
-    let next = updateTask(d, id, { status }, clock().date);
+    let next = d;
+    next = stopRunningIfClosed(next, id, status, clock()).data; // 実行中の枠を先に終える（状態を変えるときだけ。確認待ちのあいだは何もしない）
+    next = updateTask(next, id, { status }, clock().date);
     if (checkAll) next = checkAllChecklist(next, id);
     for (const sid of future) next = removeSession(next, sid);
     return status === "Done" ? spawnNextRepeat(next, id, clock().date) : next; // 定例なら、次回を作る

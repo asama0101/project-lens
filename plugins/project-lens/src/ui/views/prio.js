@@ -1,6 +1,6 @@
 // 「今日のタスク」「今日の優先」パネル（プロジェクト画面・スケジュール画面で共通。右の列に並ぶ）
 import { rankTasks } from "../../core/schedule.js";
-import { taskActual, runningActual } from "../../core/sessions.js";
+import { taskActual, runningActual, shownEnd } from "../../core/sessions.js";
 import { isClosed, isImportantMark } from "../../core/schema.js";
 import { esc, checkMeterHtml } from "../common.js";
 
@@ -46,9 +46,9 @@ export function renderTodayTasks(data, today, opts = {}) {
   if (!rows.length) return "";
   const items = rows.map(({ t, slots }) => {
     const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? (t.projectId == null ? "プロジェクトなし" : ""));
-    const times = slots.map((s) => esc(`${s.start}–${s.end}`)).join("、");
+    const times = slots.map((s) => esc(`${s.start}–${shownEnd(s, now)}`)).join("、"); // 実行中の枠は、カレンダーと同じく今まで伸ばした終了
     const ask = opts.pendingDone?.id === t.id ? doneAskHtml(opts.pendingDone) : "";
-    return `<li data-today="${esc(t.id)}"${isClosed(t) ? ' class="closed"' : ""}><span class="pj">${proj}</span><span class="t">${esc(t.title)} ${statusPill(t)}${isImportantMark(t) ? IMP_BADGE : ""}</span><span class="why mono">${times}</span>${isClosed(t) ? "" : checkMeterHtml(t, { remain: true })}${isClosed(t) ? "" : recordButton(data, t, now)}${ask}</li>`;
+    return `<li data-today="${esc(t.id)}"${isClosed(t) ? ' class="closed"' : ""}><span class="pj">${proj}</span><span class="t">${esc(t.title)} ${statusPill(t)}${isImportantMark(t) ? IMP_BADGE : ""}</span><span class="why mono">${times}</span>${isClosed(t) ? "" : checkMeterHtml(t, { remain: true })}${isClosed(t) && !runningActual(data, t.id, now) ? "" : recordButton(data, t, now)}${ask}</li>`;
   }).join("");
   return `<section class="panel todaytasks" aria-labelledby="h-td"><h2 id="h-td">今日のタスク</h2><ul class="rank tl">${items}</ul></section>`;
 }
@@ -64,7 +64,7 @@ export function renderPrio(data, today, opts = {}) {
   const shown = sched ? ranked : ranked.slice(0, 4);
   const items = shown.map((r, i) => {
     const t = data.tasks.find((x) => x.id === r.taskId);
-    const a = taskActual(data, t.id);
+    const a = taskActual(data, t.id, opts.now);
     const pill = a.count ? ` <span class="pill ok">${a.count}回・実績 ${a.hours.toFixed(1)}h</span>` : "";
     const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? (t.projectId == null ? "プロジェクトなし" : ""));
     const drag = sched ? ` draggable="true" data-dragtask="${esc(t.id)}"` : "";

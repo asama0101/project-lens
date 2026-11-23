@@ -247,3 +247,25 @@ test("moveSession・resizeSession: 実績の枠は、開始が未来にならな
   assert.equal(stale.error, undefined);
   assert.ok(!("running" in sess(stale.data, "S8")), "前の日の running は、動かすと外す");
 });
+
+test("confirmSession: ほかの実績の枠（実行中の枠は今までの終了 countedEnd）と重なる予定は、実績にしない", () => {
+  const d = load();
+  task(d, "AA-0004").sessions.push({ id: "S70", date: "2026-10-20", start: "10:00", end: "10:15", kind: "actual", running: true });
+  task(d, "AA-0005").sessions.push({ id: "S71", date: "2026-10-20", start: "10:30", end: "11:00", kind: "planned" });
+  task(d, "AB-0002").sessions.push({ id: "S72", date: "2026-10-20", start: "11:30", end: "11:45", kind: "planned" });
+  const r = confirmSession(d, "S71", NOW);
+  assert.match(r.error, /他の実績の枠（10:00〜12:00）と重なっています/);
+  task(d, "AA-0004").sessions.at(-1).running = undefined; delete task(d, "AA-0004").sessions.at(-1).running;
+  assert.equal(confirmSession(d, "S71", NOW).error, undefined, "保存した終了 10:15 までなら重ならない");
+  const d2 = load();
+  task(d2, "AA-0004").sessions.push({ id: "S73", date: "2026-10-20", start: "10:00", end: "11:00", kind: "actual" });
+  task(d2, "AA-0005").sessions.push({ id: "S74", date: "2026-10-20", start: "10:30", end: "11:30", kind: "planned" });
+  assert.match(confirmSession(d2, "S74", NOW).error, /他の実績の枠（10:00〜11:00）/);
+});
+
+test("taskActual: now を渡すと、今日の実行中の枠を今まで数える（無ければ保存した終了）", () => {
+  const d = load();
+  task(d, "AA-0004").sessions.push({ id: "S75", date: "2026-10-20", start: "10:00", end: "10:15", kind: "actual", running: true });
+  assert.equal(taskActual(d, "AA-0004", NOW).hours, 2);
+  assert.equal(taskActual(d, "AA-0004").hours, 0.25);
+});

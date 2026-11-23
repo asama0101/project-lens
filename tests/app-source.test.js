@@ -615,3 +615,10 @@ test("app.js: 読み直しなどで選択中の枠が無くなったら、選択
 test("app.js: 書式（filebar の行の renderBar、keydown の閉じ）", () => {
   assert.ok(!src.includes('` : "";  renderBar();') && !src.includes("return; }});"));
 });
+
+test("app.js: Done・Cancelled にするとき（setStatus）、実行中の枠を stopRunningIfClosed で終え、通知に書く。一括の「実績にする」は、重なって実績にできない枠を飛ばして件数を言う", () => {
+  const fn = src.slice(src.indexOf("function setStatus("), src.indexOf("function setStatus(") + 1500);
+  assert.ok(fn.includes("stopRunningIfClosed(next, id, status, clock())") && fn.includes("実行中の実績も終了しました"), fn);
+  const all = src.slice(src.indexOf('q("[data-confirmall]")'), src.indexOf('q("[data-confirmall]")') + 900);
+  assert.ok(all.includes("skipped") && all.includes("ほかの実績の枠と重なる"), all);
+});

@@ -89,6 +89,9 @@ export function confirmSession(data, sessionId, now) {
   const cur = findSession(data, sessionId);
   if (!cur) return { data, error: `枠 ${sessionId} がありません` };
   if (!isPast(cur, now)) return { data, error: "未来の枠は実績にできません" };
+  // ほかの実績の枠と重なるなら、実績にしない（稼働に同じ時間を二重に数えないため）。実行中の枠は、今までの終了（countedEnd）で見る
+  const other = allSessions(data).find((x) => x.id !== sessionId && x.kind === "actual" && clash({ ...x, end: countedEnd(x, now) }, cur));
+  if (other) return { data, error: `他の実績の枠（${other.start}〜${countedEnd(other, now)}）と重なっています。どちらかの時間を直してから、実績にしてください` };
   return { data: mapSessions(data, sessionId, (s) => ({ ...s, kind: "actual" })) };
 }
 
@@ -96,10 +99,11 @@ export function removeSession(data, sessionId) {
   return { ...data, tasks: data.tasks.map((t) => ((t.sessions ?? []).some((s) => s.id === sessionId) ? { ...t, sessions: t.sessions.filter((s) => s.id !== sessionId) } : t)) };
 }
 
-export function taskActual(data, taskId) {
+/** タスクの実績の時間。now を渡すと、今日の実行中の枠を今まで数える（countedEnd。無ければ保存した終了） */
+export function taskActual(data, taskId, now) {
   const ss = data.tasks.find((x) => x.id === taskId).sessions ?? [];
   const actual = ss.filter((s) => s.kind === "actual");
-  const minutes = actual.reduce((sum, s) => sum + toMin(s.end) - toMin(s.start), 0);
+  const minutes = actual.reduce((sum, s) => sum + toMin(countedEnd(s, now)) - toMin(s.start), 0);
   return { hours: minutes / 60, firstDate: actual.length ? actual.map((s) => s.date).sort()[0] : null, count: ss.length };
 }
 

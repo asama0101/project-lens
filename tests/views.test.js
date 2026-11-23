@@ -1694,3 +1694,15 @@ test("renderSchedule: 実行中（running）の枠は「▶ 実行中」を出�
   const pb = prev.match(/<div class="blk task[^"]*"[^>]*data-dragsess="S61"[\s\S]*?<\/div>/)[0];
   assert.ok(pb.includes("09:00-09:15") && !pb.includes("実行中"));
 });
+
+test("renderTodayTasks: 実行中の枠の時間は、カレンダーと同じ伸ばした終了（shownEnd）。終わったタスクでも実行中なら「終了」を出す", () => {
+  const { d } = withToday();
+  d.tasks.find((t) => t.id === "AA-0007").sessions.push({ id: "S80", date: TODAY, start: "09:00", end: "09:15", kind: "actual", running: true });
+  const row = (dd) => items(renderTodayTasks(dd, TODAY, { now: { date: TODAY, time: "11:01" } })).find((x) => x.id === "AA-0007").html;
+  assert.ok(row(d).includes("09:00–11:15"), row(d));
+  d.tasks.find((t) => t.id === "AA-0007").status = "Done";
+  assert.ok(row(d).includes('data-rec-end="AA-0007"'), "Done でも、実行中なら止められる");
+  d.tasks.find((t) => t.id === "AA-0007").sessions.at(-1).running = undefined;
+  delete d.tasks.find((t) => t.id === "AA-0007").sessions.at(-1).running;
+  assert.ok(!row(d).includes("data-rec-"), "Done で実行中でなければ、ボタンは無い");
+});

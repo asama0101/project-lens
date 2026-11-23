@@ -1279,6 +1279,9 @@ function confirmSession(data, sessionId, now) {
   const cur = findSession(data, sessionId);
   if (!cur) return { data, error: `枠 ${sessionId} がありません` };
   if (!isPast(cur, now)) return { data, error: "未来の枠は実績にできません" };
+  // ほかの実績の枠と重なるなら、実績にしない（稼働に同じ時間を二重に数えないため）。実行中の枠は、今までの終了（countedEnd）で見る
+  const other = allSessions(data).find((x) => x.id !== sessionId && x.kind === "actual" && clash({ ...x, end: countedEnd(x, now) }, cur));
+  if (other) return { data, error: `他の実績の枠（${other.start}〜${countedEnd(other, now)}）と重なっています。どちらかの時間を直してから、実績にしてください` };
   return { data: mapSessions(data, sessionId, (s) => ({ ...s, kind: "actual" })) };
 }
 
@@ -1286,10 +1289,11 @@ function removeSession(data, sessionId) {
   return { ...data, tasks: data.tasks.map((t) => ((t.sessions ?? []).some((s) => s.id === sessionId) ? { ...t, sessions: t.sessions.filter((s) => s.id !== sessionId) } : t)) };
 }
 
-function taskActual(data, taskId) {
+/** タスクの実績の時間。now を渡すと、今日の実行中の枠を今まで数える（countedEnd。無ければ保存した終了） */
+function taskActual(data, taskId, now) {
   const ss = data.tasks.find((x) => x.id === taskId).sessions ?? [];
   const actual = ss.filter((s) => s.kind === "actual");
-  const minutes = actual.reduce((sum, s) => sum + toMin(s.end) - toMin(s.start), 0);
+  const minutes = actual.reduce((sum, s) => sum + toMin(countedEnd(s, now)) - toMin(s.start), 0);
   return { hours: minutes / 60, firstDate: actual.length ? actual.map((s) => s.date).sort()[0] : null, count: ss.length };
 }
 
@@ -2558,7 +2562,7 @@ return { depPath, depMarkup, drawDeps, focusDeps };
 })();
 
 /* src/ui/edit.js */
-const { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, duplicateTask, addTaskQuick, addUrgentTask, startActual, stopActual, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject } = (() => {
+const { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, duplicateTask, addTaskQuick, addUrgentTask, startActual, stopActual, stopRunningIfClosed, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject } = (() => {
 // 画面からの編集（追加・削除・更新）。すべて不変更新で、不正な入力は例外にする（呼び出し側が理由を表示する）。
 
 
@@ -2960,6 +2964,13 @@ function stopActual(data, taskId, now) {
   return r;
 }
 
+/** 状態を Done・Cancelled にするとき、実行中の枠を今の時刻で終える（stopRunning）。end は終えた時刻（終えなかったら undefined）。ほかの状態・実行中なしは、同じデータを返す */
+function stopRunningIfClosed(data, taskId, status, now) {
+  if (status !== "Done" && status !== "Cancelled") return { data };
+  const r = stopRunning(data, taskId, now);
+  return r.error ? { data } : { data: r.data, end: r.end };
+}
+
 function addTask(data, task) {
   if (!data.projects.some((p) => p.id === task.projectId)) throw new Error(`プロジェクト ${task.projectId} がありません`);
   const title = String(task.title ?? "").trim();
@@ -3085,7 +3096,7 @@ function deleteProject(data, projectId) {
   return { ...data, settings, events, ...(inbox ? { inbox } : {}), projects: data.projects.filter((p) => p.id !== projectId), tasks: data.tasks.filter((t) => t.projectId !== projectId) };
 }
 
-return { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, duplicateTask, addTaskQuick, addUrgentTask, startActual, stopActual, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject };
+return { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, duplicateTask, addTaskQuick, addUrgentTask, startActual, stopActual, stopRunningIfClosed, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject };
 })();
 
 /* src/ui/donecheck.js */
@@ -3378,9 +3389,9 @@ function renderTodayTasks(data, today, opts = {}) {
   if (!rows.length) return "";
   const items = rows.map(({ t, slots }) => {
     const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? (t.projectId == null ? "プロジェクトなし" : ""));
-    const times = slots.map((s) => esc(`${s.start}–${s.end}`)).join("、");
+    const times = slots.map((s) => esc(`${s.start}–${shownEnd(s, now)}`)).join("、"); // 実行中の枠は、カレンダーと同じく今まで伸ばした終了
     const ask = opts.pendingDone?.id === t.id ? doneAskHtml(opts.pendingDone) : "";
-    return `<li data-today="${esc(t.id)}"${isClosed(t) ? ' class="closed"' : ""}><span class="pj">${proj}</span><span class="t">${esc(t.title)} ${statusPill(t)}${isImportantMark(t) ? IMP_BADGE : ""}</span><span class="why mono">${times}</span>${isClosed(t) ? "" : checkMeterHtml(t, { remain: true })}${isClosed(t) ? "" : recordButton(data, t, now)}${ask}</li>`;
+    return `<li data-today="${esc(t.id)}"${isClosed(t) ? ' class="closed"' : ""}><span class="pj">${proj}</span><span class="t">${esc(t.title)} ${statusPill(t)}${isImportantMark(t) ? IMP_BADGE : ""}</span><span class="why mono">${times}</span>${isClosed(t) ? "" : checkMeterHtml(t, { remain: true })}${isClosed(t) && !runningActual(data, t.id, now) ? "" : recordButton(data, t, now)}${ask}</li>`;
   }).join("");
   return `<section class="panel todaytasks" aria-labelledby="h-td"><h2 id="h-td">今日のタスク</h2><ul class="rank tl">${items}</ul></section>`;
 }
@@ -3396,7 +3407,7 @@ function renderPrio(data, today, opts = {}) {
   const shown = sched ? ranked : ranked.slice(0, 4);
   const items = shown.map((r, i) => {
     const t = data.tasks.find((x) => x.id === r.taskId);
-    const a = taskActual(data, t.id);
+    const a = taskActual(data, t.id, opts.now);
     const pill = a.count ? ` <span class="pill ok">${a.count}回・実績 ${a.hours.toFixed(1)}h</span>` : "";
     const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? (t.projectId == null ? "プロジェクトなし" : ""));
     const drag = sched ? ` draggable="true" data-dragtask="${esc(t.id)}"` : "";
@@ -5082,10 +5093,13 @@ view.addEventListener("click", (e) => {
   if (cm) { apply((d) => confirmMeeting(d, cm.dataset.confirmmtg, now), "会議を実績にしました。参加しなかったときは「参加しない」にします"); return; }
   if (q("[data-confirmall]")) {
     const days = S.sview === "week" ? [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(weekStartOf(S.sdate), i)) : [S.sdate];
+    let skipped = 0; // ほかの実績の枠と重なって、実績にできなかった枠（confirmSession が断る）
     apply((d) => {
-      const next = d.tasks.flatMap((t) => t.sessions ?? []).filter((s) => days.includes(s.date) && sessionKind(s, now) === "unconfirmed").reduce((acc, s) => confirmSession(acc, s.id, now).data, d);
+      skipped = 0;
+      const next = d.tasks.flatMap((t) => t.sessions ?? []).filter((s) => days.includes(s.date) && sessionKind(s, now) === "unconfirmed").reduce((acc, s) => { const r = confirmSession(acc, s.id, now); if (r.error) skipped++; return r.data; }, d);
       return next.events.filter((m) => days.includes(m.date) && meetingKind(m, now) === "unconfirmed").reduce((acc, m) => confirmMeeting(acc, m.id, now), next);
-    }, "未確認の枠と会議を実績にしました");
+    }, null);
+    toast(skipped ? `未確認の枠と会議を実績にしました。ほかの実績の枠と重なる ${skipped} 件は、未確認のまま残しました` : "未確認の枠と会議を実績にしました");
     return;
   }
   if (q("[data-delsel]")) { deleteSelected(); return; }
@@ -5145,9 +5159,13 @@ function setStatus(id, status, future, checkAll = false) {
   const kept = status === "Done" || status === "Cancelled" ? runningPlanned(S.data, id, clock()).length : 0; // 完了にしても進行中の枠は残る
   const keptMsg = kept ? `。進行中の枠 ${kept} 件は残しました（終わったら「実績にする」で確定します）` : "";
   const n0 = S.data.tasks.length;
-  const doneMsg = future.length ? `${id} の状態を ${status} にしました。未来の予定の枠 ${future.length} 件を解除しました${keptMsg}` : `変更を保存しました${keptMsg}`;
+  const running = (status === "Done" || status === "Cancelled") && runningActual(S.data, id, clock()); // 終わったタスクに実行中の枠を残さない
+  const runMsg = running ? `。実行中の実績も終了しました（${clock().time}）` : "";
+  const doneMsg = (future.length ? `${id} の状態を ${status} にしました。未来の予定の枠 ${future.length} 件を解除しました${keptMsg}` : `変更を保存しました${keptMsg}`) + runMsg;
   apply((d) => {
-    let next = updateTask(d, id, { status }, clock().date);
+    let next = d;
+    next = stopRunningIfClosed(next, id, status, clock()).data; // 実行中の枠を先に終える（状態を変えるときだけ。確認待ちのあいだは何もしない）
+    next = updateTask(next, id, { status }, clock().date);
     if (checkAll) next = checkAllChecklist(next, id);
     for (const sid of future) next = removeSession(next, sid);
     return status === "Done" ? spawnNextRepeat(next, id, clock().date) : next; // 定例なら、次回を作る
