@@ -481,7 +481,7 @@ WBS と規則は「読み取り → 変更案の表 → 利用者の承認 → �
 
 ```
 node tools/validate.js <作業フォルダ>/.project-lens/data.json [--mine <ファイル>]  # 検証（共有と個人を合わせて検証。errors があれば終了コード 1。個人ファイルが無い既定の場所は、空として扱う）
-node tools/init.js [--sample] [--mine <ファイル>]       # 作業フォルダに project-lens.html と、.project-lens/data.json（共有）・personal.json（個人）の 2 つを作る（--mine で個人ファイルの場所を変える。既存のファイルは変えない）
+node tools/init.js [--sample] [--mine <ファイル>]       # 作業フォルダに project-lens.html と、.project-lens/data.json（共有）・personal.json（個人）の 2 つを作る（--mine で個人ファイルの場所を変える。既存のファイルは変えない。ほかの引数を付けると、使い方を出して終了コード 2 で止め、何も作らない）
 node tools/intake.js                                   # 取り込み・会議の規則・WBS の列の対応のコマンド一覧
 node tools/inbox.js                                    # 受信箱（HTML からの依頼）のコマンド一覧（wait・claim・propose・approve など）
 node tools/holidays.js <update|status> <data.json> [--mine <ファイル>]  # 日本の祝日（内閣府の一覧）を取得して settings.nationalHolidays に保存／取得状況を表示

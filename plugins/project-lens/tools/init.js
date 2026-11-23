@@ -119,6 +119,8 @@ const LABEL = { created: "作りました", updated: "更新しました", uncha
 function main() {
   const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const { mine, rest } = takeMineOrExit(process.argv.slice(2));
+  // 知らない引数は、何かを書く前に止める（--help の打ち間違いなどで、黙ってファイルを作らない）
+  if (rest.some((a) => a !== "--sample")) { console.error("使い方: node tools/init.js [--sample] [--mine <個人ファイル>]"); process.exit(2); }
   let r;
   try { r = init({ cwd: process.cwd(), pluginRoot, sample: rest.includes("--sample"), mine }); }
   catch (e) { console.error(`失敗しました: ${e.message}`); process.exit(1); }

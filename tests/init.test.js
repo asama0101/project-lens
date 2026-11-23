@@ -141,6 +141,19 @@ test("CLI: --mine に値が無いと、終了コード 2 で理由を出し、�
   assert.deepEqual(readdirSync(cwd), []);
 });
 
+test("CLI: init に知らないフラグ・余分な引数を渡すと、終了コード 2 で使い方を出し、何も作らない・.gitignore も変えない", () => {
+  for (const args of [["--help"], ["--sampel"], ["--sample", "-x"], ["extra"], ["--mine", "p.json", "--data", "d"]]) {
+    const cwd = proj();
+    mkdirSync(join(cwd, ".git"));
+    writeFileSync(join(cwd, ".gitignore"), "node_modules/\n");
+    const r = spawnSync(process.execPath, [join(REPO, "tools", "init.js"), ...args], { cwd, encoding: "utf8" });
+    assert.equal(r.status, 2, args.join(" "));
+    assert.match(r.stderr, /使い方/);
+    assert.deepEqual(names(cwd), [".git", ".gitignore"], args.join(" "));
+    assert.equal(readFileSync(join(cwd, ".gitignore"), "utf8"), "node_modules/\n");
+  }
+});
+
 test("CLI: init --mine で作った個人ファイルが、validate.js --mine で読める。個人ファイルが無い保存先の validate.js は共有だけで成功する", () => {
   const cwd = proj(), mine = join(proj("m"), "p.json");
   const run = (script, ...a) => spawnSync(process.execPath, [join(REPO, "tools", script), ...a], { cwd, encoding: "utf8" });
