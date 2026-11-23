@@ -30,7 +30,6 @@ export function renderTaskPop(data, pop, statusHtml) {
   if (!t) return "";
   const id = esc(t.id);
   const field = (label, inner) => `<label class="tp-f"><span class="muted">${label}</span>${inner}</label>`;
-  const importance = [["", "—"], ["high", "高"]].map(([v, l]) => `<option value="${v}" ${(t.importance ?? "") === v ? "selected" : ""}>${l}</option>`).join("");
   const projects = [["", "プロジェクトなし"], ...data.projects.map((p) => [p.id, p.name])].map(([v, l]) => `<option value="${esc(v)}" ${(t.projectId ?? "") === v ? "selected" : ""}>${esc(l)}</option>`).join("");
   return `<div class="tpop" role="dialog" aria-label="${id} を編集" data-tpop style="left:${Math.round(pop.x)}px;top:${Math.round(pop.y)}px">
     <div class="tp-h"><b class="mono">${id}</b><span class="muted">${fmtMD(taskStart(data, t.id))}〜${fmtMD(t.due)}</span><button class="gx" data-tpopclose aria-label="編集を閉じる" style="opacity:1">×</button></div>
@@ -40,7 +39,7 @@ export function renderTaskPop(data, pop, statusHtml) {
     <div class="tp-r">${field("開始", startInputHtml(data, t))}${field("期限", `<input class="in" type="date" data-f="due" data-id="${id}" value="${esc(t.due)}">`)}</div>
     ${checklistEditorHtml(t)}
     <div class="tp-f"><span class="muted">前のタスク</span>${predEditHtml(data, t)}</div>
-    <div class="tp-r">${field("重要度", `<select class="in sm" data-f="importance" data-id="${id}">${importance}</select>`)}${field("繰り返し", `<select class="in sm" data-f="repeat" data-id="${id}"><option value="">なし</option><option value="week" ${t.repeat?.unit === "week" ? "selected" : ""}>毎週</option><option value="month" ${t.repeat?.unit === "month" ? "selected" : ""}>毎月${t.repeat?.unit === "month" ? `（${esc(t.repeat.day)} 日）` : ""}</option></select>`)}</div>
+    <div class="tp-r">${field("重要", `<input type="checkbox" data-f="important" data-id="${id}" ${t.important === true ? "checked" : ""}>`)}${field("繰り返し", `<select class="in sm" data-f="repeat" data-id="${id}"><option value="">なし</option><option value="week" ${t.repeat?.unit === "week" ? "selected" : ""}>毎週</option><option value="month" ${t.repeat?.unit === "month" ? "selected" : ""}>毎月${t.repeat?.unit === "month" ? `（${esc(t.repeat.day)} 日）` : ""}</option></select>`)}</div>
     ${field("メモ", `<input class="in" data-f="memo" data-id="${id}" value="${esc(t.memo ?? "")}" placeholder="メモ">`)}
     <div class="tp-a"><button class="btn" data-goto="${id}">リストで開く</button><button class="btn" data-dup="${id}">複製</button><button class="btn danger" data-del="${id}">削除</button></div>
   </div>`;

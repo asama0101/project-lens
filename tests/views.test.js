@@ -287,11 +287,17 @@ test("renderSchedule: 優先リストはドラッグ可で、置いた回数と�
   assert.ok(!html.includes("早朝作業"));
 });
 
-test("リスト: 重要度とメモを編集できる", () => {
-  const d = load(); d.tasks.find((t) => t.id === "A3").importance = "high"; // 画面（list）はまだ旧項目。後続のタスクで important に直す
+test("リスト: 「重要」のチェックボックスとメモを編集できる。重要で未完了の行にだけ印（imp）が付く", () => {
+  const d = load();
+  for (const [id, imp, st] of [["A1", true, "Done"], ["A2", true, "Cancelled"], ["A3", true, "Waiting"], ["A4", false, "To Do"]]) {
+    const t = d.tasks.find((x) => x.id === id); if (imp) t.important = true; else delete t.important; t.status = st;
+  }
   const html = renderProjects(d, TODAY, { filter: "A", view: "list" });
-  assert.ok(html.includes('data-f="importance" data-id="A3"'));
-  assert.ok(/<option value="high" selected>高<\/option>/.test(html), "A3 は重要度 高");
+  assert.ok(html.includes('<tr class="imp" data-row="A3"'));
+  for (const id of ["A1", "A2", "A4"]) assert.ok(!html.includes(`<tr class="imp" data-row="${id}"`), id);
+  assert.ok(/<input type="checkbox" data-f="important" data-id="A3" checked/.test(html), "A3 は重要");
+  assert.ok(/<input type="checkbox" data-f="important" data-id="A4"(?! checked)/.test(html), "A4 は重要でない");
+  assert.ok(!html.includes("重要度") && !html.includes('data-f="importance"'));
   assert.ok(html.includes('data-f="memo" data-id="A3" value="納期回答待ち"'));
 });
 
@@ -978,13 +984,13 @@ test("renderGantt: タスクのバー・プロジェクト全体のバー・実�
   near(+/class="g-due mono" style="left:([\d.]+)%/.exec(sumRow)[1], edge(P.due), "プロジェクト全体の期限の表示");
 });
 
-test("renderGantt: 重要度が高の未完了タスクのラベルにだけ印（imp-high）が付き、中・低・未設定・完了したタスクには付かない", () => {
+test("renderGantt: 重要で未完了のタスクのラベルにだけ印（imp-high）が付き、重要でない・完了したタスクには付かない", () => {
   const d = load();
-  const set = (id, imp, status) => { const t = d.tasks.find((x) => x.id === id); t.importance = imp; if (status) t.status = status; };
-  set("A1", "high", "Done"); set("A2", "mid", "Cancelled"); set("A3", "high", "Waiting"); set("A4", "mid", "To Do"); set("A5", "low", "In Progress"); set("A6", null, "To Do");
+  const set = (id, imp, status) => { const t = d.tasks.find((x) => x.id === id); if (imp) t.important = true; else delete t.important; t.status = status; };
+  set("A1", true, "Done"); set("A2", true, "Cancelled"); set("A3", true, "Waiting"); set("A4", false, "To Do"); set("A5", true, "In Progress"); set("A6", false, "To Do");
   const html = gantt(d, ["A"]);
   const label = (id) => /<div class="g-label([^"]*)"/.exec(html.split('<div class="g-row">').find((r) => r.includes(`data-gt="${id}"`)))[1];
-  assert.deepEqual(["A1", "A2", "A3", "A4", "A5", "A6"].map(label), ["", "", " imp-high", "", "", ""]);
+  assert.deepEqual(["A1", "A2", "A3", "A4", "A5", "A6"].map(label), ["", "", " imp-high", "", " imp-high", ""]);
 });
 
 test("renderGantt: 開始も前のタスクもない（期限だけの）タスクは点で、期限の日のマスの中央に置く。期限の表示は翌日の左端", () => {
@@ -1062,7 +1068,10 @@ test("renderTaskPop: 件名・メモ・ID はエスケープされ、窓には�
   const t = d.tasks.find((x) => x.id === "A4"); t.title = '"><img src=x onerror=1>'; t.memo = "<script>x</script>";
   const html = renderTaskPop(d, { id: "A4", x: 10.4, y: 20.6 }, "<select>状態</select>");
   assert.ok(!html.includes("<img src=x") && !html.includes("<script>x"));
-  for (const k of ["title", "start", "due", "importance", "memo"]) assert.ok(html.includes(`data-f="${k}" data-id="A4"`), k);
+  for (const k of ["title", "start", "due", "memo"]) assert.ok(html.includes(`data-f="${k}" data-id="A4"`), k);
+  assert.ok(html.includes('type="checkbox" data-f="important" data-id="A4"') && !html.includes("重要度"));
+  d.tasks.find((x) => x.id === "A4").important = true;
+  assert.ok(/data-f="important" data-id="A4" checked/.test(renderTaskPop(d, { id: "A4", x: 0, y: 0 }, "")), "重要なら checked");
   assert.ok(html.includes('data-goto="A4"') && html.includes('data-del="A4"') && html.includes("data-addpre=\"A4\"") || html.includes('data-rmpre="A4|A3"'));
   assert.ok(html.includes("left:10px;top:21px") && html.includes("<select>状態</select>"));
   assert.equal(renderTaskPop(d, { id: "ZZ", x: 0, y: 0 }, ""), "");

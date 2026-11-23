@@ -749,7 +749,7 @@ function onChange(el) {
     }
     if (f === "expected") { if (el.validity.badInput) return; apply((d) => updateTask(d, id, { waitingOn: { party: t.waitingOn.party, since: t.waitingOn.since, expected: el.value } }, today), "変更を保存しました"); return; }
     if (f === "group" || f === "subgroup") S.hlId = id; // 該当グループへ移った行を強調して見失わないようにする
-    apply((d) => { const n = updateTask(d, id, { [f]: f === "importance" ? el.value || null : el.value }, today); return f === "due" ? recordDueChanges(d, n, today) : n; }, "変更を保存しました");
+    apply((d) => { const n = updateTask(d, id, { [f]: f === "important" ? el.checked : el.value }, today); return f === "due" ? recordDueChanges(d, n, today) : n; }, "変更を保存しました");
   }
 }
 

@@ -516,3 +516,7 @@ body:has(.ptool){padding-block-start:8px}
 #view .ask.warn-ck b{color:var(--warn)}
 #view .ask.warn-ck ul{margin:6px 0;padding-left:18px}
 #view .ck-row .gx{opacity:1;position:static;min-width:32px;min-height:32px;color:var(--muted)}
+
+/* リストの重要の印: ガントの imp-high と同じ（左端に太い赤の線と、薄い赤の背景） */
+#view .tbl tr.imp td:first-child{box-shadow:inset 5px 0 0 var(--bad)}
+#view .tbl tr.imp{background:var(--bad-soft)}
