@@ -318,6 +318,14 @@ test("theme.css: ガントは、リストと同じく、プロジェクトごと
   ]) assert.ok(css.includes(rule), rule);
 });
 
+test("theme.css: スケジュールの編集欄の詳細は、全幅の別の入れ物（.tedit-detail）で折り返す。開閉のボタンは長い方の文字の幅を最小にし、欄のスクロールバーの分の幅を常に取る（詳細の開閉で軽い欄が動かない）", () => {
+  for (const rule of [
+    "#view .tedit .tedit-detail{flex-basis:100%;display:flex;flex-wrap:wrap;",
+    "#view .tedit [data-tedit-full]{min-width:calc(6em + 26px)}",
+    "#view #mtgslot:not(:empty){scrollbar-gutter:stable}",
+  ]) assert.ok(css.includes(rule), rule);
+});
+
 // ---- 固定表示（ガント）: 日付軸の複製（.gstrip）----
 test("app.js: 日付軸の複製（.gstrip）を syncSticky が作り直し、alignGScrolls が複製の横位置（translateX）を更新する", () => {
   assert.ok(stk.includes("function syncGStrips") && stk.includes("function updateGStrip"));

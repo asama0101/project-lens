@@ -59,7 +59,7 @@ export function renderTaskPop(data, pop, statusHtml) {
 
 /**
  * スケジュールの編集欄の項目（会議の入力欄と同じ、ラベル付きの横並び）。窓の taskFieldsHtml とは別の並べ方。
- * fields = 1 行に折り返して並べる項目、wide = 全幅の行にする編集欄（full のときだけ）
+ * fields = 軽い欄（1 行に折り返して並べる項目）、repeatField・wide = 詳細の入れ物に出す繰り返しと、全幅の行にする編集欄（full のときだけ）
  */
 function taskRowFieldsHtml(data, t, { full, statusHtml }) {
   const id = esc(t.id);
@@ -73,11 +73,11 @@ function taskRowFieldsHtml(data, t, { full, statusHtml }) {
     `<div class="tp-st"><span>状態</span><div>${statusHtml}</div></div>`,
     `<label class="chk"><input type="checkbox" data-f="important" data-id="${id}" ${t.important === true ? "checked" : ""}>重要</label>`,
     field("", "プロジェクト", `<select class="in sm" data-f="projectId" data-id="${id}">${projects}</select>`),
-    full ? field("", "繰り返し", `<select class="in sm" data-f="repeat" data-id="${id}">${repeat}</select>`) : "",
     field("tp-memo", "メモ", `<input class="in" data-f="memo" data-id="${id}" value="${esc(t.memo ?? "")}" placeholder="メモ">`),
   ].join("\n    ");
+  const repeatField = full ? field("", "繰り返し", `<select class="in sm" data-f="repeat" data-id="${id}">${repeat}</select>`) : "";
   const wide = full ? `${checklistEditorHtml(t)}<div class="tp-wide"><span>前のタスク</span>${predEditHtml(data, t, { ids: false })}</div>` : "";
-  return { fields, wide };
+  return { fields, repeatField, wide };
 }
 
 /**
@@ -88,12 +88,14 @@ export function renderTaskEditPanel(data, edit, statusHtml) {
   const t = data.tasks.find((x) => x.id === edit.id);
   if (!t) return "";
   const id = esc(t.id);
-  const { fields, wide } = taskRowFieldsHtml(data, t, { full: edit.full, statusHtml });
+  const { fields, repeatField, wide } = taskRowFieldsHtml(data, t, { full: edit.full, statusHtml });
   const del = edit.askDel ? `<span class="ask">このタスクを削除します。<button class="btn danger" data-delyes="${id}">削除する</button><button class="btn" data-tedit-delno>やめる</button></span>` : `<button class="btn danger" data-tedit-del="${id}">削除</button>`;
+  // 詳細の項目は、軽い欄のあとの別の入れ物（全幅の行）に出す。軽い欄とボタンの行は、詳細の開閉で位置も大きさも変わらない
+  const detail = edit.full ? `
+    <div class="tedit-detail">${repeatField}<div class="tp-a"><button class="btn" data-dup="${id}">複製</button>${del}</div>${wide}</div>` : "";
   return `<div class="mtgform tedit" role="group" aria-label="${id} を編集" data-tedit>
     <span class="tp-h"><span class="muted">${fmtMD(taskStart(data, t.id))}〜${fmtMD(t.due)}</span></span>
     ${fields}
-    <div class="tp-a"><button class="btn" data-tedit-full aria-expanded="${edit.full}">${edit.full ? "詳細を閉じる" : "詳細を開く"}</button>${edit.full ? `<button class="btn" data-dup="${id}">複製</button>${del}` : ""}<button class="btn" data-tedit-close>閉じる</button></div>
-    ${wide}
+    <div class="tp-a"><button class="btn" data-tedit-full aria-expanded="${edit.full}">${edit.full ? "詳細を閉じる" : "詳細を開く"}</button><button class="btn" data-tedit-close>閉じる</button></div>${detail}
   </div>`;
 }
