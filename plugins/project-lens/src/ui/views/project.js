@@ -50,6 +50,7 @@ function renderList(data, p, today, opts) {
       <td data-l="${esc(labels.group)}"><input class="in gi" data-f="group" data-id="${esc(t.id)}" value="${esc(t.group ?? "")}" aria-label="${esc(t.id)} の${esc(labels.group)}"></td>
       <td data-l="${esc(labels.subgroup)}"><input class="in gi" data-f="subgroup" data-id="${esc(t.id)}" value="${esc(t.subgroup ?? "")}" aria-label="${esc(t.id)} の${esc(labels.subgroup)}"></td>
       <td data-l="件名"><input class="in" id="f-${esc(t.id)}-t" data-f="title" data-id="${esc(t.id)}" value="${esc(t.title)}" aria-label="${esc(t.id)} の件名"></td>
+      <td data-l="プロジェクト"><select class="in sm" data-f="projectId" data-id="${esc(t.id)}" aria-label="${esc(t.id)} のプロジェクト"><option value=""${t.projectId == null ? " selected" : ""}>プロジェクトなし</option>${data.projects.map((o) => `<option value="${esc(o.id)}"${o.id === t.projectId ? " selected" : ""}>${esc(o.name)}</option>`).join("")}</select></td>
       <td data-l="状態">${statusCellHtml(t, opts, late)}</td>
       <td data-l="開始">${startInputHtml(data, t)}</td>
       <td data-l="期限"><input class="in" type="date" data-f="due" data-id="${esc(t.id)}" value="${esc(t.due)}" aria-label="${esc(t.id)} の期限"></td>
@@ -58,13 +59,13 @@ function renderList(data, p, today, opts) {
       <td data-l="重要"><input type="checkbox" data-f="important" data-id="${esc(t.id)}" ${t.important === true ? "checked" : ""} aria-label="${esc(t.id)} を重要にする"></td>
       <td data-l="メモ"><input class="in" data-f="memo" data-id="${esc(t.id)}" value="${esc(t.memo ?? "")}" placeholder="メモ" aria-label="${esc(t.id)} のメモ"></td>
       <td data-l="チェック">${checkCell(t, opts)}</td>
-      <td data-l="実績" class="mono muted">${actText(data, t.id)}</td><td data-l="">${delCell}</td></tr>${opts.checkOpen?.has(t.id) ? `<tr class="ck-tr" data-ckpanel="${esc(t.id)}"><td colspan="14">${checklistEditorHtml(t)}</td></tr>` : ""}`;
+      <td data-l="実績" class="mono muted">${actText(data, t.id)}</td><td data-l="">${delCell}</td></tr>${opts.checkOpen?.has(t.id) ? `<tr class="ck-tr" data-ckpanel="${esc(t.id)}"><td colspan="15">${checklistEditorHtml(t)}</td></tr>` : ""}`;
   };
   // (大項目, 中項目) ごとに見出し行を入れて並べる。「＋」はそのグループへ追加する入口なので、0 件でも「（なし）」を出す
   const secs = groupSections(tasks, { ensureNone: !none });
   const rows = secs.map((sec) => {
     const name = `${sec.group || "（なし）"}${sec.subgroup ? ` ▸ ${sec.subgroup}` : ""}`;
-    return `<tr class="grp-tr" data-mvgrp="${esc(p.id)}" data-mvg="${esc(sec.group)}" data-mvsg="${esc(sec.subgroup)}"><td colspan="14"><b>${esc(sec.group || "（なし）")}</b>${sec.subgroup ? ` <span class="muted">▸ ${esc(sec.subgroup)}</span>` : ""}${none ? "" : ` <button class="plus" data-addat="${esc(p.id)}" data-ag="${esc(sec.group)}" data-asg="${esc(sec.subgroup)}" aria-label="${esc(name)} にタスクを追加">＋</button>`}</td></tr>${sec.tasks.map(rowOf).join("")}`;
+    return `<tr class="grp-tr" data-mvgrp="${esc(p.id)}" data-mvg="${esc(sec.group)}" data-mvsg="${esc(sec.subgroup)}"><td colspan="15"><b>${esc(sec.group || "（なし）")}</b>${sec.subgroup ? ` <span class="muted">▸ ${esc(sec.subgroup)}</span>` : ""}${none ? "" : ` <button class="plus" data-addat="${esc(p.id)}" data-ag="${esc(sec.group)}" data-asg="${esc(sec.subgroup)}" aria-label="${esc(name)} にタスクを追加">＋</button>`}</td></tr>${sec.tasks.map(rowOf).join("")}`;
   }).join("");
 
   const projTaskIds = new Set(tasks.map((t) => t.id));
@@ -79,7 +80,7 @@ function renderList(data, p, today, opts) {
     ? `<span class="ask" style="max-width:none">プロジェクトと配下のタスク ${tasks.length} 件を削除します。 <button class="btn danger" data-pdelyes="${esc(p.id)}">削除する</button> <button class="btn" data-pdelno>やめる</button></span>`
     : `<button class="btn" data-pdel="${esc(p.id)}">プロジェクトを削除</button>`;
 
-  const table = `<div class="twrap"><div class="thstrip" aria-hidden="true"></div><div class="tscroll tlist"><table class="tbl edit"><thead><tr><th>ID</th><th>${esc(labels.group)}</th><th>${esc(labels.subgroup)}</th><th>件名</th><th>状態</th><th>開始</th><th>期限</th><th>前のタスク</th><th>待ち先</th><th>重要</th><th>メモ</th><th>チェック</th><th>実績</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  const table = `<div class="twrap"><div class="thstrip" aria-hidden="true"></div><div class="tscroll tlist"><table class="tbl edit"><thead><tr><th>ID</th><th>${esc(labels.group)}</th><th>${esc(labels.subgroup)}</th><th>件名</th><th>プロジェクト</th><th>状態</th><th>開始</th><th>期限</th><th>前のタスク</th><th>待ち先</th><th>重要</th><th>メモ</th><th>チェック</th><th>実績</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
   if (none) return `<section class="panel" aria-label="${esc(p.name)}"><div class="pstick"><div class="prow"><h2>${esc(p.name)}</h2></div></div>${table}</section>`;
 
   return `<section class="panel" aria-label="${esc(p.name)}"><div class="pstick"><div class="prow"><h2><input class="in" data-pf="name" data-pid="${esc(p.id)}" value="${esc(p.name)}" style="font-size:17px;font-weight:700" aria-label="プロジェクト名"></h2><label>状態 <select class="in sm" data-pf="status" data-pid="${esc(p.id)}" aria-label="${esc(p.name)} の状態">${PROJECT_STATUS.map((o) => `<option ${o === p.status ? "selected" : ""}>${o}</option>`).join("")}</select></label></div><div class="phead"><div><div class="kv" style="align-items:center">

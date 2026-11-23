@@ -1598,3 +1598,17 @@ test("スケジュールの編集欄: 削除は確認を挟む（askDel）", () 
   const html = renderTaskEditPanel(d, { id: "A7", full: true, askDel: true }, "");
   assert.ok(html.includes('data-delyes="A7"') && html.includes("data-tedit-delno") && !html.includes("data-tedit-del="));
 });
+
+test("リスト: 各行に「プロジェクト」の選択欄。現在のプロジェクト（なしは空の値）が selected。見出しにも出る", () => {
+  const d = load();
+  const sel = (html, id) => html.match(new RegExp(`<select class="in sm" data-f="projectId" data-id="${id}"[^>]*>(.*?)</select>`))?.[1];
+  const a = renderProjects(d, TODAY, { view: "list", filter: "A" });
+  assert.ok(a.includes("<th>プロジェクト</th>") && a.includes('<td data-l="プロジェクト">'));
+  assert.ok(a.indexOf("<th>件名</th><th>プロジェクト</th>") > 0, "件名の列の後ろ");
+  assert.ok(a.includes('aria-label="A1 のプロジェクト"'));
+  assert.match(sel(a, "A1"), /<option value="">プロジェクトなし<\/option>/);
+  assert.match(sel(a, "A1"), /<option value="A" selected>/);
+  for (const p of d.projects) assert.ok(sel(a, "A1").includes(`value="${p.id}"`), p.id);
+  const x = renderProjects(d, TODAY, { view: "list", filter: "none" });
+  assert.match(sel(x, "X1"), /<option value="" selected>プロジェクトなし<\/option>/);
+});

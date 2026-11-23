@@ -254,7 +254,7 @@ tr.drop-after>td,.g-row.drop-after>.g-label,.g-row.drop-after>.g-lane{box-shadow
   .tbl.edit td{display:block;padding:0;border:0}
   .tbl.edit td::before{content:attr(data-l);display:block;font-size:11px;color:var(--muted)}
   .tbl.edit td[data-l=""]::before,.tbl.edit td[data-l="ID"]::before{display:none}
-  .tbl.edit td:nth-child(4),.tbl.edit td:nth-child(11){grid-column:1/-1}
+  .tbl.edit td:nth-child(4),.tbl.edit td:nth-child(12){grid-column:1/-1}
   #view .tbl.edit tr.ck-tr>td{grid-column:1/-1;padding-left:0} /* チェックリストの展開行は全幅 */
 }
 
