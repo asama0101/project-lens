@@ -473,3 +473,10 @@ test("app.js: 読み直し（「更新」・バナーの再読込）は、失敗
   assert.match(src, /\[data-refresh\][\s\S]{0,400}reloadFile\(/);
   assert.match(src, /\[data-reload\][\s\S]{0,200}reloadFile\(/);
 });
+
+test("app.js: 共有に無い枠の削除は、確認（S.pendingOrphan）を挟んで apply で保存し、読み直し・他の更新の取り込みでもバナーを出し直す", () => {
+  assert.match(src, /data-orphan-clear\]"\)\) \{ S\.pendingOrphan = true/);
+  assert.match(src, /data-orphan-ok[\s\S]{0,200}apply\(\(d\) => removeOrphanSessions\(d\)/);
+  assert.match(src, /setData: \(d\) => \{ S\.data = d; if \(!sync\.failed\) refreshBanner\(\)/);
+  assert.match(src, /else refreshBanner\(\);\s*render\(\);/, "reloadFile の成功でも出し直す");
+});

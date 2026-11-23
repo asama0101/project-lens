@@ -632,3 +632,13 @@ test("updateTask: 画面で期限を動かしても、履歴（changeLog）は�
   const n = updateTask(d, "A3", { due: addDays(d.tasks.find((t) => t.id === "A3").due, 3) }, TODAY);
   assert.equal(n.changeLog.length, d.changeLog.length);
 });
+
+test("removeOrphanSessions: orphanSessions だけを空にし、タスクと枠は変えない", async () => {
+  const { removeOrphanSessions } = await import("../plugins/project-lens/src/core/split.js");
+  const d = load();
+  d.orphanSessions = [{ id: "SX1", taskId: "ZZ9", date: TODAY, start: "13:00", end: "14:00", kind: "planned" }];
+  const n = removeOrphanSessions(d);
+  assert.deepEqual(n.orphanSessions, []);
+  assert.deepEqual(n.tasks, d.tasks);
+  assert.equal(validate(n, { date: TODAY, time: "10:15" }).warnings.some((w) => w.includes("共有ファイルに無い")), false);
+});

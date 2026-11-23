@@ -174,7 +174,14 @@ function scrollToday(smooth) {
 
 /* ---------- 保存 ---------- */
 function banner(msg, actions = {}) {
-  $("banner").innerHTML = msg ? `<div class="banner">${esc(msg)}${actions.reload ? ` <button class="btn" data-reload>再読込(画面の未保存の変更は破棄)</button>` : ""}${actions.download ? ` <button class="btn" data-download>変更を JSON で書き出す</button>` : ""}</div>` : "";
+  const orphans = S.data?.orphanSessions?.length ?? 0;
+  if (!orphans) S.pendingOrphan = false;
+  $("banner").innerHTML = bannerHtml(msg, actions, orphans, S.pendingOrphan);
+}
+/** データの検証結果（問題・注意）をバナーに出し直す。ファイルを読み直したあと・他の更新を取り込んだあとも、これで出す */
+function refreshBanner() {
+  const { errors, warnings } = validate(S.data, clock());
+  banner(errors.length ? `データに問題があります: ${errors.slice(0, 3).join(" / ")}` : warnings.length ? `注意: ${warnings.slice(0, 2).join(" / ")}` : "");
 }
 
 function downloadJson() {
@@ -188,7 +195,7 @@ function downloadJson() {
 
 /** 保存と読み直し（競合の当て直しを含む）。中身は ui/sync.js */
 const sync = createSync({
-  store, getData: () => S.data, setData: (d) => { S.data = d; }, render, renderBar, banner, toast,
+  store, getData: () => S.data, setData: (d) => { S.data = d; if (!sync.failed) refreshBanner(); }, render, renderBar, banner, toast,
   visible: () => document.visibilityState !== "hidden", wantFast: () => S.ib.open,
 });
 
@@ -215,8 +222,7 @@ function loaded(data) {
   sync.reset();
   S.ruleError = "";
   S.openError = "";
-  const { errors, warnings } = validate(data, clock());
-  banner(errors.length ? `データに問題があります: ${errors.slice(0, 3).join(" / ")}` : warnings.length ? `注意: ${warnings.slice(0, 2).join(" / ")}` : "");
+  refreshBanner();
 }
 
 /** mode: "choose"＝which（"shared" | "personal"）のファイル選択を出す / "reopen"＝前回のファイルを、権限の確認だけで開く。
@@ -364,7 +370,7 @@ async function reloadFile(okMsg) {
   try { S.data = await store.reload(); } catch (e) { err = e; }
   sync.reset();
   S.ruleError = "";
-  banner(err ? `読み直せません: ${err.message}` : "", { reload: !!err, download: !!err });
+  if (err) banner(`読み直せません: ${err.message}`, { reload: true, download: true }); else refreshBanner();
   render();
   toast(err ? err.message : okMsg);
 }
@@ -406,6 +412,14 @@ $("filebar").addEventListener("click", async (e) => {
 $("banner").addEventListener("click", async (e) => {
   if (e.target.closest("[data-download]")) downloadJson();
   if (e.target.closest("[data-reload]")) reloadFile("再読込しました");
+  if (e.target.closest("[data-orphan-clear]")) { S.pendingOrphan = true; refreshBanner(); }
+  if (e.target.closest("[data-orphan-cancel]")) { S.pendingOrphan = false; refreshBanner(); }
+  if (e.target.closest("[data-orphan-ok]")) {
+    S.pendingOrphan = false;
+    const n = S.data.orphanSessions?.length ?? 0;
+    apply((d) => removeOrphanSessions(d), `共有ファイルに無いタスクの作業枠 ${n} 件を削除しました`);
+    refreshBanner();
+  }
 });
 
 /** 画面の外(ヘッダー・余白)のクリックでも、枠・会議の選択と追加中の下書きを外す。

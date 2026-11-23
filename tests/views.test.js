@@ -14,6 +14,9 @@ import { ruleMeetingCounts } from "../plugins/project-lens/src/core/rules.js";
 import { renderSchedule, snapStart, snapFreeStart, firstFreeStart, urgentInput } from "../plugins/project-lens/src/ui/views/schedule.js";
 import { taskActual } from "../plugins/project-lens/src/core/sessions.js";
 import { rankTasks } from "../plugins/project-lens/src/core/schedule.js";
+import { bannerHtml } from "../plugins/project-lens/src/ui/common.js";
+import { validate } from "../plugins/project-lens/src/core/schema.js";
+import { renderWorkload } from "../plugins/project-lens/src/ui/views/workload.js";
 
 
 const load = () => JSON.parse(readFileSync(new URL("../plugins/project-lens/data/sample.json", import.meta.url), "utf8"));
@@ -1612,4 +1615,30 @@ test("リスト: 各行に「プロジェクト」の選択欄。現在のプロ
   for (const p of d.projects) assert.ok(sel(a, "A1").includes(`value="${p.id}"`), p.id);
   const x = renderProjects(d, TODAY, { view: "list", filter: "none" });
   assert.match(sel(x, "X1"), /<option value="" selected>プロジェクトなし<\/option>/);
+});
+
+test("バナー: 共有に無いタスクの作業枠があれば、注意の文と data-orphan-clear が出る。無ければ出ない", () => {
+  const d = load();
+  d.orphanSessions = [{ id: "SX1", taskId: "ZZ9", date: TODAY, start: "13:00", end: "14:00", kind: "planned" }];
+  const msg = `注意: ${validate(d, NOW).warnings.join(" / ")}`;
+  const html = bannerHtml(msg, {}, 1, false);
+  assert.ok(html.includes("共有ファイルに無いタスクの作業枠が 1 件あります"));
+  assert.ok(html.includes("data-orphan-clear"));
+  assert.ok(!html.includes("data-orphan-ok"));
+  const ask = bannerHtml(msg, {}, 1, true);
+  assert.ok(ask.includes("1 件の作業枠を削除します。タスクが戻っていないか、少し待ってから確認してください"));
+  assert.ok(ask.includes("data-orphan-ok") && ask.includes("data-orphan-cancel") && !ask.includes("data-orphan-clear"));
+  assert.ok(!bannerHtml("注意: 別の警告", {}, 0, false).includes("data-orphan"));
+  assert.ok(bannerHtml("読み直せません: x", { reload: true }, 1, false).includes("data-reload"), "ほかのボタンは従来どおり");
+  assert.equal(bannerHtml("", {}, 0, false), "");
+});
+
+test("orphanSessions の枠は、カレンダー・優先度・稼働に描かない", () => {
+  const base = load();
+  const d = load();
+  d.orphanSessions = [{ id: "SX1", taskId: "ZZ9", date: TODAY, start: "13:00", end: "14:00", kind: "planned" }];
+  assert.equal(renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW }), renderSchedule(base, TODAY, { view: "day", date: TODAY, now: NOW }));
+  assert.ok(!renderSchedule(d, TODAY, { view: "week", date: TODAY, now: NOW }).includes("SX1"));
+  assert.equal(renderPrio(d, TODAY, { now: NOW }), renderPrio(base, TODAY, { now: NOW }));
+  assert.equal(renderWorkload(d, TODAY, { now: NOW }), renderWorkload(base, TODAY, { now: NOW }));
 });
