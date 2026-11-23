@@ -538,11 +538,13 @@ test("app.js: 読み直しの描き直しを、打ちかけの入力の間は待
   assert.match(src, /if \(d\.ug\) return q\("data-ug", d\.ug\)/, "欄を移ったときの描き直しでも、フォーカスを保つ");
 });
 
-test("app.js: スケジュールを開いたとき（resetScroll）は、今の時刻の 1 時間前の位置までページを縦にスクロールする（時間の軸が 00:00〜24:00 のため）", () => {
-  const r = src.slice(src.indexOf("function render() {"), src.indexOf("function render() {") + 4000);
-  assert.match(r, /if \(reset && S\.screen === "schedule"\) scrollToNow\(\);/);
-  const fn = src.slice(src.indexOf("function scrollToNow()"), src.indexOf("function scrollToNow()") + 600);
-  assert.ok(fn.includes("toMin(clock().time) - 60") && fn.includes("--hh"), fn);
+test("app.js: スケジュールを開いたとき（resetScroll）は、今の時刻によらず、08:00 が固定の段（stackBottom）のすぐ下に来るまでページを縦にスクロールする", () => {
+  const r = src.slice(src.indexOf("function render() {"), src.indexOf("function render() {") + 5000);
+  assert.ok(r.includes('if (reset && S.screen === "schedule") scrollToMorning();'), r);
+  const fn = src.slice(src.indexOf("function scrollToMorning()"), src.indexOf("function scrollToMorning()") + 700);
+  assert.ok(fn.includes("pc(MORNING)") && fn.includes("stackBottom()") && !fn.includes("clock()"), fn);
+  assert.match(src, /const MORNING = 8 \* 60;/);
+  assert.ok(!src.includes("scrollToNow"));
 });
 
 test("theme.css: カレンダーの高さは固定（日・週とも 1 時間 88px・15 分 22px で 2112px）。画面の高さに合わせて縮めない。15 分・30 分未満の枠は、時刻と件名を 1 行に並べる", () => {
@@ -588,11 +590,6 @@ test("sticky.js・theme.css: スケジュールは、ヘッダー・操作の行
   assert.ok(!/\n\.cal\.wk \.week:first-child/.test(css) && !css.includes("@media (max-width:640px){.cal.wk{"), "#view の外の規則として残さない");
 });
 
-test("app.js: scrollToNow は、ヘッダー・入力欄（--slot-h）・日付の見出しの下に、今の 1 時間前を置く", () => {
-  const fn = src.slice(src.indexOf("function scrollToNow()"), src.indexOf("function scrollToNow()") + 900);
-  assert.ok(fn.includes('"--slot-h"'), fn);
-});
-
 test("app.js: 枠を選んで固定の段（編集欄など）が高くなり、選んだ枠が段の下に隠れたら、その下へページを動かす（stackBottom は --hh・--stop-h・--slot-h・--dh-h の和）", () => {
   const r = src.slice(src.indexOf("function render() {"), src.indexOf("function render() {") + 5000);
   assert.ok(r.includes('if (S.screen === "schedule" && S.selSess) { const b = view.querySelector(".blk.sel")?.getBoundingClientRect(), top = stackBottom(); if (b && b.top < top) window.scrollBy(0, b.top - top - 8); }'));
@@ -606,7 +603,7 @@ test("app.js: スケジュールの描き直しでは、カレンダー（#calsl
   assert.match(r, /if \(calTop != null && !reset && S\.screen === "schedule"\)/);
 });
 
-test("app.js: 右の列の開け閉めで今日の位置へ戻すのは、ガントのときだけ（スケジュールでは scrollToNow で跳ばない）", () => {
+test("app.js: 右の列の開け閉めで今日の位置へ戻すのは、ガントのときだけ（スケジュールでは scrollToMorning で跳ばない）", () => {
   const fn = src.slice(src.indexOf("function togglePref(key)"), src.indexOf("function togglePref(key)") + 400);
   assert.match(fn, /if \(key === "showPrio" && S\.screen === "gantt"\) S\.resetScroll = true;/);
 });

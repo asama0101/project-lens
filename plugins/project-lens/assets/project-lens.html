@@ -4560,7 +4560,7 @@ function render() {
   }
   window.scrollTo(0, prevY); view.style.minHeight = "";
   syncSticky();
-  if (reset && S.screen === "schedule") scrollToNow();
+  if (reset && S.screen === "schedule") scrollToMorning();
   else if (calTop != null && !reset && S.screen === "schedule") { const nt = view.querySelector("#calslot")?.getBoundingClientRect().top; if (nt != null) window.scrollBy(0, nt - calTop); }
   if (S.screen === "schedule" && S.selSess) { const b = view.querySelector(".blk.sel")?.getBoundingClientRect(), top = stackBottom(); if (b && b.top < top) window.scrollBy(0, b.top - top - 8); } // 固定の段（編集欄など）が高くなって、選んだ枠が隠れたら、その下へ出す
   drawAllDeps();
@@ -4622,13 +4622,14 @@ function stackBottom() {
   return px("--hh") + px("--stop-h") + px("--slot-h") + px("--dh-h");
 }
 
-/** スケジュールを開いたとき（画面の切り替え・ファイルを開いたとき）、今の時刻の 1 時間前が、ヘッダー（週表示は日付の見出し）のすぐ下に来るまでページを縦にスクロールする（時間の軸は 00:00〜24:00 で、先頭は夜中のため） */
-function scrollToNow() {
+/** スケジュールを開いたとき（画面の切り替え・ファイルを開いたとき・「＋ 突発タスク」）に、時間の軸の先頭に見せる時刻（分） */
+const MORNING = 8 * 60;
+/** スケジュールを開いたとき、今の時刻によらず、08:00 が固定の段（ヘッダー・操作の行・入力欄・週表示の日付の見出し）のすぐ下（10px 下）に来るまで、ページを縦にスクロールする（時間の軸は 00:00〜24:00 で、先頭は夜中のため） */
+function scrollToMorning() {
   const grid = view.querySelector(".cal-grid, .week .hrs");
   if (!grid) return;
-  const cs = getComputedStyle(document.documentElement), px = (k) => parseFloat(cs.getPropertyValue(k)) || 0;
-  const r = grid.getBoundingClientRect(), hh = px("--hh") + px("--slot-h") + (view.querySelector(".week .dh")?.offsetHeight ?? 0); // ヘッダー・入力欄・（週表示は）日付の見出しの下
-  window.scrollTo(0, Math.max(0, window.scrollY + r.top + r.height * calendarGeometry().pc(Math.max(0, toMin(clock().time) - 60)) / 100 - hh - 8));
+  const r = grid.getBoundingClientRect();
+  window.scrollTo(0, Math.max(0, window.scrollY + r.top + r.height * calendarGeometry().pc(MORNING) / 100 - stackBottom() - 10)); // 10px 下げて、08:00 の目盛りの文字が段に隠れないようにする
 }
 
 /* ---------- 保存 ---------- */
@@ -4837,7 +4838,7 @@ function deleteSelected() {
 /** 表示の好み（今日の優先・ガント実績）を反転して保存する。今日の優先を閉じると、パネル内にしか出ない確認待ちは出す場所がなくなるので捨てる */
 function togglePref(key) {
   S.pendingDone = null;
-  if (key === "showPrio" && S.screen === "gantt") S.resetScroll = true; // 右の列の開け閉めでガントの幅が変わるので、横スクロールを今日の位置へ戻す（スケジュールでは戻さない。scrollToNow でページが跳ぶため）
+  if (key === "showPrio" && S.screen === "gantt") S.resetScroll = true; // 右の列の開け閉めでガントの幅が変わるので、横スクロールを今日の位置へ戻す（スケジュールでは戻さない。scrollToMorning でページが跳ぶため）
   S.prefs = { ...S.prefs, [key]: !S.prefs[key] };
   savePrefs(S.prefs);
   render();
