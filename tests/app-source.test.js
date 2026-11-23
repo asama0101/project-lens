@@ -438,3 +438,38 @@ test("app.js: ヘッダーの「＋ 突発タスク」は、clearSel() で選択
   assert.match(body, /firstFreeStart\(/);
   assert.match(body, /\[data-ug="title"\]'?\)?\??\.focus/);
 });
+
+// ---- 2 ファイル（共有・個人）を開く ----
+test("app.js: 画面は createPairStore で 2 つのファイルを開く。開始画面は、足りない方を選ぶボタン（data-open=\"shared\"・\"personal\"）と案内を出す", () => {
+  assert.match(src, /const store = createPairStore\(\);/);
+  assert.ok(!src.includes("createStore("), "1 ファイルのストアは使わない");
+  assert.ok(src.includes('data-open="shared"') && src.includes('data-open="personal"'));
+  assert.ok(src.includes("共有ファイルを選んでください") && src.includes("個人ファイルを選んでください"));
+  const ss = src.slice(src.indexOf("function startScreen"), src.indexOf("const scheduleOpts"));
+  assert.match(ss, /store\.missing\(\)/, "案内は、足りない方だけ");
+  assert.match(ss, /data-reopen/);
+  assert.match(ss, /S\.last\?\.\[w\]\?\.name/, "前回のファイルを開くは、足りない方に記憶があるときだけ");
+  assert.ok(!src.includes("data-openfile"), "「別のファイルを開く」の 1 つのボタンは持たない");
+});
+
+test("app.js: ファイルを選ぶと store.choose(which)。2 つ揃ったら（データが返ったら）loaded、揃わなければ開始画面のまま", () => {
+  const fn = src.slice(src.indexOf("async function openFile"), src.indexOf("async function startup"));
+  assert.match(fn, /store\.choose\(which\)/);
+  assert.match(fn, /if \(data\) \{ loaded\(data\);/);
+  const vc = src.slice(src.indexOf('if (q("[data-reopen]"))'), src.indexOf("/* プロジェクト画面 */"));
+  assert.match(vc, /!S\.data && q\("\[data-open\]"\)/, "開始画面のボタンは、プロジェクトの data-open（絞り込み）より先に、データが無いときだけ扱う");
+  assert.match(vc, /openFile\("choose", pick\.dataset\.open\)/);
+  const fb = src.slice(src.indexOf('$("filebar").addEventListener("click"'), src.indexOf('$("banner").addEventListener("click"'));
+  assert.match(fb, /openFile\("choose", pick\.dataset\.open\)/);
+  const bar = src.slice(src.indexOf('$("filebar").innerHTML'), src.indexOf('$("filebar").innerHTML') + 1200);
+  assert.ok(bar.includes('data-open="shared"') && bar.includes('data-open="personal"'), "上部のバーも、共有・個人の 2 つのボタン");
+});
+
+test("app.js: 読み直し（「更新」・バナーの再読込）は、失敗しても sync.reset() する（破棄すると伝えた編集を、あとで当て直さない）", () => {
+  const fn = src.slice(src.indexOf("async function reloadFile"), src.indexOf("async function reloadFile") + 800);
+  assert.ok(fn.length > 50);
+  assert.match(fn, /catch \(e\) \{[^}]*\}\s*sync\.reset\(\);/, "reset は try の外（例外のときも通る）");
+  assert.equal((src.match(/store\.reload\(\)/g) ?? []).length, 1, "store.reload を呼ぶのは reloadFile だけ");
+  assert.match(src, /\[data-refresh\][\s\S]{0,400}reloadFile\(/);
+  assert.match(src, /\[data-reload\][\s\S]{0,200}reloadFile\(/);
+});

@@ -100,7 +100,7 @@ export function createStore(deps = {}) {
   /** 「前回のファイルを開く」。権限の確認だけを出し（ボタン押下の中で呼ぶ）、拒否されてもファイル選択には切り替えない */
   async function reopen() {
     const saved = await idb.get(key);
-    if (!(await ensureWritable(saved))) throw new Error("ファイルへの書き込みが許可されませんでした。もう一度押して許可するか、「別のファイルを開く」で選び直してください");
+    if (!(await ensureWritable(saved))) throw new Error("ファイルへの書き込みが許可されませんでした。もう一度押して許可するか、ファイルを選ぶボタンで選び直してください");
     return switchTo(saved);
   }
 
