@@ -16,7 +16,7 @@
   <rect x="24" y="50" width="170" height="90" rx="10" fill="#ffffff" stroke="#0369a1" stroke-width="2"/>
   <text x="109" y="76" text-anchor="middle" font-size="16" font-weight="bold" fill="#0c4a6e">1. 依頼を書く</text>
   <text x="109" y="100" text-anchor="middle" font-size="15" fill="#1e293b">依頼の帯に文章で</text>
-  <text x="109" y="122" text-anchor="middle" font-size="15" fill="#1e293b">「A3 が 5 日遅れた」</text>
+  <text x="109" y="122" text-anchor="middle" font-size="13" fill="#1e293b">「AA-0003 が 5 日遅れた」</text>
 
   <rect x="400" y="50" width="170" height="90" rx="10" fill="#ffffff" stroke="#0369a1" stroke-width="2"/>
   <text x="485" y="76" text-anchor="middle" font-size="16" font-weight="bold" fill="#0c4a6e">2. 変更案を確認</text>
