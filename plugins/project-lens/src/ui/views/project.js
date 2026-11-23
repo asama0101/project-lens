@@ -17,7 +17,7 @@ const actText = (data, id) => {
 };
 
 /** 状態の欄（選択。待ち先の入力・Done の確認が出ているときは、その表示）。リストとガントの編集の窓で共用 */
-function statusCellHtml(t, opts, late) {
+export function statusCellHtml(t, opts, late) {
   const id = esc(t.id);
   if (opts.pendingWait === t.id) {
     return `<div class="ask" style="max-width:none">待ち先を入力<input class="in" data-waitparty="${id}" placeholder="ベンダー・部署名" aria-label="${id} の待ち先"><div style="display:flex;gap:6px;margin-top:4px"><button class="btn" data-waitok="${id}">Waiting にする</button><button class="btn" data-waitno>やめる</button></div></div>`;

@@ -8,7 +8,7 @@ import { renderPrio, renderTodayTasks, todayTaskIds, doneAskHtml } from "../plug
 import { renderSettings } from "../plugins/project-lens/src/ui/views/settings.js";
 import { checkMeterHtml } from "../plugins/project-lens/src/ui/common.js";
 import { checklistEditorHtml } from "../plugins/project-lens/src/ui/views/checklist.js";
-import { renderTaskPop } from "../plugins/project-lens/src/ui/views/taskpop.js";
+import { renderTaskPop, renderTaskEditPanel } from "../plugins/project-lens/src/ui/views/taskpop.js";
 import { renderInboxBar, ibExamples } from "../plugins/project-lens/src/ui/views/inboxpanel.js";
 import { ruleMeetingCounts } from "../plugins/project-lens/src/core/rules.js";
 import { renderSchedule, snapStart, snapFreeStart, firstFreeStart, urgentInput } from "../plugins/project-lens/src/ui/views/schedule.js";
@@ -1574,4 +1574,27 @@ test("日程変更の履歴: 原因の選択欄（data-logcause）は出さず�
   const html = renderProjects(load(), TODAY, { filter: "A", view: "list" });
   assert.ok(!html.includes("data-logcause"));
   assert.ok(html.includes("ベンダーX の納期回答が遅れたため"));
+});
+
+test("スケジュールの編集欄: 枠を選ぶと「タスクを編集」が出る。編集欄は軽い欄だけ、full で全項目", () => {
+  const d = load();
+  d.tasks.find((t) => t.id === "A7").sessions.push({ id: "S10", date: TODAY, start: "14:00", end: "15:00", kind: "planned" });
+  assert.ok(!sched(d).includes("data-tedit-open"), "選んでいないときは出ない");
+  assert.ok(sched(d, { selSess: "S10" }).includes('data-tedit-open="A7"'), "選んだ枠のタスクの ID");
+  const slot = (html) => html.match(/<div id="mtgslot">([\s\S]*?)<\/div><div id="calslot">/)[1];
+  const light = slot(sched(d, { selSess: "S10", taskEdit: { id: "A7", full: false } }));
+  for (const f of ["title", "due", "start", "status", "important", "projectId", "memo"]) assert.ok(light.includes(`data-f="${f}" data-id="A7"`), f);
+  assert.ok(light.includes("data-tedit-full") && light.includes("data-tedit-close"));
+  for (const x of ['data-f="repeat"', "data-addpre", "data-dup", "data-tedit-del", "data-ckadd"]) assert.ok(!light.includes(x), `軽い: ${x} なし`);
+  const full = slot(sched(d, { selSess: "S10", taskEdit: { id: "A7", full: true } }));
+  for (const x of ['data-f="repeat"', 'data-dup="A7"', 'data-tedit-del="A7"', "前のタスク"]) assert.ok(full.includes(x), `full: ${x}`);
+  assert.ok(/data-f="important" data-id="A7"/.test(light));
+  assert.equal(slot(sched(d, { taskEdit: { id: "ZZ", full: false } })), "", "対象のタスクが無いときは空");
+  assert.equal(renderTaskEditPanel(d, { id: "ZZ", full: false }, ""), "");
+});
+
+test("スケジュールの編集欄: 削除は確認を挟む（askDel）", () => {
+  const d = load();
+  const html = renderTaskEditPanel(d, { id: "A7", full: true, askDel: true }, "");
+  assert.ok(html.includes('data-delyes="A7"') && html.includes("data-tedit-delno") && !html.includes("data-tedit-del="));
 });

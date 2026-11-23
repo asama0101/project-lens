@@ -10,7 +10,7 @@ const S = {
   screen: "gantt",
   filter: "all", gwin: "m6", hideDone: false,
   askDel: null, askDelProject: null, pendingWait: null, pendingDone: null, checkOpen: new Set(),
-  sview: "week", sdate: clock().date, selSess: null, selMtg: null, mtgDraft: null, urgentDraft: null, picked: null,
+  sview: "week", sdate: clock().date, selSess: null, selMtg: null, mtgDraft: null, urgentDraft: null, taskEdit: null, picked: null,
   prefs: loadPrefs(), settingsClosed: loadSettingsClosed(), tpop: null, addAt: null, last: null, ruleError: "",
   ib: { open: false, text: loadInboxDraft(), projectId: "", replies: {}, reasons: {}, causes: {} },
   wperiod: "week", wdate: clock().date,
@@ -36,7 +36,7 @@ function startScreen() {
     ${S.openError ? `<p class="ask" style="max-width:none" role="alert">${esc(S.openError)}</p>` : ""}</section>`;
 }
 
-const scheduleOpts = () => ({ view: S.sview, date: S.sdate, now: clock(), selSess: S.selSess, selMtg: S.selMtg, mtgDraft: S.mtgDraft, urgentDraft: S.urgentDraft, picked: S.picked, showPrio: S.prefs.showPrio, showSkipped: S.prefs.showSkipped, pendingDone: S.pendingDone });
+const scheduleOpts = () => ({ view: S.sview, date: S.sdate, now: clock(), selSess: S.selSess, selMtg: S.selMtg, mtgDraft: S.mtgDraft, urgentDraft: S.urgentDraft, taskEdit: S.taskEdit, pendingWait: S.pendingWait, picked: S.picked, showPrio: S.prefs.showPrio, showSkipped: S.prefs.showSkipped, pendingDone: S.pendingDone });
 
 function renderBody() {
   const { date: today } = clock();
@@ -74,6 +74,7 @@ function render() {
   hideTip();
   clearTimeout(settingTimer); settingTimer = null; // 描き直しで入力欄を取り除くときに focusout が走り、保存が入れ子の描き直しになるのを防ぐ（待っていた入力は、描き直しで消えるのと同じ）
   if (S.tpop && !S.data.tasks.some((t) => t.id === S.tpop.id)) S.tpop = null; // 読み直しで対象のタスクが消えたら、窓も閉じる
+  if (S.taskEdit && (S.screen !== "schedule" || !S.data.tasks.some((t) => t.id === S.taskEdit.id))) S.taskEdit = null; // スケジュールの編集欄も同じ
   const c = clock();
   $("todaylabel").textContent = `${c.date.replace(/-/g, "/")}(${wdJa(c.date)})`;
   document.querySelectorAll("nav [role=tab]").forEach((b) => b.setAttribute("aria-selected", String(b.id === "tab-" + S.screen)));
@@ -324,7 +325,7 @@ function submitGAdd(input) {
 }
 
 /* ---------- 選択と削除 ---------- */
-const clearSel = () => { S.selSess = null; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; };
+const clearSel = () => { S.selSess = null; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.taskEdit = null; };
 
 function deleteSelected() {
   if (S.selMtg) {
@@ -334,7 +335,7 @@ function deleteSelected() {
   }
   const s = S.data.tasks.flatMap((t) => (t.sessions ?? []).map((x) => ({ ...x, task: t }))).find((x) => x.id === S.selSess);
   if (!s) { toast("削除する枠を選んでください"); return; }
-  S.selSess = null;
+  S.selSess = null; S.taskEdit = null;
   apply((d) => removeSession(d, s.id), `${s.task.title} の${s.kind === "actual" ? "実績" : "予定"}の枠を削除しました`);
 }
 
@@ -391,7 +392,7 @@ $("banner").addEventListener("click", async (e) => {
  *  画面の描き直しで target が DOM から外れる前に判定するため、キャプチャ段階で処理する */
 document.addEventListener("click", (e) => {
   if (S.tpop && !view.contains(e.target)) { S.tpop = null; render(); return; } // ガントの編集の窓は、画面の外のクリックでも閉じる
-  if (view.contains(e.target) || !(S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft)) return;
+  if (view.contains(e.target) || !(S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.taskEdit)) return;
   if (e.target.closest("[data-delsel]")) return;
   clearSel();
   render();
@@ -411,7 +412,7 @@ view.addEventListener("click", (e) => {
   if (S.tpop && !q(".tpop,[data-gt],[data-gh]")) { S.tpop = null; render(); } // 閉じたあと、押したものの操作もそのまま行う
   let cleared = false;
   // 欄外のクリックで、枠・会議の選択と追加中の下書きを外す
-  if ((S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft) && !q("[data-dragsess],[data-mtg],[data-delsel],.mtgform,[data-mtgadd],[data-confirm],[data-confirmmtg],[data-confirmall]")) { clearSel(); cleared = true; }
+  if ((S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.taskEdit) && !q("[data-dragsess],[data-mtg],[data-delsel],[data-tedit-open],.mtgform,[data-mtgadd],[data-confirm],[data-confirmmtg],[data-confirmall]")) { clearSel(); cleared = true; }
   const { date: today, time } = clock();
   const now = clock();
 
@@ -526,9 +527,9 @@ view.addEventListener("click", (e) => {
   }
   if (q("[data-delsel]")) { deleteSelected(); return; }
   const sb = q("[data-dragsess]");
-  if (sb && !q("[data-rz]")) { S.selSess = S.selSess === sb.dataset.dragsess ? null : sb.dataset.dragsess; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; render(); return; }
+  if (sb && !q("[data-rz]")) { S.selSess = S.selSess === sb.dataset.dragsess ? null : sb.dataset.dragsess; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.taskEdit = null; render(); return; }
   const mb = q("[data-mtg]");
-  if (mb && !q("[data-rzm]")) { S.selMtg = S.selMtg === mb.dataset.mtg ? null : mb.dataset.mtg; S.selSess = null; S.mtgDraft = null; S.urgentDraft = null; render(); return; }
+  if (mb && !q("[data-rzm]")) { S.selMtg = S.selMtg === mb.dataset.mtg ? null : mb.dataset.mtg; S.selSess = null; S.mtgDraft = null; S.urgentDraft = null; S.taskEdit = null; render(); return; }
   if (q("[data-mtgadd]")) {
     const wd = S.data.settings?.workday ?? DEFAULT_WORKDAY;
     const base = S.sdate === today ? Math.ceil((toMin(time) + 1) / 60) * 60 : 10 * 60;
@@ -545,6 +546,12 @@ view.addEventListener("click", (e) => {
   if (q("[data-mtgcancel]")) { S.mtgDraft = null; render(); return; }
   if (q("[data-mtgclose]")) { S.selMtg = null; render(); return; }
   if (q("[data-urgsave]")) { submitUrgent(); return; }
+  const to = q("[data-tedit-open]");
+  if (to) { S.mtgDraft = null; S.urgentDraft = null; S.pendingDone = null; S.taskEdit = { id: to.dataset.teditOpen, full: false, askDel: false }; render(); view.querySelector('[data-tedit] [data-f="title"]')?.focus(); return; }
+  if (q("[data-tedit-full]")) { S.taskEdit = { ...S.taskEdit, full: !S.taskEdit.full, askDel: false }; render(); return; }
+  if (q("[data-tedit-close]")) { S.taskEdit = null; render(); return; }
+  if (q("[data-tedit-del]")) { S.taskEdit = { ...S.taskEdit, askDel: true }; render(); return; }
+  if (q("[data-tedit-delno]")) { S.taskEdit = { ...S.taskEdit, askDel: false }; render(); return; }
   if (q("[data-urgcancel]")) { S.urgentDraft = null; render(); return; }
   const fr = q("[data-free]");
   if (fr) {
@@ -1034,7 +1041,7 @@ document.addEventListener("keydown", (e) => {
   const typing = e.target.matches?.("input,select,textarea");
   if ((e.key === "Delete" || e.key === "Backspace") && S.screen === "schedule" && (S.selSess || S.selMtg) && !typing) { e.preventDefault(); deleteSelected(); }
   if (e.key === "Escape" && S.tpop) { S.tpop = null; render(); return; }
-  if (e.key === "Escape" && S.screen === "schedule" && (S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft)) { clearSel(); render(); }
+  if (e.key === "Escape" && S.screen === "schedule" && (S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.taskEdit)) { clearSel(); render(); }
 });
 view.addEventListener("keydown", (e) => {
   // 日本語入力の変換確定の Enter(isComposing)では追加しない
