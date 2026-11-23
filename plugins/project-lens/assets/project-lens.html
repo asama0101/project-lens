@@ -1736,13 +1736,14 @@ const sumBy = (list, f) => list.reduce((a, x) => a + f(x), 0);
 
 const actualSessions = (data, range) =>
   data.tasks.flatMap((t) => (t.sessions ?? []).filter((s) => s.kind === "actual" && inRange(s.date, range)).map((s) => ({ ...s, projectId: t.projectId })));
+const meetingHours = (m) => hours(meetingActualSpan(m));
 const countedMeetings = (data, range) => data.events.filter((m) => m.confirmed === true && !m.skip && inRange(m.date, range));
 
 /** 全期間の、プロジェクトの稼働時間（h）: タスク（実績の作業枠）と会議（確認済み・参加するもの） */
 function projectHours(data, projectId) {
   return {
     task: sumBy(actualSessions(data).filter((s) => s.projectId === projectId), hours),
-    meeting: sumBy(countedMeetings(data).filter((m) => m.projectId === projectId), hours),
+    meeting: sumBy(countedMeetings(data).filter((m) => m.projectId === projectId), meetingHours),
   };
 }
 
@@ -1756,13 +1757,14 @@ function workload(data, range, now) {
   const meetings = countedMeetings(data, range);
   const rows = data.projects.map((p) => {
     const task = sumBy(sessions.filter((s) => s.projectId === p.id), hours);
-    const meeting = sumBy(meetings.filter((m) => m.projectId === p.id), hours);
+    const meeting = sumBy(meetings.filter((m) => m.projectId === p.id), meetingHours);
     return { projectId: p.id, task, meeting, total: task + meeting };
   });
-  const unassigned = { task: sumBy(sessions.filter((s) => !ids.has(s.projectId)), hours), meeting: sumBy(meetings.filter((m) => !ids.has(m.projectId)), hours) };
+  const unassigned = { task: sumBy(sessions.filter((s) => !ids.has(s.projectId)), hours), meeting: sumBy(meetings.filter((m) => !ids.has(m.projectId)), meetingHours) };
   let unconfirmedTasks = 0, unconfirmedMeetings = 0;
   if (now) {
-    unconfirmedTasks = data.tasks.flatMap((t) => t.sessions ?? []).filter((s) => inRange(s.date, range) && sessionKind(s, now) === "unconfirmed").length;
+    const actuals = actualSlots(data);
+    unconfirmedTasks = data.tasks.flatMap((t) => t.sessions ?? []).filter((s) => inRange(s.date, range) && sessionKind(s, now, actuals) === "unconfirmed").length;
     unconfirmedMeetings = data.events.filter((m) => inRange(m.date, range) && meetingKind(m, now) === "unconfirmed").length;
   }
   return { rows, unassigned, total: sumBy(rows, (r) => r.total) + unassigned.task + unassigned.meeting, unconfirmed: unconfirmedTasks + unconfirmedMeetings, unconfirmedTasks, unconfirmedMeetings };

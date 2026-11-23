@@ -56,6 +56,22 @@ test("workload: unconfirmed は過ぎた未確認の枠と会議の件数（now 
   assert.equal(workload(d, r).unconfirmed, 0);
 });
 
+test("workload: 確認済みの会議は actual の時間で数える", () => {
+  const d = data([], [mtg("m1", D, "10:00", "11:00", { confirmed: true, projectId: "AA", actual: { start: "10:05", end: "10:50" } })]);
+  assert.equal(workload(d, null).rows[0].meeting, 0.75);
+});
+
+test("workload: confirmed だけで actual の無い会議は、予定の時間で数える", () => {
+  const d = data([], [mtg("m1", D, "10:00", "11:00", { confirmed: true, projectId: "AA" })]);
+  assert.equal(workload(d, null).rows[0].meeting, 1);
+  assert.equal(projectHours(d, "AA").meeting, 1);
+});
+
+test("workload: unconfirmed は、重なる実績の無い過ぎた予定の枠と、過ぎた会議の件数", () => {
+  const d = data([task("AA-0001", "AA", [sess("S1", D, "09:00", "10:00", "planned"), sess("S2", D, "11:00", "12:00", "planned"), sess("S3", D, "09:10", "09:50", "actual")])], []);
+  assert.equal(workload(d, null, { date: D, time: "14:00" }).unconfirmedTasks, 1);
+});
+
 test("periodRange: day はその日だけ、week は月曜〜日曜、month は 2028-02 で 29 日まで", () => {
   assert.deepEqual(periodRange("day", "2026-10-20"), { start: "2026-10-20", end: "2026-10-20" });
   assert.deepEqual(periodRange("week", "2026-10-20"), { start: "2026-10-19", end: "2026-10-25" });
