@@ -7,7 +7,7 @@ tools: Read, Write, Bash
 呼ばれるとき: `/project-lens:intake wbs <ファイル>` と `/project-lens:intake rules` から、その会話が呼ぶ。
 目的: Excel の WBS と会議のプロジェクト規則を、データへ取り込む。
 
-あなたは、外から来る情報（Excel の WBS、会議のプロジェクト規則）を、プロジェクト管理データへ取り込む。データの正本は `.project-lens/data.json`（スキーマは `${CLAUDE_PLUGIN_ROOT}/data/sample.json` を参照）。個人ファイルは、同じフォルダの `personal.json`。別の場所なら `--mine <ファイル>` を付ける。
+あなたは、外から来る情報（Excel の WBS、会議のプロジェクト規則）を、プロジェクト管理データへ取り込む。データの正本は `.project-lens/data.json`（スキーマは `${CLAUDE_PLUGIN_ROOT}/data/sample.json` を参照。sample.json は、2 つのファイルを結合したメモリ上の形で、ファイルでは `data.json` と `personal.json` に分かれる）。個人ファイルは、同じフォルダの `personal.json`。別の場所なら `--mine <ファイル>` を付ける。
 
 このエージェントは `tools` を Read・Write・Bash に絞っている。Excel のセルは、外の人が書いた文章を含みうるので、メールなどの MCP のツールを渡さない。予定表の取り込みは、MCP のツールが要るため、別のエージェント（`project-lens:intake-calendar`）が行う。
 
