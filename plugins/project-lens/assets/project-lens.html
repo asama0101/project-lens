@@ -3347,6 +3347,7 @@ const todayTaskIds = (data, today) => todayList(data, today).map((r) => r.t.id);
 
 /** 今日のタスク。今日に枠が無ければ空文字
  *  @param opts.pendingDone  未来の予定の枠を解除する確認待ち { id, status, n }（その行に確認を出す）
+ *  @param opts.sched        true なら、終わっていないタスクの行をカレンダーへドラッグできる（同じタスクをもう 1 つ置く）
  *  @param opts.now          {date, time} 現在時刻（過ぎた予定を未確認にする。省略は today の 00:00） */
 function renderTodayTasks(data, today, opts = {}) {
   const rows = todayList(data, today);
@@ -3356,7 +3357,8 @@ function renderTodayTasks(data, today, opts = {}) {
     const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? (t.projectId == null ? "プロジェクトなし" : ""));
     const times = slots.map((s) => slotHtml(t, s, now)).join("");
     const ask = opts.pendingDone?.id === t.id ? doneAskHtml(opts.pendingDone) : "";
-    return `<li data-today="${esc(t.id)}"${isClosed(t) ? ' class="closed"' : ""}><span class="pj">${proj}</span><span class="t">${esc(t.title)} ${statusPill(t)}${isImportantMark(t) ? IMP_BADGE : ""}</span><span class="why mono tss">${times}</span>${isClosed(t) ? "" : checkMeterHtml(t, { remain: true })}${ask}</li>`;
+    const drag = opts.sched && !isClosed(t) ? ` draggable="true" data-dragtask="${esc(t.id)}"` : "";
+    return `<li data-today="${esc(t.id)}"${isClosed(t) ? ' class="closed"' : ""}${drag}><span class="pj">${proj}</span><span class="t">${esc(t.title)} ${statusPill(t)}${isImportantMark(t) ? IMP_BADGE : ""}</span><span class="why mono tss">${times}</span>${isClosed(t) ? "" : checkMeterHtml(t, { remain: true })}${ask}</li>`;
   }).join("");
   return `<section class="panel todaytasks" aria-labelledby="h-td"><h2 id="h-td">今日のタスク</h2><ul class="rank tl">${items}</ul></section>`;
 }
@@ -3379,7 +3381,7 @@ function renderPrio(data, today, opts = {}) {
     return `<li${drag}><span class="n">${i + 1}</span><span class="pj">${proj}</span><span class="t">${r.action === "chase" ? `<span class="act">${r.reasons.some((x) => x.includes("催促")) ? "催促" : "確認"}</span>` : ""}${esc(t.title)} ${statusPill(t)}${pill}</span>${checkMeterHtml(t, { remain: true })}<span class="why">${isImportantMark(t) ? IMP_BADGE : ""}${esc(r.reasons.filter((x) => x !== "重要").join("。"))}</span></li>`;
   }).join("");
   const note = sched
-    ? "タスクをカレンダーへドラッグして配置します(15分刻み・長さ1時間)。配置済みの枠もドラッグで移動できます。"
+    ? "タスクをカレンダーへドラッグして配置します(15分刻み・長さ1時間)。今日のタスクの行からも、同じタスクをもう 1 つ置けます。配置済みの枠もドラッグで移動できます。"
     : "スケジュール画面で、時間枠に配置できます。";
   return `<section class="panel prio" aria-labelledby="h-rk"><h2 id="h-rk">今日の優先</h2>${shown.length ? `<ol class="rank">${items}</ol>` : `<p class="muted">優先するタスクはありません。</p>`}<p class="note" style="margin:10px 0 0">${note}</p></section>`;
 }

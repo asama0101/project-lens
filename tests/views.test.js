@@ -301,7 +301,7 @@ test("renderSchedule: 優先リストはドラッグ可で、置いた回数と�
   assert.ok(/draggable="true" data-dragtask="AB-0002"/.test(html));
   assert.ok(!html.includes("data-pick") && !html.includes("picked"), "押して選ぶ方法は持たない（ドラッグだけで配置する）");
   assert.ok(!/<li[^>]*data-dragtask[^>]*tabindex/.test(html), "行はフォーカスを受けない");
-  assert.ok(html.includes("タスクをカレンダーへドラッグして配置します(15分刻み・長さ1時間)。配置済みの枠もドラッグで移動できます。</p>") && !html.includes("キーボード"), "注記に選んで配置する文がない");
+  assert.ok(html.includes("タスクをカレンダーへドラッグして配置します(15分刻み・長さ1時間)。今日のタスクの行からも、同じタスクをもう 1 つ置けます。配置済みの枠もドラッグで移動できます。</p>") && !html.includes("キーボード"), "注記に選んで配置する文がない");
   assert.ok(html.includes("2回・実績 1.0h"));
   assert.ok(html.includes("早朝作業"));
 });
@@ -698,6 +698,19 @@ test("todayTaskIds・renderTodayTasks: 今日に枠があるタスクだけを�
   assert.ok(!dn.html.includes("data-session-actual") && html.includes('class="closed"'), "Done はボタン無しで薄い");
   assert.equal(renderTodayTasks(load(), TODAY), "", "今日の枠が無ければ出さない");
   assert.deepEqual(todayTaskIds(load(), TODAY), []);
+});
+
+test("renderTodayTasks: スケジュール画面では、終わっていない行がドラッグできる（同じタスクをもう 1 つ置ける）。Done・ガント・リストでは付けない", () => {
+  const { d, done } = withToday();
+  const li = (html, id) => html.match(new RegExp(`<li[^>]*data-today="${id}"[^>]*>`))[0];
+  const s = sched(d, { now: NOW });
+  for (const id of ["AA-0005", "AA-0007"]) assert.ok(li(s, id).includes('draggable="true"') && li(s, id).includes(`data-dragtask="${id}"`), id);
+  assert.ok(!li(s, done.id).includes("draggable") && !li(s, done.id).includes("data-dragtask"), "Done は付けない");
+  assert.ok(renderTodayTasks(d, TODAY, { sched: true, now: NOW }).includes('data-dragtask="AA-0005"'));
+  assert.ok(!renderTodayTasks(d, TODAY, { now: NOW }).includes("data-dragtask"), "sched 無しは付けない");
+  const g = renderProjects(d, TODAY, { filter: "all", view: "list", now: NOW });
+  assert.ok(!g.includes("data-today") || !/<li[^>]*data-today[^>]*data-dragtask/.test(g), "リスト・ガントの右の列は付けない");
+  assert.ok(s.includes("今日のタスクの行からも"), "注記");
 });
 
 test("renderTodayTasks: 「実績にする」は、予定の枠（未確認を含む）ごとに付け、実績の枠には付けない。スケジュール・プロジェクトの右の列にも出る", () => {
