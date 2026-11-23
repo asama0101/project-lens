@@ -1639,9 +1639,10 @@ test("スケジュールの編集欄: 枠を選ぶと（selSess と taskEdit）�
   const light = slot(sched(d, { selSess: "S10", taskEdit: { id: "AA-0007", full: false } }));
   for (const f of ["title", "due", "start", "status", "important", "projectId", "memo"]) assert.ok(light.includes(`data-f="${f}" data-id="AA-0007"`), f);
   assert.ok(light.includes("data-tedit-full") && light.includes("data-tedit-close"));
-  for (const x of ['data-f="repeat"', "data-addpre", "data-dup", "data-tedit-del", "data-ckadd"]) assert.ok(!light.includes(x), `軽い: ${x} なし`);
+  for (const x of ['data-f="repeat"', "data-addpre", "data-tedit-del", "data-ckadd"]) assert.ok(!light.includes(x), `軽い: ${x} なし`);
   const full = slot(sched(d, { selSess: "S10", taskEdit: { id: "AA-0007", full: true } }));
-  for (const x of ['data-f="repeat"', 'data-dup="AA-0007"', 'data-tedit-del="AA-0007"', "前のタスク"]) assert.ok(full.includes(x), `full: ${x}`);
+  for (const x of ['data-f="repeat"', 'data-tedit-del="AA-0007"', "前のタスク"]) assert.ok(full.includes(x), `full: ${x}`);
+  assert.ok(!full.includes("data-dup"), "複製のボタンは持たない");
   assert.ok(/data-f="important" data-id="AA-0007"/.test(light));
   assert.equal(slot(sched(d, { selSess: "S10", taskEdit: { id: "ZZ", full: false } })), "", "対象のタスクが無いときは空");
   assert.equal(renderTaskEditPanel(d, { id: "ZZ", full: false }, ""), "");
@@ -1684,7 +1685,7 @@ test("スケジュールの編集欄: 会議の入力欄と同じ、ラベル付
   assert.ok(light.includes('<div class="tp-st"><span>状態</span><div><select>状態</select></div></div>'), "状態の欄");
   assert.ok(/<div class="tp-a"><button class="btn" data-tedit-full[^>]*>詳細を開く<\/button><button class="btn" data-tedit-close>閉じる<\/button><\/div>/.test(light), "末尾のボタンの行は、詳細を開く・閉じる");
   const full = renderTaskEditPanel(d, { id: "AA-0007", full: true }, "");
-  assert.ok(/<div class="tedit-detail">.*<div class="tp-a"><button class="btn" data-dup="AA-0007">複製<\/button><button class="btn danger" data-tedit-del="AA-0007">削除<\/button><\/div>/.test(full.replace(/\n/g, "")), "full: 複製・削除は、詳細の入れ物の中のボタンの行");
+  assert.ok(/<div class="tedit-detail">.*<div class="tp-a"><button class="btn danger" data-tedit-del="AA-0007">削除<\/button><\/div>/.test(full.replace(/\n/g, "")), "full: 削除は、詳細の入れ物の中のボタンの行");
   assert.ok(/data-f="repeat" data-id="AA-0007"/.test(full) && full.includes('class="tp-wide"') && full.includes("data-ckbox=\"AA-0007\""), "full: 繰り返し・前のタスク・チェックリスト");
   assert.ok(full.indexOf('class="tp-a"') < full.indexOf("data-ckbox"), "全幅の編集欄はボタンの行のあと");
 });
@@ -1700,7 +1701,7 @@ test("スケジュールの編集欄: 詳細の開閉で、軽い欄（件名〜
   const fullRow = full.slice(0, at).trimEnd().replace('aria-expanded="true">詳細を閉じる', 'aria-expanded="false">詳細を開く');
   assert.equal(fullRow, lightRow, "軽い欄は、ボタンの文字と aria-expanded のほかは同じ");
   const detail = full.slice(at);
-  for (const x of ['data-f="repeat" data-id="AA-0007"', 'data-dup="AA-0007"', 'data-tedit-del="AA-0007"', 'data-ckbox="AA-0007"', 'class="tp-wide"', "前のタスク"]) assert.ok(detail.includes(x), `詳細: ${x}`);
+  for (const x of ['data-f="repeat" data-id="AA-0007"', 'data-tedit-del="AA-0007"', 'data-ckbox="AA-0007"', 'class="tp-wide"', "前のタスク"]) assert.ok(detail.includes(x), `詳細: ${x}`);
   const ask = renderTaskEditPanel(d, { id: "AA-0007", full: true, askDel: true }, "<select>状態</select>");
   assert.ok(ask.slice(ask.indexOf('<div class="tedit-detail">')).includes('data-delyes="AA-0007"'), "削除の確認も詳細の入れ物の中");
 });

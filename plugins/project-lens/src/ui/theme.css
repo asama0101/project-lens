@@ -573,7 +573,7 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 #view section.pg{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:0 16px 16px}
 #view section.pg + section.pg{margin-top:16px}
 #view section.pg > .pgstick{padding-top:18px}
-/* スケジュールのタスク編集欄の「詳細を開く」: 詳細の項目（繰り返し・複製・削除・チェックリスト・前のタスク）は、軽い欄のあとの別の入れ物（全幅の行）に出し、その中で折り返して並べる。
+/* スケジュールのタスク編集欄の「詳細を開く」: 詳細の項目（繰り返し・削除・チェックリスト・前のタスク）は、軽い欄のあとの別の入れ物（全幅の行）に出し、その中で折り返して並べる。
    軽い欄とボタンの行は、詳細の開閉で位置も大きさも変わらない。開閉のボタンは、長い方の文字（詳細を閉じる、6 字）の幅を最小にし、文字が変わっても隣を押さない */
 #view .tedit .tedit-detail{flex-basis:100%;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:flex-end;border-top:1px dashed var(--line);padding-top:8px}
 #view .tedit [data-tedit-full]{min-width:calc(6em + 26px)}

@@ -554,8 +554,6 @@ view.addEventListener("click", (e) => {
   if (ma) { const p = S.data.projects.find((x) => x.id === ma.dataset.msadd); apply((d) => addMilestone(d, p.id, { name: "新しいマイルストーン", date: p.due }), "マイルストーンを追加しました"); return; }
   const md = q("[data-msdel]");
   if (md) { const [pid, i] = md.dataset.msdel.split("|"); apply((d) => deleteMilestone(d, pid, +i), "マイルストーンを削除しました"); return; }
-  const dp = q("[data-dup]");
-  if (dp) { S.tpop = null; apply((d) => duplicateTask(d, dp.dataset.dup, clock().date).data, "複製しました（期限は今日です）"); return; }
   const dl = q("[data-del]"); if (dl) { S.askDel = dl.dataset.del; S.tpop = null; render(); return; }
   if (q("[data-delno]")) { S.askDel = null; render(); return; }
   const dy = q("[data-delyes]");

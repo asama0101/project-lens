@@ -53,7 +53,7 @@ export function renderTaskPop(data, pop, statusHtml) {
   return `<div class="tpop" role="dialog" aria-label="${id} を編集" data-tpop style="left:${Math.round(pop.x)}px;top:${Math.round(pop.y)}px">
     <div class="tp-h"><b class="mono">${id}</b><span class="muted">${fmtMD(taskStart(data, t.id))}〜${fmtMD(t.due)}</span><button class="gx" data-tpopclose aria-label="編集を閉じる" style="opacity:1">×</button></div>
     ${taskFieldsHtml(data, t, { full: true, statusHtml })}
-    <div class="tp-a"><button class="btn" data-goto="${id}">リストで開く</button><button class="btn" data-dup="${id}">複製</button><button class="btn danger" data-del="${id}">削除</button></div>
+    <div class="tp-a"><button class="btn" data-goto="${id}">リストで開く</button><button class="btn danger" data-del="${id}">削除</button></div>
   </div>`;
 }
 
@@ -82,7 +82,7 @@ function taskRowFieldsHtml(data, t, { full, statusHtml }) {
 
 /**
  * スケジュール画面の編集欄（#mtgslot に出す）。対象のタスクが無ければ空。見出しに ID は出さない（スケジュールは件名だけで表す）。会議の入力欄と同じ、ラベル付きの項目が折り返して並ぶ形
- * @param edit { id, full, askDel }  askDel が真なら削除の確認を出す。full が真なら、繰り返し・チェックリスト・前のタスク・複製・削除も出す
+ * @param edit { id, full, askDel }  askDel が真なら削除の確認を出す。full が真なら、繰り返し・チェックリスト・前のタスク・削除も出す
  */
 export function renderTaskEditPanel(data, edit, statusHtml) {
   const t = data.tasks.find((x) => x.id === edit.id);
@@ -92,7 +92,7 @@ export function renderTaskEditPanel(data, edit, statusHtml) {
   const del = edit.askDel ? `<span class="ask">このタスクを削除します。<button class="btn danger" data-delyes="${id}">削除する</button><button class="btn" data-tedit-delno>やめる</button></span>` : `<button class="btn danger" data-tedit-del="${id}">削除</button>`;
   // 詳細の項目は、軽い欄のあとの別の入れ物（全幅の行）に出す。軽い欄とボタンの行は、詳細の開閉で位置も大きさも変わらない
   const detail = edit.full ? `
-    <div class="tedit-detail">${repeatField}<div class="tp-a"><button class="btn" data-dup="${id}">複製</button>${del}</div>${wide}</div>` : "";
+    <div class="tedit-detail">${repeatField}<div class="tp-a">${del}</div>${wide}</div>` : "";
   return `<div class="mtgform tedit" role="group" aria-label="${id} を編集" data-tedit>
     <span class="tp-h"><span class="muted">${fmtMD(taskStart(data, t.id))}〜${fmtMD(t.due)}</span></span>
     ${fields}
