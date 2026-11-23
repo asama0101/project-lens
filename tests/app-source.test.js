@@ -478,5 +478,11 @@ test("app.js: 共有に無い枠の削除は、確認（S.pendingOrphan）を挟
   assert.match(src, /data-orphan-clear\]"\)\) \{ S\.pendingOrphan = true/);
   assert.match(src, /data-orphan-ok[\s\S]{0,200}apply\(\(d\) => removeOrphanSessions\(d\)/);
   assert.match(src, /setData: \(d\) => \{ S\.data = d; if \(!sync\.failed\) refreshBanner\(\)/);
-  assert.match(src, /else refreshBanner\(\);\s*render\(\);/, "reloadFile の成功でも出し直す");
+  assert.match(src, /else \{ S\.pendingOrphan = false; refreshBanner\(\); \}\s*render\(\);/, "reloadFile の成功でも出し直し、確認の状態は下ろす");
+  assert.match(src.slice(src.indexOf("function loaded(")), /S\.pendingOrphan = false;\s*refreshBanner\(\)/, "loaded も確認の状態を下ろす");
+  // 失敗の案内（再読込・書き出しのボタンつき）は、削除のボタンで上書きしない。削除の UI は検証の注意（validated）にだけ付く
+  assert.match(src, /const orphans = actions\.validated \?/);
+  assert.match(src, /const again = \(\) => banner\(S\.banner\.msg, S\.banner\.actions\)/);
+  assert.match(src, /data-orphan-clear\]"\)\) \{ S\.pendingOrphan = true; again\(\); \}/, "押しても検証の結果で上書きしない");
+  assert.match(src, /if \(!msg && !actions\.validated && S\.data\) \{ refreshBanner\(\); return; \}/, "空の文は、検証の結果の出し直し");
 });

@@ -94,3 +94,17 @@ test("pollInbox: 2 ファイルのストア（createPairStore）でも、他が�
   assert.equal(ui.data.tasks[0].sessions[0].id, "S1");
   assert.equal(ui.render, 1);
 });
+
+test("persist: 保存の失敗から戻ったとき、バナーを消す呼び出しの時点で failed は下りている（画面が、検証の注意を出し直せる）", async () => {
+  const results = [{ ok: false, reason: "write", message: "書けません" }, { ok: true, data: null }];
+  const store = { hasFile: true, saveMerged: async (_f, cur) => { const r = results.shift(); return r.ok ? { ok: true, data: cur } : r; } };
+  const calls = [];
+  let sync;
+  sync = createSync({ store, getData: () => ({}), setData() {}, render() {}, renderBar() {}, banner: (m) => calls.push([m, sync.failed]), toast() {}, visible: () => true, wantFast: () => false });
+  sync.persist((d) => d);
+  await sync.whenIdle();
+  assert.equal(sync.failed, true);
+  sync.persist((d) => d);
+  await sync.whenIdle();
+  assert.deepEqual(calls.at(-1), ["", false]);
+});

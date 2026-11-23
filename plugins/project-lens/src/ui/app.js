@@ -174,14 +174,17 @@ function scrollToday(smooth) {
 
 /* ---------- 保存 ---------- */
 function banner(msg, actions = {}) {
-  const orphans = S.data?.orphanSessions?.length ?? 0;
+  if (!msg && !actions.validated && S.data) { refreshBanner(); return; } // 空の文＝失敗の案内を下ろす。検証の結果を出し直す
+  S.banner = { msg, actions };
+  // 共有に無い枠の削除は、検証の注意に添える（失敗の案内には付けない）
+  const orphans = actions.validated ? (S.data?.orphanSessions?.length ?? 0) : 0;
   if (!orphans) S.pendingOrphan = false;
   $("banner").innerHTML = bannerHtml(msg, actions, orphans, S.pendingOrphan);
 }
 /** データの検証結果（問題・注意）をバナーに出し直す。ファイルを読み直したあと・他の更新を取り込んだあとも、これで出す */
 function refreshBanner() {
   const { errors, warnings } = validate(S.data, clock());
-  banner(errors.length ? `データに問題があります: ${errors.slice(0, 3).join(" / ")}` : warnings.length ? `注意: ${warnings.slice(0, 2).join(" / ")}` : "");
+  banner(errors.length ? `データに問題があります: ${errors.slice(0, 3).join(" / ")}` : warnings.length ? `注意: ${warnings.slice(0, 2).join(" / ")}` : "", { validated: true });
 }
 
 function downloadJson() {
@@ -222,6 +225,7 @@ function loaded(data) {
   sync.reset();
   S.ruleError = "";
   S.openError = "";
+  S.pendingOrphan = false;
   refreshBanner();
 }
 
@@ -370,7 +374,7 @@ async function reloadFile(okMsg) {
   try { S.data = await store.reload(); } catch (e) { err = e; }
   sync.reset();
   S.ruleError = "";
-  if (err) banner(`読み直せません: ${err.message}`, { reload: true, download: true }); else refreshBanner();
+  if (err) banner(`読み直せません: ${err.message}`, { reload: true, download: true }); else { S.pendingOrphan = false; refreshBanner(); }
   render();
   toast(err ? err.message : okMsg);
 }
@@ -412,13 +416,14 @@ $("filebar").addEventListener("click", async (e) => {
 $("banner").addEventListener("click", async (e) => {
   if (e.target.closest("[data-download]")) downloadJson();
   if (e.target.closest("[data-reload]")) reloadFile("再読込しました");
-  if (e.target.closest("[data-orphan-clear]")) { S.pendingOrphan = true; refreshBanner(); }
-  if (e.target.closest("[data-orphan-cancel]")) { S.pendingOrphan = false; refreshBanner(); }
+  const again = () => banner(S.banner.msg, S.banner.actions); // いま出している案内のまま、確認の状態だけ変えて描く
+  if (e.target.closest("[data-orphan-clear]")) { S.pendingOrphan = true; again(); }
+  if (e.target.closest("[data-orphan-cancel]")) { S.pendingOrphan = false; again(); }
   if (e.target.closest("[data-orphan-ok]")) {
     S.pendingOrphan = false;
     const n = S.data.orphanSessions?.length ?? 0;
     apply((d) => removeOrphanSessions(d), `共有ファイルに無いタスクの作業枠 ${n} 件を削除しました`);
-    refreshBanner();
+    if (!sync.failed) refreshBanner(); else again();
   }
 });
 
