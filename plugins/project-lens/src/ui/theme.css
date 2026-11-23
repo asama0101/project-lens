@@ -464,12 +464,13 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 #view .thstrip:empty{display:none}
 #view .thstrip .thin{display:flex;white-space:nowrap}
 #view .thstrip .thc{flex:none;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;font-size:13px;color:var(--muted);text-align:left}
-/* ページの先頭でも、固定の行が、固定したときと同じ位置にあるようにする（スクロールの始めに、固定の行が数 px 動かない）。ヘッダーの上の余白（body の 8px。ヘッダーの負の margin で上端 0）は、依頼の帯の節の body の規則で、どの画面にも当てる。下は、ガント・リスト（.ptool がある画面）の、ヘッダーとフィルタ行の間・カードの上の余白 */
-.wrap:has(.ptool){gap:0}
+/* ページの先頭でも、固定の行が、固定したときと同じ位置にあるようにする（スクロールの始めに、固定の行が数 px 動かない）。ヘッダーの上の余白（body の 8px。ヘッダーの負の margin で上端 0）は、依頼の帯の節の body の規則で、どの画面にも当てる。下は、ガント・リスト（.ptool がある画面）とスケジュール（.stop がある画面）の、ヘッダーとフィルタ行・カードの間と、カードの上の余白 */
+.wrap:has(.ptool),.wrap:has(.stop){gap:0}
 #banner:not(:empty){margin-block:8px}
-#view section.panel:has(> .gtop),#view section.panel:has(> .pstick){padding-top:0} /* カードの上の余白は、固定の行の中に持たせる（先頭でも固定したときと同じ位置にしつつ、カードの上端の線・角丸・余白は残す） */
+#view section.panel:has(> .gtop),#view section.panel:has(> .pstick),#view section.panel:has(> .stop){padding-top:0} /* カードの上の余白は、固定の行の中に持たせる（先頭でも固定したときと同じ位置にしつつ、カードの上端の線・角丸・余白は残す） */
 #view section.panel > .pstick{padding-top:20px}
 #view section.panel > .gtop{padding-top:22px}
+#view section.panel > .stop{padding-top:16px}
 #view .cols>.side,#view .side-toggle{margin-top:8px}
 /* チェックリストの進み具合（細い線と「済み/全体」）。今日の優先・今日のタスク・ガントのラベルが使う */
 #view .ck-meter{display:flex;align-items:center;gap:6px}
@@ -532,7 +533,7 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 #view .tedit .tp-a{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 #view .tedit .ckedit,#view .tedit .tp-wide{flex-basis:100%}
 #view .tedit .tp-wide{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted)}
-/* スケジュールは、ページを下へスクロールしても、日付の見出しより上を動かさない: ヘッダーの下に、操作の行とサマリー（.stop）・カレンダーの上の入力欄（会議・突発タスク・タスクの編集欄。#mtgslot）・週表示の日付の見出しを積んで固定する（高さは sticky.js が測る）。
+/* スケジュールは、ページを下へスクロールしても、日付の見出しより上を動かさない: ページの先頭でも同じ位置にあるよう、カードの上の余白は .stop の padding に持たせる（ページの先頭の節）。ヘッダーの下に、操作の行とサマリー（.stop）・カレンダーの上の入力欄（会議・突発タスク・タスクの編集欄。#mtgslot）・週表示の日付の見出しを積んで固定する（高さは sticky.js が測る）。
    入力欄は、積んだ高さが画面の 55% を超えないよう（下端の依頼の帯があっても、カレンダーに約 40% 残す）、高いときは欄の中でスクロールする */
 #view .stop{position:sticky;top:var(--hh,0px);z-index:9;background:var(--surface);display:flow-root}
 #view .stop>.toolbar{margin-bottom:10px}

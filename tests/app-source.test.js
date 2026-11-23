@@ -295,9 +295,9 @@ test("theme.css: ヘッダーは、どの画面でも、ページの先頭で固
   assert.ok(css.includes("header.top{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;margin-block:-8px 0}"));
   assert.ok(!css.includes("body:has(.ptool)"), "画面ごとに余白を変えない");
   for (const rule of [
-    ".wrap:has(.ptool){gap:0}",
+    ".wrap:has(.ptool),.wrap:has(.stop){gap:0}",
     "#banner:not(:empty){margin-block:8px}",
-    "#view section.panel:has(> .gtop),#view section.panel:has(> .pstick){padding-top:0}",
+    "#view section.panel:has(> .gtop),#view section.panel:has(> .pstick),#view section.panel:has(> .stop){padding-top:0}",
     "#view section.panel > .pstick{padding-top:20px}",
     "#view section.panel > .gtop{padding-top:22px}",
     "#view .cols>.side,#view .side-toggle{margin-top:8px}",
@@ -650,4 +650,12 @@ test("theme.css: プロジェクトの稼働の札（.mono.hrs）の塗りは、
 test("app.js: スケジュールから届く通知（今日のタスクの「実績にする」・状態の変更・待ち先・タスクの削除・定例の次回）は、タスクの ID でなく件名で言う", () => {
   for (const bad of ["${r.taskId} の ${s.start}", "${id} の状態を ${status}", "${id} を Waiting にしました", "${id} を削除しました", "次回 ${sp.id}"]) assert.ok(!src.includes(bad), bad);
   assert.ok(src.includes("taskTitle("), "件名を引く");
+});
+
+test("theme.css: スケジュールも、ガント・リストと同じく、ページの先頭で、固定の段（操作の行 .stop・入力欄・日付の見出し・右の列）が固定したときと同じ位置にある（ヘッダーとの間を詰め、カードの上の余白は .stop の中に持たせる）", () => {
+  for (const rule of [
+    ".wrap:has(.ptool),.wrap:has(.stop){gap:0}",
+    "#view section.panel:has(> .gtop),#view section.panel:has(> .pstick),#view section.panel:has(> .stop){padding-top:0}",
+    "#view section.panel > .stop{padding-top:16px}",
+  ]) assert.ok(css.includes(rule), rule);
 });
