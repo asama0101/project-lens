@@ -12,19 +12,19 @@ body{margin:0}
   --bg:#F0F3F7; --surface:#FFFFFF; --ink:#16202E; --muted:#5A6678; --line:#D6DDE8; --line-soft:#E8ECF3;
   --accent:#0B6E8A; --accent-soft:#DCEEF4; --pre:#C2670A; --next:#2E7D32;
   --ok:#2E7D5B; --warn:#B26B00; --warn-soft:#FBEBD0; --bad:#C23A3A; --bad-soft:#F9DEDE;
-  --todo:#8794A8; --meeting:#EBE4F7; --meeting-ink:#43346F; --meeting-edge:#7B5CC4; --free:#E9F4EC; --today-col:#FFF8E1; --on-accent:#FFFFFF;
+  --todo:#8794A8; --meeting:#EBE4F7; --meeting-ink:#43346F; --meeting-edge:#7B5CC4; --free:#E9F4EC; --on-accent:#FFFFFF;
   --f-body:"BIZ UDPGothic","Yu Gothic UI","Meiryo",sans-serif; --f-mono:ui-monospace,Consolas,monospace;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#0E1520; --surface:#162030; --ink:#E5EBF3; --muted:#9AA7B9; --line:#2A3850; --line-soft:#1F2C40;
   --accent:#55B8D4; --accent-soft:#17323D; --pre:#E8963F; --next:#6CC070;
   --ok:#5CC08F; --warn:#E3A94B; --warn-soft:#3A2D14; --bad:#EE7B7B; --bad-soft:#3B1D1F;
-  --todo:#7B889C; --meeting:#2D2548; --meeting-ink:#D3C9F0; --meeting-edge:#9C84E0; --free:#14301F; --today-col:#262414; --on-accent:#0E1520; color-scheme:dark}}
+  --todo:#7B889C; --meeting:#2D2548; --meeting-ink:#D3C9F0; --meeting-edge:#9C84E0; --free:#14301F; --on-accent:#0E1520; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0E1520; --surface:#162030; --ink:#E5EBF3; --muted:#9AA7B9; --line:#2A3850; --line-soft:#1F2C40;
   --accent:#55B8D4; --accent-soft:#17323D; --pre:#E8963F; --next:#6CC070;
   --ok:#5CC08F; --warn:#E3A94B; --warn-soft:#3A2D14; --bad:#EE7B7B; --bad-soft:#3B1D1F;
-  --todo:#7B889C; --meeting:#2D2548; --meeting-ink:#D3C9F0; --meeting-edge:#9C84E0; --free:#14301F; --today-col:#262414; --on-accent:#0E1520; color-scheme:dark}
+  --todo:#7B889C; --meeting:#2D2548; --meeting-ink:#D3C9F0; --meeting-edge:#9C84E0; --free:#14301F; --on-accent:#0E1520; color-scheme:dark}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.6;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 40px}
 *{box-sizing:border-box}
@@ -132,7 +132,7 @@ button.free:hover,button.free:focus-visible{background:var(--accent-soft);border
 .week .dh small{display:block;color:var(--muted);font-size:11px}
 .week .dh.t{color:var(--accent);font-weight:700}
 .week .col{position:relative;border-left:1px solid var(--line-soft);height:var(--calh)}
-.week .col.today{background:var(--today-col);box-shadow:inset 0 3px 0 var(--accent)} /* 予定の枠（--accent-soft）と見分けるため、別の色 */
+.week .col.today{box-shadow:inset 0 3px 0 var(--accent)} /* 今日の列は、日付の見出しとこの線だけで示す（背景色は付けない） */
 .week .col.weekend{background:var(--line-soft);opacity:.55}
 .week .hrs{position:relative;height:var(--calh)}
 .week .blk{left:3px;right:3px;font-size:11px}

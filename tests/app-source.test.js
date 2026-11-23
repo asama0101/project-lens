@@ -444,11 +444,11 @@ test("app.js・theme.css: ヘッダーの「＋ 突発タスク」は、塗り�
   assert.equal(css.split("--on-accent:").length - 1, 3, "明るい配色と、暗い配色の 2 か所");
 });
 
-test("theme.css: 週表示の今日の列は、予定の枠（--accent-soft）と違う色にする", () => {
+test("theme.css: 週表示の今日の列は背景色を持たず、上端の線（--accent）だけで示す", () => {
   const rule = (sel) => css.slice(css.indexOf(sel + "{"), css.indexOf("}", css.indexOf(sel + "{")));
   const today = rule(".week .col.today");
-  assert.ok(!today.includes("--accent-soft") && today.includes("var(--today-col)"), today);
-  assert.equal(css.split("--today-col:").length - 1, 3);
+  assert.ok(!today.includes("background") && today.includes("inset 0 3px 0 var(--accent)"), today);
+  assert.ok(!css.includes("--today-col"));
 });
 
 test("theme.css: 週表示の空き時間のボタンは、押すまで透明。hover・フォーカスで日表示と同じ色", () => {
