@@ -1,0 +1,80 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { splitData, mergeData, removeOrphanSessions, emptyPersonal, checkSharedShape, checkPersonalShape } from "../plugins/project-lens/src/core/split.js";
+import { moveToProject } from "../plugins/project-lens/src/ui/edit.js";
+
+const sample = () => JSON.parse(readFileSync(new URL("../plugins/project-lens/data/sample.json", import.meta.url), "utf8"));
+
+test("(a) sample を分けて結合すると元に戻る（入力は変えない）", () => {
+  const d = sample();
+  const copy = structuredClone(d);
+  const { shared, personal } = splitData(d);
+  assert.deepEqual(d, copy);
+  assert.deepEqual(mergeData(shared, personal), d);
+});
+
+test("(b) shared のタスクに sessions が無い。personal の枠は taskId を持つ", () => {
+  const { shared, personal } = splitData(sample());
+  assert.ok(shared.tasks.every((t) => !("sessions" in t)));
+  assert.ok(personal.sessions.length > 0 && personal.sessions.every((s) => s.taskId));
+  assert.ok(!("events" in shared) && !("inbox" in shared));
+});
+
+test("(c) 設定の振り分け", () => {
+  const d = { ...sample(), settings: { workday: { start: "09:00", end: "18:00" }, holidays: ["2026-12-30"], selfNames: ["a"], nationalHolidays: ["2026-01-01"], projectRules: [], reportShowMeetingTitles: true, waitingLongDays: 7 } };
+  const { shared, personal } = splitData(d);
+  assert.deepEqual(Object.keys(personal.settings).sort(), ["holidays", "selfNames", "workday"]);
+  assert.deepEqual(Object.keys(shared.settings).sort(), ["nationalHolidays", "projectRules", "reportShowMeetingTitles", "waitingLongDays"]);
+});
+
+test("(d) 共有に無い taskId の枠は orphanSessions に入る", () => {
+  const { shared, personal } = splitData(sample());
+  personal.sessions.push({ id: "X1", date: "2026-10-14", start: "09:00", end: "10:00", kind: "plan", taskId: "NOPE" });
+  const m = mergeData(shared, personal);
+  assert.deepEqual(m.orphanSessions.map((s) => s.id), ["X1"]);
+  assert.equal(m.orphanSessions[0].taskId, "NOPE");
+  assert.ok(m.tasks.every((t) => !t.sessions.some((s) => s.id === "X1")));
+});
+
+test("(e) orphanSessions を持つデータも、分けて結合しても消えない", () => {
+  const d = { ...sample(), orphanSessions: [{ id: "O1", date: "2026-10-14", start: "09:00", end: "10:00", kind: "plan", taskId: "GONE" }] };
+  const { shared, personal } = splitData(d);
+  assert.ok(personal.sessions.some((s) => s.id === "O1"));
+  assert.deepEqual(mergeData(shared, personal).orphanSessions.map((s) => s.id), ["O1"]);
+});
+
+test("(f) removeOrphanSessions は空にして、ほかを変えない", () => {
+  const d = { ...sample(), orphanSessions: [{ id: "O1", taskId: "GONE" }] };
+  const copy = structuredClone(d);
+  const r = removeOrphanSessions(d);
+  assert.deepEqual(r.orphanSessions, []);
+  assert.deepEqual({ ...r, orphanSessions: copy.orphanSessions }, copy);
+  assert.deepEqual(d, copy);
+});
+
+test("(g) 形の検査と emptyPersonal", () => {
+  assert.throws(() => checkSharedShape({}), /data\.jsonのデータの形が違います（projects がありません）/);
+  assert.throws(() => checkPersonalShape({ sessions: [] }), /personal\.json.*events/);
+  assert.doesNotThrow(() => checkPersonalShape(emptyPersonal()));
+  const { shared, personal } = splitData(sample());
+  assert.doesNotThrow(() => checkSharedShape(shared));
+  assert.doesNotThrow(() => checkPersonalShape(personal));
+});
+
+test("inbox が無ければ personal.inbox も作らない", () => {
+  const d = sample();
+  delete d.inbox;
+  assert.ok(!("inbox" in splitData(d).personal));
+});
+
+test("(h) moveToProject のあとも、枠はタスクに結びついたまま", () => {
+  const d = sample();
+  const t = d.tasks.find((x) => x.sessions?.length && !(x.predecessors ?? []).length && !d.tasks.some((y) => (y.predecessors ?? []).includes(x.id)));
+  const to = d.projects.find((p) => p.id !== t.projectId).id;
+  const moved = moveToProject(d, t.id, to);
+  const { shared, personal } = splitData(moved);
+  const back = mergeData(shared, personal);
+  assert.deepEqual(back.tasks.find((x) => x.id === t.id).sessions, t.sessions);
+  assert.deepEqual(back, moved);
+});

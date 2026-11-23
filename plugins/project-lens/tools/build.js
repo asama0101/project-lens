@@ -22,6 +22,7 @@ export const MODULES = [
   "src/core/workload.js",
   "src/core/groups.js",
   "src/core/inbox.js",
+  "src/core/split.js",
   "src/ui/store.js",
   "src/ui/sync.js",
   "src/ui/prefs.js",
