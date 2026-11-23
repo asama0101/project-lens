@@ -5141,8 +5141,15 @@ view.addEventListener("focusout", (e) => {
   changeSetting(e.target);
 });
 // 読み直しで待たせた描き直しは、入力が確定した（onChange のあと）・フォーカスが移り終わったあとに行う
-view.addEventListener("change", () => setTimeout(() => sync.flush(), 0));
-view.addEventListener("focusout", () => setTimeout(() => sync.flush(), 0));
+// マウスを押している間はしない（押したボタンが描き直しで作り直されると、離したときのクリックが届かない）。離したあと（click の処理のあと）に行う
+let pressing = false, pressTimer = null;
+const flushSoon = () => setTimeout(() => { if (!pressing) sync.flush(); }, 0);
+const release = () => { if (!pressing) return; pressing = false; clearTimeout(pressTimer); flushSoon(); };
+document.addEventListener("pointerdown", () => { pressing = true; clearTimeout(pressTimer); pressTimer = setTimeout(release, 3000); }, true); // 離した知らせが来ないときも、待たせた描き直しを失わない
+document.addEventListener("pointerup", release, true);
+document.addEventListener("pointercancel", release, true);
+view.addEventListener("change", flushSoon);
+view.addEventListener("focusout", flushSoon);
 
 function onChange(el) {
   const { date: today } = clock();

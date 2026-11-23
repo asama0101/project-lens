@@ -510,9 +510,16 @@ test("app.js: 読み直しの描き直しを、打ちかけの入力の間は待
   assert.match(src, /createSync\(\{[\s\S]{0,400}isEditing[,\s}]/, "createSync に isEditing を渡す");
   const render = src.slice(src.indexOf("function render() {"), src.indexOf("function render() {") + 300);
   assert.match(render, /sync\.rendered\(\)/, "ほかの理由の描き直しで、待たせた描き直しを捨てる");
-  assert.match(src, /view\.addEventListener\("focusout", [^\n]*setTimeout\(\(\) => sync\.flush\(\), 0\)/, "フォーカスが移り終わってから flush");
-  assert.match(src, /view\.addEventListener\("change", [^\n]*setTimeout\(\(\) => sync\.flush\(\), 0\)/, "change の処理（setTimeout）のあとで flush");
-  assert.ok(src.indexOf('view.addEventListener("change", (e) => { const el = e.target; setTimeout(() => onChange(el), 0); });') < src.indexOf("setTimeout(() => sync.flush(), 0)"), "onChange の登録が先（同じ change で onChange のあとに flush が走る）");
+  assert.match(src, /const flushSoon = \(\) => setTimeout\(\(\) => \{ if \(!pressing\) sync\.flush\(\); \}, 0\);/, "setTimeout で、change の処理・フォーカスの移動のあとに flush。押している間はしない");
+  assert.match(src, /view\.addEventListener\("focusout", flushSoon\)/, "フォーカスが移り終わってから flush");
+  assert.match(src, /view\.addEventListener\("change", flushSoon\)/, "change の処理（setTimeout）のあとで flush");
+  assert.ok(src.indexOf('view.addEventListener("change", (e) => { const el = e.target; setTimeout(() => onChange(el), 0); });') < src.indexOf('view.addEventListener("change", flushSoon)'), "onChange の登録が先（同じ change で onChange のあとに flush が走る）");
+  // マウスで押したボタンを、描き直しで消さない（押す → change・focusout → 描き直し → 離す、だとクリックが届かない）。離したあと（click の処理のあと）に flush
+  assert.match(src, /document\.addEventListener\("pointerdown", [^\n]*pressing = true[^\n]*, true\)/);
+  assert.match(src, /document\.addEventListener\("pointerup", release, true\)/);
+  assert.match(src, /document\.addEventListener\("pointercancel", release, true\)/);
+  assert.match(src, /const release = \(\) => \{ if \(!pressing\) return; pressing = false;[^\n]*flushSoon\(\); \};/);
+  assert.match(src, /pointerdown[^\n]*setTimeout\(release, \d+\)/, "離した知らせが来なくても、待たせた描き直しを失わない");
   const onChange = src.slice(src.indexOf("function onChange(el) {"), src.indexOf("function onChange(el) {") + 1500);
   assert.match(onChange, /el\.dataset\.ug !== undefined[^\n]*S\.urgentDraft = \{ \.\.\.S\.urgentDraft/, "突発タスクの欄は change で下書きへ");
   assert.match(src, /if \(d\.ug\) return q\("data-ug", d\.ug\)/, "欄を移ったときの描き直しでも、フォーカスを保つ");
