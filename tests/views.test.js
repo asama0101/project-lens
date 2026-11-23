@@ -1565,6 +1565,7 @@ test("renderCalendar: 重要で未完了のタスクの枠に imp、期限の行
     const blk = (id) => html.match(new RegExp(`<div class="blk task [^"]*"[^>]*data-dragsess="${id}"`))[0];
     assert.match(blk("S10"), /class="blk task plan imp /, `${view}: 重要の枠は imp（予定の class は残る）`);
     assert.doesNotMatch(blk("S11"), /\bimp\b/, `${view}: Done の枠には付けない`);
+    assert.match(html, /data-dragsess="S10"[^>]*><span class="tm">[^<]*<\/span><span class="ttl">/, `${view}: 件名は span.ttl に入り、時刻 .tm の外にある`);
   }
   const wk = renderSchedule(d, TODAY, { view: "week", date: TODAY, now: NOW });
   assert.ok(wk.includes(`<span class="impt">${A7.title}</span>`), "期限の行の件名に impt");

@@ -14,7 +14,7 @@ test("重要: important: true は error なし。false・文字列は error。�
   const ok = load();
   task(ok, ok.tasks[0].id).important = true;
   assert.deepEqual(v(ok).errors, []);
-  for (const bad of [false, "true"]) {
+  for (const bad of [false, "true", 1]) {
     const d = load();
     task(d, d.tasks[0].id).important = bad;
     assert.ok(hit(v(d).errors, "重要 (important) は true にするか、項目を消してください"), String(bad));

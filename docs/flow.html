@@ -255,7 +255,7 @@
     <div class="case">「予定表を取り込んで」と頼んだだけ → 起動しない（<code>intake</code> は <code>disable-model-invocation: true</code>。<code>/project-lens:intake calendar</code> と実行する）<small class="src">skills/intake/SKILL.md</small></div>
     <div class="case">エージェントが <code>node</code> を見つけられない → <code>node</code> が見つからないときは、Node.js 24 以上の導入（<code>winget</code>）を案内する（未確認: 実際に <code>node</code> が無い環境では動かしていない）。<small class="src">skills/intake/SKILL.md 始める前の確認 4</small></div>
   </div></div>
-  <div class="note">書き込みは、すべて取り込みのスクリプトが行い、検証に通ったときだけ書く。Claude はデータファイルを直接書き換えない。重要度（高）は、取り込みでは推定しない。<small class="src">agents/intake.md 共通のルール / tools/cli.js save</small></div>
+  <div class="note">書き込みは、すべて取り込みのスクリプトが行い、検証に通ったときだけ書く。Claude はデータファイルを直接書き換えない。重要は、取り込まない（取り込んだあとに画面で付ける）。<small class="src">agents/intake.md 共通のルール / tools/cli.js save</small></div>
 </div>
 
 <h3 id="f3a">3-a. Excel の作業一覧（<code>wbs</code>）</h3>
@@ -303,7 +303,7 @@
   <div class="cell s"><code>wbs-plan</code>（読み取りだけ）: 既存のタスクと照合して、追加／更新（旧→新）／変更なし／作業一覧に無い既存（削除しない）／弾いた行と理由／警告を返す。照合は「大項目/中項目/件名」の鍵で行い、鍵のない手入力のタスクは、同じ件名が 1 つだけなら同じものとみなす。弾いた行の既存タスクは、「作業一覧に無い既存」に入れない。前のタスクが循環になる指定は設定せず、警告に出す。変更案の指紋（<code>planKey</code>）も返す。<small class="src">src/import/wbs.js planWbsImport / tools/intake.js wbs-plan</small></div>
 
   <div class="branch"><p class="bt">変更案での弾き・警告</p><div class="flow">
-    <div class="case">弾く（理由を付けて <code>rejected</code> に出す）: 件名がない、期限・開始日が日付の形でない、状態が 4 つ以外、状態が「待ち」（待ち先が要るので作業一覧からは設定できない）、重要度が「高」以外、項目名が重複する、新しい項目なのに期限がない<small class="src">src/import/wbs.js rowProblem・planWbsImport</small></div>
+    <div class="case">弾く（理由を付けて <code>rejected</code> に出す）: 件名がない、期限・開始日が日付の形でない、状態が 4 つ以外、状態が「待ち」（待ち先が要るので作業一覧からは設定できない）、項目名が重複する、新しい項目なのに期限がない<small class="src">src/import/wbs.js rowProblem・planWbsImport</small></div>
     <div class="case">警告: 前のタスクの名前が見つからない（その前のタスクだけ付けない）<span class="tag warn">注意</span></div>
     <div class="case">作業一覧から消えた既存のタスクは、削除せず一覧で知らせる</div>
   </div></div>
@@ -478,7 +478,7 @@
 
 <!-- ============================================================ -->
 <h2 id="f5">5. 画面からの依頼（画面下端の帯「Claude Code に依頼する」）</h2>
-<p class="lead">日程の見直し（期限の変更）・タスクの登録を、文章で依頼する（受ける操作は <code>addTask</code> と <code>moveDue</code> の 2 種類だけ。状態・重要度・削除・プロジェクトやマイルストーンの変更などは画面で行う）。Claude は「提案」を作るところまでで、反映はあなたが承認したときに画面（または端末の承認）が行う。承認するまで、タスクの日程・前のタスク・一覧は変わらない。</p>
+<p class="lead">日程の見直し（期限の変更）・タスクの登録を、文章で依頼する（受ける操作は <code>addTask</code> と <code>moveDue</code> の 2 種類だけ。状態・重要・削除・プロジェクトやマイルストーンの変更などは画面で行う）。Claude は「提案」を作るところまでで、反映はあなたが承認したときに画面（または端末の承認）が行う。承認するまで、タスクの日程・前のタスク・一覧は変わらない。</p>
 
 <h3>5-a. 依頼を送る</h3>
 <div class="flow">
@@ -528,7 +528,7 @@
     <div class="cell u">画面の帯に「聞き返しがあります」と出る。返信欄に答えて「返信する」を押す → 状態が「送信済み」に戻り、Claude にもう一度届く。<small class="src">inboxpanel.js detailHtml question / src/core/inbox.js replyToRequest</small></div>
     <div class="cell c"><code>ask</code> を実行して、この依頼の処理を終える。<span class="tag stop">端末で止まらない</span>。<small class="src">agents/inbox.md 手順 4</small></div>
     <div class="cell s"><span class="tag write">書き込み</span><code>ask</code>: 状態を「聞き返し」にし、質問をやりとりに足す。<small class="src">tools/inbox.js ask / src/core/inbox.js askQuestion</small></div>
-    <div class="case">画面で行う操作（状態・重要度の変更、削除、プロジェクトやマイルストーンの変更、前のタスクの付け外し、チェックリストの項目の変更）→ <code>ask</code> で「この依頼は画面で行ってください」と返し、提案は作らない<small class="src">agents/inbox.md 手順 3</small></div>
+    <div class="case">画面で行う操作（状態・重要の変更、削除、プロジェクトやマイルストーンの変更、前のタスクの付け外し、チェックリストの項目の変更）→ <code>ask</code> で「この依頼は画面で行ってください」と返し、提案は作らない<small class="src">agents/inbox.md 手順 3</small></div>
     <div class="case">対象外（会議の追加・削除、Excel・予定表・規則の取り込み）→ <code>fail</code> で「できない旨と、代わりの方法（<code>/project-lens:intake</code>）」を返す<small class="src">agents/inbox.md 手順 5</small></div>
     <div class="n"></div>
     <div class="cell u">帯に「失敗」と理由が出る。</div>
