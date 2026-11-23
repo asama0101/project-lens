@@ -12,7 +12,7 @@ const S = {
   sview: "week", sdate: clock().date, selSess: null, selMtg: null, mtgDraft: null, urgentDraft: null, taskEdit: null,
   prefs: loadPrefs(), settingsClosed: loadSettingsClosed(), tpop: null, addAt: null, last: null, ruleError: "",
   ib: { open: false, text: loadInboxDraft(), projectId: "", replies: {}, reasons: {}, causes: {} },
-  wperiod: "week", wdate: clock().date,
+  wperiod: "day", wdate: clock().date,
 };
 const $ = (id) => document.getElementById(id);
 const view = $("view");

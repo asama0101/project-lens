@@ -100,3 +100,10 @@ test("shiftWorkloadDate: 日は1日、週は7日、月は1か月（年またぎ�
   assert.equal(shiftWorkloadDate("month", "2026-01-31", -1), "2025-12-01");
   assert.equal(shiftWorkloadDate("month", "2026-03-31", 1), "2026-04-01");
 });
+
+test("renderWorkload: 期間を渡さないときは日（今日）。app.js の初期値も日", () => {
+  const html = renderWorkload(mk(), D, { now: NOW });
+  assert.ok(html.includes('data-wperiod="day" aria-pressed="true"') && html.includes("2026/10/20(火)"));
+  const app = readFileSync(new URL("../plugins/project-lens/src/ui/app.js", import.meta.url), "utf8");
+  assert.match(app, /wperiod: "day", wdate: clock\(\)\.date/);
+});

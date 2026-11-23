@@ -11,7 +11,7 @@ const h = (v) => `${v.toFixed(1)}h`;
  * @param opts.now    {date, time} 未確認の件数を数えるための現在時刻
  */
 export function renderWorkload(data, today, opts = {}) {
-  const { period = "week", date = today, now } = opts;
+  const { period = "day", date = today, now } = opts;
   const range = periodRange(period, date);
   const w = workload(data, range, now);
   const [y, m] = date.split("-").map(Number);
