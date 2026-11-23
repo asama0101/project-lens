@@ -86,7 +86,7 @@ test("日付形式の不正・プロジェクト開始>期限・枠の不正は�
   const c = load(); task(c, "AA-0005").sessions[0].end = "12:00";
   assert.ok(hit(v(c).errors, "S1"));
   const e = load(); task(e, "AB-0002").sessions[0] = { id: "S4", date: "2026-10-14", start: "14:00", end: "16:00", kind: "actual" };
-  assert.ok(hit(v(e).errors, "重な"));
+  assert.ok(hit(v(e).warnings, "重な"), "実績どうしの重なりは注意（保存は止めない）");
 });
 
 test("警告: Waiting で待ち先なし／終了済みで未来の予定／start>due（前のタスクがあっても start は有効で、無視の警告は出ない）", () => {
@@ -425,4 +425,19 @@ test("共有ファイルに無いタスクの作業枠(orphanSessions): あれ�
     if (none) e.orphanSessions = none;
     assert.ok(!hit(v(e).warnings, "共有ファイルに無いタスクの作業枠"));
   }
+});
+
+test("作業枠の running: 実績の枠に true だけ。ほかの値・予定の枠は error。実績を含む枠の重なりは注意（warning）、予定どうしは error", () => {
+  const base = () => { const d = load(); d.tasks.find((t) => t.id === "AA-0004").sessions = [{ id: "S50", date: "2026-10-20", start: "10:00", end: "10:15", kind: "actual", running: true }]; return d; };
+  assert.deepEqual(v(base()).errors, []);
+  for (const [kind, running] of [["actual", false], ["actual", "true"], ["planned", true]]) {
+    const d = base(); Object.assign(d.tasks.find((t) => t.id === "AA-0004").sessions[0], { kind, running });
+    assert.ok(v(d).errors.some((e) => e.includes("running")), `${kind} ${running}`);
+  }
+  const ov = base(); ov.tasks.find((t) => t.id === "AA-0005").sessions.push({ id: "S51", date: "2026-10-20", start: "10:05", end: "11:00", kind: "planned" });
+  assert.deepEqual(v(ov).errors, []);
+  assert.ok(v(ov).warnings.some((w) => w.includes("S50") && w.includes("S51")));
+  const pp = base(); pp.tasks.find((t) => t.id === "AA-0004").sessions[0] = { id: "S50", date: "2026-10-20", start: "10:00", end: "10:30", kind: "planned" };
+  pp.tasks.find((t) => t.id === "AA-0005").sessions.push({ id: "S51", date: "2026-10-20", start: "10:05", end: "11:00", kind: "planned" });
+  assert.ok(v(pp).errors.some((e) => e.includes("S50") && e.includes("S51")));
 });

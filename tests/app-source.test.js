@@ -93,7 +93,7 @@ test("app.js: 「参加しない会議」のボタン（data-sskip）は showSki
 test("schedule.js: ブロックの時刻は esc して出す（toMin が先に検証するが、描画側でも守る）", () => {
   const sc = readFileSync(new URL("../plugins/project-lens/src/ui/views/schedule.js", import.meta.url), "utf8");
   assert.match(sc, /\$\{esc\(m\.start\)\}-\$\{esc\(m\.end\)\}/);
-  assert.match(sc, /\$\{esc\(s\.start\)\}-\$\{esc\(s\.end\)\}/);
+  assert.match(sc, /\$\{esc\(s\.start\)\}-\$\{esc\(end\)\}/);
 });
 
 test("app.js: 営業日の指定の追加は、入力欄の値を先に取り出してから edit に入れる（保存の競合で当て直されても日付が空にならない）。終了日を入れたら同じ日でも期間として扱う", () => {
@@ -568,4 +568,13 @@ test("app.js: 今日のタスクの「開始」「終了」は、clock() の時�
   const b = src.slice(src.indexOf('q("[data-rec-end]")'), src.indexOf('q("[data-rec-end]")') + 700);
   assert.ok(b.includes("stopActual(d, id, now)") && b.includes("の実績を終了しました"), b);
   assert.match(src, /renderProjects\(S\.data, today, \{[^}]*now: clock\(\)/);
+});
+
+test("app.js: 「開始」で Waiting の待ち先を外したときは、通知でそう言う", () => {
+  const a = src.slice(src.indexOf('q("[data-rec-start]")'), src.indexOf('q("[data-rec-start]")') + 700);
+  assert.ok(a.includes("r.clearedWaiting") && a.includes("待ち先の記録は外しました"), a);
+});
+
+test("theme.css: 作業枠・会議のブロックは、短い枠（1 分など）でも 14px の高さで描く（#view の中だけ）", () => {
+  assert.ok(css.includes("#view .cal .blk{min-height:14px}"));
 });

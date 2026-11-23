@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { sessionKind, addSession, moveSession, resizeSession, confirmSession, removeSession, taskActual, futurePlanned, runningPlanned, runningActual } from "../plugins/project-lens/src/core/sessions.js";
+import { sessionKind, addSession, moveSession, resizeSession, confirmSession, removeSession, taskActual, futurePlanned, runningPlanned, runningActual, shownEnd, countedEnd } from "../plugins/project-lens/src/core/sessions.js";
 
 const load = () => JSON.parse(readFileSync(new URL("../plugins/project-lens/data/sample.json", import.meta.url), "utf8"));
 const NOW = { date: "2026-10-20", time: "12:00" }; // 火曜
@@ -111,7 +111,7 @@ test("実績の枠を未来へ動かす・延ばすと予定に戻る（I3）", 
   // 10/20 09:00-10:00 の実績を 14:00 まで延ばす（現在 12:00 より後）
   const d2 = load(); d2.tasks.find((t) => t.id === "AA-0004").sessions.push({ id: "S9", date: "2026-10-20", start: "09:00", end: "10:00", kind: "actual" });
   d2.events = [];
-  assert.equal(sess(resizeSession(d2, "S9", "14:00", NOW).data, "S9").kind, "planned");
+  assert.equal(sess(resizeSession(d2, "S9", "14:00", NOW).data, "S9").kind, "actual", "開始が過去なら、終了が未来でも実績のまま");
   assert.equal(sess(resizeSession(d2, "S9", "11:00", NOW).data, "S9").kind, "actual");
 });
 
@@ -206,18 +206,44 @@ test("resizeSession: 会議と重なると warning を返す（moveSession と�
   assert.equal(resizeSession(d, "SX", "09:45", NOW0).warning, undefined);
 });
 
-test("runningActual: 今日のこのタスクの実績の枠のうち開始が最も遅いもので、開始 ≦ 今 < 終了なら、その枠（実行中）。それ以外は null", () => {
+test("runningActual: 今日の、このタスクの running: true の実績の枠。終了の時刻は見ない。前の日の running は無視する", () => {
   const d = load();
   const T = task(d, "AA-0004");
   const now = (time) => ({ date: "2026-10-20", time });
   assert.equal(runningActual(d, "AA-0004", now("10:15")), null, "枠が無い");
   T.sessions.push({ id: "S20", date: "2026-10-20", start: "08:00", end: "09:00", kind: "actual" });
-  T.sessions.push({ id: "S21", date: "2026-10-20", start: "10:00", end: "13:00", kind: "actual" });
-  T.sessions.push({ id: "S22", date: "2026-10-20", start: "15:00", end: "16:00", kind: "planned" });
-  assert.equal(runningActual(d, "AA-0004", now("10:15")).id, "S21");
-  assert.equal(runningActual(d, "AA-0004", now("13:00")), null, "終了の時刻になったら実行中でない");
-  assert.equal(runningActual(d, "AA-0004", now("08:30")), null, "開始が最も遅い実績の枠だけを見る（まだ始まっていない）");
-  assert.equal(runningActual(d, "AA-0004", { date: "2026-10-21", time: "10:15" }), null, "今日の枠だけ");
-  assert.equal(runningActual(d, "AA-0004", now("15:30")), null, "予定の枠は実行中にならない");
-  assert.equal(runningActual(d, "ZZ-9999", now("10:15")), null, "タスクが無いときも null");
+  assert.equal(runningActual(d, "AA-0004", now("08:30")), null, "running の無い実績は実行中でない");
+  T.sessions.push({ id: "S21", date: "2026-10-20", start: "10:00", end: "10:15", kind: "actual", running: true });
+  assert.equal(runningActual(d, "AA-0004", now("10:05")).id, "S21");
+  assert.equal(runningActual(d, "AA-0004", now("17:00")).id, "S21", "保存した終了を過ぎても実行中");
+  assert.equal(runningActual(d, "AA-0004", { date: "2026-10-21", time: "10:15" }), null, "前の日の running は無視");
+  assert.equal(runningActual(d, "ZZ-9999", now("10:15")), null);
+});
+
+test("shownEnd・countedEnd: 実行中の枠の終了は、表示は max(保存した終了, 今を 15 分に切り上げ)（23:59 まで）、稼働は max(保存した終了, 今)。前の日・running なしは保存した終了", () => {
+  const s = { date: "2026-10-20", start: "10:00", end: "10:15", kind: "actual", running: true };
+  const now = (time) => ({ date: "2026-10-20", time });
+  assert.equal(shownEnd(s, now("10:05")), "10:15");
+  assert.equal(shownEnd(s, now("11:01")), "11:15");
+  assert.equal(shownEnd(s, now("23:50")), "23:59");
+  assert.equal(countedEnd(s, now("11:01")), "11:01");
+  assert.equal(countedEnd(s, now("10:05")), "10:15");
+  assert.equal(countedEnd(s, { date: "2026-10-21", time: "11:00" }), "10:15", "前の日の running は保存した終了");
+  assert.equal(shownEnd({ ...s, running: undefined }, now("11:01")), "10:15");
+  assert.equal(countedEnd(s, undefined), "10:15", "now が無いときは保存した終了");
+});
+
+test("moveSession・resizeSession: 実績の枠は、開始が未来にならない限り実績のまま（終了が未来でも）。実行中の枠は動かせない（前の日の running は動かせ、印を外す）", () => {
+  const d = load();
+  task(d, "AA-0004").sessions.push({ id: "S9", date: "2026-10-20", start: "09:00", end: "10:00", kind: "actual" });
+  d.events = [];
+  assert.equal(sess(resizeSession(d, "S9", "14:00", NOW).data, "S9").kind, "actual", "終了が未来でも実績");
+  assert.equal(sess(moveSession(d, "S9", { date: "2026-10-20", start: "11:30" }, NOW).data, "S9").kind, "actual", "開始が今より前なら実績");
+  assert.equal(sess(moveSession(d, "S9", { date: "2026-10-20", start: "12:30" }, NOW).data, "S9").kind, "planned", "開始が未来なら予定");
+  task(d, "AA-0004").sessions.push({ id: "S8", date: "2026-10-20", start: "07:00", end: "07:15", kind: "actual", running: true });
+  assert.match(resizeSession(d, "S8", "08:00", NOW).error, /実行中の枠は動かせません。「終了」を押してから直してください/);
+  assert.match(moveSession(d, "S8", { date: "2026-10-20", start: "06:00" }, NOW).error, /実行中の枠は動かせません/);
+  const stale = resizeSession(d, "S8", "08:00", { date: "2026-10-21", time: "09:00" });
+  assert.equal(stale.error, undefined);
+  assert.ok(!("running" in sess(stale.data, "S8")), "前の日の running は、動かすと外す");
 });

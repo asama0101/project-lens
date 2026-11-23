@@ -1,20 +1,21 @@
 // 稼働の集計（純関数）: 実績の作業枠（タスク）と、確認済みで参加する会議の時間をプロジェクト別に集める。
 import { addDays, toMin, weekday } from "./dates.js";
-import { sessionKind } from "./sessions.js";
+import { sessionKind, countedEnd } from "./sessions.js";
 import { meetingKind } from "./schedule.js";
 
 export const hours = (x) => (toMin(x.end) - toMin(x.start)) / 60;
 const inRange = (d, r) => !r || (d >= r.start && d <= r.end);
 const sumBy = (list, f) => list.reduce((a, x) => a + f(x), 0);
 
-const actualSessions = (data, range) =>
-  data.tasks.flatMap((t) => (t.sessions ?? []).filter((s) => s.kind === "actual" && inRange(s.date, range)).map((s) => ({ ...s, projectId: t.projectId })));
+/** 実績の作業枠。今日の実行中の枠は、終了を今まで伸ばして数える（countedEnd） */
+const actualSessions = (data, range, now) =>
+  data.tasks.flatMap((t) => (t.sessions ?? []).filter((s) => s.kind === "actual" && inRange(s.date, range)).map((s) => ({ ...s, end: countedEnd(s, now), projectId: t.projectId })));
 const countedMeetings = (data, range) => data.events.filter((m) => m.confirmed === true && !m.skip && inRange(m.date, range));
 
-/** 全期間の、プロジェクトの稼働時間（h）: タスク（実績の作業枠）と会議（確認済み・参加するもの） */
-export function projectHours(data, projectId) {
+/** 全期間の、プロジェクトの稼働時間（h）: タスク（実績の作業枠。now があれば、実行中の枠は今まで）と会議（確認済み・参加するもの） */
+export function projectHours(data, projectId, now) {
   return {
-    task: sumBy(actualSessions(data).filter((s) => s.projectId === projectId), hours),
+    task: sumBy(actualSessions(data, undefined, now).filter((s) => s.projectId === projectId), hours),
     meeting: sumBy(countedMeetings(data).filter((m) => m.projectId === projectId), hours),
   };
 }
@@ -25,7 +26,7 @@ export function projectHours(data, projectId) {
  */
 export function workload(data, range, now) {
   const ids = new Set(data.projects.map((p) => p.id));
-  const sessions = actualSessions(data, range);
+  const sessions = actualSessions(data, range, now);
   const meetings = countedMeetings(data, range);
   const rows = data.projects.map((p) => {
     const task = sumBy(sessions.filter((s) => s.projectId === p.id), hours);

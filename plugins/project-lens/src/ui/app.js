@@ -572,13 +572,13 @@ view.addEventListener("click", (e) => {
   const rs = q("[data-rec-start]");
   if (rs) {
     const id = rs.dataset.recStart; let r;
-    if (apply((d) => { r = startActual(d, id, now); return r.data; }, null)) toast(`${id} の実績を開始しました（${now.time}）${r.warning ? `(${r.warning})` : ""}`);
+    if (apply((d) => { r = startActual(d, id, now); return r.data; }, null)) toast(`${id} の実績を開始しました（${now.time}）${r.clearedWaiting ? "（待ち先の記録は外しました）" : ""}${r.warning ? `(${r.warning})` : ""}`);
     return;
   }
   const re = q("[data-rec-end]");
   if (re) {
     const id = re.dataset.recEnd; let r;
-    if (apply((d) => { r = stopActual(d, id, now); return r.data; }, null)) toast(`${id} の実績を終了しました（${r.start}〜${r.end}・${r.minutes} 分）`);
+    if (apply((d) => { r = stopActual(d, id, now); return r.data; }, null)) toast(`${id} の実績を終了しました（${r.start}〜${r.end}・${r.minutes} 分）${r.warning ? `(${r.warning})` : ""}`);
     return;
   }
   const sv = q("[data-sview]"); if (sv) { S.sview = sv.dataset.sview; render(); return; }

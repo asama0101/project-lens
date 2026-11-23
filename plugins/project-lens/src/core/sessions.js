@@ -44,6 +44,13 @@ const mapSessions = (data, id, fn) => ({
   tasks: data.tasks.map((t) => ((t.sessions ?? []).some((s) => s.id === id) ? { ...t, sessions: t.sessions.map((s) => (s.id === id ? fn(s) : s)) } : t)),
 });
 
+const startsLater = (slot, now) => slot.date > now.date || (slot.date === now.date && slot.start > now.time);
+/** 今日の実行中の枠（running: true）。前の日の running は、終了し忘れた印として扱わない */
+const runningToday = (s, now) => s.running === true && s.kind === "actual" && !!now && s.date === now.date;
+const RUNNING_FIXED = "実行中の枠は動かせません。「終了」を押してから直してください";
+/** 動かしたら、前の日に残った running の印を外す（今日の実行中の枠は、そもそも動かせない） */
+const dropRunning = (s) => { if (!("running" in s)) return s; const { running, ...rest } = s; void running; return rest; };
+
 /** 新しい枠は、過去の時間に置いても予定（planned）。過ぎた予定は未確認として出て、確認（confirmSession）で実績になる */
 export function addSession(data, taskId, slot) {
   if (!data.tasks.some((t) => t.id === taskId)) return { data, error: `タスク ${taskId} がありません` };
@@ -57,23 +64,25 @@ export function addSession(data, taskId, slot) {
 export function moveSession(data, sessionId, slot, now) {
   const cur = findSession(data, sessionId);
   if (!cur) return { data, error: `枠 ${sessionId} がありません` };
+  if (runningToday(cur, now)) return { data, error: RUNNING_FIXED };
   const len = toMin(cur.end) - toMin(cur.start);
   const next = { date: slot.date, start: slot.start, end: toHHMM(toMin(slot.start) + len) };
   if (toMin(slot.start) + len > LAST_END) return { data, error: `終了は ${toHHMM(LAST_END)} までにしてください` };
   const r = check(data, next, sessionId);
   if (r.error) return { data, error: r.error };
-  // 実績の枠を未来へ動かしたら予定に戻す（未来の枠は実績にできない）
-  const kind = cur.kind === "actual" && !isPast(next, now) ? "planned" : cur.kind;
-  return { data: mapSessions(data, sessionId, (s) => ({ ...s, ...next, kind })), ...(r.warning && { warning: r.warning }) };
+  // 実績の枠は、開始が未来になったときだけ予定に戻す（終了が未来でも、始めた枠は実績のまま）
+  const kind = cur.kind === "actual" && startsLater(next, now) ? "planned" : cur.kind;
+  return { data: mapSessions(data, sessionId, (s) => dropRunning({ ...s, ...next, kind })), ...(r.warning && { warning: r.warning }) };
 }
 
 export function resizeSession(data, sessionId, end, now) {
   const cur = findSession(data, sessionId);
   if (!cur) return { data, error: `枠 ${sessionId} がありません` };
+  if (runningToday(cur, now)) return { data, error: RUNNING_FIXED };
   const r = check(data, { date: cur.date, start: cur.start, end }, sessionId);
   if (r.error) return { data, error: r.error };
-  const kind = cur.kind === "actual" && !isPast({ date: cur.date, end }, now) ? "planned" : cur.kind;
-  return { data: mapSessions(data, sessionId, (s) => ({ ...s, end, kind })), ...(r.warning && { warning: r.warning }) };
+  const kind = cur.kind === "actual" && startsLater(cur, now) ? "planned" : cur.kind;
+  return { data: mapSessions(data, sessionId, (s) => dropRunning({ ...s, end, kind })), ...(r.warning && { warning: r.warning }) };
 }
 
 export function confirmSession(data, sessionId, now) {
@@ -95,13 +104,63 @@ export function taskActual(data, taskId) {
 }
 
 /**
- * 実行中の実績の枠（今日のタスクの「開始」で作り、「終了」で終える枠）。今日の、このタスクの実績の枠のうち開始が最も遅いもので、
- * 開始 ≦ 今 < 終了のときだけ、その枠を返す（ほかは null）。実行中かどうかはデータに持たず、時刻から決める
+ * 実行中の実績の枠（今日のタスクの「開始」で作り、「終了」で終える枠）: このタスクの、今日の日付の running: true の実績の枠（無ければ null）。
+ * 保存した終了は仮の値（短い）で、実行中かどうかには使わない。前の日に残った running は、実行中にしない
  */
 export function runningActual(data, taskId, now) {
   const t = data.tasks.find((x) => x.id === taskId);
-  const last = (t?.sessions ?? []).filter((s) => s.kind === "actual" && s.date === now.date).sort((a, b) => a.start.localeCompare(b.start)).at(-1);
-  return last && last.start <= now.time && now.time < last.end ? last : null;
+  return (t?.sessions ?? []).filter((s) => runningToday(s, now)).at(-1) ?? null;
+}
+
+/** カレンダーに描く終了: 今日の実行中の枠は、保存した終了と、今を 15 分に切り上げた時刻の遅いほう（23:59 まで）。ほかは保存した終了 */
+export function shownEnd(s, now) {
+  if (!runningToday(s, now)) return s.end;
+  return toHHMM(Math.max(toMin(s.end), Math.min(Math.ceil(toMin(now.time) / MIN_LEN) * MIN_LEN, LAST_END)));
+}
+
+/** 稼働に数える終了: 今日の実行中の枠は、保存した終了と今の遅いほう（終了し忘れても、今までしか数えない）。ほかは保存した終了 */
+export const countedEnd = (s, now) => (runningToday(s, now) && now.time > s.end ? now.time : s.end);
+
+/** 枠 [start, end) と重なる、ほかの枠・参加する会議の注意の文（無ければ undefined） */
+function overlapWarning(data, slot, ignoreId) {
+  const other = allSessions(data).find((x) => x.id !== ignoreId && clash(x, slot));
+  if (other) return `他の枠（${other.start}〜${other.end}）と重なっています`;
+  const mtg = data.events.find((m) => !m.skip && clash(m, slot));
+  return mtg ? `会議「${mtg.title}」（${mtg.start}〜${mtg.end}）と重なっています` : undefined;
+}
+
+/**
+ * 「開始」の枠を作る（状態は変えない。edit.js の startActual が使う）。今の時刻（23:58 より後は 23:58）から、running: true の実績の枠。
+ * 仮の終了は 15 分後。ほかの枠・会議がそれより早く始まるなら、その開始まで（最短 1 分）。今の時刻にほかの枠・会議がある（同じ分に始まるを含む）ときは 1 分にして warning。
+ * 後ろの予定では失敗しない。このタスクの予定の枠が今にかかる・15 分以内に始まるなら、その枠を実行中の実績にする（開始を今に）。
+ * Error を返すのは、すでに実行中・休みの日・タスクが無いとき
+ */
+export function startRunning(data, taskId, now) {
+  const t = data.tasks.find((x) => x.id === taskId);
+  if (!t) return { data, error: `タスク ${taskId} がありません` };
+  if (runningActual(data, taskId, now)) return { data, error: `${taskId} の実績は、すでに開始しています` };
+  if (offDayChecker(data.settings)(now.date)) return { data, error: "休みの日には、実績を開始できません（設定タブの「営業日として扱う日」に指定すると開始できます）" };
+  const st = Math.min(toMin(now.time), LAST_END - 1);
+  const own = (t.sessions ?? []).find((s) => s.kind === "planned" && s.date === now.date && toMin(s.start) <= st + MIN_LEN && st < toMin(s.end));
+  const busy = [...allSessions(data).filter((x) => x.id !== own?.id), ...data.events.filter((m) => !m.skip)].filter((x) => x.date === now.date);
+  const now0 = busy.find((x) => toMin(x.start) <= st && st < toMin(x.end));
+  const later = busy.map((x) => toMin(x.start)).filter((m) => m > st);
+  const end = now0 ? st + 1 : Math.min(st + MIN_LEN, LAST_END, ...later);
+  const slot = { date: now.date, start: toHHMM(st), end: toHHMM(end) };
+  const id = own?.id ?? nextId(data);
+  const s = { ...(own ?? { id }), ...slot, kind: "actual", running: true };
+  const next = own ? mapSessions(data, id, () => s) : withTask(data, taskId, (x) => ({ ...x, sessions: [...(x.sessions ?? []), s] }));
+  const warning = overlapWarning(data, slot, own?.id);
+  return { data: next, sessionId: id, ...(warning && { warning }) };
+}
+
+/** 「終了」: 実行中の枠の終了を今（今が開始以前なら開始の 1 分後）にして、running を外す。重なりは warning だけ */
+export function stopRunning(data, taskId, now) {
+  const cur = runningActual(data, taskId, now);
+  if (!cur) return { data, error: `${taskId} に、実行中の実績の枠がありません` };
+  const end = now.time > cur.start ? now.time : toHHMM(toMin(cur.start) + 1);
+  const warning = overlapWarning(data, { date: cur.date, start: cur.start, end }, cur.id);
+  return { data: mapSessions(data, cur.id, (s) => dropRunning({ ...s, end })), start: cur.start, end, minutes: toMin(end) - toMin(cur.start), ...(warning && { warning }) };
 }
 
 /** 進行中（開始済みで未終了）の予定枠の ID。タスクを完了にしても残す枠（futurePlanned に含めない） */

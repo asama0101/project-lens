@@ -692,14 +692,17 @@ test("todayTaskIds・renderTodayTasks: 今日に枠があるタスクだけを�
 
 test("renderTodayTasks: 実行中の実績の枠（runningActual）があるタスクは「終了」、無ければ「開始」。now は opts.now（スケジュール・プロジェクトの右の列も渡す）", () => {
   const { d } = withToday();
-  d.tasks.find((t) => t.id === "AA-0007").sessions.push({ id: "S13", date: TODAY, start: "10:00", end: "13:00", kind: "actual" });
+  d.tasks.find((t) => t.id === "AA-0007").sessions.push({ id: "S13", date: TODAY, start: "10:00", end: "10:15", kind: "actual", running: true });
   const at = (time) => items(renderTodayTasks(d, TODAY, { now: { date: TODAY, time } })).find((x) => x.id === "AA-0007").html;
   assert.ok(at("10:15").includes('data-rec-end="AA-0007"') && !at("10:15").includes("data-rec-start"), "実行中は「終了」だけ");
   assert.ok(at("10:15").includes(">終了</button>"));
-  assert.ok(at("13:00").includes('data-rec-start="AA-0007"') && at("13:00").includes(">開始</button>"), "終了の時刻を過ぎたら「開始」");
+  assert.ok(at("13:00").includes('data-rec-end="AA-0007"'), "保存した終了を過ぎても、終了するまで「終了」");
+  assert.ok(items(renderTodayTasks(d, "2026-10-21", { now: { date: "2026-10-21", time: "10:15" } })).every((x) => !x.html.includes("data-rec-end")), "前の日の running には「終了」を出さない");
   const side = (html) => items(html).find((x) => x.id === "AA-0007").html;
   assert.ok(side(sched(d, { now: { date: TODAY, time: "10:15" } })).includes("data-rec-end"), "スケジュールの右の列");
   assert.ok(side(renderProjects(d, TODAY, { filter: "all", view: "list", now: { date: TODAY, time: "10:15" } })).includes("data-rec-end"), "プロジェクト画面の右の列");
+  delete d.tasks.find((t) => t.id === "AA-0007").sessions.at(-1).running;
+  assert.ok(at("10:05").includes('data-rec-start="AA-0007"') && at("10:05").includes(">開始</button>"), "running の無い実績の枠なら「開始」");
 });
 
 test("renderTodayTasks: 複数の枠は時間を並べる。pendingDone の行にだけ確認（data-doneok / data-doneno）を出す", () => {
@@ -1677,4 +1680,17 @@ test("orphanSessions の枠は、カレンダー・優先度・稼働に描か�
   assert.ok(!renderSchedule(d, TODAY, { view: "week", date: TODAY, now: NOW }).includes("SX1"));
   assert.equal(renderPrio(d, TODAY, { now: NOW }), renderPrio(base, TODAY, { now: NOW }));
   assert.equal(renderWorkload(d, TODAY, { now: NOW }), renderWorkload(base, TODAY, { now: NOW }));
+});
+
+test("renderSchedule: 実行中（running）の枠は「▶ 実行中」を出し、終了は今を 15 分に切り上げた位置まで伸ばして描く。前の日の running は印なし", () => {
+  const d = load();
+  d.tasks.find((t) => t.id === "AA-0004").sessions.push({ id: "S60", date: TODAY, start: "09:00", end: "09:15", kind: "actual", running: true });
+  d.tasks.find((t) => t.id === "AA-0004").sessions.push({ id: "S61", date: "2026-10-19", start: "09:00", end: "09:15", kind: "actual", running: true });
+  const day = sched(d, { now: { date: TODAY, time: "11:01" }, showPrio: false });
+  const blk = day.match(/<div class="blk task[^"]*"[^>]*data-dragsess="S60"[\s\S]*?<\/div>/)[0];
+  assert.ok(blk.includes("09:00-11:15") && blk.includes("▶ 実行中"), blk);
+  assert.ok(blk.includes(`height:calc(${(((11 * 60 + 15 - 9 * 60) / 1440) * 100).toFixed(3)}% - 2px)`), "11:15 まで伸ばして描く");
+  const prev = renderSchedule(d, TODAY, { view: "day", date: "2026-10-19", now: { date: TODAY, time: "11:01" }, showPrio: false });
+  const pb = prev.match(/<div class="blk task[^"]*"[^>]*data-dragsess="S61"[\s\S]*?<\/div>/)[0];
+  assert.ok(pb.includes("09:00-09:15") && !pb.includes("実行中"));
 });

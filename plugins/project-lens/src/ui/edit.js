@@ -3,7 +3,7 @@ import { addDays, diffDays, isDate, isWeekend, toMin, toHHMM, nowLocal } from ".
 import { calendarOf } from "../core/holidays.js";
 import { taskStart } from "../core/metrics.js";
 import { groupSections } from "../core/groups.js";
-import { addSession, allSessions, runningActual, LAST_END } from "../core/sessions.js";
+import { addSession, startRunning, stopRunning } from "../core/sessions.js";
 import { nextChecklistId } from "../core/checklist.js";
 import { isRepeat, nextRepeatDue } from "../core/repeat.js";
 import { HOLIDAY_KINDS } from "../core/schema.js";
@@ -383,35 +383,20 @@ export function addUrgentTask(data, { title, projectId, date, start, minutes }) 
   return { data: r.data, id: t.id, ...(r.warning && { warning: r.warning }) };
 }
 
-/**
- * 今日のタスクの「開始」: 今の時刻（分）から、このタスクの実績の枠を作り、To Do・Waiting なら In Progress にする（updateTask の規則で、待ち先は外れる）。
- * 今の時刻にかかる、このタスクの予定の枠があれば、その枠を実績にして開始を今にする（終了は予定のまま）。無ければ新しい実績の枠を作る。
- * 実行中（runningActual）の目印は「終了が今より後」なので、新しい枠の終了は仮に、その日の次の枠・会議（参加しないものを除く）の開始か 23:59 の早いほう（最短 15 分）にする。
- * 置けないとき（ほかの枠との重なり・休みの日・23:59 を超える）と、すでに実行中のときは Error
- */
+/** 今日のタスクの「開始」: 実行中の実績の枠を作り（core/sessions.js の startRunning）、To Do・Waiting なら In Progress にする（updateTask の規則で、Waiting の待ち先は外れる。clearedWaiting で返す）。作れないときは Error */
 export function startActual(data, taskId, now) {
-  if (runningActual(data, taskId, now)) throw new Error(`${taskId} の実績は、すでに開始しています`);
-  const toActual = (d, sid, patch) => ({ ...d, tasks: d.tasks.map((t) => (t.id === taskId ? { ...t, sessions: t.sessions.map((s) => (s.id === sid ? { ...s, ...patch, kind: "actual" } : s)) } : t)) });
-  const inProgress = (d) => (["To Do", "Waiting"].includes(d.tasks.find((t) => t.id === taskId).status) ? updateTask(d, taskId, { status: "In Progress" }, now.date) : d);
-  // 今の時刻にかかる、このタスクの予定の枠があれば、新しい枠を作らず、その枠を実績にして開始を今にする（予定どおりに始めた、の形）
-  const own = (data.tasks.find((t) => t.id === taskId)?.sessions ?? []).find((s) => s.kind === "planned" && s.date === now.date && s.start <= now.time && now.time < s.end);
-  if (own) return { data: inProgress(toActual(data, own.id, { start: now.time })), sessionId: own.id };
-  const st = toMin(now.time);
-  const next = [...allSessions(data), ...(data.events ?? []).filter((m) => !m.skip)].filter((x) => x.date === now.date && toMin(x.start) > st).map((x) => toMin(x.start));
-  const end = Math.max(st + 15, Math.min(LAST_END, ...next));
-  const r = addSession(data, taskId, { date: now.date, start: now.time, end: toHHMM(end) }); // 23:59 を超える終了（24:00 以降）は、addSession が「終了は 23:59 まで」のエラーにする
+  const r = startRunning(data, taskId, now);
   if (r.error) throw new Error(r.error);
-  const sessionId = r.data.tasks.find((t) => t.id === taskId).sessions.at(-1).id;
-  return { data: inProgress(toActual(r.data, sessionId, {})), sessionId, ...(r.warning && { warning: r.warning }) };
+  const status = data.tasks.find((t) => t.id === taskId).status;
+  const next = status === "To Do" || status === "Waiting" ? updateTask(r.data, taskId, { status: "In Progress" }, now.date) : r.data;
+  return { data: next, sessionId: r.sessionId, clearedWaiting: status === "Waiting", ...(r.warning && { warning: r.warning }) };
 }
 
-/** 今日のタスクの「終了」: 実行中の実績の枠の終了を、今の時刻（分）にする。状態は変えない（完了は状態の欄で選ぶ）。実行中が無い・開始と同じ時刻は Error */
+/** 今日のタスクの「終了」: 実行中の枠の終了を今にする（stopRunning）。状態は変えない（完了は状態の欄で選ぶ）。実行中が無ければ Error */
 export function stopActual(data, taskId, now) {
-  const cur = runningActual(data, taskId, now);
-  if (!cur) throw new Error(`${taskId} に、実行中の実績の枠がありません`);
-  if (now.time <= cur.start) throw new Error("開始と同じ時刻には終了できません（1 分以上たってから押してください）");
-  const tasks = data.tasks.map((t) => (t.id === taskId ? { ...t, sessions: t.sessions.map((s) => (s.id === cur.id ? { ...s, end: now.time } : s)) } : t));
-  return { data: { ...data, tasks }, start: cur.start, end: now.time, minutes: toMin(now.time) - toMin(cur.start) };
+  const r = stopRunning(data, taskId, now);
+  if (r.error) throw new Error(r.error);
+  return r;
 }
 
 export function addTask(data, task) {

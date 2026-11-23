@@ -149,6 +149,7 @@ export function validate(data, now = nowLocal()) {
       if (!isDate(s.date) || !isTime(s.start) || !isTime(s.end)) { err(`${label}: 日付または時刻の形式が不正です`); continue; }
       if (toMin(s.end) <= toMin(s.start)) err(`${label}: 終了が開始以前です`);
       if (!["planned", "actual"].includes(s.kind)) err(`${label}: 不明な kind "${s.kind}"`);
+      if (s.running !== undefined && !(s.running === true && s.kind === "actual")) err(`${label}: running（実行中の印）は、実績の枠に true だけにしてください`);
       const notStarted = s.date > now.date || (s.date === now.date && s.start > now.time); // 進行中の枠は、完了にしても残す（futurePlanned）
       if (isClosed(t) && s.kind === "planned" && notStarted) warn(`タスク ${t.id}: ${t.status} なのに未来の予定枠 ${s.id} が残っています`);
     }
@@ -169,7 +170,10 @@ export function validate(data, now = nowLocal()) {
   for (const [date, list] of byDay) {
     for (let i = 0; i < list.length; i++) {
       for (let j = i + 1; j < list.length; j++) {
-        if (overlap(list[i], list[j])) err(`枠 ${list[i].id} と ${list[j].id} が重なっています (${date})`);
+        if (!overlap(list[i], list[j])) continue;
+        // 実績を含む重なりは注意だけ（実際にした時間の記録は、予定の枠と重なりうる。「開始」「終了」は重なっても枠を作る）
+        if (list[i].kind === "actual" || list[j].kind === "actual") warn(`枠 ${list[i].id} と ${list[j].id} が重なっています (${date})。実績を含むので、保存はします`);
+        else err(`枠 ${list[i].id} と ${list[j].id} が重なっています (${date})`);
       }
     }
   }
