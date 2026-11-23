@@ -64,18 +64,18 @@ export function moveSession(data, sessionId, slot, now) {
   if (toMin(slot.start) + len > LAST_END) return { data, error: `終了は ${toHHMM(LAST_END)} までにしてください` };
   const r = check(data, next, sessionId);
   if (r.error) return { data, error: r.error };
-  // 実績の枠は、開始が未来になったときだけ予定に戻す（終了が未来でも、始めた枠は実績のまま）
-  const kind = cur.kind === "actual" && startsLater(next, now) ? "planned" : cur.kind;
+  // 実績の枠は、開始が過去・今から未来へ動いたときだけ予定に戻す（終了が未来でも、始めた枠は実績のまま。先に実績にした未来の枠は、未来の中で動かしても実績のまま）
+  const kind = cur.kind === "actual" && !startsLater(cur, now) && startsLater(next, now) ? "planned" : cur.kind;
   return { data: mapSessions(data, sessionId, (s) => ({ ...s, ...next, kind })), ...(r.warning && { warning: r.warning }) };
 }
 
+/** 終了を変える。開始は変わらないので、種別（予定・実績）も変えない（now は使わない。呼び出し側との形をそろえて残す） */
 export function resizeSession(data, sessionId, end, now) {
   const cur = findSession(data, sessionId);
   if (!cur) return { data, error: `枠 ${sessionId} がありません` };
   const r = check(data, { date: cur.date, start: cur.start, end }, sessionId);
   if (r.error) return { data, error: r.error };
-  const kind = cur.kind === "actual" && startsLater(cur, now) ? "planned" : cur.kind;
-  return { data: mapSessions(data, sessionId, (s) => ({ ...s, end, kind })), ...(r.warning && { warning: r.warning }) };
+  return { data: mapSessions(data, sessionId, (s) => ({ ...s, end })), ...(r.warning && { warning: r.warning }) };
 }
 
 /** 予定の枠を実績にする。今日のまだ終わっていない枠も実績にできる（今日のタスクの「実績にする」）。明日以降の枠は error */

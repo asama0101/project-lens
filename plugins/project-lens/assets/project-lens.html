@@ -91,10 +91,8 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 .rank .act{display:inline-block;font-size:11px;padding:0 6px;border-radius:4px;background:var(--warn-soft);color:var(--warn);margin-right:6px}
 .rank li[data-dragtask]{cursor:grab;border-radius:6px}
 .rank .t .pill{vertical-align:1px}
-.rank .bb{display:flex;flex-direction:row;gap:6px;flex-wrap:wrap}
-.rank .bb .btn{padding:0 10px;font-size:12px}
 .rank.tl li{grid-template-columns:minmax(0,1fr)}
-.rank.tl .pj,.rank.tl .why,.rank.tl .bb,.rank.tl .ask{grid-column:1}
+.rank.tl .pj,.rank.tl .why,.rank.tl .ask{grid-column:1}
 .rank li.closed{opacity:.55}
 .blk .stt{font-size:11px;opacity:.85;margin-left:4px}
 /* テーブル */
@@ -170,7 +168,7 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 .tscroll{overflow-x:auto}
 /* 列見出しは、スクロール中も上端に付ける。リストは、表を包む枠の先頭の複製で固定する（下の「固定表示」の節）。設定・稼働の表は、sticky が効かないので、app.js の pinTableHeads が見出しのセルをずらす */
 .tbl.edit thead th{position:relative;z-index:2;background:var(--surface);box-shadow:inset 0 -1px 0 var(--line)}
-.hrs{background:var(--accent-soft);color:var(--ink);border-radius:4px;padding:0 8px}
+.mono.hrs{background:var(--accent-soft);color:var(--ink);border-radius:4px;padding:0 8px}
 .wl-tbl .num{text-align:right;white-space:nowrap}
 .wl-tbl tfoot td{font-weight:700;border-top:1px solid var(--line)}
 .wl-bar{display:flex;height:12px;min-width:2px}
@@ -637,11 +635,13 @@ function isDate(s) {
 }
 
 /**
- * 画面の日付の欄に打った文字 → YYYY-MM-DD。2026/10/20・2026-10-20・2026.10.20・20261020・2026/1/5 と、全角の数字・記号、前後や間の空白を受ける。
- * 実在しない日・年が 4 桁でない・空は null
+ * 画面の日付の欄に打った文字 → YYYY-MM-DD。2026/10/20・2026-10-20・2026.10.20・20261020・2026/1/5・2026年10月20日 と、全角の数字、
+ * 日本語入力で出る区切り（・ ー ‐ − – — 。 ． 、 ， など）、前後や間の空白を受ける。区切りは数字の組の間だけ。実在しない日・年が 4 桁でない・空は null
  */
 function parseDateInput(text) {
-  const s = String(text ?? "").replace(/[０-９／－．]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0)).replace(/\s+/g, "");
+  const s = String(text ?? "").replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0)).replace(/\s+/g, "")
+    .replace(/^(\d{4})年(\d{1,2})月(\d{1,2})日?$/, "$1/$2/$3")
+    .replace(/[／－．・ー‐‑−–—。､、，,]/g, "/");
   const m = /^(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})$/.exec(s) ?? /^(\d{4})(\d{2})(\d{2})$/.exec(s);
   if (!m) return null;
   const iso = `${m[1]}-${pad(+m[2])}-${pad(+m[3])}`;
@@ -1286,18 +1286,18 @@ function moveSession(data, sessionId, slot, now) {
   if (toMin(slot.start) + len > LAST_END) return { data, error: `終了は ${toHHMM(LAST_END)} までにしてください` };
   const r = check(data, next, sessionId);
   if (r.error) return { data, error: r.error };
-  // 実績の枠は、開始が未来になったときだけ予定に戻す（終了が未来でも、始めた枠は実績のまま）
-  const kind = cur.kind === "actual" && startsLater(next, now) ? "planned" : cur.kind;
+  // 実績の枠は、開始が過去・今から未来へ動いたときだけ予定に戻す（終了が未来でも、始めた枠は実績のまま。先に実績にした未来の枠は、未来の中で動かしても実績のまま）
+  const kind = cur.kind === "actual" && !startsLater(cur, now) && startsLater(next, now) ? "planned" : cur.kind;
   return { data: mapSessions(data, sessionId, (s) => ({ ...s, ...next, kind })), ...(r.warning && { warning: r.warning }) };
 }
 
+/** 終了を変える。開始は変わらないので、種別（予定・実績）も変えない（now は使わない。呼び出し側との形をそろえて残す） */
 function resizeSession(data, sessionId, end, now) {
   const cur = findSession(data, sessionId);
   if (!cur) return { data, error: `枠 ${sessionId} がありません` };
   const r = check(data, { date: cur.date, start: cur.start, end }, sessionId);
   if (r.error) return { data, error: r.error };
-  const kind = cur.kind === "actual" && startsLater(cur, now) ? "planned" : cur.kind;
-  return { data: mapSessions(data, sessionId, (s) => ({ ...s, end, kind })), ...(r.warning && { warning: r.warning }) };
+  return { data: mapSessions(data, sessionId, (s) => ({ ...s, end })), ...(r.warning && { warning: r.warning }) };
 }
 
 /** 予定の枠を実績にする。今日のまだ終わっていない枠も実績にできる（今日のタスクの「実績にする」）。明日以降の枠は error */
@@ -4143,7 +4143,7 @@ return { statusCellHtml, renderProjects };
 })();
 
 /* src/ui/views/schedule.js */
-const { snapStart, weekStartOf, calendarGeometry, urgentDefaultStart, urgentInput, urgentForm, renderCalendar, renderSchedule } = (() => {
+const { snapStart, selectionKey, revealSelection, weekStartOf, calendarGeometry, urgentDefaultStart, urgentInput, urgentForm, renderCalendar, renderSchedule } = (() => {
 // スケジュール画面（週／日）。位置と高さは 1 日（00:00〜24:00）に対する % で表し、カレンダーの高さは CSS で決める。
 
 
@@ -4166,6 +4166,11 @@ function snapStart(minutes, durationMin) {
   const last = Math.floor((LAST_END - durationMin) / SLOT_STEP) * SLOT_STEP;
   return Math.max(0, Math.min(Math.round(minutes / SLOT_STEP) * SLOT_STEP, last));
 }
+
+/** 選んだ枠と編集欄（タスク・詳細の開閉・削除の確認）の状態の鍵。選んでいなければ null */
+const selectionKey = (selSess, taskEdit) => (selSess ? `${selSess}|${taskEdit?.id ?? ""}|${taskEdit?.full ? 1 : 0}|${taskEdit?.askDel ? 1 : 0}` : null);
+/** 選んだ枠を見える位置へ出すか: 選択か編集欄が、この描き直しで開いた・変わったときだけ（同じ選択のままの描き直しでは、ページを動かさない） */
+const revealSelection = (prevKey, key) => key != null && key !== prevKey;
 
 const weekStartOf = (d) => addDays(d, -((weekday(d) + 6) % 7));
 
@@ -4336,7 +4341,7 @@ function renderSchedule(data, today, opts) {
 }
 
 
-return { snapStart, weekStartOf, calendarGeometry, urgentDefaultStart, urgentInput, urgentForm, renderCalendar, renderSchedule };
+return { snapStart, selectionKey, revealSelection, weekStartOf, calendarGeometry, urgentDefaultStart, urgentInput, urgentForm, renderCalendar, renderSchedule };
 })();
 
 /* src/ui/sticky.js */
@@ -4544,6 +4549,7 @@ function drawAllDeps() {
   drawDeps(bodies);
 }
 
+let lastSelKey = null; // 前の描き直しの選択の鍵（selectionKey）
 function render() {
   hideTip();
   sync.rendered(); // 読み直しで待たせた描き直しは、この描き直しで済む
@@ -4590,7 +4596,10 @@ function render() {
   syncSticky();
   if (reset && S.screen === "schedule") scrollToMorning();
   else if (calTop != null && !reset && S.screen === "schedule") { const nt = view.querySelector("#calslot")?.getBoundingClientRect().top; if (nt != null) window.scrollBy(0, nt - calTop); }
-  if (S.screen === "schedule" && S.selSess) { const b = view.querySelector(".blk.sel")?.getBoundingClientRect(), top = stackBottom(); if (b && b.top < top) window.scrollBy(0, b.top - top - 8); } // 固定の段（編集欄など）が高くなって、選んだ枠が隠れたら、その下へ出す
+  // 枠を選んだ・編集欄が変わった描き直しで、固定の段（編集欄など）が高くなって、選んだ枠が隠れたら、その下へ出す（同じ選択のままの描き直しでは動かさない）
+  const selKey = S.screen === "schedule" ? selectionKey(S.selSess, S.taskEdit) : null;
+  if (revealSelection(lastSelKey, selKey)) { const b = view.querySelector(".blk.sel")?.getBoundingClientRect(), top = stackBottom(); if (b && b.top < top) window.scrollBy(0, b.top - top - 8); }
+  lastSelKey = selKey;
   drawAllDeps();
   placeTaskPop();
   if (S.hlId) {

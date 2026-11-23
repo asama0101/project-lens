@@ -21,6 +21,11 @@ export function snapStart(minutes, durationMin) {
   return Math.max(0, Math.min(Math.round(minutes / SLOT_STEP) * SLOT_STEP, last));
 }
 
+/** 選んだ枠と編集欄（タスク・詳細の開閉・削除の確認）の状態の鍵。選んでいなければ null */
+export const selectionKey = (selSess, taskEdit) => (selSess ? `${selSess}|${taskEdit?.id ?? ""}|${taskEdit?.full ? 1 : 0}|${taskEdit?.askDel ? 1 : 0}` : null);
+/** 選んだ枠を見える位置へ出すか: 選択か編集欄が、この描き直しで開いた・変わったときだけ（同じ選択のままの描き直しでは、ページを動かさない） */
+export const revealSelection = (prevKey, key) => key != null && key !== prevKey;
+
 export const weekStartOf = (d) => addDays(d, -((weekday(d) + 6) % 7));
 
 /** 時間の軸（00:00〜24:00 の固定）→ 位置計算（すべて % ） */

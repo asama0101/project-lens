@@ -597,7 +597,9 @@ test("sticky.js・theme.css: スケジュールは、ヘッダー・操作の行
 
 test("app.js: 枠を選んで固定の段（編集欄など）が高くなり、選んだ枠が段の下に隠れたら、その下へページを動かす（stackBottom は --hh・--stop-h・--slot-h・--dh-h の和）", () => {
   const r = src.slice(src.indexOf("function render() {"), src.indexOf("function render() {") + 5000);
-  assert.ok(r.includes('if (S.screen === "schedule" && S.selSess) { const b = view.querySelector(".blk.sel")?.getBoundingClientRect(), top = stackBottom(); if (b && b.top < top) window.scrollBy(0, b.top - top - 8); }'));
+  assert.ok(r.includes('const selKey = S.screen === "schedule" ? selectionKey(S.selSess, S.taskEdit) : null;'), r);
+  assert.ok(r.includes('if (revealSelection(lastSelKey, selKey)) { const b = view.querySelector(".blk.sel")?.getBoundingClientRect(), top = stackBottom(); if (b && b.top < top) window.scrollBy(0, b.top - top - 8); }'), "選択・編集欄が変わった描き直しだけ");
+  assert.ok(r.includes("lastSelKey = selKey;"));
   const fn = src.slice(src.indexOf("function stackBottom()"), src.indexOf("function stackBottom()") + 400);
   for (const k of ["--hh", "--stop-h", "--slot-h", "--dh-h"]) assert.ok(fn.includes(`"${k}"`), k);
 });
@@ -635,4 +637,10 @@ test("app.js: 一括の「実績にする」は、重なって実績にできな
 test("theme.css: スケジュールの重要の枠は、件名の赤い太字だけ（左の赤い線は付けない）", () => {
   assert.ok(css.includes("#view .blk.imp .ttl{color:var(--bad);font-weight:700}"));
   assert.ok(!/\.blk\.imp\{[^}]*box-shadow/.test(css), "左の線（box-shadow）は持たない");
+});
+
+test("theme.css: プロジェクトの稼働の札（.mono.hrs）の塗りは、週表示の時刻の列（.week .hrs）に効かない。使わなくなった今日のタスクのボタンの箱（.rank .bb）の規則は持たない", () => {
+  assert.ok(css.includes(".mono.hrs{background:var(--accent-soft);"));
+  assert.ok(!/(^|\n)\.hrs\{/.test(css), "素の .hrs に塗りを付けない");
+  assert.ok(!css.includes(".rank .bb") && !css.includes(".rank.tl .bb"));
 });

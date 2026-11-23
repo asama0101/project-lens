@@ -77,6 +77,7 @@ function drawAllDeps() {
   drawDeps(bodies);
 }
 
+let lastSelKey = null; // 前の描き直しの選択の鍵（selectionKey）
 function render() {
   hideTip();
   sync.rendered(); // 読み直しで待たせた描き直しは、この描き直しで済む
@@ -123,7 +124,10 @@ function render() {
   syncSticky();
   if (reset && S.screen === "schedule") scrollToMorning();
   else if (calTop != null && !reset && S.screen === "schedule") { const nt = view.querySelector("#calslot")?.getBoundingClientRect().top; if (nt != null) window.scrollBy(0, nt - calTop); }
-  if (S.screen === "schedule" && S.selSess) { const b = view.querySelector(".blk.sel")?.getBoundingClientRect(), top = stackBottom(); if (b && b.top < top) window.scrollBy(0, b.top - top - 8); } // 固定の段（編集欄など）が高くなって、選んだ枠が隠れたら、その下へ出す
+  // 枠を選んだ・編集欄が変わった描き直しで、固定の段（編集欄など）が高くなって、選んだ枠が隠れたら、その下へ出す（同じ選択のままの描き直しでは動かさない）
+  const selKey = S.screen === "schedule" ? selectionKey(S.selSess, S.taskEdit) : null;
+  if (revealSelection(lastSelKey, selKey)) { const b = view.querySelector(".blk.sel")?.getBoundingClientRect(), top = stackBottom(); if (b && b.top < top) window.scrollBy(0, b.top - top - 8); }
+  lastSelKey = selKey;
   drawAllDeps();
   placeTaskPop();
   if (S.hlId) {

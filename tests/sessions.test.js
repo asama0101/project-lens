@@ -224,3 +224,14 @@ test("confirmSession: ほかの実績の枠と重なる予定は、実績にし�
   task(d2, "AA-0005").sessions.push({ id: "S74", date: "2026-10-20", start: "10:30", end: "11:30", kind: "planned" });
   assert.match(confirmSession(d2, "S74", NOW).error, /他の実績の枠（10:00〜11:00）/);
 });
+
+test("先に実績にした今日のこれからの枠は、伸縮・移動（未来から未来）しても実績のまま。過去・進行中の実績の開始を未来へ動かすと予定に戻る", () => {
+  const d = load(); d.events = [];
+  task(d, "AA-0004").sessions.push({ id: "S8", date: "2026-10-20", start: "15:00", end: "16:00", kind: "planned" }, { id: "S9", date: "2026-10-20", start: "11:30", end: "12:30", kind: "actual" });
+  const c = confirmSession(d, "S8", NOW).data;
+  assert.equal(sess(resizeSession(c, "S8", "16:15", NOW).data, "S8").kind, "actual", "伸縮");
+  assert.equal(sess(moveSession(c, "S8", { date: "2026-10-20", start: "14:00" }, NOW).data, "S8").kind, "actual", "未来から未来へ");
+  assert.equal(sess(moveSession(c, "S8", { date: "2026-10-21", start: "14:00" }, NOW).data, "S8").kind, "actual", "別の日の未来へ");
+  assert.equal(sess(moveSession(c, "S9", { date: "2026-10-20", start: "13:00" }, NOW).data, "S9").kind, "planned", "進行中の実績の開始を未来へ");
+  assert.equal(sess(resizeSession(c, "S9", "13:00", NOW).data, "S9").kind, "actual", "伸縮では開始が変わらないので戻さない");
+});

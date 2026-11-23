@@ -11,7 +11,7 @@ import { checklistEditorHtml } from "../plugins/project-lens/src/ui/views/checkl
 import { renderTaskPop, renderTaskEditPanel } from "../plugins/project-lens/src/ui/views/taskpop.js";
 import { renderInboxBar, ibExamples } from "../plugins/project-lens/src/ui/views/inboxpanel.js";
 import { ruleMeetingCounts } from "../plugins/project-lens/src/core/rules.js";
-import { renderSchedule, renderCalendar, snapStart, calendarGeometry, urgentDefaultStart, urgentInput } from "../plugins/project-lens/src/ui/views/schedule.js";
+import { renderSchedule, renderCalendar, selectionKey, revealSelection, snapStart, calendarGeometry, urgentDefaultStart, urgentInput } from "../plugins/project-lens/src/ui/views/schedule.js";
 import { taskActual } from "../plugins/project-lens/src/core/sessions.js";
 import { rankTasks } from "../plugins/project-lens/src/core/schedule.js";
 import { bannerHtml } from "../plugins/project-lens/src/ui/common.js";
@@ -1758,4 +1758,15 @@ test("日付の欄は、すべて文字の欄（data-date）と「📅」。見�
     for (const a of want[k]) assert.ok(new RegExp(`data-date="1" ${a}`).test(html), `${k}: ${a}`);
     assert.equal((html.match(/data-date="1"/g) ?? []).length, (html.match(/data-datepick/g) ?? []).length, k);
   }
+});
+
+test("revealSelection: 選んだ枠を見える位置へ出すのは、枠の選択・編集欄（タスク・詳細の開閉・削除の確認）が、この描き直しで変わったときだけ。同じ選択のままの描き直し（読み直し・欄の保存）では出さない", () => {
+  const k = (s, e) => selectionKey(s, e);
+  assert.equal(k(null, null), null);
+  assert.equal(revealSelection(null, k("S1", { id: "A", full: false })), true, "選んだ");
+  assert.equal(revealSelection(k("S1", { id: "A", full: false }), k("S1", { id: "A", full: false })), false, "同じ選択のまま");
+  assert.equal(revealSelection(k("S1", { id: "A", full: false }), k("S1", { id: "A", full: true })), true, "詳細を開いた");
+  assert.equal(revealSelection(k("S1", { id: "A", full: true }), k("S1", { id: "A", full: true, askDel: true })), true, "削除の確認");
+  assert.equal(revealSelection(k("S1", { id: "A" }), k("S2", { id: "A" })), true, "別の枠");
+  assert.equal(revealSelection(k("S1", { id: "A" }), null), false, "外した");
 });

@@ -84,10 +84,8 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 .rank .act{display:inline-block;font-size:11px;padding:0 6px;border-radius:4px;background:var(--warn-soft);color:var(--warn);margin-right:6px}
 .rank li[data-dragtask]{cursor:grab;border-radius:6px}
 .rank .t .pill{vertical-align:1px}
-.rank .bb{display:flex;flex-direction:row;gap:6px;flex-wrap:wrap}
-.rank .bb .btn{padding:0 10px;font-size:12px}
 .rank.tl li{grid-template-columns:minmax(0,1fr)}
-.rank.tl .pj,.rank.tl .why,.rank.tl .bb,.rank.tl .ask{grid-column:1}
+.rank.tl .pj,.rank.tl .why,.rank.tl .ask{grid-column:1}
 .rank li.closed{opacity:.55}
 .blk .stt{font-size:11px;opacity:.85;margin-left:4px}
 /* テーブル */
@@ -163,7 +161,7 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 .tscroll{overflow-x:auto}
 /* 列見出しは、スクロール中も上端に付ける。リストは、表を包む枠の先頭の複製で固定する（下の「固定表示」の節）。設定・稼働の表は、sticky が効かないので、app.js の pinTableHeads が見出しのセルをずらす */
 .tbl.edit thead th{position:relative;z-index:2;background:var(--surface);box-shadow:inset 0 -1px 0 var(--line)}
-.hrs{background:var(--accent-soft);color:var(--ink);border-radius:4px;padding:0 8px}
+.mono.hrs{background:var(--accent-soft);color:var(--ink);border-radius:4px;padding:0 8px}
 .wl-tbl .num{text-align:right;white-space:nowrap}
 .wl-tbl tfoot td{font-weight:700;border-top:1px solid var(--line)}
 .wl-bar{display:flex;height:12px;min-width:2px}
