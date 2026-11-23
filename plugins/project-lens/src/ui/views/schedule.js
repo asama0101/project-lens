@@ -3,7 +3,7 @@ import { addDays, toMin, toHHMM, weekday } from "../../core/dates.js";
 import { meetingKind } from "../../core/schedule.js";
 import { matchProject } from "../../core/rules.js";
 import { offDayChecker } from "../../core/holidays.js";
-import { sessionKind, allSessions, LAST_END, shownEnd } from "../../core/sessions.js";
+import { sessionKind, allSessions, LAST_END } from "../../core/sessions.js";
 import { isImportantMark } from "../../core/schema.js";
 import { esc, fmtMD, wdJa, STATUS_UI } from "../common.js";
 import { renderSide, renderSideToggle, todayTaskIds } from "./prio.js";
@@ -64,9 +64,7 @@ function sessionBlocks(data, d, full, g, ctx) {
     const task = data.tasks.find((t) => t.id === s.taskId);
     const st = full ? ` <span class="stt">${STATUS_JA[task.status] ?? ""}</span>` : "";
     const imp = isImportantMark(task) ? " imp" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
-    const end = shownEnd(s, ctx.now); // 今日の実行中の枠は、今まで伸ばして描く
-    const run = s.running === true && s.kind === "actual" && s.date === ctx.now.date; // 前の日に残った running は、印を出さない
-    return `<div class="blk task ${c}${imp} ${ctx.selSess === s.id ? "sel" : ""}" draggable="true" tabindex="0" data-dragsess="${esc(s.id)}" style="top:${g.tp(toMin(s.start))};height:${g.ht(toMin(s.start), toMin(end))}" title="${esc(s.title)}(${run ? "実行中" : KIND_JA[c]})"><span class="tm">${esc(s.start)}-${esc(end)}${run ? " ▶ 実行中" : c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${full ? `${esc(s.taskId)} ` : ""}${esc(s.title)}</span>${st}${confirm}<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i></div>`;
+    return `<div class="blk task ${c}${imp} ${ctx.selSess === s.id ? "sel" : ""}" draggable="true" tabindex="0" data-dragsess="${esc(s.id)}" style="top:${g.tp(toMin(s.start))};height:${g.ht(toMin(s.start), toMin(s.end))}" title="${esc(s.title)}(${KIND_JA[c]})"><span class="tm">${esc(s.start)}-${esc(s.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${full ? `${esc(s.taskId)} ` : ""}${esc(s.title)}</span>${st}${confirm}<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i></div>`;
   }).join("");
 }
 

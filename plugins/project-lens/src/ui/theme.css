@@ -539,8 +539,12 @@ body:has(.ptool){padding-block-start:8px}
 #view .tedit .tp-wide{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted)}
 /* カレンダーの上の入力欄（会議・突発タスク・タスクの編集欄）は、時間の軸（00:00〜24:00）が長くページを下へスクロールしていても見えるよう、ヘッダーの下に固定する。高いときは欄の中でスクロールする */
 #view #mtgslot:not(:empty){position:sticky;top:var(--hh,0px);z-index:9;max-height:calc(100vh - var(--hh,0px) - 160px);overflow-y:auto;background:var(--surface);padding-top:4px}
-/* 作業枠・会議のブロックは、短い枠（「開始」「終了」の 1 分など）でも押せるよう、最低 14px の高さで描く（データは変えない） */
+/* 作業枠・会議のブロックは、短い枠でも押せるよう、最低 14px の高さで描く（データは変えない） */
 #view .cal .blk{min-height:14px}
 /* 週表示の日付の見出しの行は、ヘッダーと、カレンダーの上の入力欄（#mtgslot。高さは --slot-h、sticky.js が測る）の下に固定する。左端のセル（時刻の列の上）も固定し、時刻の文字が透けないようにする */
 #view .cal.wk .week .dh{top:calc(var(--hh,0px) + var(--slot-h,0px))}
 #view .cal.wk .week:first-child>div:first-child{position:sticky;top:calc(var(--hh,0px) + var(--slot-h,0px));z-index:7;background:var(--surface)}
+/* 今日のタスクの枠の時間。枠ごとに、時間と「実績にする」のボタン（予定・未確認の枠だけ）を並べ、折り返す */
+#view .rank.tl .tss{display:flex;flex-wrap:wrap;gap:4px 12px}
+#view .rank.tl .ts{display:inline-flex;align-items:center;gap:6px}
+#view .rank.tl .ts .btn{padding:0 8px;font-size:12px;min-height:24px}

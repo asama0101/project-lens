@@ -63,14 +63,3 @@ test("periodRange: day はその日だけ、week は月曜〜日曜、month は 
   assert.deepEqual(periodRange("month", "2028-02-10"), { start: "2028-02-01", end: "2028-02-29" });
   assert.deepEqual(periodRange("month", "2026-12-31"), { start: "2026-12-01", end: "2026-12-31" });
 });
-
-test("workload・projectHours: 実行中（running）の今日の枠は、今まで数える（保存した終了より後なら）。前の日の running は保存した終了", () => {
-  const run = { ...sess("S1", D, "09:00", "09:15"), running: true };
-  const stale = { ...sess("S2", "2026-10-19", "09:00", "09:30"), running: true };
-  const d = data([task("AA-0001", "AA", [run, stale])], []);
-  const now = { date: D, time: "11:00" };
-  assert.equal(workload(d, { start: D, end: D }, now).rows[0].task, 2, "09:00〜11:00");
-  assert.equal(workload(d, { start: "2026-10-19", end: "2026-10-19" }, now).rows[0].task, 0.5, "前の日は保存した終了");
-  assert.equal(projectHours(d, "AA", now).task, 2.5);
-  assert.equal(projectHours(d, "AA").task, 0.75, "now が無いときは保存した終了");
-});

@@ -97,7 +97,7 @@ export function renderGantt(data, projectIds, today, opts = {}) {
     const none = p.id === null;
     const g = geo.get(p.id);
     const prog = none ? null : projectProgress(data, p.id);
-    const hh = none ? null : projectHours(data, p.id, opts.now);
+    const hh = none ? null : projectHours(data, p.id);
     const pct = none ? 0 : Math.round(prog.rate * 100);
     const flags = none ? [] : projectFlags(data, p.id, today);
     const ms = g.milestones;

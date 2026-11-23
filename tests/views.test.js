@@ -663,7 +663,7 @@ test("受信箱の履歴: 処理待ち・処理中でも、2 件目以降のや�
   }
 });
 
-// ---- 今日のタスク（着手・完了・状態） ----
+// ---- 今日のタスク（状態・「実績にする」） ----
 const withToday = () => {
   const d = load();
   const T = (id) => d.tasks.find((t) => t.id === id);
@@ -682,27 +682,24 @@ test("todayTaskIds・renderTodayTasks: 今日に枠があるタスクだけを�
   assert.deepEqual(items(html).map((x) => x.id), ["AA-0005", "AA-0007", done.id], "Done は末尾（開始は一番早くても）");
   const [a5, a7, dn] = items(html);
   assert.ok(a5.html.includes("In Progress") && a5.html.includes("11:00–12:00"), "状態と今日の枠の時間");
-  assert.ok(a5.html.includes('data-rec-start="AA-0005"') && !a5.html.includes("data-rec-end"), "実行中の実績が無ければ「開始」だけ");
-  assert.ok(a7.html.includes('data-rec-start="AA-0007"'), "To Do も「開始」");
-  assert.ok(!html.includes("data-setstatus") && !html.includes("着手</button>") && !html.includes("完了</button>"), "着手・完了のボタンは無い");
-  assert.ok(!dn.html.includes("data-rec-") && html.includes('class="closed"'), "Done はボタン無しで薄い");
+  assert.ok(a5.html.includes('data-session-actual="S9"') && a5.html.includes(">実績にする</button>"), "予定の枠に「実績にする」");
+  assert.ok(a7.html.includes('data-session-actual="S10"'), "To Do も");
+  assert.ok(!html.includes("data-setstatus") && !html.includes("着手</button>") && !html.includes("完了</button>") && !html.includes("data-rec-"), "着手・完了・開始・終了のボタンは無い");
+  assert.ok(!dn.html.includes("data-session-actual") && html.includes('class="closed"'), "Done はボタン無しで薄い");
   assert.equal(renderTodayTasks(load(), TODAY), "", "今日の枠が無ければ出さない");
   assert.deepEqual(todayTaskIds(load(), TODAY), []);
 });
 
-test("renderTodayTasks: 実行中の実績の枠（runningActual）があるタスクは「終了」、無ければ「開始」。now は opts.now（スケジュール・プロジェクトの右の列も渡す）", () => {
+test("renderTodayTasks: 「実績にする」は、予定の枠（未確認を含む）ごとに付け、実績の枠には付けない。スケジュール・プロジェクトの右の列にも出る", () => {
   const { d } = withToday();
-  d.tasks.find((t) => t.id === "AA-0007").sessions.push({ id: "S13", date: TODAY, start: "10:00", end: "10:15", kind: "actual", running: true });
-  const at = (time) => items(renderTodayTasks(d, TODAY, { now: { date: TODAY, time } })).find((x) => x.id === "AA-0007").html;
-  assert.ok(at("10:15").includes('data-rec-end="AA-0007"') && !at("10:15").includes("data-rec-start"), "実行中は「終了」だけ");
-  assert.ok(at("10:15").includes(">終了</button>"));
-  assert.ok(at("13:00").includes('data-rec-end="AA-0007"'), "保存した終了を過ぎても、終了するまで「終了」");
-  assert.ok(items(renderTodayTasks(d, "2026-10-21", { now: { date: "2026-10-21", time: "10:15" } })).every((x) => !x.html.includes("data-rec-end")), "前の日の running には「終了」を出さない");
-  const side = (html) => items(html).find((x) => x.id === "AA-0007").html;
-  assert.ok(side(sched(d, { now: { date: TODAY, time: "10:15" } })).includes("data-rec-end"), "スケジュールの右の列");
-  assert.ok(side(renderProjects(d, TODAY, { filter: "all", view: "list", now: { date: TODAY, time: "10:15" } })).includes("data-rec-end"), "プロジェクト画面の右の列");
-  delete d.tasks.find((t) => t.id === "AA-0007").sessions.at(-1).running;
-  assert.ok(at("10:05").includes('data-rec-start="AA-0007"') && at("10:05").includes(">開始</button>"), "running の無い実績の枠なら「開始」");
+  d.tasks.find((t) => t.id === "AA-0007").sessions.push({ id: "S13", date: TODAY, start: "08:00", end: "09:00", kind: "planned" }, { id: "S14", date: TODAY, start: "16:00", end: "17:00", kind: "actual" });
+  const row = (html) => items(html).find((x) => x.id === "AA-0007").html;
+  const r = row(renderTodayTasks(d, TODAY, { now: NOW }));
+  for (const sid of ["S10", "S13"]) assert.ok(r.includes(`data-session-actual="${sid}"`), sid);
+  assert.ok(!r.includes('data-session-actual="S14"'), "実績の枠には付けない");
+  assert.ok(r.includes('aria-label="AA-0007 の 08:00–09:00 の枠を実績にする"'), r);
+  assert.ok(row(sched(d, { now: NOW })).includes('data-session-actual="S10"'), "スケジュールの右の列");
+  assert.ok(row(renderProjects(d, TODAY, { filter: "all", view: "list", now: NOW })).includes('data-session-actual="S10"'), "プロジェクト画面の右の列");
 });
 
 test("renderTodayTasks: 複数の枠は時間を並べる。pendingDone の行にだけ確認（data-doneok / data-doneno）を出す", () => {
@@ -1680,29 +1677,4 @@ test("orphanSessions の枠は、カレンダー・優先度・稼働に描か�
   assert.ok(!renderSchedule(d, TODAY, { view: "week", date: TODAY, now: NOW }).includes("SX1"));
   assert.equal(renderPrio(d, TODAY, { now: NOW }), renderPrio(base, TODAY, { now: NOW }));
   assert.equal(renderWorkload(d, TODAY, { now: NOW }), renderWorkload(base, TODAY, { now: NOW }));
-});
-
-test("renderSchedule: 実行中（running）の枠は「▶ 実行中」を出し、終了は今を 15 分に切り上げた位置まで伸ばして描く。前の日の running は印なし", () => {
-  const d = load();
-  d.tasks.find((t) => t.id === "AA-0004").sessions.push({ id: "S60", date: TODAY, start: "09:00", end: "09:15", kind: "actual", running: true });
-  d.tasks.find((t) => t.id === "AA-0004").sessions.push({ id: "S61", date: "2026-10-19", start: "09:00", end: "09:15", kind: "actual", running: true });
-  const day = sched(d, { now: { date: TODAY, time: "11:01" }, showPrio: false });
-  const blk = day.match(/<div class="blk task[^"]*"[^>]*data-dragsess="S60"[\s\S]*?<\/div>/)[0];
-  assert.ok(blk.includes("09:00-11:15") && blk.includes("▶ 実行中"), blk);
-  assert.ok(blk.includes(`height:calc(${(((11 * 60 + 15 - 9 * 60) / 1440) * 100).toFixed(3)}% - 2px)`), "11:15 まで伸ばして描く");
-  const prev = renderSchedule(d, TODAY, { view: "day", date: "2026-10-19", now: { date: TODAY, time: "11:01" }, showPrio: false });
-  const pb = prev.match(/<div class="blk task[^"]*"[^>]*data-dragsess="S61"[\s\S]*?<\/div>/)[0];
-  assert.ok(pb.includes("09:00-09:15") && !pb.includes("実行中"));
-});
-
-test("renderTodayTasks: 実行中の枠の時間は、カレンダーと同じ伸ばした終了（shownEnd）。終わったタスクでも実行中なら「終了」を出す", () => {
-  const { d } = withToday();
-  d.tasks.find((t) => t.id === "AA-0007").sessions.push({ id: "S80", date: TODAY, start: "09:00", end: "09:15", kind: "actual", running: true });
-  const row = (dd) => items(renderTodayTasks(dd, TODAY, { now: { date: TODAY, time: "11:01" } })).find((x) => x.id === "AA-0007").html;
-  assert.ok(row(d).includes("09:00–11:15"), row(d));
-  d.tasks.find((t) => t.id === "AA-0007").status = "Done";
-  assert.ok(row(d).includes('data-rec-end="AA-0007"'), "Done でも、実行中なら止められる");
-  d.tasks.find((t) => t.id === "AA-0007").sessions.at(-1).running = undefined;
-  delete d.tasks.find((t) => t.id === "AA-0007").sessions.at(-1).running;
-  assert.ok(!row(d).includes("data-rec-"), "Done で実行中でなければ、ボタンは無い");
 });

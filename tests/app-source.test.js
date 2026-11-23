@@ -93,7 +93,7 @@ test("app.js: 「参加しない会議」のボタン（data-sskip）は showSki
 test("schedule.js: ブロックの時刻は esc して出す（toMin が先に検証するが、描画側でも守る）", () => {
   const sc = readFileSync(new URL("../plugins/project-lens/src/ui/views/schedule.js", import.meta.url), "utf8");
   assert.match(sc, /\$\{esc\(m\.start\)\}-\$\{esc\(m\.end\)\}/);
-  assert.match(sc, /\$\{esc\(s\.start\)\}-\$\{esc\(end\)\}/);
+  assert.match(sc, /\$\{esc\(s\.start\)\}-\$\{esc\(s\.end\)\}/);
 });
 
 test("app.js: 営業日の指定の追加は、入力欄の値を先に取り出してから edit に入れる（保存の競合で当て直されても日付が空にならない）。終了日を入れたら同じ日でも期間として扱う", () => {
@@ -561,21 +561,16 @@ test("theme.css: カレンダーの上の入力欄（#mtgslot）は、中身が�
   assert.ok(css.includes("#view #mtgslot:not(:empty){position:sticky;top:var(--hh,0px);"));
 });
 
-test("app.js: 今日のタスクの「開始」「終了」は、clock() の時刻で startActual・stopActual を apply で保存し、時刻を通知する。プロジェクト画面にも now を渡す", () => {
-  const a = src.slice(src.indexOf('q("[data-rec-start]")'), src.indexOf('q("[data-rec-start]")') + 700);
-  assert.ok(a.includes("startActual(d, id, now)") && a.includes("apply("), a);
-  assert.ok(a.includes("の実績を開始しました"));
-  const b = src.slice(src.indexOf('q("[data-rec-end]")'), src.indexOf('q("[data-rec-end]")') + 700);
-  assert.ok(b.includes("stopActual(d, id, now)") && b.includes("の実績を終了しました"), b);
+test("app.js: 今日のタスクの「実績にする」（data-session-actual）は、confirmTodaySession を 1 回の apply で保存し（枠と状態を一緒に）、状態を変えたら通知で言う。プロジェクト画面にも now を渡す", () => {
+  const a = src.slice(src.indexOf('q("[data-session-actual]")'), src.indexOf('q("[data-session-actual]")') + 700);
+  assert.ok(a.includes("confirmTodaySession(d, sid, now)") && a.includes("apply("), a);
+  assert.equal(a.match(/apply\(/g).length, 1, "apply は 1 回");
+  assert.ok(a.includes("を実績にしました") && a.includes("状態を In Progress にしました") && a.includes("待ち先の記録は外しました"), a);
   assert.match(src, /renderProjects\(S\.data, today, \{[^}]*now: clock\(\)/);
+  assert.ok(!src.includes("data-rec-start") && !src.includes("data-rec-end") && !src.includes("startActual") && !src.includes("stopActual"), "「開始」「終了」は持たない");
 });
 
-test("app.js: 「開始」で Waiting の待ち先を外したときは、通知でそう言う", () => {
-  const a = src.slice(src.indexOf('q("[data-rec-start]")'), src.indexOf('q("[data-rec-start]")') + 700);
-  assert.ok(a.includes("r.clearedWaiting") && a.includes("待ち先の記録は外しました"), a);
-});
-
-test("theme.css: 作業枠・会議のブロックは、短い枠（1 分など）でも 14px の高さで描く（#view の中だけ）", () => {
+test("theme.css: 作業枠・会議のブロックは、短い枠でも 14px の高さで描く（#view の中だけ）", () => {
   assert.ok(css.includes("#view .cal .blk{min-height:14px}"));
 });
 
@@ -616,9 +611,9 @@ test("app.js: 書式（filebar の行の renderBar、keydown の閉じ）", () =
   assert.ok(!src.includes('` : "";  renderBar();') && !src.includes("return; }});"));
 });
 
-test("app.js: Done・Cancelled にするとき（setStatus）、実行中の枠を stopRunningIfClosed で終え、通知に書く。一括の「実績にする」は、重なって実績にできない枠を飛ばして件数を言う", () => {
+test("app.js: 一括の「実績にする」は、重なって実績にできない枠を飛ばして件数を言う。setStatus は実行中の枠を扱わない", () => {
   const fn = src.slice(src.indexOf("function setStatus("), src.indexOf("function setStatus(") + 1500);
-  assert.ok(fn.includes("stopRunningIfClosed(next, id, status, clock())") && fn.includes("実行中の実績も終了しました"), fn);
+  assert.ok(!fn.includes("stopRunningIfClosed") && !fn.includes("実行中"), fn);
   const all = src.slice(src.indexOf('q("[data-confirmall]")'), src.indexOf('q("[data-confirmall]")') + 900);
   assert.ok(all.includes("skipped") && all.includes("ほかの実績の枠と重なる"), all);
 });

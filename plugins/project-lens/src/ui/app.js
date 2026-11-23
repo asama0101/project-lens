@@ -574,16 +574,13 @@ view.addEventListener("click", (e) => {
   if (q("[data-wtoday]")) { S.wdate = today; render(); return; }
 
   /* スケジュール画面 */
-  const rs = q("[data-rec-start]");
-  if (rs) {
-    const id = rs.dataset.recStart; let r;
-    if (apply((d) => { r = startActual(d, id, now); return r.data; }, null)) toast(`${id} の実績を開始しました（${now.time}）${r.clearedWaiting ? "（待ち先の記録は外しました）" : ""}${r.warning ? `(${r.warning})` : ""}`);
-    return;
-  }
-  const re = q("[data-rec-end]");
-  if (re) {
-    const id = re.dataset.recEnd; let r;
-    if (apply((d) => { r = stopActual(d, id, now); return r.data; }, null)) toast(`${id} の実績を終了しました（${r.start}〜${r.end}・${r.minutes} 分）${r.warning ? `(${r.warning})` : ""}`);
+  const sa = q("[data-session-actual]"); // 今日のタスクの「実績にする」。枠を実績にし、To Do・Waiting なら In Progress にする（1 回の保存）
+  if (sa) {
+    const sid = sa.dataset.sessionActual; let r;
+    if (apply((d) => { r = confirmTodaySession(d, sid, now); return r.data; }, null)) {
+      const s = allSessions(S.data).find((x) => x.id === sid);
+      toast(`${r.taskId} の ${s.start}–${s.end} を実績にしました${r.statusChanged ? `（状態を In Progress にしました${r.from === "Waiting" ? "。待ち先の記録は外しました" : ""}）` : ""}`);
+    }
     return;
   }
   const sv = q("[data-sview]"); if (sv) { S.sview = sv.dataset.sview; render(); return; }
@@ -663,13 +660,9 @@ function setStatus(id, status, future, checkAll = false) {
   const kept = status === "Done" || status === "Cancelled" ? runningPlanned(S.data, id, clock()).length : 0; // 完了にしても進行中の枠は残る
   const keptMsg = kept ? `。進行中の枠 ${kept} 件は残しました（終わったら「実績にする」で確定します）` : "";
   const n0 = S.data.tasks.length;
-  const running = (status === "Done" || status === "Cancelled") && runningActual(S.data, id, clock()); // 終わったタスクに実行中の枠を残さない
-  const runMsg = running ? `。実行中の実績も終了しました（${clock().time}）` : "";
-  const doneMsg = (future.length ? `${id} の状態を ${status} にしました。未来の予定の枠 ${future.length} 件を解除しました${keptMsg}` : `変更を保存しました${keptMsg}`) + runMsg;
+  const doneMsg = future.length ? `${id} の状態を ${status} にしました。未来の予定の枠 ${future.length} 件を解除しました${keptMsg}` : `変更を保存しました${keptMsg}`;
   apply((d) => {
-    let next = d;
-    next = stopRunningIfClosed(next, id, status, clock()).data; // 実行中の枠を先に終える（状態を変えるときだけ。確認待ちのあいだは何もしない）
-    next = updateTask(next, id, { status }, clock().date);
+    let next = updateTask(d, id, { status }, clock().date);
     if (checkAll) next = checkAllChecklist(next, id);
     for (const sid of future) next = removeSession(next, sid);
     return status === "Done" ? spawnNextRepeat(next, id, clock().date) : next; // 定例なら、次回を作る

@@ -3,7 +3,7 @@ import { addDays, diffDays, isDate, isWeekend, toMin, toHHMM, nowLocal } from ".
 import { calendarOf } from "../core/holidays.js";
 import { taskStart } from "../core/metrics.js";
 import { groupSections } from "../core/groups.js";
-import { addSession, startRunning, stopRunning } from "../core/sessions.js";
+import { addSession, confirmSession } from "../core/sessions.js";
 import { nextChecklistId } from "../core/checklist.js";
 import { isRepeat, nextRepeatDue } from "../core/repeat.js";
 import { HOLIDAY_KINDS } from "../core/schema.js";
@@ -383,27 +383,16 @@ export function addUrgentTask(data, { title, projectId, date, start, minutes }) 
   return { data: r.data, id: t.id, ...(r.warning && { warning: r.warning }) };
 }
 
-/** 今日のタスクの「開始」: 実行中の実績の枠を作り（core/sessions.js の startRunning）、To Do・Waiting なら In Progress にする（updateTask の規則で、Waiting の待ち先は外れる。clearedWaiting で返す）。作れないときは Error */
-export function startActual(data, taskId, now) {
-  const r = startRunning(data, taskId, now);
+/**
+ * 今日のタスクの「実績にする」: 予定の枠を実績にし（confirmSession。ほかの実績の枠と重なる・明日以降は Error）、
+ * タスクが To Do・Waiting なら In Progress にする（updateTask の規則で、Waiting の待ち先は外れる）。statusChanged・from（元の状態）を返す
+ */
+export function confirmTodaySession(data, sessionId, now) {
+  const r = confirmSession(data, sessionId, now);
   if (r.error) throw new Error(r.error);
-  const status = data.tasks.find((t) => t.id === taskId).status;
-  const next = status === "To Do" || status === "Waiting" ? updateTask(r.data, taskId, { status: "In Progress" }, now.date) : r.data;
-  return { data: next, sessionId: r.sessionId, clearedWaiting: status === "Waiting", ...(r.warning && { warning: r.warning }) };
-}
-
-/** 今日のタスクの「終了」: 実行中の枠の終了を今にする（stopRunning）。状態は変えない（完了は状態の欄で選ぶ）。実行中が無ければ Error */
-export function stopActual(data, taskId, now) {
-  const r = stopRunning(data, taskId, now);
-  if (r.error) throw new Error(r.error);
-  return r;
-}
-
-/** 状態を Done・Cancelled にするとき、実行中の枠を今の時刻で終える（stopRunning）。end は終えた時刻（終えなかったら undefined）。ほかの状態・実行中なしは、同じデータを返す */
-export function stopRunningIfClosed(data, taskId, status, now) {
-  if (status !== "Done" && status !== "Cancelled") return { data };
-  const r = stopRunning(data, taskId, now);
-  return r.error ? { data } : { data: r.data, end: r.end };
+  const t = data.tasks.find((x) => (x.sessions ?? []).some((s) => s.id === sessionId));
+  const statusChanged = t.status === "To Do" || t.status === "Waiting";
+  return { data: statusChanged ? updateTask(r.data, t.id, { status: "In Progress" }, now.date) : r.data, taskId: t.id, statusChanged, from: t.status };
 }
 
 export function addTask(data, task) {
