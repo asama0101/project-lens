@@ -308,6 +308,16 @@ test("theme.css: ヘッダーは、どの画面でも、ページの先頭で固
   for (const line of section.split(/\r?\n/).filter((l) => l.includes("{") && !l.startsWith("/*"))) assert.match(line, /^(\.wrap:has\(\.ptool\)|#banner|#view)/, line);
 });
 
+test("theme.css: ガントは、リストと同じく、プロジェクトごとに 1 枚のカード（section.pg）に分け、カードの間を 16px 空ける。操作の帯（.gtop）も 1 枚のカード。外側の panel は枠を持たず、.gtop の sticky の範囲としてだけ残す", () => {
+  for (const rule of [
+    "#view section.panel:has(> .gtop){background:none;border:0;border-radius:0;padding:0}",
+    "#view section.panel > .gtop{padding-inline:16px;margin-bottom:16px;background:var(--surface);border:1px solid var(--line);border-radius:10px}",
+    "#view section.pg{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:0 16px 16px}",
+    "#view section.pg + section.pg{margin-top:16px}",
+    "#view section.pg > .pgstick{padding-top:18px}",
+  ]) assert.ok(css.includes(rule), rule);
+});
+
 // ---- 固定表示（ガント）: 日付軸の複製（.gstrip）----
 test("app.js: 日付軸の複製（.gstrip）を syncSticky が作り直し、alignGScrolls が複製の横位置（translateX）を更新する", () => {
   assert.ok(stk.includes("function syncGStrips") && stk.includes("function updateGStrip"));

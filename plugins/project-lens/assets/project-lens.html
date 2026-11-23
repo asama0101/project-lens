@@ -573,6 +573,13 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 #view .dpick:disabled{opacity:.4;cursor:default}
 #view .dpick-in{position:absolute;right:0;bottom:0;width:1px;height:1px;opacity:0;border:0;padding:0;pointer-events:none}
 #view .din.bad{outline:2px solid var(--bad);outline-offset:1px}
+/* ガントも、リストと同じく、プロジェクトごとに 1 枚のカード（section.pg。リストの section.panel と同じ線・角丸・背景・余白）に分け、カードの間を 16px 空ける。操作の帯（.gtop）も 1 枚のカード。
+   外側の panel は枠を持たず、.gtop の sticky の範囲（全プロジェクト）としてだけ残す。カードの上の余白は .pgstick の中に持たせる（固定したとき、見出しの上にも同じ余白） */
+#view section.panel:has(> .gtop){background:none;border:0;border-radius:0;padding:0}
+#view section.panel > .gtop{padding-inline:16px;margin-bottom:16px;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+#view section.pg{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:0 16px 16px}
+#view section.pg + section.pg{margin-top:16px}
+#view section.pg > .pgstick{padding-top:18px}
 </style>
 </head>
 <body>
