@@ -291,7 +291,8 @@ push のたびには `version` を上げない。リリースするときだけ�
 
 - CLI の保存（`tools/cli.js` の `save`）は、`readJson` で読んだ時点のファイルの印（更新日時とサイズ）を覚え、書く直前に比べる。違えば「他で更新されました」で止まる（もう一度読み直して実行する）。見張りの印を書く `wait` は、止まったら次の回に書く。`readJson` は、先頭の BOM（メモ帳などが付ける）を除く（画面は `file.text()` が除くので、そろえる）。確認から置き換えまでの数ミリ秒の隙間は残る（ロックは作らない）。置き換えが 3 回失敗したときは、上書きせず例外にする。
 
-- 2 ファイルの読み書き（`tools/cli.js` の `readData`・`saveData`）: 共有ファイル（`data.json`）と個人ファイル（既定は同じフォルダの `personal.json`、`--mine <ファイル>` で別の場所。相対パスはいまのフォルダから）を、`splitData`・`mergeData` で 1 つのデータに結合して扱う。各ツール・画面への組み込みは、あとの作業で行う（未組み込み）。
+- 2 ファイルの読み書き（`tools/cli.js` の `readData`・`saveData`）: 共有ファイル（`data.json`）と個人ファイル（既定は同じフォルダの `personal.json`、`--mine <ファイル>` で別の場所。相対パスはいまのフォルダから）を、`splitData`・`mergeData` で 1 つのデータに結合して扱う。CLI は組み込み済み（`inbox.js`・`intake.js`・`holidays.js`・`validate.js` が `readData`・`saveData`、`init.js` は 2 ファイルを直接書く。`doctor.js` は保存先のフォルダだけを見るので変えない）。画面への組み込みは、あとの作業で行う（未組み込み）。
+  - `init.js` は、`saveData` を通さず 2 ファイルを直接書く（`--mine` で指す個人ファイルは、作る前で、まだ無いから）。既存のファイルは変えない。共有だけがあるときは、空の個人ファイルを作る（サンプルの個人データは、既存の共有と合わないので足さない）。`--sample` は、分割前の形の `data/sample.json` を `splitData` して書く。
   - 既定の個人ファイル（`personal.json`）が無い（`ENOENT`）ときだけ、空の個人として読む。`--mine` で明示したファイルが無いときは、指定の誤りなので、空として読まず「個人ファイル … がありません。--mine の指定を確かめてください」で例外にする（`saveData` も、共有を書く前に同じ例外）。共有ファイルが無い・形が違うときも例外。
   - 読んだとき個人ファイルが無かった場合は、その印（無かったこと）を覚え、保存の確認と書く直前に、他が作っていないかを見る。作られていたら、空の個人で上書きせず「他で更新されました」で止める。読んだあとに消されたファイルも、同じ文言で止める。
   - `saveData` は、結合したデータを `validate` に 1 回だけ通し、エラーなら何も書かない。通ったら分けて、中身が変わった方だけ書く（共有だけの変更で、個人ファイルの更新日時を動かさない）。
@@ -426,15 +427,15 @@ WBS と規則は「読み取り → 変更案の表 → 利用者の承認 → �
 プラグインとして使うときは、エージェントとコマンドが呼ぶので意識する必要はない。このリポジトリを直接開いて手で実行する場合の例（`plugins/project-lens/` で実行する。`data/data.json` は `data/sample.json` のコピーで、gitignore 済み）。
 
 ```
-node tools/validate.js data/data.json                  # 検証（errors があれば終了コード 1）
-node tools/init.js [--sample]                          # 作業フォルダに project-lens.html と .project-lens/data.json を用意する
+node tools/validate.js data/data.json [--mine <ファイル>]  # 検証（共有と個人を合わせて検証。errors があれば終了コード 1。個人ファイルが無い既定の場所は、空として扱う）
+node tools/init.js [--sample] [--mine <ファイル>]       # 作業フォルダに project-lens.html と、.project-lens/data.json（共有）・personal.json（個人。--mine で場所を変える）を用意する
 node tools/intake.js                                   # 取り込み・会議の規則・WBS の列の対応のコマンド一覧
 node tools/inbox.js                                    # 受信箱（HTML からの依頼）のコマンド一覧（wait・claim・propose・approve など）
-node tools/holidays.js <update|status> <data.json>     # 日本の祝日（内閣府の一覧）を取得して settings.nationalHolidays に保存／取得状況を表示
+node tools/holidays.js <update|status> <data.json> [--mine <ファイル>]  # 日本の祝日（内閣府の一覧）を取得して settings.nationalHolidays に保存／取得状況を表示
 node tools/mcpconf.js --data <保存先> show             # 予定表の MCP の指定（保存先は PROJECT_LENS_HOME でも指定できる）
 node tools/doctor.js --data <保存先>                   # 動作環境の診断のみ（Node・保存先・祝日の接続・Excel・予定表の MCP。必須が足りなければ終了コード 3）
 node tools/xlsx.js doctor --data <保存先>              # Excel 用の環境の診断のみ（Python のパスと置き場を表示。使えなければ終了コード 3）
 node tools/xlsx.js setup [--system] [--yes] --data <保存先>   # 環境を作る（既定は専用の venv、--system はシステムのユーザー領域。--yes なしは入れ先と内容を表示して終了コード 3）
 node tools/xlsx.js --data <保存先> plan.xlsx           # Excel を JSON で読む（Python と openpyxl を使う。環境が使えないときは終了コード 3）
-# 個人ファイルの場所: `--mine <ファイル>`（`tools/cli.js` の `takeMine`）。省くと、data.json と同じフォルダの personal.json。各ツールへの組み込みは、あとの作業（現状は cli.js の関数だけ）
+# 個人ファイルの場所: `--mine <ファイル>`（`tools/cli.js` の `takeMine`）。省くと、data.json と同じフォルダの personal.json。inbox.js・intake.js・holidays.js・validate.js・init.js が受ける（相対パスは実行したフォルダから数える）。doctor.js は保存先のフォルダだけを見るので受けない。
 ```

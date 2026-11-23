@@ -1,6 +1,6 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, readFileSync, copyFileSync, rmSync, mkdirSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, copyFileSync, rmSync, mkdirSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
@@ -9,6 +9,8 @@ import { fileURLToPath } from "node:url";
 import { validate } from "../plugins/project-lens/src/core/schema.js";
 import { markApplied } from "../plugins/project-lens/src/core/inbox.js";
 import { addDays, dueAfter, today } from "../plugins/project-lens/src/core/dates.js";
+
+import { writeTwo, readTwo, rawTwo } from "./twofiles.js";
 
 const REPO = fileURLToPath(new URL("../plugins/project-lens/", import.meta.url));
 const base = mkdtempSync(join(tmpdir(), "project-lens-inbox-"));
@@ -19,9 +21,9 @@ function work() {
   const dir = join(base, String(++n));
   mkdirSync(dir, { recursive: true });
   const data = join(dir, "data.json");
-  copyFileSync(join(REPO, "data/sample.json"), data);
+  writeTwo(data, JSON.parse(readFileSync(join(REPO, "data/sample.json"), "utf8")));
   const put = (name, obj) => { const p = join(dir, name); writeFileSync(p, JSON.stringify(obj)); return p; };
-  return { data, put, read: () => readFileSync(data, "utf8"), json: () => JSON.parse(readFileSync(data, "utf8")), write: (d) => writeFileSync(data, JSON.stringify(d, null, 2) + "\n") };
+  return { data, put, dir, read: () => rawTwo(data), json: () => readTwo(data), write: (d) => writeTwo(data, d) };
 }
 const CLI = join(REPO, "tools/inbox.js");
 const NO_NET = "http://127.0.0.1:1/syukujitsu.csv"; // 祝日の取得先。閉じたポートにして、テストが内閣府のサイトへ出ないようにする
@@ -155,7 +157,7 @@ test("wait: 起動時に pending の依頼を request イベントで出し、�
 test("wait: 見ている印を書けない（検証に通らない）ときは、標準エラーに理由を 1 回だけ出し、依頼の検出は止めない", async () => {
   const w = work();
   run("submit", w.data, "A", "先に届いていた依頼");
-  const d = w.json(); d.tasks[0].projectId = "ZZ"; writeFileSync(w.data, JSON.stringify(d)); // 検証に通らない
+  const d = w.json(); d.tasks[0].projectId = "ZZ"; writeTwo(w.data, d); // 検証に通らない
   const child = spawn(process.execPath, [CLI, "wait", w.data, "--interval", "150", "--timeout", "2"], { encoding: "utf8" });
   let out = "", err = "";
   child.stdout.on("data", (c) => { out += c; }); child.stderr.on("data", (c) => { err += c; });
@@ -344,11 +346,11 @@ test("addTask の checklist: propose → approve で、項目つきでタスク�
 
 test("値を取るフラグ（--summary など）に値が無いときは、使い方の誤りとして終了コード 2 で止まる。何も書かない", () => {
   const w = work();
-  const before = readFileSync(w.data, "utf8");
+  const before = rawTwo(w.data);
   const r = run("propose", w.data, "R1", w.put("ops.json", OPS), "--summary");
   assert.equal(r.status, 2);
   assert.match(r.err, /--summary の値がありません/);
-  assert.equal(readFileSync(w.data, "utf8"), before);
+  assert.equal(rawTwo(w.data), before);
 });
 
 test("wait: 見ている印を書けない（data.json が検証に通らない）ときも、warn イベントは出さない", async () => {
@@ -399,4 +401,53 @@ test("wait: --interval が 0 以下なら終了コード 2（CPU を使い続け
     const v = spawnSync(process.execPath, [join(REPO, "tools/validate.js"), bom], { encoding: "utf8" });
     assert.equal(v.status, 0, v.stdout + v.stderr);
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+// ---- 共有ファイル（data.json）と個人ファイル（personal.json） ----
+const rdJson = (p) => JSON.parse(readFileSync(p, "utf8"));
+
+test("2 ファイル: 依頼（inbox）は personal.json、タスクの変更は data.json に入る", () => {
+  const w = work(), pp = join(w.dir, "personal.json");
+  proposed(w);
+  assert.equal(rdJson(pp).inbox.requests[0].status, "proposed");
+  assert.equal("inbox" in rdJson(w.data), false);
+  const a = run("approve", w.data, "R1");
+  assert.equal(a.status, 0, a.err);
+  assert.equal(rdJson(pp).inbox.requests[0].status, "applied");
+  assert.equal(rdJson(w.data).tasks.find((t) => t.id === "A3").due, "2026-11-30");
+  assert.ok(rdJson(w.data).changeLog.at(-1).source === "inbox");
+});
+
+test("--mine: 別の場所の個人ファイルが読み書きされ、既定の personal.json は変わらない", () => {
+  const w = work(), pp = join(w.dir, "personal.json"), other = join(w.dir, "elsewhere.json");
+  copyFileSync(pp, other); rmSync(pp);
+  const s = run("submit", w.data, "A", "別の場所へ", "--mine", other);
+  assert.equal(s.status, 0, s.err);
+  assert.equal(rdJson(other).inbox.requests[0].thread[0].text, "別の場所へ");
+  assert.equal(run("list", w.data, "--mine", other).out.length, 1);
+  assert.equal(run("claim", "--mine", other, w.data, "R1").status, 0, "--mine は位置引数の前でもよい");
+  assert.equal(existsSync(pp), false, "既定の場所に新しく作らない");
+});
+
+test("--mine の指定先が無い: 終了コード 1 で理由を出し、何も作らない（wait も最初に止まる）", () => {
+  const w = work(), pp = join(w.dir, "personal.json"), nope = join(w.dir, "nope.json");
+  const before = w.read();
+  for (const args of [["submit", w.data, "A", "x"], ["list", w.data], ["claim", w.data, "R1"]]) {
+    const r = run(...args, "--mine", nope);
+    assert.equal(r.status, 1, args[0]);
+    assert.match(r.err, /個人ファイル .*nope\.json がありません。--mine の指定を確かめてください/);
+  }
+  const wr = spawnSync(process.execPath, [CLI, "wait", w.data, "--mine", nope, "--timeout", "1"], { encoding: "utf8", timeout: 20000 });
+  assert.equal(wr.status, 1);
+  assert.match(wr.stderr, /--mine の指定を確かめてください/);
+  assert.equal(existsSync(nope), false);
+  assert.equal(w.read(), before);
+});
+
+test("wait: 見ている印は personal.json に書かれ、data.json は変わらない", () => {
+  const w = work(), shared = readFileSync(w.data, "utf8");
+  const r = spawnSync(process.execPath, [CLI, "wait", w.data, "--interval", "150", "--timeout", "1"], { encoding: "utf8", timeout: 20000 });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(rdJson(join(w.dir, "personal.json")).inbox.watching.at);
+  assert.equal(readFileSync(w.data, "utf8"), shared);
 });

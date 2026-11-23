@@ -101,7 +101,7 @@
     <li><a href="#f5">画面からの依頼（画面下端の帯「Claude Code に依頼する」）</a></li>
     <li><a href="#f6">動作環境の診断（<code>/project-lens:doctor</code>）</a></li>
   </ol>
-  <p class="lead" style="margin-top:8px">用語: 「データファイル」= 作業フォルダの <code>.project-lens/data.json</code>。「画面」= <code>project-lens.html</code>。「設定フォルダ」= プラグイン専用の保存場所（<code>~/.claude/plugins/data/</code> の下）。「見張り」= 画面からの依頼を待ち受ける Claude Code の処理。</p>
+  <p class="lead" style="margin-top:8px">用語: 「データファイル」= 作業フォルダの <code>.project-lens/data.json</code>（共有）。個人の分は同じフォルダの <code>personal.json</code>（別の場所なら各コマンドに <code>--mine &lt;ファイル&gt;</code>）。「画面」= <code>project-lens.html</code>。「設定フォルダ」= プラグイン専用の保存場所（<code>~/.claude/plugins/data/</code> の下）。「見張り」= 画面からの依頼を待ち受ける Claude Code の処理。</p>
 </nav>
 
 <!-- ============================================================ -->
@@ -111,7 +111,7 @@
   <div></div><div class="head u">あなた</div><div class="head c">Claude</div><div class="head s">スクリプト</div>
 
   <div class="n">1</div>
-  <div class="cell u">管理したいフォルダで Claude Code を開き、<code>/project-lens:init</code> を実行する。試用なら <code>--sample</code> を付ける。<small class="src">skills/init/SKILL.md</small></div>
+  <div class="cell u">管理したいフォルダで Claude Code を開き、<code>/project-lens:init</code> を実行する。試用なら <code>--sample</code> を付ける。個人ファイルを別の場所に置くなら <code>--mine &lt;ファイル&gt;</code> を付ける。<small class="src">skills/init/SKILL.md</small></div>
   <div class="cell c">初期設定のスクリプトを実行する（この指示は Claude が自分の判断で呼ぶことはできず、あなたのコマンドでだけ動く）。<code>node</code> が見つからないときは、Node.js 24 以上の導入（<code>winget</code>）を案内する（未確認: 実際に <code>node</code> が無い環境では動かしていない）。<small class="src">skills/init/SKILL.md（disable-model-invocation）</small></div>
   <div class="cell empty"></div>
 
@@ -131,7 +131,7 @@
   <div class="n">3</div>
   <div class="cell empty"></div>
   <div class="cell empty"></div>
-  <div class="cell s">データファイル <code>.project-lens/data.json</code>: 既にあれば「そのまま」（中身は変えない）。なければ <span class="tag write">書き込み</span>作る（空の雛形。<code>--sample</code> なら架空のサンプル）。<small class="src">tools/init.js SKELETON / data/sample.json</small></div>
+  <div class="cell s">データは 2 ファイル。共有の <code>.project-lens/data.json</code> と、個人の <code>.project-lens/personal.json</code>（<code>--mine</code> を付けたときは、そのパス。相対パスは実行したフォルダから数える）を、それぞれ調べる。既にあれば「そのまま」（中身は変えない）。なければ <span class="tag write">書き込み</span>作る（空の雛形。<code>--sample</code> なら架空のサンプルを共有と個人に分けて、作業枠は個人へ）。共有だけがあって個人が無いときは、空の個人ファイルを作る。<code>saveData</code> は通さず、直接書く（<code>--mine</code> の指定先はまだ無いため）。空のフォルダ・再実行・<code>--sample --mine</code>（相対パス）・共有だけがある場合は、実行して確かめた。Claude が利用者の指定から <code>--mine</code> を付ける判断は未確認。<small class="src">tools/init.js init() / split.js splitData</small></div>
 
   <div class="n">4</div>
   <div class="cell empty"></div>
@@ -162,7 +162,7 @@
   <div class="cell s">ファイルごとの結果を 1 行ずつ出す（作りました／更新しました／そのままです／追記しました／変更しませんでした）。<small class="src">tools/init.js LABEL</small></div>
 
   <div class="n">7</div>
-  <div class="cell u">Edge か Chrome で <code>project-lens.html</code> を開き、「ファイルを開く」で <code>.project-lens/data.json</code> を選ぶ。以後の画面の変更は、このファイルに直接保存される。<small class="src">README.md 初回の準備</small></div>
+  <div class="cell u">Edge か Chrome で <code>project-lens.html</code> を開き、「ファイルを開く」で <code>.project-lens/data.json</code> を選ぶ。以後の画面の変更は、このファイルに直接保存される（画面が <code>personal.json</code> をどう扱うかは、この図では未確認）。<small class="src">README.md 初回の準備</small></div>
   <div class="cell empty"></div>
   <div class="cell empty"></div>
 </div>

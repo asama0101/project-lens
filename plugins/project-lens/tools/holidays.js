@@ -1,15 +1,15 @@
-// 使い方: node tools/holidays.js <update|status> <data.json>
-// 日本の祝日（内閣府の祝日一覧 CSV）を取得して data.json の settings.nationalHolidays に書く。結果は JSON で標準出力へ。
+// 使い方: node tools/holidays.js <update|ensure|status> <data.json> [--mine <個人ファイル>]
+// 日本の祝日（内閣府の祝日一覧 CSV）を取得して data.json の settings.nationalHolidays に書く（共有の data.json。個人ファイルは同じフォルダの personal.json、別の場所なら --mine）。結果は JSON で標準出力へ。
 // 取得するだけで、こちらのデータは何も送らない。失敗したら data.json は変えず、理由を標準エラーに出して終了コード 1。
 // 取得先は、環境変数 PROJECT_LENS_HOLIDAYS_URL で変えられる（テスト用）。
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { today, diffDays, isDate } from "../src/core/dates.js";
 import { decodeHolidayCsv, parseHolidayCsv, pickRecent } from "../src/core/holidays.js";
-import { readJson, out, save } from "./cli.js";
+import { readData, saveData, takeMine, out } from "./cli.js";
 
 const DEFAULT_URL = "https://www8.cao.go.jp/chosei/shukujitsu/syukujitsu.csv";
-const USAGE = `使い方: node tools/holidays.js <コマンド> <data.json>
+const USAGE = `使い方: node tools/holidays.js <コマンド> <data.json> [--mine <個人ファイル>]
   update  <data.json>   内閣府の祝日一覧を取得して、settings.nationalHolidays に書く
   ensure  <data.json>   未取得・取得から 30 日超・一覧の最終日が今日以前のときだけ、update と同じ取得をする
   status  <data.json>   取得の状況（取得日・件数・範囲・経過日数）`;
@@ -51,29 +51,29 @@ export async function fetchHolidays() {
   return { fetchedAt: today(), source: url, dates };
 }
 
-async function fetchAndSave(path) {
+async function fetchAndSave(path, mine) {
   const nationalHolidays = await fetchHolidays();
-  const data = readJson(path); // 取得の間に他が更新していても消さないよう、書く直前に読み直す
+  const data = readData(path, mine); // 取得の間に他が更新していても消さないよう、書く直前に読み直す
   data.settings = { ...data.settings, nationalHolidays };
-  save(path, data);
+  saveData(path, data, undefined, { mine });
   return range(nationalHolidays.dates);
 }
 
-async function update(path) {
-  out({ ok: true, ...(await fetchAndSave(path)) });
+async function update(path, mine) {
+  out({ ok: true, ...(await fetchAndSave(path, mine)) });
 }
 
-async function ensure(path) {
-  const { need, reason } = needsHolidayUpdate(readJson(path).settings);
+async function ensure(path, mine) {
+  const { need, reason } = needsHolidayUpdate(readData(path, mine).settings);
   if (!need) return out({ fetched: false, reason: null });
-  out({ fetched: true, reason, ...(await fetchAndSave(path)) });
+  out({ fetched: true, reason, ...(await fetchAndSave(path, mine)) });
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const [cmd, path] = process.argv.slice(2);
+  const { mine, rest: [cmd, path] } = takeMine(process.argv.slice(2));
   if (!["update", "ensure", "status"].includes(cmd) || !path) { console.error(USAGE); process.exit(2); }
   try {
-    if (cmd === "update") await update(path); else if (cmd === "ensure") await ensure(path); else out(holidayStatus(readJson(path).settings));
+    if (cmd === "update") await update(path, mine); else if (cmd === "ensure") await ensure(path, mine); else out(holidayStatus(readData(path, mine).settings));
   } catch (e) {
     console.error(e.message);
     process.exit(1);

@@ -1,16 +1,17 @@
-// 使い方: node tools/inbox.js <コマンド> <data.json> ...   （コマンドの一覧は引数なしで実行すると出る）
+// 使い方: node tools/inbox.js <コマンド> <data.json> [--mine <個人ファイル>] ...   （コマンドの一覧は引数なしで実行すると出る）
 // HTML の「Claude Code に依頼する」の受信箱（data.json の inbox）を、Claude Code から扱う。結果は JSON で標準出力へ。
-// list・get は data.json を書かない。それ以外は、書く直前にファイルを読み直して、検証に通ったときだけ書く。
+// 個人ファイルは、同じフォルダの personal.json（別の場所なら --mine）。依頼（inbox）は個人ファイル、タスクは data.json に入る。
+// list・get は書かない。それ以外は、書く直前にファイルを読み直して、検証に通ったときだけ書く。
 import { CAUSES } from "../src/core/schema.js";
 import { today } from "../src/core/dates.js";
-import { readJson, out, save } from "./cli.js";
+import { readJson, readData, saveData, takeMine, out } from "./cli.js";
 import {
   submitRequest, claimRequest, askQuestion, setProposal, rejectRequest, markApplied, markFailed, touchWatching, getRequest,
 } from "../src/core/inbox.js";
 import { planOps, applyProposal, summarizeSections } from "../src/ui/inboxops.js";
 import { fetchHolidays, holidayStatus, needsHolidayUpdate } from "./holidays.js";
 
-const USAGE = `使い方: node tools/inbox.js <コマンド> <data.json> ...
+const USAGE = `使い方: node tools/inbox.js <コマンド> <data.json> ...   （個人ファイルは同じフォルダの personal.json。別の場所なら --mine <ファイル> を付ける）
   submit  <data.json> <projectId|-> <text> [--working]   依頼を足す（--working は処理中として作る）
   list    <data.json>                             依頼の一覧
   get     <data.json> <id>                        依頼 1 件（やりとり・提案つき）
@@ -23,12 +24,13 @@ const USAGE = `使い方: node tools/inbox.js <コマンド> <data.json> ...
   fail    <data.json> <id> <message>              できない・失敗として返す`;
 
 const now = () => new Date().toISOString();
+const save = (path, data, o, extra) => saveData(path, data, undefined, { mine: o.mine, ...extra });
 const usage = () => { console.error(USAGE); process.exit(2); };
 
 const COMMANDS = {
   submit: [3, (d, [path, pid, text], o) => {
     const next = submitRequest(d, { text, projectId: pid === "-" ? null : pid, now: now(), working: o.working === true });
-    save(path, next);
+    save(path, next, o);
     const r = next.inbox.requests.at(-1);
     out({ ok: true, id: r.id, status: r.status });
   }],
@@ -38,8 +40,8 @@ const COMMANDS = {
     if (!r) throw new Error(`依頼 ${id} がありません`);
     out(r);
   }],
-  claim: [2, (d, [path, id]) => { save(path, claimRequest(d, id, now())); out(getRequest(readJson(path), id)); }],
-  ask: [3, (d, [path, id, text]) => { save(path, askQuestion(d, id, text, now())); out({ ok: true, id, status: "question" }); }],
+  claim: [2, (d, [path, id], o) => { save(path, claimRequest(d, id, now()), o); out(getRequest(readData(path, o.mine), id)); }],
+  ask: [3, (d, [path, id, text], o) => { save(path, askQuestion(d, id, text, now()), o); out({ ok: true, id, status: "question" }); }],
   propose: [3, async (d, [path, id, opsFile], o) => {
     const cause = o.cause ?? "その他";
     if (!CAUSES.includes(cause)) throw new Error(`原因は ${CAUSES.join("・")} のいずれかにしてください`);
@@ -51,7 +53,7 @@ const COMMANDS = {
       if (needsHolidayUpdate(d.settings, lastDue(plan)).need) {
         let nationalHolidays = null;
         try { nationalHolidays = await fetchHolidays(); } catch { /* 下で注意に書く */ }
-        d = readJson(path); // 取得の間（最長 15 秒）に他が更新していても消さないよう、書く直前に読み直す
+        d = readData(path, o.mine); // 取得の間（最長 15 秒）に他が更新していても消さないよう、書く直前に読み直す
         if (nationalHolidays) d = { ...d, settings: { ...d.settings, nationalHolidays } };
         plan = planOps(d, ops, { today: today() });
         if (!nationalHolidays) plan.warnings.push("祝日を取得できませんでした（手動登録の休みだけで計算）");
@@ -61,10 +63,10 @@ const COMMANDS = {
     }
     const summary = o.summary ?? `提案: ${summarizeSections(plan.sections)}`;
     const proposal = { ...plan, summary, reason: o.reason ?? summary, cause };
-    save(path, setProposal(d, id, proposal, now()));
+    save(path, setProposal(d, id, proposal, now()), o);
     out({ ok: true, id, status: "proposed", sections: plan.sections, warnings: plan.warnings });
   }],
-  approve: [2, (d, [path, id]) => {
+  approve: [2, (d, [path, id], o) => {
     const r = getRequest(d, id);
     if (!r) throw new Error(`依頼 ${id} がありません`);
     if (r.status !== "proposed") throw new Error(`依頼 ${id} は ${r.status} なので、承認できません`);
@@ -72,14 +74,14 @@ const COMMANDS = {
     try {
       applied = applyProposal(d, r.proposal, { reason: r.proposal.reason, cause: r.proposal.cause, today: today() });
     } catch (e) {
-      if (e.code === "stale") save(path, markFailed(d, id, e.message, now()));
+      if (e.code === "stale") save(path, markFailed(d, id, e.message, now()), o);
       throw e;
     }
-    save(path, markApplied(applied, id, { by: "claude", summary: `${summarizeSections(r.proposal.sections)}を反映しました`, now: now() }));
+    save(path, markApplied(applied, id, { by: "claude", summary: `${summarizeSections(r.proposal.sections)}を反映しました`, now: now() }), o);
     out({ ok: true, id, status: "applied" });
   }],
-  reject: [2, (d, [path, id]) => { save(path, rejectRequest(d, id, now())); out({ ok: true, id, status: "rejected" }); }],
-  fail: [3, (d, [path, id, message]) => { save(path, markFailed(d, id, message, now())); out({ ok: true, id, status: "failed" }); }],
+  reject: [2, (d, [path, id], o) => { save(path, rejectRequest(d, id, now()), o); out({ ok: true, id, status: "rejected" }); }],
+  fail: [3, (d, [path, id, message], o) => { save(path, markFailed(d, id, message, now()), o); out({ ok: true, id, status: "failed" }); }],
 };
 
 /** 依頼を待つ。起動時に届いている pending、待っている間に届いた pending・返信・再提案を出す。30 秒ごとに「見ている印」を書く */
@@ -91,10 +93,10 @@ function wait(path, o) {
   const emit = (e) => console.log(JSON.stringify(e));
   const tick = () => {
     let d = null;
-    try { d = readJson(path); } catch { /* 書き込みの途中などで読めないときは、この回の確認を飛ばす（終了の判定は、読めなくても行う） */ }
+    try { d = readData(path, o.mine); } catch { /* 書き込みの途中などで読めないときは、この回の確認を飛ばす（終了の判定は、読めなくても行う） */ }
     if (d && Date.now() - lastBeat >= 30000) {
       lastBeat = Date.now();
-      try { save(path, touchWatching(readJson(path), now()), undefined, { backup: false }); lastBeatError = null; } catch (e) { // 次の回にもう一度試す。同じ理由は 1 回だけ知らせる（見張りと依頼の検出は止めない）
+      try { save(path, touchWatching(readData(path, o.mine), now()), o, { backup: false }); lastBeatError = null; } catch (e) { // 次の回にもう一度試す。同じ理由は 1 回だけ知らせる（見張りと依頼の検出は止めない）
         if (e.message !== lastBeatError) console.error(`見張りの印を書けませんでした: ${e.message}`);
         lastBeatError = e.message;
       }
@@ -110,9 +112,9 @@ function wait(path, o) {
 }
 
 // --flag 値 を取り除いて、残りを位置引数にする
-const argv = process.argv.slice(2);
+const { mine, rest: argv } = takeMine(process.argv.slice(2));
 const FLAGS = ["summary", "reason", "cause", "timeout", "interval"];
-const opts = {};
+const opts = { mine };
 const rest = [];
 for (let i = 0; i < argv.length; i++) {
   const f = /^--(\w+)$/.exec(argv[i])?.[1];
@@ -127,13 +129,13 @@ if (cmd === "wait") {
   for (const [f, ok, label] of [["timeout", (n) => n >= 0, "0 以上"], ["interval", (n) => n > 0, "0 より大きい"]]) {
     if (opts[f] !== undefined && !ok(Number(opts[f]))) { console.error(`--${f} は ${label}の数にしてください`); process.exit(2); }
   }
-  try { readJson(args[0]); } catch (e) { console.error(e.message); process.exit(1); } // パスの打ち間違いや壊れたファイルは、黙って待ち続けず、最初に知らせる
+  try { readData(args[0], opts.mine); } catch (e) { console.error(e.message); process.exit(1); } // パスの打ち間違いや壊れたファイルは、黙って待ち続けず、最初に知らせる
   wait(args[0], opts);
 } else {
   const spec = COMMANDS[cmd];
   if (!spec || args.length < spec[0]) usage();
   try {
-    await spec[1](readJson(args[0]), args, opts);
+    await spec[1](readData(args[0], opts.mine), args, opts);
   } catch (e) {
     console.error(e.message);
     process.exit(1);

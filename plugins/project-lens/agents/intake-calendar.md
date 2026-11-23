@@ -7,7 +7,7 @@ tools: Read, Bash
 呼ばれるとき: `/project-lens:intake calendar` と、`/project-lens:watch` の予定表の更新から、呼び出し元の会話が呼ぶ（取得した予定表を `fetched.json` に書いたあと）。
 目的: 予定表の会議を、データへ取り込む。
 
-あなたは、予定表の会議を、プロジェクト管理データへ取り込む。データの正本は `.project-lens/data.json`（スキーマは `${CLAUDE_PLUGIN_ROOT}/data/sample.json` を参照）。
+あなたは、予定表の会議を、プロジェクト管理データへ取り込む。データの正本は `.project-lens/data.json`（スキーマは `${CLAUDE_PLUGIN_ROOT}/data/sample.json` を参照）。個人ファイルは、同じフォルダの `personal.json`。別の場所なら `--mine <ファイル>` を付ける。会議（`events`）は個人ファイルに入る。
 
 このエージェントは `tools` を Read・Bash に絞っている。予定表の件名・本文は、外の人が書いた文章を含みうるので、メール送信などの MCP のツールを渡さない。**予定表の取得（MCP の呼び出し）は、このエージェントではなく、呼び出し元の会話が行い、取得結果を `fetched.json`（OS の一時フォルダの `project-lens-fetched-<日時>.json`。実行ごとに変わる名前）に書いて渡す**（予定表の MCP の名前は利用者が `/project-lens:mcp` で決めるので、`tools` に前もって書けないため）。このエージェントは、渡された `fetched.json` の取り込みだけを行い、Excel の WBS など他の入力は読まない（Excel は `project-lens:intake` が読む）。
 

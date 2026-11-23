@@ -1,6 +1,6 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, readFileSync, copyFileSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, copyFileSync, rmSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
@@ -9,6 +9,8 @@ import { fileURLToPath } from "node:url";
 import { validate } from "../plugins/project-lens/src/core/schema.js";
 import { addDays, today } from "../plugins/project-lens/src/core/dates.js";
 import { needsHolidayUpdate } from "../plugins/project-lens/tools/holidays.js";
+
+import { writeTwo, readTwo, rawTwo } from "./twofiles.js";
 
 const REPO = fileURLToPath(new URL("../plugins/project-lens/", import.meta.url));
 const CLI = join(REPO, "tools/holidays.js");
@@ -27,10 +29,13 @@ const CSV_SJIS = Buffer.concat([
 
 let n = 0;
 function work(settings) {
-  const data = join(base, `data${++n}.json`);
-  copyFileSync(join(REPO, "data/sample.json"), data);
-  if (settings) { const d = JSON.parse(readFileSync(data, "utf8")); d.settings = { ...d.settings, ...settings }; writeFileSync(data, JSON.stringify(d, null, 2)); }
-  return { data, text: () => readFileSync(data, "utf8"), json: () => JSON.parse(readFileSync(data, "utf8")) };
+  const dir = join(base, `d${++n}`);
+  mkdirSync(dir);
+  const data = join(dir, "data.json");
+  const d = JSON.parse(readFileSync(join(REPO, "data/sample.json"), "utf8"));
+  if (settings) d.settings = { ...d.settings, ...settings };
+  writeTwo(data, d);
+  return { data, dir, text: () => rawTwo(data), json: () => readTwo(data) };
 }
 
 /** 本文を返すローカルサーバーを立てる。サーバーが応答できるよう、CLI は非同期で動かす */
@@ -174,4 +179,27 @@ test("needsHolidayUpdate・ensure: 土日祝を営業日に数える設定がオ
   assert.deepEqual(r.out, { fetched: false, reason: null });
   assert.equal(w.text(), before);
   assert.equal(w.json().settings.nationalHolidays, undefined);
+});
+
+// ---- 共有ファイル（data.json）と個人ファイル（personal.json） ----
+test("2 ファイル: update は data.json の nationalHolidays だけを書き、personal.json は変えない", async () => {
+  const w = work(), pp = join(w.dir, "personal.json"), before = readFileSync(pp, "utf8");
+  const s = await serve(200, CSV_SJIS);
+  const r = await runAsync(["update", w.data], { PROJECT_LENS_HOLIDAYS_URL: s.url });
+  await s.close();
+  assert.equal(r.status, 0, r.err);
+  assert.equal(JSON.parse(readFileSync(w.data, "utf8")).settings.nationalHolidays.dates.length, 2);
+  assert.equal(readFileSync(pp, "utf8"), before);
+});
+
+test("--mine: 指定先が無ければ、update も status も終了コード 1 で理由を出し、何も書かない", async () => {
+  const w = work(), nope = join(w.dir, "nope.json"), before = w.text();
+  const s = await serve(200, CSV_SJIS);
+  for (const cmd of ["update", "status"]) {
+    const r = await runAsync([cmd, w.data, "--mine", nope], { PROJECT_LENS_HOLIDAYS_URL: s.url });
+    assert.equal(r.status, 1, cmd);
+    assert.match(r.err, /個人ファイル .*nope\.json がありません。--mine の指定を確かめてください/);
+  }
+  await s.close();
+  assert.equal(w.text(), before);
 });
