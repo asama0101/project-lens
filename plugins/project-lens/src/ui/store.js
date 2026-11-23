@@ -108,15 +108,15 @@ export function createStore(deps = {}) {
   /** 常にファイル選択を出す。読めて形が合ったときだけ、切り替えて記憶する */
   async function choose() {
     const [h] = await picker({ types: PICKER_TYPES, multiple: false });
-    await ensureWritable(h);
+    if (!(await ensureWritable(h))) throw new Error("ファイルへの書き込みが許可されませんでした。もう一度ファイルを選び、許可してください");
     const data = await switchTo(h);
     rememberFailed = (await idb.set(key, h)) === false;
     return data;
   }
 
-  /** ファイルの最新を読むだけ（読込時点は変えない。他の更新があるかの確認用） */
-  async function peek() {
-    return JSON.parse(await (await handle.getFile()).text());
+  /** 読み込み（または直近の保存）のあとに、ファイルの更新日時が変わったか（中身は読まない。他の更新があるかの確認用） */
+  async function changed() {
+    return (await handle.getFile()).lastModified !== loadedAt;
   }
 
   async function reload() {
@@ -173,7 +173,7 @@ export function createStore(deps = {}) {
     return { ...second, data };
   }
 
-  return { restore, reopen, choose, lastFile, peek, reload, read, save, saveMerged, get hasFile() { return !!handle; }, get rememberFailed() { return rememberFailed; } };
+  return { restore, reopen, choose, lastFile, changed, reload, read, save, saveMerged, get hasFile() { return !!handle; }, get rememberFailed() { return rememberFailed; } };
 }
 
 const PAIR = ["shared", "personal"];
@@ -227,8 +227,8 @@ export function createPairStore(deps = {}) {
     return { shared: await stores.shared.lastFile(), personal: await stores.personal.lastFile() };
   }
 
-  async function peek() {
-    return mergeData(await stores.shared.peek(), await stores.personal.peek());
+  async function changed() {
+    return (await stores.shared.changed()) || (await stores.personal.changed());
   }
 
   /** 2 つとも読めて形が合ってから、両方の読み込み時点を進める。片方でも失敗したら、何も変えずに例外
@@ -279,7 +279,7 @@ export function createPairStore(deps = {}) {
   }
 
   return {
-    restore, reopen, choose, missing, lastFile, peek, reload, save,
+    restore, reopen, choose, missing, lastFile, changed, reload, save,
     saveMerged: (edit, data) => write(data, edit),
     get hasFile() { return hasFile(); },
     get rememberFailed() { return stores.shared.rememberFailed || stores.personal.rememberFailed; },

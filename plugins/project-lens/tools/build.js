@@ -40,6 +40,7 @@ export const MODULES = [
   "src/ui/views/taskpop.js",
   "src/ui/views/project.js",
   "src/ui/views/schedule.js",
+  "src/ui/dnd.js",
   "src/ui/sticky.js",
   "src/ui/app.js",
 ];

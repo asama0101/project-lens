@@ -56,8 +56,7 @@ export function createSync({ store, getData, setData, render, renderBar, banner,
         try {
           if (sync.failed || pending.length) return; // 並んでいる間に編集があった。その保存を先にする
           const strip = (d) => JSON.stringify({ ...d, inbox: undefined });
-          const probe = await store.peek(); // 読むだけ（読み込んだことにしない）。他の更新があるときだけ、読み込み直す
-          if (JSON.stringify(probe) === JSON.stringify(getData())) { renderBar(); return; }
+          if (!(await store.changed())) { renderBar(); return; } // 更新日時を見るだけ。他の更新があるときだけ、読み込み直す
           const fresh = await store.reload();
           if (pending.length) { // 読んでいる間に、画面で編集があった。最新のファイルの上に重ねる（保存は、その編集の保存が行う）
             try { setData(pending.reduce((d, e) => e(d), fresh)); } catch { sync.failed = true; banner(CONFLICT, { reload: true, download: true }); return; }

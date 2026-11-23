@@ -178,14 +178,28 @@ test("saveMerged: 最新のデータに編集を当てると例外のときは�
   assert.equal(d.writes, 0);
 });
 
-test("peek: ファイルの最新を読むだけで、読込時点（保存の競合の判定）は変えない", async () => {
+test("changed: 更新日時だけを見る。他が書けば true、読み直し・自分の保存のあとは false。読込時点（保存の競合の判定）は変えない", async () => {
   const h = fakeHandle({ a: 1 });
   const s = mk(h);
   await s.choose();
+  assert.equal(await s.changed(), false);
   h.text = JSON.stringify({ a: 1, inbox: "他が書いた" }); h.modified += 5;
-  assert.deepEqual(await s.peek(), { a: 1, inbox: "他が書いた" });
+  assert.equal(await s.changed(), true);
   const r = await s.save({ a: 2 });
-  assert.deepEqual([r.ok, r.reason], [false, "conflict"], "peek では、読み込んだことにならない");
+  assert.deepEqual([r.ok, r.reason], [false, "conflict"], "changed では、読み込んだことにならない");
+  await s.reload();
+  assert.equal(await s.changed(), false);
+  assert.deepEqual(await s.save({ a: 3 }), { ok: true });
+  assert.equal(await s.changed(), false);
+});
+
+test("choose: 書き込みを許可されなければ例外。ファイルも記憶も切り替えない", async () => {
+  const h = fakeHandle({ a: 1 });
+  const t = twice(h);
+  h.perm = "prompt"; h.reqPerm = "denied";
+  await assert.rejects(t.first.choose(), /許可/);
+  assert.equal(t.first.hasFile, false);
+  assert.equal(await t.second().lastFile(), null, "記憶していない");
 });
 
 test("saveMerged: 当て直しに失敗しても、読み込み時点は進めない。次の保存は、古いデータで他の更新を上書きせず、競合になる", async () => {

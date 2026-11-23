@@ -6,6 +6,7 @@ import { diffDays, dueAfter } from "../core/dates.js";
 import { calendarOf, offDayChecker } from "../core/holidays.js";
 import { computeImpact } from "../core/impact.js";
 import { CAUSES, PROPOSE_OPS, isClosed, validate } from "../core/schema.js";
+import { getRequest, markApplied, markFailed } from "../core/inbox.js";
 import { addTask, newChecklist, updateTask } from "./edit.js";
 
 const max = (a, b) => (a > b ? a : b);
@@ -211,4 +212,14 @@ export function applyProposal(data, proposal, { reason, cause, today }) {
   const { errors } = validate(out);
   if (errors.length) throw new Error(errors.join(" / "));
   return out;
+}
+
+/** 画面の承認（HTML 自身が適用して保存する）の編集。依頼が proposed でなければ例外。提案のあとにデータが変わっていた（stale）ときは、failed にする */
+export function approveEdit(data, id, { reason, cause, today, now }) {
+  const cur = getRequest(data, id);
+  if (cur?.status !== "proposed") throw new Error("この依頼は、すでに処理されています");
+  let next;
+  try { next = applyProposal(data, cur.proposal, { reason, cause, today }); }
+  catch (e) { if (e.code === "stale") return markFailed(data, id, e.message, now); throw e; }
+  return markApplied(next, id, { by: "html", summary: `${summarizeSections(cur.proposal.sections)}を反映しました`, now });
 }

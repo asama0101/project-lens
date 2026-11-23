@@ -337,3 +337,36 @@ test("planOps(moveDue): プロジェクトなしのタスクがあっても例�
   assert.equal(task(out, "ZZ-0009").due, "2026-10-22");
   assert.equal(validate(out).errors.length, 0);
 });
+
+import { approveEdit } from "../plugins/project-lens/src/ui/inboxops.js";
+import { submitRequest, claimRequest, setProposal, getRequest } from "../plugins/project-lens/src/core/inbox.js";
+
+const proposed = (d, ops) => {
+  const t = "2026-10-21T00:00:00.000Z";
+  let x = claimRequest(submitRequest(d, { text: "AA-0003 を 45 日延ばして", now: t }), "R1", t);
+  return setProposal(x, "R1", { ...planOps(d, ops, { today: TODAY }), summary: "提案" }, t);
+};
+const ARG = { reason: "納期回答が遅れた", cause: "ベンダー", today: TODAY, now: "2026-10-21T00:01:00.000Z" };
+
+test("approveEdit: proposed の依頼を適用して applied にする（by: html）。元のデータは変えない", () => {
+  const d = proposed(load(), [{ op: "moveDue", taskId: "AA-0003", deltaDays: 45 }]);
+  const out = approveEdit(d, "R1", ARG);
+  assert.equal(task(out, "AA-0003").due, "2026-11-30");
+  assert.deepEqual([getRequest(out, "R1").status, getRequest(out, "R1").result.by], ["applied", "html"]);
+  assert.equal(task(d, "AA-0003").due, "2026-10-16");
+});
+
+test("approveEdit: 提案のあとに対象のタスクが変わっていたら、適用せず failed にする（例外にしない）", () => {
+  const d = proposed(load(), [{ op: "moveDue", taskId: "AA-0003", deltaDays: 45 }]);
+  const changed = { ...d, tasks: d.tasks.map((t) => (t.id === "AA-0003" ? { ...t, due: "2026-10-20" } : t)) };
+  const out = approveEdit(changed, "R1", ARG);
+  assert.equal(getRequest(out, "R1").status, "failed");
+  assert.equal(task(out, "AA-0003").due, "2026-10-20", "データは変えない");
+});
+
+test("approveEdit: proposed でない（すでに処理された・ない）依頼は例外", () => {
+  const d = proposed(load(), [{ op: "moveDue", taskId: "AA-0003", deltaDays: 45 }]);
+  const done = approveEdit(d, "R1", ARG);
+  assert.throws(() => approveEdit(done, "R1", ARG), /すでに処理されています/);
+  assert.throws(() => approveEdit(d, "R9", ARG), /すでに処理されています/);
+});
