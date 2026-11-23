@@ -1,5 +1,5 @@
 // スケジュール画面（週／日）。位置と高さは勤務時間に対する % で表し、カレンダーの高さは CSS で画面に追従させる。
-import { addDays, toMin, weekday } from "../../core/dates.js";
+import { addDays, toMin, toHHMM, weekday } from "../../core/dates.js";
 import { freeSlots, meetingKind } from "../../core/schedule.js";
 import { matchProject } from "../../core/rules.js";
 import { offDayChecker } from "../../core/holidays.js";
@@ -77,6 +77,25 @@ function freeOf(data, d, g, isOff) {
   return freeSlots(busy, d, g.wd);
 }
 
+/** 突発タスクの既定の開始: その日の勤務時間内で、会議・枠と重ならない最初の空き（今日なら現在時刻以降）の開始（15 分刻み）。なければ勤務の開始 */
+export function firstFreeStart(data, date, now) {
+  const g = calendarGeometry(data);
+  const from = date === now.date ? toMin(now.time) : 0;
+  for (const x of freeOf(data, date, g, offDayChecker(data.settings))) {
+    let st = snapFreeStart(Math.max(toMin(x.start), from), g.wd);
+    if (st < from) st += SLOT_STEP; // 現在時刻より前へ戻さない
+    if (st + SLOT_STEP <= toMin(x.end)) return toHHMM(st);
+  }
+  return g.wd.start;
+}
+
+/** 突発タスクの入力欄の値 → addUrgentTask への入力。件名・日付・開始のどれかが空なら null（何も作らない） */
+export function urgentInput(f) {
+  const title = f.title.trim(), date = f.date.trim(), start = f.start.trim();
+  if (!title || !date || !start) return null;
+  return { input: { title, projectId: f.projectId || null, date, start, minutes: +f.minutes } };
+}
+
 function meetingForm(data, ctx) {
   const draft = ctx.mtgDraft;
   const m = draft ?? (data.events ?? []).find((o) => o.id === ctx.selMtg);
@@ -101,7 +120,7 @@ function meetingForm(data, ctx) {
 }
 
 /** 空き時間から突発タスクを登録する入力欄（件名・プロジェクト・長さ）。下書きがないときは出さない */
-function urgentForm(data, draft) {
+export function urgentForm(data, draft) {
   if (!draft) return "";
   const projOpts = [`<option value=""${draft.projectId === "" ? " selected" : ""}>プロジェクトなし</option>`, ...(data.projects ?? []).map((p) => `<option value="${esc(p.id)}"${draft.projectId === p.id ? " selected" : ""}>${esc(p.name)}</option>`)].join("");
   const minOpts = [15, 30, 45, 60].map((m) => `<option value="${m}"${draft.minutes === m ? " selected" : ""}>${m} 分</option>`).join("");
@@ -109,7 +128,8 @@ function urgentForm(data, draft) {
     <label>件名<input class="in" data-ug="title" value="${esc(draft.title)}" placeholder="突発タスクの件名" style="min-width:200px"></label>
     <label>プロジェクト<select class="in" data-ug="projectId" aria-label="突発タスクのプロジェクト">${projOpts}</select></label>
     <label>長さ<select class="in" data-ug="minutes" aria-label="突発タスクの長さ">${minOpts}</select></label>
-    <span class="note" style="margin:0">${esc(draft.date)} ${esc(draft.start)} から</span>
+    <label>日付<input class="in" type="date" data-ug="date" value="${esc(draft.date)}"></label>
+    <label>開始<input class="in" type="time" step="900" data-ug="start" value="${esc(draft.start)}"></label>
     <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-urgsave>追加</button><button class="btn" data-urgcancel>キャンセル</button></div>
   </div>`;
 }

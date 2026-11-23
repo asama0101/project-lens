@@ -11,7 +11,7 @@ import { checklistEditorHtml } from "../plugins/project-lens/src/ui/views/checkl
 import { renderTaskPop } from "../plugins/project-lens/src/ui/views/taskpop.js";
 import { renderInboxBar, ibExamples } from "../plugins/project-lens/src/ui/views/inboxpanel.js";
 import { ruleMeetingCounts } from "../plugins/project-lens/src/core/rules.js";
-import { renderSchedule, snapStart, snapFreeStart } from "../plugins/project-lens/src/ui/views/schedule.js";
+import { renderSchedule, snapStart, snapFreeStart, firstFreeStart, urgentInput } from "../plugins/project-lens/src/ui/views/schedule.js";
 import { taskActual } from "../plugins/project-lens/src/core/sessions.js";
 import { rankTasks } from "../plugins/project-lens/src/core/schedule.js";
 
@@ -1439,6 +1439,34 @@ test("renderSchedule: 突発タスクの入力欄は、下書きの件名・プ�
   assert.ok(html.includes("&lt;b&gt;x&lt;/b&gt;") && !html.includes("<b>x</b>"));
   assert.ok(html.includes(`<option value="${d.projects[0].id}" selected>`));
   assert.match(html, /<option value="45" selected>/);
+});
+
+test("firstFreeStart: その日の最初の空き（今日なら現在時刻以降）の開始。なければ勤務の開始", () => {
+  const d = { settings: { workday: { start: "09:00", end: "18:00" } }, tasks: [], events: [{ id: "M", date: "2026-10-21", start: "09:30", end: "10:30", title: "m" }] };
+  const f = (date, time) => firstFreeStart(d, date, { date: "2026-10-21", time });
+  assert.equal(f("2026-10-21", "09:00"), "09:00");
+  assert.equal(f("2026-10-21", "09:20"), "10:30");
+  assert.equal(f("2026-10-21", "10:40"), "10:45");
+  assert.equal(f("2026-10-22", "15:00"), "09:00", "別の日は勤務の開始以降");
+  assert.equal(f("2026-10-21", "17:50"), "09:00", "今日の残りに 15 分の空きがなければ勤務の開始");
+  d.events[0] = { id: "M", date: "2026-10-22", start: "09:00", end: "18:00", title: "終日" };
+  assert.equal(f("2026-10-22", "09:00"), "09:00", "1 日埋まっていれば勤務の開始");
+  d.events[0] = { id: "M", date: "2026-10-22", start: "09:00", end: "10:00", title: "m" };
+  assert.equal(f("2026-10-22", "09:00"), "10:00");
+});
+
+test("urgentForm: 日付・開始時刻の欄に下書きの値が入る", () => {
+  const html = sched(load(), { urgentDraft: { date: "2026-10-22", start: "14:15", title: "", projectId: "", minutes: 30 } });
+  assert.match(html, /<input[^>]*type="date"[^>]*data-ug="date"[^>]*value="2026-10-22"|<input[^>]*data-ug="date"[^>]*type="date"[^>]*value="2026-10-22"/);
+  assert.match(html, /data-ug="start"[^>]*value="14:15"/);
+  assert.match(html, /type="time"[^>]*data-ug="start"|data-ug="start"[^>]*type="time"/);
+});
+
+test("urgentInput: 件名・日付・開始のどれかが空なら null、そろえば addUrgentTask への入力", () => {
+  const f = { title: " 障害対応 ", projectId: "", minutes: "45", date: "2026-10-22", start: "14:00" };
+  assert.deepEqual(urgentInput(f), { input: { title: "障害対応", projectId: null, date: "2026-10-22", start: "14:00", minutes: 45 } });
+  assert.equal(urgentInput({ ...f, projectId: "P1" }).input.projectId, "P1");
+  for (const k of ["title", "date", "start"]) assert.equal(urgentInput({ ...f, [k]: "  " }), null, k);
 });
 
 // ---- プロジェクトなしのタスク（サンプルの X1） ----

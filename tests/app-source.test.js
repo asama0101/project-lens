@@ -428,3 +428,13 @@ test("app.js: 空き時間を押すと、タスク未選択なら突発タスク
   assert.ok(src.includes('e.key === "Enter" && !e.isComposing && e.target.matches("[data-ug=\\"title\\"]")'));
   assert.match(src, /e\.key === "Escape" && S\.screen === "schedule" && \([^)]*S\.urgentDraft/);
 });
+
+test("app.js: ヘッダーの「＋ 突発タスク」は、clearSel() で選択を外し、スケジュール画面へ移り、firstFreeStart で開始を決めて件名にフォーカスする", () => {
+  assert.ok(src.includes("data-urgent-open") && src.includes("＋ 突発タスク"));
+  const h = src.slice(src.indexOf('e.target.closest("[data-urgent-open]")'));
+  const body = h.slice(0, 900);
+  assert.match(body, /clearSel\(\)/);
+  assert.match(body, /S\.screen = "schedule"/);
+  assert.match(body, /firstFreeStart\(/);
+  assert.match(body, /\[data-ug="title"\]'?\)?\??\.focus/);
+});

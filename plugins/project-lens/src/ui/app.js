@@ -77,7 +77,7 @@ function render() {
   const c = clock();
   $("todaylabel").textContent = `${c.date.replace(/-/g, "/")}(${wdJa(c.date)})`;
   document.querySelectorAll("nav [role=tab]").forEach((b) => b.setAttribute("aria-selected", String(b.id === "tab-" + S.screen)));
-  $("filebar").innerHTML = S.data ? `<button class="chip-btn pref" data-pref="actual" aria-pressed="${S.prefs.showActual}" title="ガントの実績の線を出したり隠したりします">ガント実績</button><span class="fsep" aria-hidden="true"></span><button class="btn" data-refresh title="ファイルを読み直します(Claude Code などが更新した内容を反映)">更新</button><button class="btn" data-openfile>別のファイルを開く</button>${typeof window.showOpenFilePicker === "function" ? "" : `<button class="btn" data-download>JSON を書き出す</button>`}` : "";
+  $("filebar").innerHTML = S.data ? `<button class="chip-btn pref" data-pref="actual" aria-pressed="${S.prefs.showActual}" title="ガントの実績の線を出したり隠したりします">ガント実績</button><span class="fsep" aria-hidden="true"></span><button class="btn" data-urgent-open title="空き時間を押さずに、突発タスクの入力欄を開きます">＋ 突発タスク</button><button class="btn" data-refresh title="ファイルを読み直します(Claude Code などが更新した内容を反映)">更新</button><button class="btn" data-openfile>別のファイルを開く</button>${typeof window.showOpenFilePicker === "function" ? "" : `<button class="btn" data-download>JSON を書き出す</button>`}` : "";
   document.body.classList.toggle("picking", !!S.picked && S.screen === "schedule" && S.sview === "day");
   renderBar();
   // ガントの横スクロール位置(全プロジェクトで同じ)とページの縦の位置は、編集で描き直しても保つ(表示期間・絞り込みなどを変えたときだけ今日の位置へ戻す)。
@@ -362,6 +362,14 @@ document.querySelector("nav").addEventListener("click", (e) => {
 $("filebar").addEventListener("click", async (e) => {
   const pf = e.target.closest("[data-pref]");
   if (pf) { togglePref("showActual"); return; }
+  if (e.target.closest("[data-urgent-open]")) {
+    clearSel(); S.tpop = null; S.pendingDone = null; S.ruleError = "";
+    const date = S.screen === "schedule" ? S.sdate : clock().date;
+    S.screen = "schedule"; S.sdate = date; S.resetScroll = true;
+    S.urgentDraft = { date, start: firstFreeStart(S.data, date, clock()), title: "", projectId: "", minutes: 30 };
+    render(); view.querySelector('[data-ug="title"]')?.focus();
+    return;
+  }
   if (e.target.closest("[data-refresh]")) {
     await sync.whenIdle();
     if (sync.failed && !S.confirmRefresh) { S.confirmRefresh = true; toast("保存できていない変更があります。もう一度「更新」を押すと破棄して読み直します"); return; }
@@ -559,14 +567,15 @@ view.addEventListener("click", (e) => {
 /** 突発タスクの入力欄の確定。件名が空なら何もしない。Error のときは通知だけで、入力欄を残す */
 function submitUrgent() {
   const u = S.urgentDraft, f = (k) => view.querySelector(`[data-ug="${k}"]`).value;
-  const title = f("title").trim();
-  if (!u || !title) return;
-  const input = { title, projectId: f("projectId") || null, date: u.date, start: u.start, minutes: +f("minutes") };
-  S.urgentDraft = { ...u, title, projectId: f("projectId"), minutes: input.minutes }; // Error で描き直しても、入力を残す
+  if (!u) return;
+  const r = urgentInput({ title: f("title"), projectId: f("projectId"), minutes: f("minutes"), date: f("date"), start: f("start") });
+  S.urgentDraft = { ...u, title: f("title").trim(), projectId: f("projectId"), minutes: +f("minutes"), date: f("date"), start: f("start") }; // 空・Error で描き直しても、入力を残す
+  if (!r) return;
+  const { input } = r, title = input.title;
   let warning;
   if (apply((d) => { const r = addUrgentTask(d, input, clock()); warning = r.warning; return r.data; }, null, { quiet: true })) {
-    S.urgentDraft = null; S.sdate = u.date; render();
-    toast(`${title} を ${u.start} に ${input.minutes} 分で登録しました${warning ? `(${warning})` : ""}`);
+    S.urgentDraft = null; S.sdate = input.date; render();
+    toast(`${title} を ${input.start} に ${input.minutes} 分で登録しました${warning ? `(${warning})` : ""}`);
   }
 }
 
