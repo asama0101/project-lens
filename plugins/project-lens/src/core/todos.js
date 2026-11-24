@@ -79,12 +79,13 @@ export function carryTodo(data, id) {
 }
 
 export function addTodoCheck(data, id, text) {
+  find(data, id);
   const s = String(text ?? "").trim();
   if (!s) throw new Error("項目の文言を入れてください");
   return mapTodo(data, id, (t) => ({ ...t, checklist: [...(t.checklist ?? []), { id: nextChecklistId(t.checklist ?? []), text: s, done: false }] }));
 }
-export const toggleTodoCheck = (data, id, itemId) => mapTodo(data, id, (t) => ({ ...t, checklist: (t.checklist ?? []).map((x) => (x.id === itemId ? { ...x, done: !x.done } : x)) }));
-export const removeTodoCheck = (data, id, itemId) => mapTodo(data, id, (t) => ({ ...t, checklist: (t.checklist ?? []).filter((x) => x.id !== itemId) }));
+export const toggleTodoCheck = (data, id, itemId) => (find(data, id), mapTodo(data, id, (t) => ({ ...t, checklist: (t.checklist ?? []).map((x) => (x.id === itemId ? { ...x, done: !x.done } : x)) })));
+export const removeTodoCheck = (data, id, itemId) => (find(data, id), mapTodo(data, id, (t) => ({ ...t, checklist: (t.checklist ?? []).filter((x) => x.id !== itemId) })));
 
 /** 週（月曜日のキー）の気づき。空文字ならキーを消す */
 export function setReview(data, weekStart, text) {
@@ -100,18 +101,23 @@ export function todoMinutes(data, id, range) {
   return { planned: sum("planned"), actual: sum("actual") };
 }
 
-/** 週の見返し。対象は、date がその週に入る週の ToDo と、parentId を持たない日の ToDo（割り当てた日の分は数えない） */
+/** 週の見返し。見出しの分数は、その週の日付にある全 ToDo の枠の合計。行は、date がその週に入る週の ToDo と、parentId を持たない日の ToDo（inWeek: true。割り当てた日の分は親の行に含む）に、
+ *  date は別の週でも自分か子の枠がその週にある、親のない ToDo（inWeek: false。回す前の週の分）を足す。完了・件数は inWeek: true の行だけ */
 export function weekReview(data, weekStart) {
   const range = { start: weekStart, end: addDays(weekStart, 6) };
-  const items = todosOf(data)
-    .filter((t) => t.date >= range.start && t.date <= range.end && (t.scope === "week" || t.parentId === undefined))
-    .sort((a, b) => (a.scope === b.scope ? 0 : a.scope === "week" ? -1 : 1) || a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
-  const rows = items.map((todo) => ({ todo, checked: todo.checklist?.length ? { done: todo.checklist.filter((x) => x.done).length, total: todo.checklist.length } : null, ...todoMinutes(data, todo.id, range) }));
+  const roots = todosOf(data).filter((t) => t.scope === "week" || t.parentId == null);
+  const order = (a, b) => (a.scope === b.scope ? 0 : a.scope === "week" ? -1 : 1) || a.date.localeCompare(b.date) || a.id.localeCompare(b.id);
+  const inWeek = (t) => t.date >= range.start && t.date <= range.end;
+  const items = roots.filter(inWeek).sort(order);
+  const row = (todo, w) => ({ todo, inWeek: w, checked: todo.checklist?.length ? { done: todo.checklist.filter((x) => x.done).length, total: todo.checklist.length } : null, ...todoMinutes(data, todo.id, range) });
+  const rows = [...items.map((t) => row(t, true)), ...roots.filter((t) => !inWeek(t)).sort(order).map((t) => row(t, false)).filter((r) => r.planned + r.actual > 0)];
+  const slots = todosOf(data).flatMap((t) => t.sessions ?? []).filter((s) => s.date >= range.start && s.date <= range.end);
+  const sum = (kind) => slots.filter((s) => s.kind === kind).reduce((m, s) => m + toMin(s.end) - toMin(s.start), 0);
   return {
     done: items.filter((t) => t.doneAt).length,
     total: items.length,
-    planned: rows.reduce((m, r) => m + r.planned, 0),
-    actual: rows.reduce((m, r) => m + r.actual, 0),
+    planned: sum("planned"),
+    actual: sum("actual"),
     note: data.reviews?.[weekStart] ?? "",
     rows,
   };

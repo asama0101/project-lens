@@ -148,3 +148,47 @@ test("data.todos / data.reviews が無くても読める", () => {
   const d = { tasks: [], events: [], settings: {} };
   assert.deepEqual(weekReview(d, "2026-10-19"), { done: 0, total: 0, planned: 0, actual: 0, note: "", rows: [] });
 });
+
+test("weekReview: 回した ToDo の、回す前の週にある枠は、旧週の見出しと行（inWeek: false）に残り、新週には入らない", () => {
+  const d = carryTodo(base([todo({ id: "T-0001", date: "2026-10-23", sessions: [slot("S1", "2026-10-23", "09:00", "10:00", "actual")] })]), "T-0001");
+  assert.equal(d.todos[0].date, "2026-10-26");
+  const old = weekReview(d, "2026-10-19");
+  assert.equal(old.actual, 60);
+  assert.equal(old.total, 0);
+  assert.equal(old.done, 0);
+  assert.deepEqual(old.rows.map((r) => [r.todo.id, r.inWeek, r.actual]), [["T-0001", false, 60]]);
+  const cur = weekReview(d, "2026-10-26");
+  assert.deepEqual([cur.actual, cur.total], [0, 1]);
+  assert.deepEqual(cur.rows.map((r) => [r.todo.id, r.inWeek, r.actual]), [["T-0001", true, 0]]);
+});
+
+test("weekReview: 週の ToDo の子を回しても、旧週の見出しと親の行が子の分を含む。親が別の週にいても親の行に含む", () => {
+  const w = week2();
+  const d = carryTodo(w, "T-0002");
+  const r = weekReview(d, "2026-10-19");
+  assert.equal(r.actual, 180);
+  assert.deepEqual(r.rows.map((x) => [x.todo.id, x.inWeek, x.actual]), [["T-0001", true, 120], ["T-0003", true, 60]]);
+  assert.equal(r.rows.reduce((m, x) => m + x.actual, 0), r.actual);
+  const far = carryTodo(carryTodo(d, "T-0001"), "T-0001");
+  const r2 = weekReview(far, "2026-10-19");
+  assert.equal(r2.actual, 180);
+  assert.deepEqual(r2.rows.map((x) => [x.todo.id, x.inWeek, x.actual]), [["T-0003", true, 60], ["T-0001", false, 120]]);
+  assert.equal(r2.total, 1);
+});
+const week2 = () => base([
+  todo({ id: "T-0001", scope: "week", date: "2026-10-19", sessions: [slot("S1", "2026-10-20", "09:00", "10:00", "actual")] }),
+  todo({ id: "T-0002", date: "2026-10-23", parentId: "T-0001", sessions: [slot("S2", "2026-10-23", "09:00", "10:00", "actual")] }),
+  todo({ id: "T-0003", date: "2026-10-22", sessions: [slot("S3", "2026-10-22", "09:00", "10:00", "actual")] }),
+]);
+
+test("weekReview: parentId が null の日の ToDo も、親なしとして行に出す", () => {
+  const r = weekReview(base([todo({ id: "T-0001", parentId: null })]), "2026-10-19");
+  assert.deepEqual(r.rows.map((x) => x.todo.id), ["T-0001"]);
+});
+
+test("チェックリスト: 存在しない ToDo の id は例外", () => {
+  const d = base([todo({ id: "T-0001" })]);
+  assert.throws(() => addTodoCheck(d, "T-9", "a"), /ToDo T-9 がありません/);
+  assert.throws(() => toggleTodoCheck(d, "T-9", "c1"), /ToDo T-9 がありません/);
+  assert.throws(() => removeTodoCheck(d, "T-9", "c1"), /ToDo T-9 がありません/);
+});

@@ -13,7 +13,7 @@ const S = {
   prefs: loadPrefs(), settingsClosed: loadSettingsClosed(), tpop: null, addAt: null, last: null, ruleError: "",
   ib: { open: false, text: loadInboxDraft(), projectId: "", replies: {}, reasons: {}, causes: {} },
   wperiod: "day", wdate: clock().date,
-  todoWeek: mondayOf(clock().date), todoDay: clock().date, tdAct: null, tdDraft: null, // ToDo 画面の週（月曜日）・右の列の日・実績の入力欄を開いている ToDo と、その下書き
+  todoWeek: mondayOf(clock().date), todoDay: clock().date, tdAct: null, tdDraft: null, tdAskDel: null, // ToDo 画面の週（月曜日）・右の列の日・実績の入力欄を開いている ToDo と、その下書き・削除の確認を出している ToDo
 };
 const $ = (id) => document.getElementById(id);
 const view = $("view");
@@ -33,7 +33,7 @@ function toast(msg) {
 /** 開始画面の、まだ開いていないファイルごとの案内と選ぶボタン */
 const PICK = {
   shared: `<p><b>共有ファイルを選んでください。</b>プロジェクトとタスク（<code>/project-lens:init</code> が作った <code>.project-lens/data.json</code>）です。</p><button class="btn" data-open="shared">共有ファイルを選ぶ</button>`,
-  personal: `<p><b>個人ファイルを選んでください。</b>自分の作業枠・予定・休み（既定は <code>.project-lens/personal.json</code>）です。</p><button class="btn" data-open="personal">個人ファイルを選ぶ</button>`,
+  personal: `<p><b>個人ファイルを選んでください。</b>自分の作業枠・予定・休み・ToDo（既定は <code>.project-lens/personal.json</code>）です。</p><button class="btn" data-open="personal">個人ファイルを選ぶ</button>`,
 };
 function startScreen() {
   const canPick = typeof window.showOpenFilePicker === "function";
@@ -56,7 +56,7 @@ function renderBody() {
     return renderProjects(S.data, today, { filter: S.filter, view: S.screen, window: S.gwin, hideDone: S.hideDone, askDel: S.askDel, askDelProject: S.askDelProject, pendingWait: S.pendingWait, pendingDone: S.pendingDone, checkOpen: S.checkOpen, addAt: S.addAt, tpop: S.screen === "gantt" ? S.tpop : null, showPrio: S.prefs.showPrio, showActual: S.prefs.showActual, now: clock() });
   }
   if (S.screen === "settings") return renderSettings(S.data, today, { ruleError: S.ruleError, closed: S.settingsClosed });
-  if (S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, day: S.todoDay, now: clock(), actFor: S.tdAct, draft: S.tdDraft });
+  if (S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, day: S.todoDay, now: clock(), actFor: S.tdAct, draft: S.tdDraft, askDel: S.tdAskDel });
   if (S.screen === "workload") return renderWorkload(S.data, today, { period: S.wperiod, date: S.wdate, now: clock() });
   return renderSchedule(S.data, today, scheduleOpts());
 }
@@ -90,6 +90,7 @@ function render() {
   if (S.selSess && !allSessions(S.data).some((s) => s.id === S.selSess)) { S.selSess = null; S.taskEdit = null; } // 読み直しなどで選択中の枠が無くなったら、選択と編集欄を外す
   if (S.taskEdit && (S.screen !== "schedule" || !S.data.tasks.some((t) => t.id === S.taskEdit.id))) { S.taskEdit = null; S.selSess = null; } // スケジュールの編集欄も同じ（編集欄は枠の選択と一緒なので、選択も外す）
   if (S.tdAct && !S.data?.todos?.some((t) => t.id === S.tdAct)) { S.tdAct = null; S.tdDraft = null; } // 読み直しなどで ToDo が無くなったら、実績の入力欄を閉じる
+  if (S.tdAskDel && !S.data?.todos?.some((t) => t.id === S.tdAskDel)) S.tdAskDel = null; // 削除の確認も同じ（ToDo の id は S.data.tasks で検証しない）
   const c = clock();
   $("todaylabel").textContent = `${c.date.replace(/-/g, "/")}(${wdJa(c.date)})`;
   document.querySelectorAll("nav [role=tab]").forEach((b) => b.setAttribute("aria-selected", String(b.id === "tab-" + S.screen)));
@@ -172,8 +173,8 @@ function focusSelector(el) {
   for (const k of ["hnew", "hto", "hnote", "wnew", "wnote"]) if (d[k] !== undefined) return `[data-${k}]`;
   if (d.rnewpj !== undefined) return "[data-rnewpj]";
   if (d.waitparty) return q("data-waitparty", d.waitparty);
-  if (d.ug) return q("data-ug", d.ug);
-  for (const k of ["tdnew", "tdtitle", "tdck", "tdnote", "ta"]) if (d[k] !== undefined) return q(`data-${k}`, d[k]); // ToDo 画面の欄 // 突発タスクの欄（読み直しで待たせた描き直しが、欄を移ったときに走る）
+  if (d.ug) return q("data-ug", d.ug); // 突発タスクの欄（読み直しで待たせた描き直しが、欄を移ったときに走る）
+  for (const k of ["tdnew", "tdtitle", "tdck", "tdnote", "ta"]) if (d[k] !== undefined) return q(`data-${k}`, d[k]); // ToDo 画面の欄
   return null;
 }
 
@@ -391,7 +392,7 @@ function submitGAdd(input) {
 }
 
 /* ---------- 選択と削除 ---------- */
-const clearSel = () => { S.selSess = null; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.actDraft = null; S.taskEdit = null; S.tdAct = null; S.tdDraft = null; };
+const clearSel = () => { S.selSess = null; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.actDraft = null; S.taskEdit = null; S.tdAct = null; S.tdDraft = null; S.tdAskDel = null; };
 /** 作業枠を選ぶ（id が null なら外す）。規則は sessionSelection（タスクの枠は編集欄も開く。ToDo の枠は選択だけ） */
 const selectSession = (id) => { Object.assign(S, sessionSelection(S.data, id, S.taskEdit)); };
 
@@ -609,8 +610,15 @@ view.addEventListener("click", (e) => {
   }
   const tcar = q("[data-tdcarry]");
   if (tcar) { const id = tcar.dataset.tdcarry; if (apply((d) => carryTodo(d, id))) toast(`「${taskTitle(id)}」を ${fmtMD(S.data.todos.find((t) => t.id === id).date)} へ回しました`); return; }
-  const tdel = q("[data-tddel]");
-  if (tdel) { const id = tdel.dataset.tddel, name = taskTitle(id); if (S.tdAct === id) { S.tdAct = null; S.tdDraft = null; } apply((d) => deleteTodo(d, id), `「${name}」を削除しました`); return; }
+  const tdel = q("[data-tddel]"); // 実績の枠がある ToDo は、消す前に確認を出す（その行に。メモリ上の S.tdAskDel）
+  if (tdel) {
+    const id = tdel.dataset.tddel;
+    if (S.data.todos?.find((t) => t.id === id)?.sessions?.some((s) => s.kind === "actual")) { S.tdAskDel = id; render(); return; }
+    deleteTodoNow(id); return;
+  }
+  const tdok = q("[data-tddelok]");
+  if (tdok) { deleteTodoNow(tdok.dataset.tddelok); return; }
+  if (q("[data-tddelno]")) { S.tdAskDel = null; render(); return; }
   const tckd = q("[data-tdckdel]");
   if (tckd) { const [id, iid] = tckd.dataset.tdckdel.split(":"); apply((d) => removeTodoCheck(d, id, iid)); return; }
   const tact = q("[data-tdact]");
@@ -685,14 +693,22 @@ view.addEventListener("click", (e) => {
   if (cleared) render();
 });
 
+/** ToDo を消す（実績の入力欄・削除の確認を外してから） */
+function deleteTodoNow(id) {
+  const name = taskTitle(id);
+  if (S.tdAct === id) { S.tdAct = null; S.tdDraft = null; }
+  S.tdAskDel = null;
+  apply((d) => deleteTodo(d, id), `「${name}」を削除しました`);
+}
+
 /** ToDo 画面の週を動かす。右の列の日は、その週に今日が含まれれば今日、なければ月曜日 */
 function moveTodoWeek(week) {
   const today = clock().date;
-  S.todoWeek = week; S.todoDay = mondayOf(today) === week ? today : week; S.tdAct = null; S.tdDraft = null;
+  S.todoWeek = week; S.todoDay = mondayOf(today) === week ? today : week; S.tdAct = null; S.tdDraft = null; S.tdAskDel = null;
   render();
 }
 /** ToDo 画面の右の列の日を変える。左の週も、その日の週にそろえる */
-function setTodoDay(day) { S.todoDay = day; S.todoWeek = mondayOf(day); S.tdAct = null; S.tdDraft = null; render(); }
+function setTodoDay(day) { S.todoDay = day; S.todoWeek = mondayOf(day); S.tdAct = null; S.tdDraft = null; S.tdAskDel = null; render(); }
 
 /** ToDo 画面の追加の欄（data-tdnew・data-tdck）の Enter。失敗は通知だけにして、打った文字を残す（描き直さない）。成功の描き直しで欄は空になる */
 function submitTodoInput(el) {

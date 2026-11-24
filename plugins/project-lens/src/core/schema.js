@@ -165,6 +165,7 @@ export function validate(data, now = nowLocal()) {
   for (const t of todos) {
     const who = `ToDo ${t.id}`;
     if (typeof t.id !== "string" || !/^T-\d{4}$/.test(t.id)) err(`${who}: ID は T-0001 の形にしてください`);
+    if (data.tasks.some((x) => x.id === t.id)) err(`${who}: タスクと ID が重なっています`);
     if (!["week", "day"].includes(t.scope)) err(`${who}: scope は week か day にしてください ("${t.scope}")`);
     if (typeof t.title !== "string" || !t.title.trim()) err(`${who}: 件名が空です`);
     if (!isDate(t.date)) err(`${who}: 日付の形式が不正です (${t.date})`);

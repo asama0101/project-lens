@@ -2137,3 +2137,29 @@ test("renderSide（sched: true）: 今日の ToDo の行が、今日のタスク
   assert.equal(renderTodayTodos(d, TODAY, { sched: true }), "");
   assert.ok(!renderSide(d, TODAY, { sched: true, now: NOW }).includes("今日の ToDo"), "0 件なら出ない");
 });
+
+test("renderTodo: 削除の確認（askDel）。その ToDo 自身の実績の分数が入り、削除する／やめるが出る。ほかの行と、確認なしの行は今までどおり", () => {
+  const d = tdData([
+    tdItem({ id: "T-0001", title: "確認", sessions: [{ id: "S91", date: TODAY, start: "09:00", end: "09:45", kind: "actual" }, { id: "S92", date: TODAY, start: "11:00", end: "11:30", kind: "actual" }, { id: "S93", date: TODAY, start: "13:00", end: "14:00", kind: "planned" }] }),
+    tdItem({ id: "T-0002", title: "別" }),
+  ]);
+  const r1 = tdRow(tdHtml(d, { askDel: "T-0001" }), "T-0001");
+  assert.ok(r1.includes("実績 75 分も消えます"), r1);
+  assert.ok(r1.includes('data-tddelok="T-0001"') && r1.includes("data-tddelno") && r1.includes("削除する") && r1.includes("やめる"));
+  assert.ok(!r1.includes("data-tddel="), "確認の間は、最初の削除ボタンを出さない");
+  const r2 = tdRow(tdHtml(d, { askDel: "T-0001" }), "T-0002");
+  assert.ok(r2.includes('data-tddel="T-0002"') && !r2.includes("data-tddelok"));
+  assert.ok(tdRow(tdHtml(d), "T-0001").includes('data-tddel="T-0001"'));
+});
+
+test("renderTodo: 見返しで、別の週の ToDo（inWeek: false の行）に「（別の週の ToDo）」が出る。その週の行には出ない", () => {
+  const d = tdData([
+    tdItem({ id: "T-0001", title: "回した", date: "2026-10-26", carried: 1, sessions: [{ id: "S91", date: "2026-10-23", start: "09:00", end: "10:00", kind: "actual" }] }),
+    tdItem({ id: "T-0002", title: "今週", date: "2026-10-21" }),
+  ]);
+  const rv = tdHtml(d).slice(tdHtml(d).indexOf('class="tdreview'));
+  const tr = (t) => rv.split("<tr").find((x) => x.includes(`<td>${t}`));
+  assert.ok(tr("回した").includes("（別の週の ToDo）") && tr("回した").includes("60 分"), tr("回した"));
+  assert.ok(!tr("今週").includes("別の週"));
+  assert.ok(rv.includes("完了 0 / 1 件") && rv.includes("実績 60 分"), rv);
+});

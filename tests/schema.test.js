@@ -488,3 +488,10 @@ test("validate: ToDo の枠は、形式・kind・同じ種別の重なりを検�
   assert.ok(!hit(v(done).warnings, "未来の予定枠"));
   assert.ok(hit(v(withTodos([T({ sessions: [s({ id: "S1" })] })])).warnings, "ID が重複"));
 });
+
+test("validate: ToDo の ID が、タスクの ID と同じなら error", () => {
+  const d = withTodos([T({ id: "T-0001" })]);
+  assert.deepEqual(v(d).errors.filter((e) => e.includes("タスクと ID が重なっています")), []);
+  d.tasks[0] = { ...d.tasks[0], id: "T-0001" };
+  assert.ok(hit(v(d).errors, "タスクと ID が重なっています"), JSON.stringify(v(d).errors));
+});

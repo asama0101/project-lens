@@ -1,5 +1,5 @@
 // 「ToDo」画面: 左に表示中の週の ToDo、右に表示中の日の ToDo（2 列）、下に週の見返し。操作の結線は app.js（data-td*）。
-import { addDays } from "../../core/dates.js";
+import { addDays, toMin } from "../../core/dates.js";
 import { todoMinutes, weekReview } from "../../core/todos.js";
 import { esc, fmtMD, wdJa, dateInputHtml } from "../common.js";
 import { actAddSpan } from "./schedule.js";
@@ -26,7 +26,7 @@ function row(data, t, ctx, range) {
   return `<li class="td-row${t.doneAt ? " closed" : ""}" data-todo="${id}">
     <div class="td-main"><input type="checkbox" data-tdone="${id}"${t.doneAt ? " checked" : ""} aria-label="「${title}」を完了にする"><input class="in td-title" data-tdtitle="${id}" value="${title}" aria-label="件名"></div>
     <div class="td-meta">${ck.length ? `<span class="mono">${ck.filter((c) => c.done).length}/${ck.length}</span>` : ""}<span>予定 <b class="mono">${planned}</b> 分</span><span>実績 <b class="mono">${actual}</b> 分</span>${t.carried ? `<span class="pill wait">${t.carried} 回回しています</span>` : ""}</div>
-    <div class="td-ops">${t.scope === "week" ? `<button class="btn" data-tdassign="${id}">${ctx.dayIsToday ? "今日へ" : "この日へ"}</button>` : ""}${t.doneAt ? "" : `<button class="btn" data-tdcarry="${id}">${t.scope === "week" ? "来週へ回す" : "明日へ回す"}</button>`}<button class="btn" data-tdact="${id}">実績を入れる</button><button class="btn danger" data-tddel="${id}">削除</button></div>
+    <div class="td-ops">${t.scope === "week" ? `<button class="btn" data-tdassign="${id}">${ctx.dayIsToday ? "今日へ" : "この日へ"}</button>` : ""}${t.doneAt ? "" : `<button class="btn" data-tdcarry="${id}">${t.scope === "week" ? "来週へ回す" : "明日へ回す"}</button>`}<button class="btn" data-tdact="${id}">実績を入れる</button>${ctx.askDel === t.id ? `<span class="note" role="alert">実績 ${(t.sessions ?? []).filter((s) => s.kind === "actual").reduce((m, s) => m + toMin(s.end) - toMin(s.start), 0)} 分も消えます</span><button class="btn danger" data-tddelok="${id}">削除する</button><button class="btn" data-tddelno>やめる</button>` : `<button class="btn danger" data-tddel="${id}">削除</button>`}</div>
     <div class="td-ck">${items}<input class="in" data-tdck="${id}" placeholder="＋ 項目を追加（Enter）" aria-label="「${title}」のチェックリストに項目を追加"></div>
     ${ctx.actFor === t.id ? actForm(t, ctx.day, ctx.now, ctx.draft) : ""}
   </li>`;
@@ -41,17 +41,18 @@ const openFirst = (list) => [...list.filter((t) => !t.doneAt), ...list.filter((t
  * @param opts.now    {date, time} 実績の入力欄の時刻の初期値
  * @param opts.actFor 実績の入力欄を開いている ToDo の id か null
  * @param opts.draft  実績の入力欄の下書き（{ key: ToDo の id, date, start, end }）か null
+ * @param opts.askDel 削除の確認を出している ToDo の id か null（その ToDo 自身の実績の枠があるときだけ入る）
  */
 export function renderTodo(data, today, opts) {
-  const { week, day, now, actFor = null, draft = null } = opts;
+  const { week, day, now, actFor = null, draft = null, askDel = null } = opts;
   const todos = data.todos ?? [];
   const weekEnd = addDays(week, 6);
-  const ctx = { day, now, actFor, draft, dayIsToday: day === today };
+  const ctx = { day, now, actFor, draft, askDel, dayIsToday: day === today };
   const list = (items, range) => `<ul class="tdlist">${openFirst(items).map((t) => row(data, t, ctx, range)).join("")}</ul>`;
   const weekItems = todos.filter((t) => t.scope === "week" && t.date === week);
   const dayItems = todos.filter((t) => t.scope === "day" && t.date === day);
   const rv = weekReview(data, week);
-  const rows = rv.rows.map((r) => `<tr${r.todo.carried ? ' class="hot"' : ""}><td>${esc(r.todo.title)} <span class="note">${r.todo.scope === "week" ? "週" : `${fmtMD(r.todo.date)}(${wdJa(r.todo.date)})`}</span></td><td class="num mono">${r.checked ? `${r.checked.done}/${r.checked.total}` : "—"}</td><td class="num mono">${r.planned} 分</td><td class="num mono">${r.actual} 分</td><td class="num mono">${r.todo.carried} 回</td></tr>`).join("");
+  const rows = rv.rows.map((r) => `<tr${r.todo.carried ? ' class="hot"' : ""}><td>${esc(r.todo.title)} <span class="note">${r.todo.scope === "week" ? "週" : `${fmtMD(r.todo.date)}(${wdJa(r.todo.date)})`}</span>${r.inWeek ? "" : ' <span class="note">（別の週の ToDo）</span>'}</td><td class="num mono">${r.checked ? `${r.checked.done}/${r.checked.total}` : "—"}</td><td class="num mono">${r.planned} 分</td><td class="num mono">${r.actual} 分</td><td class="num mono">${r.todo.carried} 回</td></tr>`).join("");
   return `<div class="tdpage">
     <div class="toolbar"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn" data-tdweek="-1" aria-label="前の週">←</button><button class="btn" data-tdweek="1" aria-label="次の週">→</button><button class="btn" data-tdweek-today>今週</button><strong style="margin-left:6px">${fmtMD(week)}〜${fmtMD(weekEnd)} の週</strong></div></div>
     <div class="tdcols">

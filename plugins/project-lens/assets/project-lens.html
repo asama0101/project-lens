@@ -1020,6 +1020,7 @@ function validate(data, now = nowLocal()) {
   for (const t of todos) {
     const who = `ToDo ${t.id}`;
     if (typeof t.id !== "string" || !/^T-\d{4}$/.test(t.id)) err(`${who}: ID は T-0001 の形にしてください`);
+    if (data.tasks.some((x) => x.id === t.id)) err(`${who}: タスクと ID が重なっています`);
     if (!["week", "day"].includes(t.scope)) err(`${who}: scope は week か day にしてください ("${t.scope}")`);
     if (typeof t.title !== "string" || !t.title.trim()) err(`${who}: 件名が空です`);
     if (!isDate(t.date)) err(`${who}: 日付の形式が不正です (${t.date})`);
@@ -1504,12 +1505,13 @@ function carryTodo(data, id) {
 }
 
 function addTodoCheck(data, id, text) {
+  find(data, id);
   const s = String(text ?? "").trim();
   if (!s) throw new Error("項目の文言を入れてください");
   return mapTodo(data, id, (t) => ({ ...t, checklist: [...(t.checklist ?? []), { id: nextChecklistId(t.checklist ?? []), text: s, done: false }] }));
 }
-const toggleTodoCheck = (data, id, itemId) => mapTodo(data, id, (t) => ({ ...t, checklist: (t.checklist ?? []).map((x) => (x.id === itemId ? { ...x, done: !x.done } : x)) }));
-const removeTodoCheck = (data, id, itemId) => mapTodo(data, id, (t) => ({ ...t, checklist: (t.checklist ?? []).filter((x) => x.id !== itemId) }));
+const toggleTodoCheck = (data, id, itemId) => (find(data, id), mapTodo(data, id, (t) => ({ ...t, checklist: (t.checklist ?? []).map((x) => (x.id === itemId ? { ...x, done: !x.done } : x)) })));
+const removeTodoCheck = (data, id, itemId) => (find(data, id), mapTodo(data, id, (t) => ({ ...t, checklist: (t.checklist ?? []).filter((x) => x.id !== itemId) })));
 
 /** 週（月曜日のキー）の気づき。空文字ならキーを消す */
 function setReview(data, weekStart, text) {
@@ -1525,18 +1527,23 @@ function todoMinutes(data, id, range) {
   return { planned: sum("planned"), actual: sum("actual") };
 }
 
-/** 週の見返し。対象は、date がその週に入る週の ToDo と、parentId を持たない日の ToDo（割り当てた日の分は数えない） */
+/** 週の見返し。見出しの分数は、その週の日付にある全 ToDo の枠の合計。行は、date がその週に入る週の ToDo と、parentId を持たない日の ToDo（inWeek: true。割り当てた日の分は親の行に含む）に、
+ *  date は別の週でも自分か子の枠がその週にある、親のない ToDo（inWeek: false。回す前の週の分）を足す。完了・件数は inWeek: true の行だけ */
 function weekReview(data, weekStart) {
   const range = { start: weekStart, end: addDays(weekStart, 6) };
-  const items = todosOf(data)
-    .filter((t) => t.date >= range.start && t.date <= range.end && (t.scope === "week" || t.parentId === undefined))
-    .sort((a, b) => (a.scope === b.scope ? 0 : a.scope === "week" ? -1 : 1) || a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
-  const rows = items.map((todo) => ({ todo, checked: todo.checklist?.length ? { done: todo.checklist.filter((x) => x.done).length, total: todo.checklist.length } : null, ...todoMinutes(data, todo.id, range) }));
+  const roots = todosOf(data).filter((t) => t.scope === "week" || t.parentId == null);
+  const order = (a, b) => (a.scope === b.scope ? 0 : a.scope === "week" ? -1 : 1) || a.date.localeCompare(b.date) || a.id.localeCompare(b.id);
+  const inWeek = (t) => t.date >= range.start && t.date <= range.end;
+  const items = roots.filter(inWeek).sort(order);
+  const row = (todo, w) => ({ todo, inWeek: w, checked: todo.checklist?.length ? { done: todo.checklist.filter((x) => x.done).length, total: todo.checklist.length } : null, ...todoMinutes(data, todo.id, range) });
+  const rows = [...items.map((t) => row(t, true)), ...roots.filter((t) => !inWeek(t)).sort(order).map((t) => row(t, false)).filter((r) => r.planned + r.actual > 0)];
+  const slots = todosOf(data).flatMap((t) => t.sessions ?? []).filter((s) => s.date >= range.start && s.date <= range.end);
+  const sum = (kind) => slots.filter((s) => s.kind === kind).reduce((m, s) => m + toMin(s.end) - toMin(s.start), 0);
   return {
     done: items.filter((t) => t.doneAt).length,
     total: items.length,
-    planned: rows.reduce((m, r) => m + r.planned, 0),
-    actual: rows.reduce((m, r) => m + r.actual, 0),
+    planned: sum("planned"),
+    actual: sum("actual"),
     note: data.reviews?.[weekStart] ?? "",
     rows,
   };
@@ -4688,7 +4695,7 @@ function row(data, t, ctx, range) {
   return `<li class="td-row${t.doneAt ? " closed" : ""}" data-todo="${id}">
     <div class="td-main"><input type="checkbox" data-tdone="${id}"${t.doneAt ? " checked" : ""} aria-label="「${title}」を完了にする"><input class="in td-title" data-tdtitle="${id}" value="${title}" aria-label="件名"></div>
     <div class="td-meta">${ck.length ? `<span class="mono">${ck.filter((c) => c.done).length}/${ck.length}</span>` : ""}<span>予定 <b class="mono">${planned}</b> 分</span><span>実績 <b class="mono">${actual}</b> 分</span>${t.carried ? `<span class="pill wait">${t.carried} 回回しています</span>` : ""}</div>
-    <div class="td-ops">${t.scope === "week" ? `<button class="btn" data-tdassign="${id}">${ctx.dayIsToday ? "今日へ" : "この日へ"}</button>` : ""}${t.doneAt ? "" : `<button class="btn" data-tdcarry="${id}">${t.scope === "week" ? "来週へ回す" : "明日へ回す"}</button>`}<button class="btn" data-tdact="${id}">実績を入れる</button><button class="btn danger" data-tddel="${id}">削除</button></div>
+    <div class="td-ops">${t.scope === "week" ? `<button class="btn" data-tdassign="${id}">${ctx.dayIsToday ? "今日へ" : "この日へ"}</button>` : ""}${t.doneAt ? "" : `<button class="btn" data-tdcarry="${id}">${t.scope === "week" ? "来週へ回す" : "明日へ回す"}</button>`}<button class="btn" data-tdact="${id}">実績を入れる</button>${ctx.askDel === t.id ? `<span class="note" role="alert">実績 ${(t.sessions ?? []).filter((s) => s.kind === "actual").reduce((m, s) => m + toMin(s.end) - toMin(s.start), 0)} 分も消えます</span><button class="btn danger" data-tddelok="${id}">削除する</button><button class="btn" data-tddelno>やめる</button>` : `<button class="btn danger" data-tddel="${id}">削除</button>`}</div>
     <div class="td-ck">${items}<input class="in" data-tdck="${id}" placeholder="＋ 項目を追加（Enter）" aria-label="「${title}」のチェックリストに項目を追加"></div>
     ${ctx.actFor === t.id ? actForm(t, ctx.day, ctx.now, ctx.draft) : ""}
   </li>`;
@@ -4703,17 +4710,18 @@ const openFirst = (list) => [...list.filter((t) => !t.doneAt), ...list.filter((t
  * @param opts.now    {date, time} 実績の入力欄の時刻の初期値
  * @param opts.actFor 実績の入力欄を開いている ToDo の id か null
  * @param opts.draft  実績の入力欄の下書き（{ key: ToDo の id, date, start, end }）か null
+ * @param opts.askDel 削除の確認を出している ToDo の id か null（その ToDo 自身の実績の枠があるときだけ入る）
  */
 function renderTodo(data, today, opts) {
-  const { week, day, now, actFor = null, draft = null } = opts;
+  const { week, day, now, actFor = null, draft = null, askDel = null } = opts;
   const todos = data.todos ?? [];
   const weekEnd = addDays(week, 6);
-  const ctx = { day, now, actFor, draft, dayIsToday: day === today };
+  const ctx = { day, now, actFor, draft, askDel, dayIsToday: day === today };
   const list = (items, range) => `<ul class="tdlist">${openFirst(items).map((t) => row(data, t, ctx, range)).join("")}</ul>`;
   const weekItems = todos.filter((t) => t.scope === "week" && t.date === week);
   const dayItems = todos.filter((t) => t.scope === "day" && t.date === day);
   const rv = weekReview(data, week);
-  const rows = rv.rows.map((r) => `<tr${r.todo.carried ? ' class="hot"' : ""}><td>${esc(r.todo.title)} <span class="note">${r.todo.scope === "week" ? "週" : `${fmtMD(r.todo.date)}(${wdJa(r.todo.date)})`}</span></td><td class="num mono">${r.checked ? `${r.checked.done}/${r.checked.total}` : "—"}</td><td class="num mono">${r.planned} 分</td><td class="num mono">${r.actual} 分</td><td class="num mono">${r.todo.carried} 回</td></tr>`).join("");
+  const rows = rv.rows.map((r) => `<tr${r.todo.carried ? ' class="hot"' : ""}><td>${esc(r.todo.title)} <span class="note">${r.todo.scope === "week" ? "週" : `${fmtMD(r.todo.date)}(${wdJa(r.todo.date)})`}</span>${r.inWeek ? "" : ' <span class="note">（別の週の ToDo）</span>'}</td><td class="num mono">${r.checked ? `${r.checked.done}/${r.checked.total}` : "—"}</td><td class="num mono">${r.planned} 分</td><td class="num mono">${r.actual} 分</td><td class="num mono">${r.todo.carried} 回</td></tr>`).join("");
   return `<div class="tdpage">
     <div class="toolbar"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn" data-tdweek="-1" aria-label="前の週">←</button><button class="btn" data-tdweek="1" aria-label="次の週">→</button><button class="btn" data-tdweek-today>今週</button><strong style="margin-left:6px">${fmtMD(week)}〜${fmtMD(weekEnd)} の週</strong></div></div>
     <div class="tdcols">
@@ -4945,7 +4953,7 @@ const S = {
   prefs: loadPrefs(), settingsClosed: loadSettingsClosed(), tpop: null, addAt: null, last: null, ruleError: "",
   ib: { open: false, text: loadInboxDraft(), projectId: "", replies: {}, reasons: {}, causes: {} },
   wperiod: "day", wdate: clock().date,
-  todoWeek: mondayOf(clock().date), todoDay: clock().date, tdAct: null, tdDraft: null, // ToDo 画面の週（月曜日）・右の列の日・実績の入力欄を開いている ToDo と、その下書き
+  todoWeek: mondayOf(clock().date), todoDay: clock().date, tdAct: null, tdDraft: null, tdAskDel: null, // ToDo 画面の週（月曜日）・右の列の日・実績の入力欄を開いている ToDo と、その下書き・削除の確認を出している ToDo
 };
 const $ = (id) => document.getElementById(id);
 const view = $("view");
@@ -4965,7 +4973,7 @@ function toast(msg) {
 /** 開始画面の、まだ開いていないファイルごとの案内と選ぶボタン */
 const PICK = {
   shared: `<p><b>共有ファイルを選んでください。</b>プロジェクトとタスク（<code>/project-lens:init</code> が作った <code>.project-lens/data.json</code>）です。</p><button class="btn" data-open="shared">共有ファイルを選ぶ</button>`,
-  personal: `<p><b>個人ファイルを選んでください。</b>自分の作業枠・予定・休み（既定は <code>.project-lens/personal.json</code>）です。</p><button class="btn" data-open="personal">個人ファイルを選ぶ</button>`,
+  personal: `<p><b>個人ファイルを選んでください。</b>自分の作業枠・予定・休み・ToDo（既定は <code>.project-lens/personal.json</code>）です。</p><button class="btn" data-open="personal">個人ファイルを選ぶ</button>`,
 };
 function startScreen() {
   const canPick = typeof window.showOpenFilePicker === "function";
@@ -4988,7 +4996,7 @@ function renderBody() {
     return renderProjects(S.data, today, { filter: S.filter, view: S.screen, window: S.gwin, hideDone: S.hideDone, askDel: S.askDel, askDelProject: S.askDelProject, pendingWait: S.pendingWait, pendingDone: S.pendingDone, checkOpen: S.checkOpen, addAt: S.addAt, tpop: S.screen === "gantt" ? S.tpop : null, showPrio: S.prefs.showPrio, showActual: S.prefs.showActual, now: clock() });
   }
   if (S.screen === "settings") return renderSettings(S.data, today, { ruleError: S.ruleError, closed: S.settingsClosed });
-  if (S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, day: S.todoDay, now: clock(), actFor: S.tdAct, draft: S.tdDraft });
+  if (S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, day: S.todoDay, now: clock(), actFor: S.tdAct, draft: S.tdDraft, askDel: S.tdAskDel });
   if (S.screen === "workload") return renderWorkload(S.data, today, { period: S.wperiod, date: S.wdate, now: clock() });
   return renderSchedule(S.data, today, scheduleOpts());
 }
@@ -5022,6 +5030,7 @@ function render() {
   if (S.selSess && !allSessions(S.data).some((s) => s.id === S.selSess)) { S.selSess = null; S.taskEdit = null; } // 読み直しなどで選択中の枠が無くなったら、選択と編集欄を外す
   if (S.taskEdit && (S.screen !== "schedule" || !S.data.tasks.some((t) => t.id === S.taskEdit.id))) { S.taskEdit = null; S.selSess = null; } // スケジュールの編集欄も同じ（編集欄は枠の選択と一緒なので、選択も外す）
   if (S.tdAct && !S.data?.todos?.some((t) => t.id === S.tdAct)) { S.tdAct = null; S.tdDraft = null; } // 読み直しなどで ToDo が無くなったら、実績の入力欄を閉じる
+  if (S.tdAskDel && !S.data?.todos?.some((t) => t.id === S.tdAskDel)) S.tdAskDel = null; // 削除の確認も同じ（ToDo の id は S.data.tasks で検証しない）
   const c = clock();
   $("todaylabel").textContent = `${c.date.replace(/-/g, "/")}(${wdJa(c.date)})`;
   document.querySelectorAll("nav [role=tab]").forEach((b) => b.setAttribute("aria-selected", String(b.id === "tab-" + S.screen)));
@@ -5104,8 +5113,8 @@ function focusSelector(el) {
   for (const k of ["hnew", "hto", "hnote", "wnew", "wnote"]) if (d[k] !== undefined) return `[data-${k}]`;
   if (d.rnewpj !== undefined) return "[data-rnewpj]";
   if (d.waitparty) return q("data-waitparty", d.waitparty);
-  if (d.ug) return q("data-ug", d.ug);
-  for (const k of ["tdnew", "tdtitle", "tdck", "tdnote", "ta"]) if (d[k] !== undefined) return q(`data-${k}`, d[k]); // ToDo 画面の欄 // 突発タスクの欄（読み直しで待たせた描き直しが、欄を移ったときに走る）
+  if (d.ug) return q("data-ug", d.ug); // 突発タスクの欄（読み直しで待たせた描き直しが、欄を移ったときに走る）
+  for (const k of ["tdnew", "tdtitle", "tdck", "tdnote", "ta"]) if (d[k] !== undefined) return q(`data-${k}`, d[k]); // ToDo 画面の欄
   return null;
 }
 
@@ -5323,7 +5332,7 @@ function submitGAdd(input) {
 }
 
 /* ---------- 選択と削除 ---------- */
-const clearSel = () => { S.selSess = null; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.actDraft = null; S.taskEdit = null; S.tdAct = null; S.tdDraft = null; };
+const clearSel = () => { S.selSess = null; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.actDraft = null; S.taskEdit = null; S.tdAct = null; S.tdDraft = null; S.tdAskDel = null; };
 /** 作業枠を選ぶ（id が null なら外す）。規則は sessionSelection（タスクの枠は編集欄も開く。ToDo の枠は選択だけ） */
 const selectSession = (id) => { Object.assign(S, sessionSelection(S.data, id, S.taskEdit)); };
 
@@ -5541,8 +5550,15 @@ view.addEventListener("click", (e) => {
   }
   const tcar = q("[data-tdcarry]");
   if (tcar) { const id = tcar.dataset.tdcarry; if (apply((d) => carryTodo(d, id))) toast(`「${taskTitle(id)}」を ${fmtMD(S.data.todos.find((t) => t.id === id).date)} へ回しました`); return; }
-  const tdel = q("[data-tddel]");
-  if (tdel) { const id = tdel.dataset.tddel, name = taskTitle(id); if (S.tdAct === id) { S.tdAct = null; S.tdDraft = null; } apply((d) => deleteTodo(d, id), `「${name}」を削除しました`); return; }
+  const tdel = q("[data-tddel]"); // 実績の枠がある ToDo は、消す前に確認を出す（その行に。メモリ上の S.tdAskDel）
+  if (tdel) {
+    const id = tdel.dataset.tddel;
+    if (S.data.todos?.find((t) => t.id === id)?.sessions?.some((s) => s.kind === "actual")) { S.tdAskDel = id; render(); return; }
+    deleteTodoNow(id); return;
+  }
+  const tdok = q("[data-tddelok]");
+  if (tdok) { deleteTodoNow(tdok.dataset.tddelok); return; }
+  if (q("[data-tddelno]")) { S.tdAskDel = null; render(); return; }
   const tckd = q("[data-tdckdel]");
   if (tckd) { const [id, iid] = tckd.dataset.tdckdel.split(":"); apply((d) => removeTodoCheck(d, id, iid)); return; }
   const tact = q("[data-tdact]");
@@ -5617,14 +5633,22 @@ view.addEventListener("click", (e) => {
   if (cleared) render();
 });
 
+/** ToDo を消す（実績の入力欄・削除の確認を外してから） */
+function deleteTodoNow(id) {
+  const name = taskTitle(id);
+  if (S.tdAct === id) { S.tdAct = null; S.tdDraft = null; }
+  S.tdAskDel = null;
+  apply((d) => deleteTodo(d, id), `「${name}」を削除しました`);
+}
+
 /** ToDo 画面の週を動かす。右の列の日は、その週に今日が含まれれば今日、なければ月曜日 */
 function moveTodoWeek(week) {
   const today = clock().date;
-  S.todoWeek = week; S.todoDay = mondayOf(today) === week ? today : week; S.tdAct = null; S.tdDraft = null;
+  S.todoWeek = week; S.todoDay = mondayOf(today) === week ? today : week; S.tdAct = null; S.tdDraft = null; S.tdAskDel = null;
   render();
 }
 /** ToDo 画面の右の列の日を変える。左の週も、その日の週にそろえる */
-function setTodoDay(day) { S.todoDay = day; S.todoWeek = mondayOf(day); S.tdAct = null; S.tdDraft = null; render(); }
+function setTodoDay(day) { S.todoDay = day; S.todoWeek = mondayOf(day); S.tdAct = null; S.tdDraft = null; S.tdAskDel = null; render(); }
 
 /** ToDo 画面の追加の欄（data-tdnew・data-tdck）の Enter。失敗は通知だけにして、打った文字を残す（描き直さない）。成功の描き直しで欄は空になる */
 function submitTodoInput(el) {

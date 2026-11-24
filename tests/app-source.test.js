@@ -761,3 +761,16 @@ test("ToDo タブ: 各 data-td* に、対応するハンドラ（todos.js の関
   for (const f of ["addTodo(", "renameTodo(", "setTodoDone(", "deleteTodo(", "assignToDay(", "carryTodo(", "addTodoCheck(", "toggleTodoCheck(", "removeTodoCheck(", "setReview(", "mondayOf("]) assert.ok(src.includes(f), f);
   assert.ok(src.includes("すでにこの日に割り当てています"));
 });
+
+test("ToDo タブ: 削除は、実績の枠があるときだけ確認（S.tdAskDel）を出す。確認は render に渡し、再描画で消さず、clearSel・やめる・削除で外す", () => {
+  const i = src.indexOf('const tdel = q("[data-tddel]")');
+  const a = src.slice(i, i + 900);
+  assert.match(a, /kind === "actual"\)\) \{ S\.tdAskDel = id; render\(\); return; \}/);
+  assert.match(a, /q\("\[data-tddelok\]"\)/);
+  assert.match(a, /q\("\[data-tddelno\]"\)\) \{ S\.tdAskDel = null; render\(\)/);
+  assert.match(src, /function deleteTodoNow\(id\) \{[^]*?S\.tdAskDel = null;[^]*?deleteTodo\(d, id\)/);
+  assert.match(src, /askDel: S\.tdAskDel/);
+  assert.match(src, /const clearSel = \(\) => \{[^\n]*S\.tdAskDel = null;/);
+  assert.match(src, /S\.tdAskDel && !S\.data\?\.todos\?\.some\(\(t\) => t\.id === S\.tdAskDel\)/);
+  assert.ok(!/S\.(taskEdit|selSess) = [^;]*tdAskDel/.test(src), "確認の状態を S.data.tasks で検証する状態に入れない");
+});
