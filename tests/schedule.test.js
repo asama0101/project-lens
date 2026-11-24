@@ -177,7 +177,7 @@ test("updateTask 相当: Waiting で待ち先なしでも、他の項目の変�
 });
 
 // ---- 会議の確認とプロジェクト（Task 3） ----
-import { meetingKind, setMeetingActual, meetingActualSpan } from "../plugins/project-lens/src/core/schedule.js";
+import { meetingKind, setMeetingActual, clearMeetingActual, meetingActualSpan } from "../plugins/project-lens/src/core/schedule.js";
 import * as scheduleMod from "../plugins/project-lens/src/core/schedule.js";
 
 test("会議を予定の時刻のまま確認する confirmMeeting は持たない（実績は setMeetingActual で入れる）", () => {
@@ -316,4 +316,20 @@ test("updateMeeting: 日時を動かすと confirmed と actual が外れる（�
   assert.equal(e.confirmed, false);
   assert.equal("actual" in e, false);
   assert.throws(() => updateMeeting(d, "a", { actual: { start: "09:00", end: "09:30" } }));
+});
+
+test("clearMeetingActual: actual を外し、confirmed を false にする。他の会議は変わらず、入力は書き換わらない", () => {
+  const d = base([ev("09:00", "10:00", { id: "a", confirmed: true, actual: { start: "09:05", end: "10:05" } }), ev("11:00", "12:00", { id: "b", confirmed: true })]);
+  const before = JSON.stringify(d);
+  const out = clearMeetingActual(d, "a");
+  assert.equal("actual" in out.events[0], false);
+  assert.equal(out.events[0].confirmed, false);
+  assert.equal(out.events[1], d.events[1]);
+  assert.equal(JSON.stringify(d), before);
+});
+
+test("clearMeetingActual: actual が無い確認済みの会議も、confirmed が false になる。会議が無いと例外", () => {
+  const d = base([ev("09:00", "10:00", { id: "a", confirmed: true })]);
+  assert.equal(clearMeetingActual(d, "a").events[0].confirmed, false);
+  assert.throws(() => clearMeetingActual(d, "none"), /会議 none がありません/);
 });

@@ -2299,3 +2299,16 @@ test("実績の入力欄の説明: actual を持つ枠は「更新します」�
   const h = sched(d, o);
   assert.ok(h.includes("「検証環境の構築」の実績を更新します（予定の枠は残ります）") && !h.includes("の実績を入れます"));
 });
+
+test("会議フォーム: 「実績を消す」（data-mtgactclear）は、確認済みの会議にだけ出る。未確認・参加しない・追加中には出ない", () => {
+  const d = noSessions();
+  const html = (o) => renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15, ...o });
+  const m2 = d.events.find((e) => e.id === "m2");
+  m2.confirmed = false;
+  assert.ok(!html({ selMtg: "m2" }).includes("data-mtgactclear"), "未確認");
+  m2.confirmed = true;
+  assert.ok(html({ selMtg: "m2" }).includes('data-mtgactclear="m2">実績を消す</button>'), "確認済み");
+  m2.skip = true;
+  assert.ok(!html({ selMtg: "m2" }).includes("data-mtgactclear"), "参加しない");
+  assert.ok(!html({ mtgDraft: { date: TODAY, start: "09:00", end: "10:00", title: "", skip: false, confirmed: true } }).includes("data-mtgactclear"), "追加中");
+});

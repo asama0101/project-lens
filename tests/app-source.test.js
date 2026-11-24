@@ -827,3 +827,11 @@ test("app.js: 実績の保存（枠モード）と実績を消すは、成功の
   const clr = src.slice(j, j + 600);
   assert.ok(clr.includes("S.askDelSess = null"), clr);
 });
+
+test("app.js: 会議の実績を消す（data-mtgactclear）は clearMeetingActual を apply に通し、成功で下書きを消す。欄外のクリックでも選択を外さない", () => {
+  const i = src.indexOf('q("[data-mtgactclear]")');
+  assert.ok(i > 0, "data-mtgactclear のハンドラ");
+  const a = src.slice(i, i + 400);
+  assert.ok(a.includes("apply((d) => clearMeetingActual(d, ") && a.includes("会議の実績を消しました") && a.includes("S.actDraft = null"), a);
+  assert.ok(src.slice(src.indexOf("// 欄外のクリックで"), src.indexOf("// 欄外のクリックで") + 400).includes("[data-mtgactclear]"));
+});

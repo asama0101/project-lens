@@ -1688,7 +1688,7 @@ return { matchProject, assignMeetingProjects, setProjectRule, removeProjectRule,
 })();
 
 /* src/core/schedule.js */
-const { rankTasks, addMeeting, updateMeeting, meetingPast, meetingKind, meetingActualSpan, setMeetingActual, deleteMeeting, syncMcpEvents } = (() => {
+const { rankTasks, addMeeting, updateMeeting, meetingPast, meetingKind, meetingActualSpan, setMeetingActual, clearMeetingActual, deleteMeeting, syncMcpEvents } = (() => {
 // 優先順位・会議の操作（純関数、不変更新）
 
 
@@ -1818,6 +1818,12 @@ function setMeetingActual(data, id, { start, end }, now) {
   return { ...data, events: data.events.map((e) => (e.id === id ? { ...e, confirmed: true, actual: { start, end } } : e)) };
 }
 
+/** 会議の実績を消す（actual を外し、confirmed を false に戻す） */
+function clearMeetingActual(data, id) {
+  if (!data.events.some((e) => e.id === id)) throw new Error(`会議 ${id} がありません`);
+  return { ...data, events: data.events.map((e) => { if (e.id !== id) return e; const { actual, ...rest } = e; return { ...rest, confirmed: false }; }) };
+}
+
 function deleteMeeting(data, id) {
   const cur = data.events.find((e) => e.id === id);
   if (!cur) throw new Error(`会議 ${id} がありません`);
@@ -1849,7 +1855,7 @@ function syncMcpEvents(data, fetched, range, excludedIds = new Set(), keepIds = 
   return { ...data, events };
 }
 
-return { rankTasks, addMeeting, updateMeeting, meetingPast, meetingKind, meetingActualSpan, setMeetingActual, deleteMeeting, syncMcpEvents };
+return { rankTasks, addMeeting, updateMeeting, meetingPast, meetingKind, meetingActualSpan, setMeetingActual, clearMeetingActual, deleteMeeting, syncMcpEvents };
 })();
 
 /* src/core/workload.js */
@@ -4508,7 +4514,7 @@ function meetingForm(data, ctx) {
   const act = span && (ctx.actDraft?.key === `m:${m.id}` ? { start: ctx.actDraft.start, end: ctx.actDraft.end } : span); // 入力中の下書きがあれば、その値で描く
   const actHtml = act ? `<label>実績の開始<input class="in" type="time" step="900" data-ma="start" value="${esc(act.start)}"></label>
     <label>実績の終了<input class="in" type="time" step="900" data-ma="end" value="${esc(act.end)}"></label>
-    <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-mtgact="${esc(m.id)}">実績を保存</button></div>` : "";
+    <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-mtgact="${esc(m.id)}">実績を保存</button>${m.confirmed === true ? `<button class="btn" data-mtgactclear="${esc(m.id)}">実績を消す</button>` : ""}</div>` : "";
   return `<div class="mtgform" role="group" aria-label="会議の${isNew ? "追加" : "編集"}">
     <label>件名<input class="in" data-mt="title" value="${esc(m.title)}" placeholder="会議名" style="min-width:200px" ${lock}></label>
     <label>日付${dateInputHtml({ value: m.date, attrs: `data-mt="date" ${lock}`, label: "会議の日付" })}</label>
@@ -5452,7 +5458,7 @@ view.addEventListener("click", (e) => {
   if (S.tpop && !q(".tpop,[data-gt],[data-gh]")) { S.tpop = null; render(); } // 閉じたあと、押したものの操作もそのまま行う
   let cleared = false;
   // 欄外のクリックで、枠・会議の選択と追加中の下書きを外す
-  if ((S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.actAdd || S.taskEdit) && !q("[data-dragsess],[data-actbar],[data-mtg],[data-delsel],[data-delsessok],[data-delsessno],.mtgform,.actform,[data-mtgadd],[data-actadd],[data-actsave],[data-actclear],[data-mtgact]")) { clearSel(); cleared = true; }
+  if ((S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.actAdd || S.taskEdit) && !q("[data-dragsess],[data-actbar],[data-mtg],[data-delsel],[data-delsessok],[data-delsessno],.mtgform,.actform,[data-mtgadd],[data-actadd],[data-actsave],[data-actclear],[data-mtgact],[data-mtgactclear]")) { clearSel(); cleared = true; }
   const { date: today, time } = clock();
   const now = clock();
 
@@ -5611,6 +5617,8 @@ view.addEventListener("click", (e) => {
   if (q("[data-actcancel]")) { S.actAdd = null; S.actDraft = null; render(); return; }
   const mact = q("[data-mtgact]"); // 会議の実績の保存（confirmed と actual を書く）
   if (mact) { const id = mact.dataset.mtgact, f = (k) => view.querySelector(`[data-ma="${k}"]`)?.value ?? "", span = { start: f("start"), end: f("end") }; if (apply((d) => setMeetingActual(d, id, span, now), "会議の実績を入れました")) S.actDraft = null; return; }
+  const mclr = q("[data-mtgactclear]"); // 会議の実績を消す（actual を外し、confirmed を false に戻す）
+  if (mclr) { if (apply((d) => clearMeetingActual(d, mclr.dataset.mtgactclear), "会議の実績を消しました")) S.actDraft = null; return; }
   if (q("[data-delsel]")) { deleteSelected(); return; }
   const dsok = q("[data-delsessok]");
   if (dsok) { const s = allSessions(S.data).find((x) => x.id === dsok.dataset.delsessok); if (s && S.askDelSess === s.id) removeSelectedSession(s); else { S.askDelSess = null; render(); } return; }
