@@ -127,6 +127,12 @@ export function setMeetingActual(data, id, { start, end }, now) {
   return { ...data, events: data.events.map((e) => (e.id === id ? { ...e, confirmed: true, actual: { start, end } } : e)) };
 }
 
+/** 会議の実績を消す（actual を外し、confirmed を false に戻す） */
+export function clearMeetingActual(data, id) {
+  if (!data.events.some((e) => e.id === id)) throw new Error(`会議 ${id} がありません`);
+  return { ...data, events: data.events.map((e) => { if (e.id !== id) return e; const { actual, ...rest } = e; return { ...rest, confirmed: false }; }) };
+}
+
 export function deleteMeeting(data, id) {
   const cur = data.events.find((e) => e.id === id);
   if (!cur) throw new Error(`会議 ${id} がありません`);

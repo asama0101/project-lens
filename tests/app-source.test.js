@@ -93,7 +93,7 @@ test("app.js: 「参加しない会議」のボタン（data-sskip）は showSki
 test("schedule.js: ブロックの時刻は esc して出す（toMin が先に検証するが、描画側でも守る）", () => {
   const sc = readFileSync(new URL("../plugins/project-lens/src/ui/views/schedule.js", import.meta.url), "utf8");
   assert.match(sc, /\$\{esc\(m\.start\)\}-\$\{esc\(m\.end\)\}/);
-  assert.match(sc, /\$\{esc\(t\.start\)\}-\$\{esc\(t\.end\)\}/); // 作業枠の時刻（t は枠自身か、実績の帯の actual）
+  assert.match(sc, /\$\{esc\(t\.start\)\}-\$\{esc\(t\.end\)\}/); // 作業枠の時刻（t は枠自身か、実績のブロックの actual）
 });
 
 test("app.js: 営業日の指定の追加は、入力欄の値を先に取り出してから edit に入れる（保存の競合で当て直されても日付が空にならない）。終了日を入れたら同じ日でも期間として扱う", () => {
@@ -454,7 +454,7 @@ test("app.js・theme.css: ヘッダーの「＋ 突発タスク」は、塗り�
 test("theme.css: 週表示の今日の列は背景色を持たず、上端の線（--accent）だけで示す", () => {
   const rule = (sel) => css.slice(css.indexOf(sel + "{"), css.indexOf("}", css.indexOf(sel + "{")));
   const today = rule(".week .col.today");
-  assert.ok(!today.includes("background") && today.includes("inset 0 3px 0 var(--accent)"), today);
+  assert.ok(!today.includes("background") && today.includes("inset 0 5px 0 var(--accent)"), today);
   assert.ok(!css.includes("--today-col"));
 });
 
@@ -581,16 +581,38 @@ test("app.js: 作業枠を押して選ぶと（selectSession）、そのタス�
   assert.ok(!src.includes("data-tedit-open") && !src.includes("teditOpen"), "「タスクを編集」のボタンは持たない");
   const fn = src.slice(src.indexOf("const selectSession = "), src.indexOf("const selectSession = ") + 400);
   assert.ok(fn.includes("Object.assign(S, sessionSelection(S.data, id, S.taskEdit))"), fn); // 規則は views.test.js の sessionSelection
-  assert.match(src, /if \(sb && !q\("\[data-rz\]"\)\) \{ const id = sb\.dataset\.dragsess \?\? sb\.dataset\.actbar; selectSession\(S\.selSess === id \? null : id\);/);
+  assert.match(src, /if \(sb && !q\("\[data-rz\]"\)\) \{ const id = sb\.dataset\.dragsess \?\? sb\.dataset\.actbar \?\? sb\.dataset\.ghost; selectSession\(S\.selSess === id \? null : id\);/);
   assert.match(src, /if \(q\("\[data-tedit-close\]"\)\) \{ clearSel\(\); render\(\); return; \}/);
 });
 
-test("app.js: 実績の帯（data-actbar）の押下は、data-dragsess と同じ選択の処理に入る（欄外のクリックで外さない）。ドラッグ・下端のサイズ変更には入れない", () => {
-  assert.ok(src.includes('const sb = q("[data-dragsess],[data-actbar]");'));
-  assert.match(src, /!q\("\[data-dragsess\],\[data-actbar\],\[data-mtg\],/);
+test("app.js: 実績のブロック（data-actbar）・枠の影（data-ghost）の押下は、data-dragsess と同じ選択の処理に入る（欄外のクリックで外さない）。ドラッグ・下端のサイズ変更には入れない", () => {
+  assert.ok(src.includes('const sb = q("[data-dragsess],[data-actbar],[data-ghost]");'));
+  assert.match(src, /!q\("\[data-dragsess\],\[data-actbar\],\[data-ghost\],\[data-mtg\],\[data-mact\],\[data-mghost\],/);
   const dragLine = src.split("\n").find((l) => l.includes('e.target.closest("[data-dragtask]")'));
-  assert.ok(dragLine && !dragLine.includes("actbar"), dragLine);
-  assert.ok(!src.includes('closest("[data-rz],[data-rzm],[data-actbar]'));
+  assert.ok(dragLine && !/actbar|ghost|mact/.test(dragLine), dragLine);
+  const rzLine = src.split("\n").find((l) => l.includes('e.target.closest("[data-rz],[data-rzm]")'));
+  assert.ok(rzLine && !/actbar|ghost|mact/.test(rzLine), rzLine);
+});
+
+test("theme.css: 予定の影（.pghost）は、透明の背景と点線の枠で、ブロックより下（z-index 0）。会議の実績後（.blk.mtg.act）は、会議の縁の色を混ぜた濃い背景と、実線の縁。凡例の見本も同じ。色は変数だけ（ダーク配色でも読める）", () => {
+  assert.ok(css.includes(".blk.task.pghost,.blk.mtg.pghost{background:transparent;border:1px dashed var(--accent);color:var(--muted);opacity:.7;z-index:0;cursor:pointer}"));
+  assert.ok(css.includes(".blk.mtg.act{background:color-mix(in srgb,var(--meeting-edge) 32%,var(--surface));border:1px solid var(--meeting-edge);border-left:4px solid var(--meeting-edge)}"));
+  assert.ok(css.includes(".sw.mtgact{") && css.includes(".sw.pghost{"));
+});
+
+test("theme.css・schedule.js: 予定の影の class は、ドラッグの見本（.ghost。pointer-events:none）と別の名前（pghost）。影の規則は pointer-events:none を持たない（押して選べる）。ドラッグの見本の .ghost の規則はそのまま", () => {
+  const sc = readFileSync(new URL("../plugins/project-lens/src/ui/views/schedule.js", import.meta.url), "utf8");
+  assert.ok(!/class="[^"]*\bghost\b/.test(sc) && !/\bsw ghost\b/.test(sc) && !/\$\{kind\} ghost"/.test(sc), "schedule.js の class に ghost を使わない");
+  const rules = css.match(/[^{}]*\bpghost\b[^{}]*\{[^}]*\}/g) ?? [];
+  assert.ok(rules.length >= 2, rules.join("\n"));
+  for (const r of rules) assert.ok(!/pointer-events\s*:\s*none/.test(r), r);
+  assert.ok(!/(^|[}\s,])\.blk[^{]*\.ghost\b|\.sw\.ghost\b/.test(css), "影・凡例の規則に .ghost を使わない");
+  assert.ok(css.includes(".ghost{position:absolute;left:2px;right:2px;border:2px dashed var(--accent);background:var(--accent-soft);border-radius:5px;font-size:12px;padding:2px 6px;color:var(--accent);pointer-events:none;z-index:5}"), "ドラッグの見本の規則はそのまま");
+});
+
+test("app.js: 会議の実績のブロック（data-mact）・会議の影（data-mghost）の押下は、data-mtg と同じ会議の選択（selMtg）に入る", () => {
+  assert.ok(src.includes('const mb = q("[data-mtg],[data-mact],[data-mghost]");'));
+  assert.match(src, /if \(mb && !q\("\[data-rzm\]"\)\) \{ const id = mb\.dataset\.mtg \?\? mb\.dataset\.mact \?\? mb\.dataset\.mghost; S\.selMtg = S\.selMtg === id \? null : id;/);
 });
 
 test("theme.css: スケジュールの凡例の色の見本は 18×14px（線・点線・塗りは .sw の規則のまま）。文字は 12px。現在時刻の線は高さ 0 のまま、行の中央に置く（#view の中だけ）", () => {
@@ -766,29 +788,43 @@ test("ToDo タブ: index.html のタブ（スケジュールと稼働の間）�
   assert.ok(html.indexOf('id="tab-schedule"') < html.indexOf('id="tab-todo"') && html.indexOf('id="tab-todo"') < html.indexOf('id="tab-workload"'));
   assert.ok(src.includes("S.screen = b.id.slice(4)"), "tab-todo のクリックで S.screen が todo になる");
   const body = src.slice(src.indexOf("function renderBody()"), src.indexOf("function placeTaskPop"));
-  assert.ok(body.includes('S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, draft: S.tdDraft });'), body);
+  assert.ok(body.includes('S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, col: S.tdCol, draft: S.tdDraft });'), body);
   const build = readFileSync(new URL("../plugins/project-lens/tools/build.js", import.meta.url), "utf8");
   assert.ok(build.indexOf('"src/ui/views/schedule.js"') < build.indexOf('"src/ui/views/todo.js"'));
 });
 
 test("ToDo タブ: 古い ToDo の状態・ハンドラ・関数は無い", () => {
   for (const s of ["todoDay", "tdAct", "tdAskDel", "renderTodayTodos", "setTodoDay", "submitTodoInput", "deleteTodoNow", "data-tdnew", "data-tdday", "data-tdassign", "data-tdcarry", "data-tddel", "data-tdactsave", "dataset.tdone", "dataset.tdtitle", "dataset.tdcktoggle", "dataset.ta ", "addTodo(", "assignToDay(", "carryTodo(", "deleteTodo(", "ToDo）"]) assert.ok(!src.includes(s), s);
-  assert.ok(src.includes('for (const k of ["tdnote", "tf"])'), "入力中の欄（読み直しで描き直さない・フォーカスを保つ）");
+  assert.ok(src.includes('for (const k of ["tdnote", "tf", "tdckadd"])'), "入力中の欄（読み直しで描き直さない・フォーカスを保つ）");
+});
+
+test("ToDo タブ: 入力欄の項目の追加（data-tdckadd の Enter。isComposing を除く）・削除（data-tdckdel）は、先に S.tdDraft へ写してから apply ですぐ保存する", () => {
+  const i = src.indexOf('e.target.closest("[data-tdckadd]")'), a = src.slice(i, i + 600);
+  assert.ok(i > 0, "追加のハンドラ");
+  assert.ok(a.includes('e.key !== "Enter" || e.isComposing') && a.includes("e.preventDefault()"), "Enter だけ。変換確定は除く");
+  assert.ok(a.includes("if (!text) return;"), "空は追加しない");
+  assert.ok(a.indexOf("S.tdDraft = tdFormDraft(") > 0 && a.indexOf("S.tdDraft = tdFormDraft(") < a.indexOf("addChecklistItem(d, id, text)"), "下書きが先");
+  assert.match(a, /apply\(\(d\) => addChecklistItem\(d, id, text\)\)/);
+  assert.ok(a.includes('S.focusSel = `[data-tdckadd="${id}"]`'), "追加の欄へフォーカスを戻す");
+  const j = src.indexOf('q("[data-tdckdel]")'), b = src.slice(j, j + 500);
+  assert.ok(j > 0, "削除のハンドラ");
+  assert.ok(b.indexOf("S.tdDraft = tdFormDraft(") > 0 && b.indexOf("S.tdDraft = tdFormDraft(") < b.indexOf("removeChecklistItem(d, tid, iid)"), "下書きが先");
+  assert.match(b, /apply\(\(d\) => removeChecklistItem\(d, tid, iid\)\)/);
 });
 
 test("ToDo タブ: 状態（S.todoWeek・S.tdOpen・S.tdDraft）。描き直しで、無いタスクの入力欄を閉じる。画面の移動・週の移動・clearSel で閉じる", () => {
-  assert.match(src, /todoWeek: mondayOf\(clock\(\)\.date\), tdOpen: null, tdDraft: null/);
-  assert.ok(src.includes("if (S.tdOpen && !S.data?.tasks.some((t) => t.id === S.tdOpen)) { S.tdOpen = null; S.tdDraft = null; }"));
-  assert.match(src, /const clearSel = \(\) => \{[^\n]*S\.tdOpen = null; S\.tdDraft = null;/);
-  assert.match(src, /function moveTodoWeek\(week\) \{[^}]*S\.tdOpen = null; S\.tdDraft = null;/);
+  assert.match(src, /todoWeek: mondayOf\(clock\(\)\.date\), tdOpen: null, tdCol: null, tdDraft: null/);
+  assert.ok(src.includes('if (S.tdOpen && (!S.data?.tasks.some((t) => t.id === S.tdOpen) || !["today", "week"].includes(S.tdCol))) { S.tdOpen = null; S.tdCol = null; S.tdDraft = null; }'), "無いタスク・列の値が無い／不正なら閉じる");
+  assert.match(src, /const clearSel = \(\) => \{[^\n]*S\.tdOpen = null; S\.tdCol = null; S\.tdDraft = null;/);
+  assert.match(src, /function moveTodoWeek\(week\) \{[^}]*S\.tdOpen = null; S\.tdCol = null; S\.tdDraft = null;/);
 });
 
 test("ToDo タブ: 完了（data-tdopen）は開閉。残りをすべてチェック（data-tdckall）は描き直さずに欄を変える。キャンセル（data-tdcancel）は閉じる", () => {
-  assert.match(src, /const tdo = q\("\[data-tdopen\]"\);\s*if \(tdo\) \{ const id = tdo\.dataset\.tdopen; S\.tdOpen = S\.tdOpen === id \? null : id; S\.tdDraft = null;/);
+  assert.match(src, /const tdo = q\("\[data-tdopen\]"\);\s*if \(tdo\) \{ const id = tdo\.dataset\.tdopen, col = tdo\.dataset\.tdcol, same = S\.tdOpen === id && S\.tdCol === col; S\.tdOpen = same \? null : id; S\.tdCol = same \? null : col; S\.tdDraft = null;/); // 押した列（S.tdCol）の行にだけ開く。同じ列の同じ行で閉じる
   const i = src.indexOf('q("[data-tdckall]")'), a = src.slice(i, i + 600);
   assert.ok(i > 0 && a.includes("[data-tfck]") && a.includes(".checked = true") && !a.includes("render()"), a);
   assert.ok(a.indexOf(".checked = true") < a.indexOf("if (key && key === S.tdOpen) S.tdDraft = tdFormDraft(form, key);"), "change が起きないので、チェックを付けたあとで下書きへ写す（読み直しの描き直しで戻らない）");
-  assert.match(src, /q\("\[data-tdcancel\]"\)\) \{ S\.tdOpen = null; S\.tdDraft = null; render\(\); return; \}/);
+  assert.match(src, /q\("\[data-tdcancel\]"\)\) \{ S\.tdOpen = null; S\.tdCol = null; S\.tdDraft = null; render\(\); return; \}/);
 });
 
 test("ToDo タブ: 保存（data-tdsave）は、欄の値を先に S.tdDraft へ写してから completeTask を apply に通す。成功で閉じて、状態・解除・次回を通知する", () => {
@@ -797,7 +833,7 @@ test("ToDo タブ: 保存（data-tdsave）は、欄の値を先に S.tdDraft へ
   assert.ok(a.indexOf("S.tdDraft = tdFormDraft(") >= 0 && a.indexOf("S.tdDraft = tdFormDraft(") < a.indexOf("completeTask(d, id"), "下書きが先");
   assert.match(src, /function tdFormDraft\(form, key\) \{[^]*?return \{ key, date: f\("date"\), start: f\("start"\), end: f\("end"\), status: f\("status"\), checks \};/);
   assert.match(a, /apply\(\(d\) => \{ r = completeTask\(d, id, completeInput\(draft\), now\); return r\.data; \}, null, \{ quiet: true \}\)/); // 入力の変換は views.test.js の completeInput
-  assert.match(a, /S\.tdOpen = null; S\.tdDraft = null; render\(\);/);
+  assert.match(a, /S\.tdOpen = null; S\.tdCol = null; S\.tdDraft = null; render\(\);/);
   for (const s of ["にしました", "未来の予定の枠 ${r.released} 件を解除しました", "次回（期限"]) assert.ok(a.includes(s), s);
   assert.ok(src.includes("if (el.dataset.tdnote !== undefined) {") && src.includes("setReview(d, wk, text)"), "気づきは change で setReview");
 });
@@ -826,4 +862,12 @@ test("app.js: 実績の保存（枠モード）と実績を消すは、成功の
   const j = src.indexOf('q("[data-actclear]")');
   const clr = src.slice(j, j + 600);
   assert.ok(clr.includes("S.askDelSess = null"), clr);
+});
+
+test("app.js: 会議の実績を消す（data-mtgactclear）は clearMeetingActual を apply に通し、成功で下書きを消す。欄外のクリックでも選択を外さない", () => {
+  const i = src.indexOf('q("[data-mtgactclear]")');
+  assert.ok(i > 0, "data-mtgactclear のハンドラ");
+  const a = src.slice(i, i + 400);
+  assert.ok(a.includes("apply((d) => clearMeetingActual(d, ") && a.includes("会議の実績を消しました") && a.includes("S.actDraft = null"), a);
+  assert.ok(src.slice(src.indexOf("// 欄外のクリックで"), src.indexOf("// 欄外のクリックで") + 400).includes("[data-mtgactclear]"));
 });

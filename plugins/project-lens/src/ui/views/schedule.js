@@ -49,21 +49,57 @@ const hoursHtml = (g) => {
   return s;
 };
 
+/** 描いたブロックの区間（span）が、今日の今を含むか（開始ちょうどは含み、終了ちょうどは含まない）。含むなら、ブロックの class と時刻の前の「いま」 */
+const nowMark = (ctx, d, span) => {
+  const n = toMin(ctx.now.time);
+  return d === ctx.now.date && toMin(span.start) <= n && n < toMin(span.end) ? { cls: " now", tag: "<b class=\"nw\">いま</b> " } : { cls: "", tag: "" };
+};
+
+/** 実績の区間が予定の区間と違うか（違うときだけ、予定の時刻に影を描く） */
+const differs = (p, a) => a.start !== p.start || a.end !== p.end || (a.date ?? p.date) !== p.date;
+/** 実績とずれた予定の影（薄い点線の枠。ドラッグ・伸縮なし。押すと同じ枠・会議を選ぶ）。attr は data-ghost / data-mghost */
+const ghostHtml = (kind, attr, id, span, title, g) =>
+  `<div class="blk ${kind} pghost" ${attr}="${esc(id)}" style="top:${g.tp(toMin(span.start))};height:${g.ht(toMin(span.start), toMin(span.end))}" title="${esc(title)}(予定)"><span class="tm">予定 ${esc(span.start)}-${esc(span.end)}</span></div>`;
+
+/** 会議のブロック。確認済み（confirmed: true）で actual を持つ会議（参加しない会議を除く）は、実績の時刻に 1 つ（data-mact）と、時刻が違うときだけ予定の時刻の影。ghosts は影、html はブロック */
 function meetingBlocks(data, d, full, g, ctx) {
-  return (data.events ?? []).filter((m) => m.date === d && (ctx.showSkipped || !m.skip || ctx.selMtg === m.id)).map((m) => {
-    const a = Math.max(toMin(m.start), g.h0);
-    const b = Math.min(toMin(m.end), g.h0 + g.span);
-    if (b <= a) return "";
-    const manual = m.source === "manual";
-    const kind = meetingKind(m, ctx.now);
-    const kc = kind === "actual" ? "act" : kind === "unconfirmed" ? "unconf" : "";
-    const mark = m.skip ? " 不参加" : kind === "actual" ? " ✓" : kind === "unconfirmed" ? " 未確認" : "";
-    const gap = m.actual && (m.actual.start !== m.start || m.actual.end !== m.end) ? ` 実績 ${m.actual.start}-${m.actual.end}` : ""; // 予定とずれた実績
-    const pname = (data.projects ?? []).find((p) => p.id === m.projectId)?.name;
-    const by = m.projectBy === "manual" ? "（手動）" : m.projectBy === "rule" ? "（規則）" : "";
-    const proj = full ? `<span class="mp">${pname ? `プロジェクト: ${esc(pname)}${by}` : "プロジェクト未設定"}</span>` : "";
-    return `<div class="blk mtg ${m.skip ? "skip" : ""} ${kc} ${ctx.selMtg === m.id ? "sel" : ""}${b - a < SHORT_MIN ? " short" : ""}" data-mtg="${esc(m.id)}" tabindex="0" ${manual ? `draggable="true" data-dragmtg="${esc(m.id)}"` : ""} style="top:${g.tp(a)};height:${g.ht(a, b)}" title="${esc(m.title)}${m.skip ? "(参加しない)" : ""}${manual ? "" : "(予定表から取得)"}${esc(gap)}"><span class="tm">${esc(m.start)}-${esc(m.end)}${esc(mark + gap)}</span>${esc(m.title)}${proj}${manual ? `<i class="rz" data-rzm="${esc(m.id)}" aria-label="終了時刻を変更"></i>` : ""}</div>`;
-  }).join("");
+  const out = { ghosts: "", html: "" };
+  for (const m of (data.events ?? []).filter((m) => m.date === d && (ctx.showSkipped || !m.skip || ctx.selMtg === m.id))) {
+    if (!m.skip && m.confirmed === true && m.actual) {
+      if (differs(m, m.actual)) out.ghosts += ghostHtml("mtg", "data-mghost", m.id, m, m.title, g);
+      out.html += meetingActualBlock(data, m, full, g, ctx);
+    } else out.html += meetingBlock(data, m, full, g, ctx);
+  }
+  return out;
+}
+
+const meetingProj = (data, m) => {
+  const pname = (data.projects ?? []).find((p) => p.id === m.projectId)?.name;
+  const by = m.projectBy === "manual" ? "（手動）" : m.projectBy === "rule" ? "（規則）" : "";
+  return `<span class="mp">${pname ? `プロジェクト: ${esc(pname)}${by}` : "プロジェクト未設定"}</span>`;
+};
+
+/** 実績を持つ会議の、実績の時刻のブロック（実績後の濃い見た目と ✓。ドラッグ・伸縮なし）。span は描いた区間（実績） */
+function meetingActualBlock(data, m, full, g, ctx) {
+  const span = meetingActualSpan(m);
+  const a = toMin(span.start), b = toMin(span.end);
+  const nw = nowMark(ctx, m.date, span);
+  return `<div class="blk mtg act${nw.cls} ${ctx.selMtg === m.id ? "sel" : ""}${b - a < SHORT_MIN ? " short" : ""}" data-mact="${esc(m.id)}" tabindex="0" style="top:${g.tp(a)};height:${g.ht(a, b)}" title="${esc(m.title)}(予定 ${esc(m.start)}-${esc(m.end)})${m.source === "manual" ? "" : "(予定表から取得)"}"><span class="tm">${nw.tag}実績 ${esc(span.start)}-${esc(span.end)} ✓</span>${esc(m.title)}${full ? meetingProj(data, m) : ""}</div>`;
+}
+
+/** 予定の時刻の会議のブロック（actual の無い会議・参加しない会議）。confirmed: true なら実績後の見た目（act）。手動の会議はドラッグ・伸縮できる */
+function meetingBlock(data, m, full, g, ctx) {
+  const a = Math.max(toMin(m.start), g.h0);
+  const b = Math.min(toMin(m.end), g.h0 + g.span);
+  if (b <= a) return "";
+  const manual = m.source === "manual";
+  const kind = meetingKind(m, ctx.now);
+  const kc = kind === "actual" ? "act" : kind === "unconfirmed" ? "unconf" : "";
+  const mark = m.skip ? " 不参加" : kind === "actual" ? " ✓" : kind === "unconfirmed" ? " 未確認" : "";
+  const gap = m.actual && (m.actual.start !== m.start || m.actual.end !== m.end) ? ` 実績 ${m.actual.start}-${m.actual.end}` : ""; // 予定とずれた実績（参加しない会議に actual が残っているとき）
+  const proj = full ? meetingProj(data, m) : "";
+  const nw = m.skip ? { cls: "", tag: "" } : nowMark(ctx, m.date, m);
+  return `<div class="blk mtg ${m.skip ? "skip" : ""} ${kc}${nw.cls} ${ctx.selMtg === m.id ? "sel" : ""}${b - a < SHORT_MIN ? " short" : ""}" data-mtg="${esc(m.id)}" tabindex="0" ${manual ? `draggable="true" data-dragmtg="${esc(m.id)}"` : ""} style="top:${g.tp(a)};height:${g.ht(a, b)}" title="${esc(m.title)}${m.skip ? "(参加しない)" : ""}${manual ? "" : "(予定表から取得)"}${esc(gap)}"><span class="tm">${nw.tag}${esc(m.start)}-${esc(m.end)}${esc(mark + gap)}</span>${esc(m.title)}${proj}${manual ? `<i class="rz" data-rzm="${esc(m.id)}" aria-label="終了時刻を変更"></i>` : ""}</div>`;
 }
 
 const KIND_CLS = { actual: "act", unconfirmed: "unconf", planned: "plan" };
@@ -74,25 +110,44 @@ const STATUS_JA = { "To Do": "未着手", "In Progress": "着手中", Waiting: "
 /** 2 つの枠（同じ日）の時間が重なるか */
 const overlaps = (a, b) => toMin(a.start) < toMin(b.end) && toMin(b.start) < toMin(a.end);
 
+/** 実績のブロックに、予定の時刻を小さな文字で添える長さ（分）。これより短いブロックは title だけ */
+const PLAN_NOTE_MIN = 60;
+
 /**
- * その日の描く要素: 枠のブロック（予定の日付がその日）と、予定の枠の実績の帯（actual.date がその日。ドラッグ・サイズ変更なし）。
- * 実績の側（実績だけの枠・実績の帯）と予定の側の要素が重なるときは、予定を左半分・実績を右半分に並べる（重ならなければ全幅）
+ * その日の描く要素: 実績を持たない枠のブロック（予定の日付がその日）と、実績を持つ予定の枠の実績のブロック（actual.date がその日。ドラッグ・サイズ変更なし）。
+ * 実績を持つ予定の枠の予定の区間は、実績と違うときだけ、予定の日付の列に影（ghosts）で描く。影は重なりの判定に入れない。
+ * 実績の側（実績だけの枠・実績のブロック）と、実績を持たない予定の枠が重なるときは、予定を左半分・実績を右半分に並べる（重ならなければ全幅）。
+ * 各ブロックの t は、描いた区間（実績のブロックなら実績の区間）
  */
 function sessionBlocks(data, d, full, g, ctx) {
-  const items = allSessions(data).flatMap((s) => [
-    ...(s.date === d ? [{ s, t: s, bar: false, isAct: s.kind === "actual" }] : []),
-    ...(s.kind === "planned" && s.actual?.date === d ? [{ s, t: s.actual, bar: true, isAct: true }] : []),
+  const all = allSessions(data);
+  const withAct = (s) => s.kind === "planned" && s.actual;
+  const ghosts = all.filter((s) => withAct(s) && s.date === d && differs(s, s.actual)).map((s) => ghostHtml("task", "data-ghost", s.id, s, s.title, g)).join("");
+  const items = all.flatMap((s) => [
+    ...(!withAct(s) && s.date === d ? [{ s, t: s, bar: false, isAct: s.kind === "actual" }] : []),
+    ...(withAct(s) && s.actual.date === d ? [{ s, t: s.actual, bar: true, isAct: true }] : []),
   ]);
-  return items.map(({ s, t, bar, isAct }) => {
+  const html = items.map(({ s, t, bar, isAct }) => {
     const side = items.some((o) => o.isAct !== isAct && overlaps(o.t, t)) ? (isAct ? ";left:50%;width:50%" : ";left:0;width:50%") : "";
-    const c = bar ? "act" : s.actual ? "plan" : KIND_CLS[sessionKind(s, ctx.now, ctx.actuals)]; // 実績を持つ予定のブロックは「予定」（未確認にしない）
+    const c = bar ? "act" : KIND_CLS[sessionKind(s, ctx.now, ctx.actuals)];
     const task = data.tasks.find((x) => x.id === s.taskId);
     const st = full ? ` <span class="stt">${STATUS_JA[task.status] ?? ""}</span>` : "";
     const imp = isImportantMark(task) ? " imp" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
-    const short = toMin(t.end) - toMin(t.start) < SHORT_MIN ? " short" : "";
+    const len = toMin(t.end) - toMin(t.start);
+    const short = len < SHORT_MIN ? " short" : "";
     const attrs = bar ? `tabindex="0" data-actbar="${esc(s.id)}"` : `draggable="true" tabindex="0" data-dragsess="${esc(s.id)}"`;
-    return `<div class="blk task ${c}${imp}${short} ${ctx.selSess === s.id ? "sel" : ""}" ${attrs} style="top:${g.tp(toMin(t.start))};height:${g.ht(toMin(t.start), toMin(t.end))}${side}" title="${esc(s.title)}(${KIND_JA[c]})"><span class="tm">${esc(t.start)}-${esc(t.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${esc(s.title)}</span>${st}${bar ? "" : `<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i>`}</div>`;
+    const plan = bar ? `予定 ${fmtMD(s.date)} ${s.start}-${s.end}` : ""; // 実績のブロックに添える予定の時刻
+    const note = bar && len >= PLAN_NOTE_MIN && differs(s, s.actual) ? `<span class="pl">${esc(plan)}</span>` : "";
+    const nw = nowMark(ctx, d, t);
+    return `<div class="blk task ${c}${imp}${short}${nw.cls} ${ctx.selSess === s.id ? "sel" : ""}" ${attrs} style="top:${g.tp(toMin(t.start))};height:${g.ht(toMin(t.start), toMin(t.end))}${side}" title="${esc(s.title)}(${KIND_JA[c]})${bar ? ` ${esc(plan)}` : ""}"><span class="tm">${nw.tag}${bar ? "実績 " : ""}${esc(t.start)}-${esc(t.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${esc(s.title)}</span>${st}${note}${bar ? "" : `<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i>`}</div>`;
   }).join("");
+  return { ghosts, html };
+}
+
+/** その日の列の中身。影を先に描き（実績のブロックのうしろに出す）、会議・枠のブロックを続ける */
+function dayBlocks(data, d, full, g, ctx) {
+  const m = meetingBlocks(data, d, full, g, ctx), s = sessionBlocks(data, d, full, g, ctx);
+  return m.ghosts + s.ghosts + m.html + s.html;
 }
 
 /** 今日以外の日に開いたときの、突発タスクの開始の初期値 */
@@ -129,7 +184,7 @@ function meetingForm(data, ctx) {
   const act = span && (ctx.actDraft?.key === `m:${m.id}` ? { start: ctx.actDraft.start, end: ctx.actDraft.end } : span); // 入力中の下書きがあれば、その値で描く
   const actHtml = act ? `<label>実績の開始<input class="in" type="time" step="900" data-ma="start" value="${esc(act.start)}"></label>
     <label>実績の終了<input class="in" type="time" step="900" data-ma="end" value="${esc(act.end)}"></label>
-    <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-mtgact="${esc(m.id)}">実績を保存</button></div>` : "";
+    <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-mtgact="${esc(m.id)}">実績を保存</button>${m.confirmed === true ? `<button class="btn" data-mtgactclear="${esc(m.id)}">実績を消す</button>` : ""}</div>` : "";
   return `<div class="mtgform" role="group" aria-label="会議の${isNew ? "追加" : "編集"}">
     <label>件名<input class="in" data-mt="title" value="${esc(m.title)}" placeholder="会議名" style="min-width:200px" ${lock}></label>
     <label>日付${dateInputHtml({ value: m.date, attrs: `data-mt="date" ${lock}`, label: "会議の日付" })}</label>
@@ -201,8 +256,11 @@ export function actualForm(data, ctx) {
   </div>`;
 }
 
-/** 色の凡例（上の操作の行に置く）。日表示は現在時刻の線、参加しない会議を出すときはその印も */
-const legendHtml = (day, showSkipped) => `<div class="slegend" aria-label="色の凡例"><span><i class="sw mtg"></i>会議</span>${showSkipped ? '<span><i class="sw skipsw"></i>参加しない会議</span>' : ""}<span><i class="sw mtgun"></i>未確認の会議</span><span><i class="sw plan"></i>予定</span><span><i class="sw act"></i>実績(✓)</span><span><i class="sw unconf"></i>未確認(過ぎた予定)</span>${day ? '<span><i class="sw now"></i>現在時刻</span>' : ""}<span><i class="sw sel"></i>選択中</span></div>`;
+/** 色の凡例（上の操作の行に置く）。枠・会議それぞれの 3 つの状態（予定・未確認・実績）と、実績とずれた予定の影。現在時刻の線、参加しない会議を出すときはその印も */
+const legendHtml = (showSkipped) => `<div class="slegend" aria-label="色の凡例"><span><i class="sw plan"></i>予定</span><span><i class="sw unconf"></i>未確認(過ぎた予定)</span><span><i class="sw act"></i>実績(✓)</span><span><i class="sw mtg"></i>会議</span><span><i class="sw mtgun"></i>未確認の会議</span><span><i class="sw mtgact"></i>会議の実績(✓)</span>${showSkipped ? '<span><i class="sw skipsw"></i>参加しない会議</span>' : ""}<span><i class="sw pghost"></i>実績とずれた予定</span><span><i class="sw now"></i>現在時刻</span><span><i class="sw sel"></i>選択中</span></div>`;
+
+/** 現在時刻の赤い線。その日が今日のときだけ（日表示・週表示の今日の列で共通） */
+const nowLineHtml = (d, g, ctx) => d === ctx.now.date && toMin(ctx.now.time) >= g.h0 && toMin(ctx.now.time) <= g.h0 + g.span ? `<span class="nowline" style="top:${g.tp(toMin(ctx.now.time))}" title="現在 ${ctx.now.time}"></span>` : "";
 
 /** カレンダー部分（週または日）。会議の編集中はここだけを描き直す */
 export function renderCalendar(data, today, opts) {
@@ -214,7 +272,7 @@ export function renderCalendar(data, today, opts) {
   if (view === "week") {
     const days = [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(weekStartOf(date), i));
     const heads = days.map((d) => `<button class="dh ${d === today ? "t" : ""}" data-day="${d}" aria-label="${fmtMD(d)}の1日表示">${fmtMD(d)}(${wdJa(d)})${isOff(d) ? '<small class="mono">—</small>' : ""}</button>`).join("");
-    const cols = days.map((d) => `<div class="col dz ${d === today ? "today" : ""} ${isOff(d) ? "weekend" : ""}" data-date="${d}">${meetingBlocks(data, d, false, g, ctx)}${sessionBlocks(data, d, false, g, ctx)}</div>`).join("");
+    const cols = days.map((d) => `<div class="col dz ${d === today ? "today" : ""} ${isOff(d) ? "weekend" : ""}" data-date="${d}">${dayBlocks(data, d, false, g, ctx)}${nowLineHtml(d, g, ctx)}</div>`).join("");
     const dueByDay = days.map((d) => data.tasks.filter((t) => t.due === d && t.status !== "Done" && t.status !== "Cancelled"));
     // 期限の行: 日付の見出しのすぐ下に固定する（theme.css）。閉じると、各日のセルの代わりに、週の件数の帯だけを出す
     const dueOpen = opts.showDue !== false;
@@ -225,10 +283,10 @@ export function renderCalendar(data, today, opts) {
     cal = `<div class="cal wk"><div class="week"><div></div>${heads}${dueToggle}${dues}<div class="hrs">${hoursHtml(g)}</div>${cols}</div></div>
       <p class="note" style="margin:8px 0 0">日付を押すと1日表示に切り替わります。枠をクリックして選び、「枠を削除」か Delete キーで削除できます。</p>`;
   } else {
-    const nowLine = date === ctx.now.date && toMin(ctx.now.time) >= g.h0 && toMin(ctx.now.time) <= g.h0 + g.span ? `<span class="nowline" style="top:${g.tp(toMin(ctx.now.time))}" title="現在 ${ctx.now.time}"></span>` : "";
+    const nowLine = nowLineHtml(date, g, ctx);
     const offKinds = data.settings?.countWeekendsAndHolidays === true ? "休み" : "土日・日本の祝日・休み"; // 土日祝を営業日に数える設定のときは、手動の休みだけが休みの日
     const offNote = isOff(date) ? `<p class="note" style="margin:0 0 8px">この日は休みです（${offKinds}）。作業枠は置けません。設定タブの「営業日として扱う日」に指定すると置けます。</p>` : "";
-    cal = `${offNote}<div class="cal"><div class="cal-grid">${hoursHtml(g)}<div class="cal-body dz" id="calbody" data-date="${date}">${meetingBlocks(data, date, true, g, ctx)}${sessionBlocks(data, date, true, g, ctx)}${nowLine}</div></div></div>`;
+    cal = `${offNote}<div class="cal"><div class="cal-grid">${hoursHtml(g)}<div class="cal-body dz" id="calbody" data-date="${date}">${dayBlocks(data, date, true, g, ctx)}${nowLine}</div></div></div>`;
   }
   return cal;
 }
@@ -262,7 +320,7 @@ export function renderSchedule(data, today, opts) {
   const delOk = !!selSess || (selMtg && selMtg.source === "manual");
   const calOpts = { ...opts, view, date, now, selSess: selSess?.id ?? null, selMtg: selMtg?.id ?? null };
 
-  const nav = `<div class="toolbar"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn" data-nav="${-step}" aria-label="前へ">←</button><button class="btn" data-nav="${step}" aria-label="次へ">→</button><button class="btn" data-sgoto>今日</button><strong style="margin-left:6px">${title}</strong>${legendHtml(view === "day", opts.showSkipped === true)}</div>
+  const nav = `<div class="toolbar"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn" data-nav="${-step}" aria-label="前へ">←</button><button class="btn" data-nav="${step}" aria-label="次へ">→</button><button class="btn" data-sgoto>今日</button><strong class="${view === "day" && date === today ? "dtt" : ""}" style="margin-left:6px">${title}</strong>${legendHtml(opts.showSkipped === true)}</div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="chip-btn pref" data-sskip aria-pressed="${opts.showSkipped === true}" title="「参加しない」にした会議を、カレンダーに出したり隠したりします">参加しない会議</button><button class="btn" data-mtgadd>＋ 会議を追加</button><div class="seg" role="group" aria-label="表示"><button data-sview="week" aria-pressed="${view === "week"}">週</button><button data-sview="day" aria-pressed="${view === "day"}">日</button></div></div></div>
     <div class="summary"><span>実績 <b class="mono">${hours.toFixed(1)}時間</b></span><span>予定 <b class="mono">${planned}件</b></span>${unconf ? `<span class="pill wait">未確認 ${unconf}件（作業枠 ${unconfS}・会議 ${unconfM}）</span>` : ""}<button class="btn danger" data-delsel ${delOk ? "" : "disabled"}>${delLabel}</button></div>`;
   const et = selSess && opts.taskEdit ? data.tasks.find((t) => t.id === opts.taskEdit.id) : null; // 編集欄は、表示中の枠を選んでいる間だけ出す（枠を選ぶと、そのタスクの編集欄になる）
