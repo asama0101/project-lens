@@ -456,6 +456,12 @@ test("addChecklistItem: 削除のあとに足しても、同時にある ID は�
   assert.equal(new Set(items(addChecklistItem(noC3, "AA-0004", "d"), "AA-0004").map((x) => x[0])).size, 3);
 });
 
+test("removeChecklistItem: 項目を外す。存在しない項目は例外", () => {
+  const d = addChecklistItem(load(), "AA-0004", "a");
+  assert.deepEqual(items(removeChecklistItem(d, "AA-0004", "c1"), "AA-0004"), []);
+  assert.throws(() => removeChecklistItem(d, "AA-0004", "c9"), Error);
+});
+
 test("updateChecklistItem: done と text を変える。存在しない項目・空の text は例外", () => {
   const d = addChecklistItem(load(), "AA-0004", "a");
   assert.deepEqual(items(updateChecklistItem(d, "AA-0004", "c1", { done: true }), "AA-0004"), [["c1", "a", true]]);

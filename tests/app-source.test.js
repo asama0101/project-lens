@@ -795,7 +795,21 @@ test("ToDo タブ: index.html のタブ（スケジュールと稼働の間）�
 
 test("ToDo タブ: 古い ToDo の状態・ハンドラ・関数は無い", () => {
   for (const s of ["todoDay", "tdAct", "tdAskDel", "renderTodayTodos", "setTodoDay", "submitTodoInput", "deleteTodoNow", "data-tdnew", "data-tdday", "data-tdassign", "data-tdcarry", "data-tddel", "data-tdactsave", "dataset.tdone", "dataset.tdtitle", "dataset.tdcktoggle", "dataset.ta ", "addTodo(", "assignToDay(", "carryTodo(", "deleteTodo(", "ToDo）"]) assert.ok(!src.includes(s), s);
-  assert.ok(src.includes('for (const k of ["tdnote", "tf"])'), "入力中の欄（読み直しで描き直さない・フォーカスを保つ）");
+  assert.ok(src.includes('for (const k of ["tdnote", "tf", "tdckadd"])'), "入力中の欄（読み直しで描き直さない・フォーカスを保つ）");
+});
+
+test("ToDo タブ: 入力欄の項目の追加（data-tdckadd の Enter。isComposing を除く）・削除（data-tdckdel）は、先に S.tdDraft へ写してから apply ですぐ保存する", () => {
+  const i = src.indexOf('e.target.closest("[data-tdckadd]")'), a = src.slice(i, i + 600);
+  assert.ok(i > 0, "追加のハンドラ");
+  assert.ok(a.includes('e.key !== "Enter" || e.isComposing') && a.includes("e.preventDefault()"), "Enter だけ。変換確定は除く");
+  assert.ok(a.includes("if (!text) return;"), "空は追加しない");
+  assert.ok(a.indexOf("S.tdDraft = tdFormDraft(") > 0 && a.indexOf("S.tdDraft = tdFormDraft(") < a.indexOf("addChecklistItem(d, id, text)"), "下書きが先");
+  assert.match(a, /apply\(\(d\) => addChecklistItem\(d, id, text\)\)/);
+  assert.ok(a.includes('S.focusSel = `[data-tdckadd="${id}"]`'), "追加の欄へフォーカスを戻す");
+  const j = src.indexOf('q("[data-tdckdel]")'), b = src.slice(j, j + 500);
+  assert.ok(j > 0, "削除のハンドラ");
+  assert.ok(b.indexOf("S.tdDraft = tdFormDraft(") > 0 && b.indexOf("S.tdDraft = tdFormDraft(") < b.indexOf("removeChecklistItem(d, tid, iid)"), "下書きが先");
+  assert.match(b, /apply\(\(d\) => removeChecklistItem\(d, tid, iid\)\)/);
 });
 
 test("ToDo タブ: 状態（S.todoWeek・S.tdOpen・S.tdDraft）。描き直しで、無いタスクの入力欄を閉じる。画面の移動・週の移動・clearSel で閉じる", () => {

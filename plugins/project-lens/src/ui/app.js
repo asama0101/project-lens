@@ -174,7 +174,7 @@ function focusSelector(el) {
   if (d.rnewpj !== undefined) return "[data-rnewpj]";
   if (d.waitparty) return q("data-waitparty", d.waitparty);
   if (d.ug) return q("data-ug", d.ug); // 突発タスクの欄（読み直しで待たせた描き直しが、欄を移ったときに走る）
-  for (const k of ["tdnote", "tf"]) if (d[k] !== undefined) return q(`data-${k}`, d[k]); // ToDo 画面の欄
+  for (const k of ["tdnote", "tf", "tdckadd"]) if (d[k] !== undefined) return q(`data-${k}`, d[k]); // ToDo 画面の欄
   return null;
 }
 
@@ -603,6 +603,8 @@ view.addEventListener("click", (e) => {
   if (q("[data-tdweek-today]")) { moveTodoWeek(mondayOf(today)); return; }
   const tdo = q("[data-tdopen]");
   if (tdo) { const id = tdo.dataset.tdopen, col = tdo.dataset.tdcol, same = S.tdOpen === id && S.tdCol === col; S.tdOpen = same ? null : id; S.tdCol = same ? null : col; S.tdDraft = null; S.focusSel = S.tdOpen ? '[data-tf="start"]' : null; render(); return; }
+  const tdd = q("[data-tdckdel]"); // 入力欄の項目の削除。すぐタスクへ保存する。描き直しても入力が残るよう、先に下書きへ写す
+  if (tdd) { const [tid, iid] = tdd.dataset.tdckdel.split(":"); S.tdDraft = tdFormDraft(tdd.closest(".tdform"), tid); apply((d) => removeChecklistItem(d, tid, iid)); return; }
   const tdca = q("[data-tdckall]"); // 入力欄のチェックを、すべて付ける（描き直さない。保存で書く）
   if (tdca) { // 欄の値を変えても change は起きないので、下書きへも写す（読み直しの描き直しで、チェックが戻らないように）
     const form = tdca.closest(".tdform"), key = form.querySelector("[data-tdsave]")?.dataset.tdsave;
@@ -778,6 +780,17 @@ view.addEventListener("keydown", (e) => {
   const text = el.value.trim(), id = el.dataset.ckadd;
   if (!text) return;
   S.focusSel = `[data-ckadd="${id}"]`;
+  apply((d) => addChecklistItem(d, id, text));
+});
+/** 完了の入力欄の、項目の追加欄: Enter ですぐタスクへ保存する（isComposing では追加しない）。描き直しても入力が残るよう、先に下書きへ写す */
+view.addEventListener("keydown", (e) => {
+  const el = e.target.closest("[data-tdckadd]");
+  if (!el || e.key !== "Enter" || e.isComposing) return;
+  e.preventDefault();
+  const text = el.value.trim(), id = el.dataset.tdckadd;
+  if (!text) return;
+  S.tdDraft = tdFormDraft(el.closest(".tdform"), id);
+  S.focusSel = `[data-tdckadd="${id}"]`;
   apply((d) => addChecklistItem(d, id, text));
 });
 /**

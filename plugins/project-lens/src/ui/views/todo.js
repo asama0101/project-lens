@@ -13,7 +13,7 @@ const progress = (r) => (r.checked ? `${r.checked.done}/${r.checked.total}` : "�
 
 /**
  * 完了の入力欄。初期値は、日付が day、時刻がその日のそのタスクの、始まった予定の枠（actual なし）の時刻（なければ空）、状態が Done、チェックがタスクの今の状態。
- * 下書き（key が同じ）があれば、その値。Done・Cancelled で解除される未来の予定の枠があれば、その件数を添える
+ * 下書き（key が同じ）があれば、その値（下書きに無い項目は、タスクの状態）。各項目の「×」と末尾の追加の欄は、押すとすぐタスクへ保存する（app.js）。Done・Cancelled で解除される未来の予定の枠があれば、その件数を添える
  */
 function completeForm(data, t, day, now, draft) {
   const dr = draft?.key === t.id ? draft : null;
@@ -22,14 +22,15 @@ function completeForm(data, t, day, now, draft) {
   const time = (k) => `<label>${k === "start" ? "開始" : "終了"}<input class="in" type="time" step="900" data-tf="${k}" value="${esc(dr ? dr[k] : plan?.[k] ?? "")}"></label>`;
   const status = dr?.status ?? "Done";
   const ck = t.checklist ?? [];
-  const items = ck.map((c) => `<label class="tf-ck"><input type="checkbox" data-tfck="${esc(c.id)}"${(dr?.checks?.[c.id] ?? c.done) ? " checked" : ""}>${esc(c.text)}</label>`).join("");
+  const items = ck.map((c) => `<span class="tf-ckitem"><label class="tf-ck"><input type="checkbox" data-tfck="${esc(c.id)}"${(dr?.checks?.[c.id] ?? c.done) ? " checked" : ""}>${esc(c.text)}</label><button class="gx" data-tdckdel="${esc(t.id)}:${esc(c.id)}" aria-label="${esc(c.text)} を削除">×</button></span>`).join("");
+  const add = `<input class="in" data-tdckadd="${esc(t.id)}" placeholder="＋ 項目を追加（Enter）" aria-label="項目を追加">`;
   const n = futurePlanned(data, t.id, now).length;
   return `<div class="actform tdform" role="group" aria-label="完了の入力">
     <span class="note" style="flex-basis:100%;margin:0">実績（省略できます）・状態・チェックリストを、まとめて保存します</span>
     <label>日付${dateInputHtml({ value: dr ? dr.date : day, attrs: 'data-tf="date"', label: "実績の日付" })}</label>
     ${time("start")}${time("end")}
     <label>状態<select class="in" data-tf="status">${FORM_STATUSES.map((s) => `<option value="${s}"${s === status ? " selected" : ""}>${s}</option>`).join("")}</select></label>
-    ${ck.length ? `<div class="tf-cks">${items}<button class="btn" data-tdckall>残りをすべてチェック</button></div>` : ""}
+    <div class="tf-cks">${items}${ck.length ? `<button class="btn" data-tdckall>残りをすべてチェック</button>` : ""}${add}</div>
     ${n ? `<span class="note" style="flex-basis:100%;margin:0">Done・Cancelled にすると、未来の予定の枠 ${n} 件を解除します</span>` : ""}
     <div style="display:flex;gap:6px;align-items:center"><button class="btn primary" data-tdsave="${esc(t.id)}">保存</button><button class="btn" data-tdcancel>キャンセル</button></div>
   </div>`;

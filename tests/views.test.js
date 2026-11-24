@@ -2260,6 +2260,23 @@ test("renderTodo: open の行に完了の入力欄（日付・開始・終了・
   assert.ok(!tdRow(tdHtml(tdData()), "AA-0001").includes("data-tf="), "open が null");
 });
 
+test("renderTodo: 入力欄の各項目の横に「×」（data-tdckdel）、項目の末尾に追加の欄（data-tdckadd）。チェックリストの無いタスクにも追加の欄が出る", () => {
+  const f = tdRow(tdHtml(tdData(), { open: "AA-0001" }), "AA-0001");
+  for (const id of ["c1", "c2"]) assert.equal(count(f, new RegExp(`data-tdckdel="AA-0001:${id}"`, "g")), 1, id);
+  assert.match(f, /<input class="in" data-tdckadd="AA-0001" placeholder="＋ 項目を追加（Enter）"/);
+  assert.ok(f.lastIndexOf("data-tdckdel") < f.indexOf("data-tdckadd"), "追加の欄は項目の後");
+  const g = tdRow(tdHtml(tdData(), { open: "AA-0002" }), "AA-0002");
+  assert.ok(g.includes('data-tdckadd="AA-0002"') && !g.includes("data-tdckdel") && !g.includes("data-tdckall"), "項目が無くても追加の欄だけ出る");
+});
+
+test("renderTodo: 下書きの checks に無い項目（追加した項目）はタスクの状態、下書きにだけある項目（削除した項目）は描かない", () => {
+  const draft = { key: "AA-0001", date: TODAY, start: "", end: "", status: "Done", checks: { c1: false, c9: true } };
+  const f = tdRow(tdHtml(tdData(), { open: "AA-0001", draft }), "AA-0001");
+  assert.match(f, /data-tfck="c1"(?! checked)/);
+  assert.match(f, /data-tfck="c2"(?! checked)/, "c2 は下書きに無いので、タスクの状態（未チェック）");
+  assert.ok(!f.includes("c9"), "下書きにだけある項目は描かない");
+});
+
 test("renderTodo: 入力欄の時刻は、その日のそのタスクの、始まった予定の枠（actual なし）。始まっていなければ空。未来の予定の枠があれば解除の注意（件数）。今日が週の外なら、日付は週の月曜日", () => {
   const f = tdRow(tdHtml(tdData(), { open: "AA-0002" }), "AA-0002"); // 10:20。S2（15:00–16:00）はまだ始まっていない
   assert.match(f, /data-tf="start" value=""/);

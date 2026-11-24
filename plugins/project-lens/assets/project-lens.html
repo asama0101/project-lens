@@ -475,6 +475,9 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .tf-cks{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;flex-basis:100%}
 .tdform label.tf-ck{flex-direction:row;align-items:center;gap:6px;font-size:13px;color:var(--ink)}
 .tf-ck input[type=checkbox]{width:18px;height:18px;margin:0;accent-color:var(--accent);flex:none}
+.tf-ckitem{display:inline-flex;align-items:center}
+.tf-ckitem .gx{opacity:1;min-width:28px;min-height:28px}
+.tf-cks [data-tdckadd]{flex:1 1 180px;min-width:0}
 .tdreview .td-sum{margin:0 0 10px}
 .tdreview .td-note{display:flex;flex-direction:column;gap:4px;margin-top:12px;font-size:12px;color:var(--muted)}
 .tdreview .td-note textarea{resize:vertical;font-size:13px}
@@ -4791,7 +4794,7 @@ const progress = (r) => (r.checked ? `${r.checked.done}/${r.checked.total}` : "�
 
 /**
  * 完了の入力欄。初期値は、日付が day、時刻がその日のそのタスクの、始まった予定の枠（actual なし）の時刻（なければ空）、状態が Done、チェックがタスクの今の状態。
- * 下書き（key が同じ）があれば、その値。Done・Cancelled で解除される未来の予定の枠があれば、その件数を添える
+ * 下書き（key が同じ）があれば、その値（下書きに無い項目は、タスクの状態）。各項目の「×」と末尾の追加の欄は、押すとすぐタスクへ保存する（app.js）。Done・Cancelled で解除される未来の予定の枠があれば、その件数を添える
  */
 function completeForm(data, t, day, now, draft) {
   const dr = draft?.key === t.id ? draft : null;
@@ -4800,14 +4803,15 @@ function completeForm(data, t, day, now, draft) {
   const time = (k) => `<label>${k === "start" ? "開始" : "終了"}<input class="in" type="time" step="900" data-tf="${k}" value="${esc(dr ? dr[k] : plan?.[k] ?? "")}"></label>`;
   const status = dr?.status ?? "Done";
   const ck = t.checklist ?? [];
-  const items = ck.map((c) => `<label class="tf-ck"><input type="checkbox" data-tfck="${esc(c.id)}"${(dr?.checks?.[c.id] ?? c.done) ? " checked" : ""}>${esc(c.text)}</label>`).join("");
+  const items = ck.map((c) => `<span class="tf-ckitem"><label class="tf-ck"><input type="checkbox" data-tfck="${esc(c.id)}"${(dr?.checks?.[c.id] ?? c.done) ? " checked" : ""}>${esc(c.text)}</label><button class="gx" data-tdckdel="${esc(t.id)}:${esc(c.id)}" aria-label="${esc(c.text)} を削除">×</button></span>`).join("");
+  const add = `<input class="in" data-tdckadd="${esc(t.id)}" placeholder="＋ 項目を追加（Enter）" aria-label="項目を追加">`;
   const n = futurePlanned(data, t.id, now).length;
   return `<div class="actform tdform" role="group" aria-label="完了の入力">
     <span class="note" style="flex-basis:100%;margin:0">実績（省略できます）・状態・チェックリストを、まとめて保存します</span>
     <label>日付${dateInputHtml({ value: dr ? dr.date : day, attrs: 'data-tf="date"', label: "実績の日付" })}</label>
     ${time("start")}${time("end")}
     <label>状態<select class="in" data-tf="status">${FORM_STATUSES.map((s) => `<option value="${s}"${s === status ? " selected" : ""}>${s}</option>`).join("")}</select></label>
-    ${ck.length ? `<div class="tf-cks">${items}<button class="btn" data-tdckall>残りをすべてチェック</button></div>` : ""}
+    <div class="tf-cks">${items}${ck.length ? `<button class="btn" data-tdckall>残りをすべてチェック</button>` : ""}${add}</div>
     ${n ? `<span class="note" style="flex-basis:100%;margin:0">Done・Cancelled にすると、未来の予定の枠 ${n} 件を解除します</span>` : ""}
     <div style="display:flex;gap:6px;align-items:center"><button class="btn primary" data-tdsave="${esc(t.id)}">保存</button><button class="btn" data-tdcancel>キャンセル</button></div>
   </div>`;
@@ -5247,7 +5251,7 @@ function focusSelector(el) {
   if (d.rnewpj !== undefined) return "[data-rnewpj]";
   if (d.waitparty) return q("data-waitparty", d.waitparty);
   if (d.ug) return q("data-ug", d.ug); // 突発タスクの欄（読み直しで待たせた描き直しが、欄を移ったときに走る）
-  for (const k of ["tdnote", "tf"]) if (d[k] !== undefined) return q(`data-${k}`, d[k]); // ToDo 画面の欄
+  for (const k of ["tdnote", "tf", "tdckadd"]) if (d[k] !== undefined) return q(`data-${k}`, d[k]); // ToDo 画面の欄
   return null;
 }
 
@@ -5676,6 +5680,8 @@ view.addEventListener("click", (e) => {
   if (q("[data-tdweek-today]")) { moveTodoWeek(mondayOf(today)); return; }
   const tdo = q("[data-tdopen]");
   if (tdo) { const id = tdo.dataset.tdopen, col = tdo.dataset.tdcol, same = S.tdOpen === id && S.tdCol === col; S.tdOpen = same ? null : id; S.tdCol = same ? null : col; S.tdDraft = null; S.focusSel = S.tdOpen ? '[data-tf="start"]' : null; render(); return; }
+  const tdd = q("[data-tdckdel]"); // 入力欄の項目の削除。すぐタスクへ保存する。描き直しても入力が残るよう、先に下書きへ写す
+  if (tdd) { const [tid, iid] = tdd.dataset.tdckdel.split(":"); S.tdDraft = tdFormDraft(tdd.closest(".tdform"), tid); apply((d) => removeChecklistItem(d, tid, iid)); return; }
   const tdca = q("[data-tdckall]"); // 入力欄のチェックを、すべて付ける（描き直さない。保存で書く）
   if (tdca) { // 欄の値を変えても change は起きないので、下書きへも写す（読み直しの描き直しで、チェックが戻らないように）
     const form = tdca.closest(".tdform"), key = form.querySelector("[data-tdsave]")?.dataset.tdsave;
@@ -5851,6 +5857,17 @@ view.addEventListener("keydown", (e) => {
   const text = el.value.trim(), id = el.dataset.ckadd;
   if (!text) return;
   S.focusSel = `[data-ckadd="${id}"]`;
+  apply((d) => addChecklistItem(d, id, text));
+});
+/** 完了の入力欄の、項目の追加欄: Enter ですぐタスクへ保存する（isComposing では追加しない）。描き直しても入力が残るよう、先に下書きへ写す */
+view.addEventListener("keydown", (e) => {
+  const el = e.target.closest("[data-tdckadd]");
+  if (!el || e.key !== "Enter" || e.isComposing) return;
+  e.preventDefault();
+  const text = el.value.trim(), id = el.dataset.tdckadd;
+  if (!text) return;
+  S.tdDraft = tdFormDraft(el.closest(".tdform"), id);
+  S.focusSel = `[data-tdckadd="${id}"]`;
   apply((d) => addChecklistItem(d, id, text));
 });
 /**
