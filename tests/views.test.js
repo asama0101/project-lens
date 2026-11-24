@@ -236,7 +236,7 @@ test("renderSchedule(day): 優先タスクと理由・枠の種別クラス・�
   const w = renderSchedule(load(), TODAY, { view: "week", date: "2026-10-19", now: NOW });
   assert.ok(w.includes("class=\"blk task act"), "実績");
   assert.ok(w.includes("class=\"blk task plan"), "予定");
-  assert.ok(w.includes(`${(4).toFixed(1)}時間`), "週の実績(10/19 の 1.5h + 1h + ZZ-0001 の 1h + ToDo T-0003 の 0.5h)");
+  assert.ok(w.includes(`${(3.5).toFixed(1)}時間`), "週の実績(10/19 の 1.5h + 1h + ZZ-0001 の 1h)");
   assert.equal(taskActual(load(), "AA-0005").hours + taskActual(load(), "AB-0002").hours, 4.5);
 });
 
@@ -2019,19 +2019,6 @@ test("renderSchedule: 予定の枠と時間が重なる実績の枠は、予定�
   }
 });
 
-test("ToDo の枠のブロックは、件名だけを出し、状態の文字・重要の印を出さない。選んだ ToDo の始まった予定の枠に、実績の入力欄が出る", () => {
-  const d = load();
-  d.todos.find((t) => t.id === "T-0004").sessions = [{ id: "S30", date: TODAY, start: "08:00", end: "09:00", kind: "planned" }];
-  const html = sched(d);
-  const blk = (id) => html.match(new RegExp(`<div class="blk task [^"]*"[^>]*data-dragsess="${id}"[^]*?</div>`))?.[0] ?? "";
-  assert.ok(blk("S7").includes('<span class="ttl">納期の問い合わせメールを送る</span>'), html);
-  assert.ok(!blk("S7").includes('class="stt"') && !/class="blk task [^"]* imp/.test(blk("S7")));
-  assert.ok(/class="blk task unconf[^"]*"[^>]*data-dragsess="S30"/.test(html));
-  const sel = sched(d, { selSess: "S30", taskEdit: { id: "T-0004", full: false, askDel: false } });
-  assert.ok(sel.includes('data-actsave="S30"') && sel.includes("「経費精算」の実績を入れます"));
-  assert.ok(sel.includes("「経費精算」の枠を削除"));
-});
-
 // 予定の枠の実績（actual）の帯。sample の S8（AC-0001、2026-10-15 の予定 09:00–10:00、実績 09:10–10:10）
 const S8_DAY = "2026-10-15";
 const s8 = (d) => d.tasks.find((t) => t.id === "AC-0001").sessions.find((s) => s.id === "S8");
@@ -2290,10 +2277,10 @@ test("削除の確認（askDelSess）: 確認待ちの枠（actual あり）の�
 
 test("実績の入力欄の説明: actual を持つ枠は「更新します」、持たない枠は「入れます」", () => {
   const d = load();
-  d.todos.find((t) => t.id === "T-0004").sessions = [{ id: "S30", date: TODAY, start: "08:00", end: "09:00", kind: "planned" }];
-  const o = { selSess: "S30", taskEdit: { id: "T-0004", full: false, askDel: false } };
-  assert.ok(sched(d, o).includes("「経費精算」の実績を入れます（予定の枠は残ります）"));
-  d.todos.find((t) => t.id === "T-0004").sessions[0].actual = { date: TODAY, start: "08:10", end: "09:10" };
+  d.tasks.find((t) => t.id === "AA-0004").sessions = [{ id: "S30", date: TODAY, start: "08:00", end: "09:00", kind: "planned" }];
+  const o = { selSess: "S30", taskEdit: { id: "AA-0004", full: false, askDel: false } };
+  assert.ok(sched(d, o).includes("「検証環境の構築」の実績を入れます（予定の枠は残ります）"));
+  d.tasks.find((t) => t.id === "AA-0004").sessions[0].actual = { date: TODAY, start: "08:10", end: "09:10" };
   const h = sched(d, o);
-  assert.ok(h.includes("「経費精算」の実績を更新します（予定の枠は残ります）") && !h.includes("の実績を入れます"));
+  assert.ok(h.includes("「検証環境の構築」の実績を更新します（予定の枠は残ります）") && !h.includes("の実績を入れます"));
 });

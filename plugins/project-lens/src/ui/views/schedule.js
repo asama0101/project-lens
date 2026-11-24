@@ -87,8 +87,8 @@ function sessionBlocks(data, d, full, g, ctx) {
     const side = items.some((o) => o.isAct !== isAct && overlaps(o.t, t)) ? (isAct ? ";left:50%;width:50%" : ";left:0;width:50%") : "";
     const c = bar ? "act" : s.actual ? "plan" : KIND_CLS[sessionKind(s, ctx.now, ctx.actuals)]; // 実績を持つ予定のブロックは「予定」（未確認にしない）
     const task = data.tasks.find((x) => x.id === s.taskId);
-    const st = full && task ? ` <span class="stt">${STATUS_JA[task.status] ?? ""}</span>` : "";
-    const imp = task && isImportantMark(task) ? " imp" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
+    const st = full ? ` <span class="stt">${STATUS_JA[task.status] ?? ""}</span>` : "";
+    const imp = isImportantMark(task) ? " imp" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
     const short = toMin(t.end) - toMin(t.start) < SHORT_MIN ? " short" : "";
     const attrs = bar ? `tabindex="0" data-actbar="${esc(s.id)}"` : `draggable="true" tabindex="0" data-dragsess="${esc(s.id)}"`;
     return `<div class="blk task ${c}${imp}${short} ${ctx.selSess === s.id ? "sel" : ""}" ${attrs} style="top:${g.tp(toMin(t.start))};height:${g.ht(toMin(t.start), toMin(t.end))}${side}" title="${esc(s.title)}(${KIND_JA[c]})"><span class="tm">${esc(t.start)}-${esc(t.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${esc(s.title)}</span>${st}${bar ? "" : `<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i>`}</div>`;

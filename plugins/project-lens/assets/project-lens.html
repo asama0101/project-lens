@@ -939,15 +939,13 @@ function validate(data, now = nowLocal()) {
       seen.add(x.id);
     }
   };
-  const todos = data.todos ?? []; // 個人ファイルの ToDo。無いデータもある
   dup(data.projects, "プロジェクト");
   dup(data.tasks, "タスク");
   dup(data.events, "会議");
-  dup(todos, "ToDo");
   // 作業枠の ID は、移動・削除が ID だけで探すので、重複すると両方に効く。保存は止めず、注意に出す
   // 共有ファイルに無いタスクの作業枠（orphanSessions）も、同じ個人ファイルの枠なので含める
   const sessionIds = new Set();
-  for (const s of [...data.tasks.flatMap((t) => t.sessions ?? []), ...todos.flatMap((t) => t.sessions ?? []), ...(data.orphanSessions ?? [])]) {
+  for (const s of [...data.tasks.flatMap((t) => t.sessions ?? []), ...(data.orphanSessions ?? [])]) {
     if (sessionIds.has(s.id)) warn(`作業枠の ID が重複しています: ${s.id}（移動・削除が両方に効きます。data.json から直接直してください）`);
     sessionIds.add(s.id);
   }
@@ -966,7 +964,7 @@ function validate(data, now = nowLocal()) {
     }
   }
 
-  // チェックリストの形（タスクと ToDo で共通）
+  // チェックリストの形
   const checkChecklist = (t, who) => {
     if (t.checklist === undefined) return;
     if (!Array.isArray(t.checklist)) { err(`${who}: チェックリスト (checklist) が配列ではありません`); return; }
@@ -979,7 +977,7 @@ function validate(data, now = nowLocal()) {
       if (typeof c?.done !== "boolean") err(`${who}: チェックリストの項目 ${c?.id} の done が真偽値ではありません`);
     }
   };
-  // 作業枠の形（タスクと ToDo で共通）。まだ始まっていない枠か（形が不正なら false）を返す
+  // 作業枠の形。まだ始まっていない枠か（形が不正なら false）を返す
   const checkSession = (s, label) => {
     if (!isDate(s.date) || !isTime(s.start) || !isTime(s.end)) { err(`${label}: 日付または時刻の形式が不正です`); return false; }
     if (toMin(s.end) <= toMin(s.start)) err(`${label}: 終了が開始以前です`);
@@ -1021,33 +1019,14 @@ function validate(data, now = nowLocal()) {
     }
   }
 
-  const weekTodoIds = new Set(todos.filter((t) => t.scope === "week").map((t) => t.id));
-  for (const t of todos) {
-    const who = `ToDo ${t.id}`;
-    if (typeof t.id !== "string" || !/^T-\d{4}$/.test(t.id)) err(`${who}: ID は T-0001 の形にしてください`);
-    if (data.tasks.some((x) => x.id === t.id)) err(`${who}: タスクと ID が重なっています`);
-    if (!["week", "day"].includes(t.scope)) err(`${who}: scope は week か day にしてください ("${t.scope}")`);
-    if (typeof t.title !== "string" || !t.title.trim()) err(`${who}: 件名が空です`);
-    if (!isDate(t.date)) err(`${who}: 日付の形式が不正です (${t.date})`);
-    else if (t.scope === "week" && weekday(t.date) !== 1) err(`${who}: 週の ToDo の日付は、月曜日にしてください (${t.date})`);
-    if (t.parentId != null) {
-      if (t.scope !== "day") err(`${who}: parentId を持てるのは、日の ToDo だけです`);
-      else if (!weekTodoIds.has(t.parentId)) err(`${who}: parentId "${t.parentId}" は、存在する週の ToDo ではありません`);
-    }
-    if (t.doneAt != null && !isDate(t.doneAt)) err(`${who}: 完了日の形式が不正です (${t.doneAt})`);
-    if (!(Number.isInteger(t.carried) && t.carried >= 0)) err(`${who}: carried は 0 以上の整数にしてください`);
-    checkChecklist(t, who);
-    for (const s of t.sessions ?? []) checkSession(s, `${who} の枠 ${s.id}`);
-  }
-
   const cycle = findCycle(data.tasks);
   if (cycle) err(`前のタスクが循環しています: ${cycle.join(" → ")}`);
 
-  // 同じ日の同じ種別の枠どうしの重なり（予定と実績は重なってよい。タスクと ToDo をまたいで判定）。実績は、実績だけの枠と予定の枠の actual（実績の区間）を合わせて比べる
+  // 同じ日の同じ種別の枠どうしの重なり（予定と実績は重なってよい。タスクをまたいで判定）。実績は、実績だけの枠と予定の枠の actual（実績の区間）を合わせて比べる
   // 日付で束ねて、同じ日の中だけ総当たりにする（全枠の総当たりは、数年分で秒単位になる）
   const byDay = new Map();
   const put = (date, x) => { if (!byDay.has(date)) byDay.set(date, []); byDay.get(date).push(x); };
-  for (const t of [...data.tasks, ...todos]) {
+  for (const t of data.tasks) {
     for (const s of t.sessions ?? []) {
       if (isDate(s.date) && isTime(s.start) && isTime(s.end)) put(s.date, s);
       const a = s.actual;
@@ -1307,25 +1286,20 @@ const MIN_LEN = 15;
 /** 枠の終了の上限（分）。時刻は HH:MM（00:00〜23:59）で持つので、24:00 は書けない */
 const LAST_END = 23 * 60 + 59;
 
-/** 枠の持ち主（タスクか ToDo）。list は data の配列の名前。どちらにも無ければ null */
+/** 枠の持ち主（タスク）。list は data の配列の名前。無ければ null */
 function ownerOf(data, id) {
   const t = data.tasks.find((x) => x.id === id);
-  if (t) return { list: "tasks", item: t };
-  const o = (data.todos ?? []).find((x) => x.id === id);
-  return o ? { list: "todos", item: o } : null;
+  return t ? { list: "tasks", item: t } : null;
 }
-/** タスクと ToDo の全枠に taskId（持ち主の ID）・title・projectId（ToDo は null）を付けて平らに */
-const allSessions = (data) => [
-  ...data.tasks.flatMap((t) => (t.sessions ?? []).map((s) => ({ ...s, taskId: t.id, title: t.title, projectId: t.projectId }))),
-  ...(data.todos ?? []).flatMap((t) => (t.sessions ?? []).map((s) => ({ ...s, taskId: t.id, title: t.title, projectId: null }))),
-];
+/** タスクの全枠に taskId（持ち主の ID）・title・projectId を付けて平らに */
+const allSessions = (data) => data.tasks.flatMap((t) => (t.sessions ?? []).map((s) => ({ ...s, taskId: t.id, title: t.title, projectId: t.projectId })));
 const findSession = (data, id) => allSessions(data).find((s) => s.id === id);
 const clash = (a, b) => a.date === b.date && toMin(a.start) < toMin(b.end) && toMin(b.start) < toMin(a.end);
 const isPast = (slot, now) => slot.date < now.date || (slot.date === now.date && slot.end <= now.time);
 
 /** 枠の実績の区間。実績だけの枠は自身の時間、予定の枠は actual（無ければ undefined） */
 const spanOf = (s) => (s.kind === "actual" ? s : s.kind === "planned" ? s.actual : undefined);
-/** タスクと ToDo の実績の区間（実績だけの枠と、予定の枠の actual）。実績の時間は、すべてこれで数える */
+/** タスクの実績の区間（実績だけの枠と、予定の枠の actual）。実績の時間は、すべてこれで数える */
 const actualSpans = (data) => allSessions(data).flatMap((s) => {
   const a = spanOf(s);
   return a ? [{ sessionId: s.id, taskId: s.taskId, title: s.title, projectId: s.projectId, date: a.date, start: a.start, end: a.end }] : [];
@@ -1361,14 +1335,14 @@ function check(data, slot, ignoreId, kind = "planned", word = kind === "actual" 
   return mtg ? { warning: `会議「${mtg.title}」（${mtg.start}〜${mtg.end}）と重なっています` } : {};
 }
 
-/** タスクと ToDo（あるときだけ）の持ち主ごとに fn を当てる */
-const mapOwners = (data, fn) => ({ ...data, tasks: data.tasks.map(fn), ...(data.todos && { todos: data.todos.map(fn) }) });
+/** 枠の持ち主（タスク）ごとに fn を当てる */
+const mapOwners = (data, fn) => ({ ...data, tasks: data.tasks.map(fn) });
 const withOwner = (data, id, fn) => mapOwners(data, (t) => (t.id === id ? fn(t) : t));
 const mapSessions = (data, id, fn) => mapOwners(data, (t) => ((t.sessions ?? []).some((s) => s.id === id) ? { ...t, sessions: t.sessions.map((s) => (s.id === id ? fn(s) : s)) } : t));
 
 const startsLater = (slot, now) => slot.date > now.date || (slot.date === now.date && slot.start > now.time);
 
-/** taskId はタスクか ToDo の ID。新しい枠は、過去の時間に置いても予定（planned）。過ぎた予定は、重なる実績が無ければ未確認として出る */
+/** taskId はタスクの ID。新しい枠は、過去の時間に置いても予定（planned）。過ぎた予定は、重なる実績が無ければ未確認として出る */
 function addSession(data, taskId, slot) {
   if (!ownerOf(data, taskId)) return { data, error: `タスク ${taskId} がありません` };
   const r = check(data, slot);
@@ -1459,142 +1433,8 @@ function futurePlanned(data, taskId, now) {
 return { LAST_END, ownerOf, allSessions, actualSpans, actualSlots, sessionKind, addSession, addActual, setActual, clearActual, moveSession, resizeSession, removeSession, taskActual, runningPlanned, futurePlanned };
 })();
 
-/* src/core/todos.js */
-const { mondayOf, addTodo, renameTodo, setTodoDone, deleteTodo, assignToDay, carryTodo, addTodoCheck, toggleTodoCheck, removeTodoCheck, setReview, todoMinutes, weekReview } = (() => {
-// ToDo（日・週）の規則。個人ファイルの data.todos / data.reviews を扱う。すべて純関数（入力を変えず、新しいデータを返す）。不正なときは例外
-
-
-
-
-
-const todosOf = (data) => data.todos ?? [];
-const find = (data, id) => {
-  const t = todosOf(data).find((x) => x.id === id);
-  if (!t) throw new Error(`ToDo ${id} がありません`);
-  return t;
-};
-const mapTodo = (data, id, fn) => ({ ...data, todos: todosOf(data).map((t) => (t.id === id ? fn(t) : t)) });
-const cleanTitle = (title) => {
-  const s = String(title ?? "").trim();
-  if (!s) throw new Error("件名を入れてください");
-  return s;
-};
-const checkDate = (date) => {
-  if (!isDate(date)) throw new Error("日付は YYYY-MM-DD の形で入れてください");
-  return date;
-};
-
-/** その日を含む週の月曜日 */
-const mondayOf = (date) => addDays(date, -((weekday(date) + 6) % 7));
-
-/** 新しい ToDo を足す。週は date を月曜日にそろえる。parentId は週の ToDo だけを指せる（日の ToDo だけが持てる） */
-function addTodo(data, { scope, title, date, parentId }) {
-  if (scope !== "week" && scope !== "day") throw new Error("種類は週か日にしてください");
-  const t = cleanTitle(title);
-  checkDate(date);
-  if (parentId !== undefined && (scope !== "day" || todosOf(data).find((x) => x.id === parentId)?.scope !== "week")) throw new Error("割り当て元は週の ToDo にしてください");
-  const max = todosOf(data).reduce((m, x) => Math.max(m, +(/^T-(\d+)$/.exec(x.id)?.[1] ?? 0)), 0);
-  const id = `T-${String(max + 1).padStart(4, "0")}`;
-  const todo = { id, scope, title: t, date: scope === "week" ? mondayOf(date) : date, ...(parentId !== undefined && { parentId }), doneAt: null, carried: 0, sessions: [] };
-  return { data: { ...data, todos: [...todosOf(data), todo] }, id };
-}
-
-/** 週の ToDo の件名を直すと、直す前と同じ件名の子（日の ToDo）も新しい件名にする */
-function renameTodo(data, id, title) {
-  const cur = find(data, id), t = cleanTitle(title);
-  const follows = (x) => x.id === id || (cur.scope === "week" && x.parentId === id && x.title === cur.title);
-  return { ...data, todos: todosOf(data).map((x) => (follows(x) ? { ...x, title: t } : x)) };
-}
-
-const setTodoDone = (data, id, done, today) => (find(data, id), mapTodo(data, id, (t) => ({ ...t, doneAt: done ? today : null })));
-
-/** ToDo を、その枠ごと消す。週の ToDo なら、子の parentId を外す（子とその枠は残る） */
-function deleteTodo(data, id) {
-  find(data, id);
-  return { ...data, todos: todosOf(data).filter((t) => t.id !== id).map(({ parentId, ...t }) => (parentId === id ? t : { ...t, ...(parentId !== undefined && { parentId }) })) };
-}
-
-/** 週の ToDo を日に割り当てる（同じ件名の日の ToDo を作る）。同じ週の ToDo の同じ日の分があれば何もしない */
-function assignToDay(data, weekTodoId, date) {
-  const w = find(data, weekTodoId);
-  if (w.scope !== "week") throw new Error("日へ割り当てられるのは週の ToDo だけです");
-  checkDate(date);
-  if (todosOf(data).some((t) => t.parentId === weekTodoId && t.date === date)) return { data, created: false };
-  return { data: addTodo(data, { scope: "day", title: w.title, date, parentId: weekTodoId }).data, created: true };
-}
-
-const clash = (a, b) => a.date === b.date && toMin(a.start) < toMin(b.end) && toMin(b.start) < toMin(a.end);
-
-/** 日は次の営業日へ、週は 7 日後へ動かし、carried を 1 増やす。回す前の日の予定の枠のうち、重なる実績が無いものは消す */
-function carryTodo(data, id) {
-  const cur = find(data, id);
-  if (cur.doneAt) throw new Error("完了した ToDo は回せません");
-  let date = cur.date;
-  if (cur.scope === "week") date = addDays(date, 7);
-  else {
-    const off = offDayChecker(data.settings);
-    do date = addDays(date, 1); while (off(date));
-  }
-  const actuals = actualSlots(data);
-  const stale = (cur.sessions ?? []).filter((s) => s.kind === "planned" && !s.actual && s.date === cur.date && !actuals.some((a) => clash(a, s)));
-  const moved = mapTodo(data, id, (t) => ({ ...t, date, carried: t.carried + 1 }));
-  return stale.reduce((d, s) => removeSession(d, s.id), moved);
-}
-
-function addTodoCheck(data, id, text) {
-  find(data, id);
-  const s = String(text ?? "").trim();
-  if (!s) throw new Error("項目の文言を入れてください");
-  return mapTodo(data, id, (t) => ({ ...t, checklist: [...(t.checklist ?? []), { id: nextChecklistId(t.checklist ?? []), text: s, done: false }] }));
-}
-const toggleTodoCheck = (data, id, itemId) => (find(data, id), mapTodo(data, id, (t) => ({ ...t, checklist: (t.checklist ?? []).map((x) => (x.id === itemId ? { ...x, done: !x.done } : x)) })));
-const removeTodoCheck = (data, id, itemId) => (find(data, id), mapTodo(data, id, (t) => ({ ...t, checklist: (t.checklist ?? []).filter((x) => x.id !== itemId) })));
-
-/** 週（月曜日のキー）の気づき。空文字ならキーを消す */
-function setReview(data, weekStart, text) {
-  const { [weekStart]: _, ...rest } = data.reviews ?? {};
-  return { ...data, reviews: text ? { ...rest, [weekStart]: text } : rest };
-}
-
-/** 範囲内の分数。予定は kind が planned の枠の自身の時間（actual を持っていても数える。枠の日付で絞る）、実績は実績の区間（区間の日付で絞る） */
-const minutesIn = (data, ids, range) => {
-  const inRange = (d) => !range || (d >= range.start && d <= range.end);
-  const len = (s) => toMin(s.end) - toMin(s.start);
-  const planned = todosOf(data).filter((t) => ids.has(t.id)).flatMap((t) => t.sessions ?? []).filter((s) => s.kind === "planned" && inRange(s.date)).reduce((m, s) => m + len(s), 0);
-  const actual = actualSpans({ tasks: [], todos: todosOf(data).filter((t) => ids.has(t.id)) }).filter((s) => inRange(s.date)).reduce((m, s) => m + len(s), 0);
-  return { planned, actual };
-};
-
-/** その ToDo と、parentId がその ToDo の日の ToDo の枠の、range（start〜end の日付。省略は全期間）内の分の合計 */
-function todoMinutes(data, id, range) {
-  return minutesIn(data, new Set(todosOf(data).filter((t) => t.id === id || t.parentId === id).map((t) => t.id)), range);
-}
-
-/** 週の見返し。見出しの分数は、その週の日付にある全 ToDo の枠の合計。行は、date がその週に入る週の ToDo と、parentId を持たない日の ToDo（inWeek: true。割り当てた日の分は親の行に含む）に、
- *  date は別の週でも自分か子の枠がその週にある、親のない ToDo（inWeek: false。回す前の週の分）を足す。完了・件数は inWeek: true の行だけ */
-function weekReview(data, weekStart) {
-  const range = { start: weekStart, end: addDays(weekStart, 6) };
-  const roots = todosOf(data).filter((t) => t.scope === "week" || t.parentId == null);
-  const order = (a, b) => (a.scope === b.scope ? 0 : a.scope === "week" ? -1 : 1) || a.date.localeCompare(b.date) || a.id.localeCompare(b.id);
-  const inWeek = (t) => t.date >= range.start && t.date <= range.end;
-  const items = roots.filter(inWeek).sort(order);
-  const row = (todo, w) => ({ todo, inWeek: w, checked: todo.checklist?.length ? { done: todo.checklist.filter((x) => x.done).length, total: todo.checklist.length } : null, ...todoMinutes(data, todo.id, range) });
-  const rows = [...items.map((t) => row(t, true)), ...roots.filter((t) => !inWeek(t)).sort(order).map((t) => row(t, false)).filter((r) => r.planned + r.actual > 0)];
-  const all = minutesIn(data, new Set(todosOf(data).map((t) => t.id)), range);
-  return {
-    done: items.filter((t) => t.doneAt).length,
-    total: items.length,
-    ...all,
-    note: data.reviews?.[weekStart] ?? "",
-    rows,
-  };
-}
-
-return { mondayOf, addTodo, renameTodo, setTodoDone, deleteTodo, assignToDay, carryTodo, addTodoCheck, toggleTodoCheck, removeTodoCheck, setReview, todoMinutes, weekReview };
-})();
-
 /* src/core/week.js */
-const { weekTasks, weekSummary } = (() => {
+const { mondayOf, setReview, weekTasks, weekSummary } = (() => {
 // 週のタスクの一覧と見返しの計算。保存せず、タスクと枠から、その場で求める純関数。
 // 週は weekStart（月曜）〜 weekStart + 6 日（日曜）。日付は文字列のまま比べる。
 // - Cancelled は、どの週にも出さない。1 つのタスクは 1 行だけで、組の優先は overdue > scheduled > due > done。
@@ -1611,6 +1451,15 @@ const { weekTasks, weekSummary } = (() => {
 
 
 const ORDER = ["overdue", "scheduled", "due", "done"];
+
+/** その日を含む週の月曜日 */
+const mondayOf = (date) => addDays(date, -((weekday(date) + 6) % 7));
+
+/** 週（月曜日のキー）の気づき。空文字ならキーを消す */
+function setReview(data, weekStart, text) {
+  const { [weekStart]: _, ...rest } = data.reviews ?? {};
+  return { ...data, reviews: text ? { ...rest, [weekStart]: text } : rest };
+}
 const minutes = (x) => toMin(x.end) - toMin(x.start);
 
 /** 今週の行（task・group・waiting・planned・actual・checked）。組の順・期限・ID の順 */
@@ -1660,7 +1509,7 @@ function weekSummary(data, weekStart, today) {
   };
 }
 
-return { weekTasks, weekSummary };
+return { mondayOf, setReview, weekTasks, weekSummary };
 })();
 
 /* src/core/impact.js */
@@ -2014,7 +1863,7 @@ const hours = (x) => (toMin(x.end) - toMin(x.start)) / 60;
 const inRange = (d, r) => !r || (d >= r.start && d <= r.end);
 const sumBy = (list, f) => list.reduce((a, x) => a + f(x), 0);
 
-/** 実績の区間（タスクと ToDo）。範囲は区間の日付で絞る。ToDo の区間は projectId が null（プロジェクト未設定） */
+/** 実績の区間（タスク）。範囲は区間の日付で絞る */
 const actualSessions = (data, range) => actualSpans(data).filter((s) => inRange(s.date, range));
 const meetingHours = (m) => hours(meetingActualSpan(m));
 const countedMeetings = (data, range) => data.events.filter((m) => m.confirmed === true && !m.skip && inRange(m.date, range));
@@ -2208,15 +2057,11 @@ const SHARED_SETTINGS = ["countWeekendsAndHolidays", "nationalHolidays", "waitin
 
 const pick = (obj, keys) => Object.fromEntries(keys.filter((k) => k in obj).map((k) => [k, obj[k]]));
 
-/** 共有ファイルと個人ファイルへ分ける。共有の設定は、個人の設定のキー以外すべて（未知のキーも共有） */
+/** 共有ファイルと個人ファイルへ分ける。共有の設定は、個人の設定のキー以外すべて（未知のキーも共有）。入力に todos があっても、どちらにも書かない */
 function splitData(data) {
-  const { tasks, events, inbox, settings = {}, orphanSessions, todos, reviews, ...rest } = data;
+  const { tasks, events, inbox, settings = {}, orphanSessions, todos, reviews, ...rest } = data; // todos（廃止した ToDo）は捨てる
   const sessions = [];
   const sharedTasks = (tasks ?? []).map(({ sessions: ss, ...t }) => {
-    for (const s of ss ?? []) sessions.push({ ...s, taskId: t.id });
-    return t;
-  });
-  const personalTodos = (todos ?? []).map(({ sessions: ss, ...t }) => {
     for (const s of ss ?? []) sessions.push({ ...s, taskId: t.id });
     return t;
   });
@@ -2224,20 +2069,20 @@ function splitData(data) {
   const personalSettings = pick(settings, PERSONAL_SETTINGS);
   const sharedSettings = Object.fromEntries(Object.entries(settings).filter(([k]) => !PERSONAL_SETTINGS.includes(k)));
   const shared = { ...rest, tasks: sharedTasks, settings: sharedSettings };
-  const personal = { version: data.version, sessions, events: events ?? [], settings: personalSettings, ...(inbox !== undefined ? { inbox } : {}), ...(personalTodos.length ? { todos: personalTodos } : {}), ...(reviews && Object.keys(reviews).length ? { reviews } : {}) };
+  const personal = { version: data.version, sessions, events: events ?? [], settings: personalSettings, ...(inbox !== undefined ? { inbox } : {}), ...(reviews && Object.keys(reviews).length ? { reviews } : {}) };
   return { shared, personal };
 }
 
-/** 2 つのファイルを 1 つのデータへ戻す。taskId が ToDo の ID の枠はその ToDo へ。どちらにも無い taskId の枠は orphanSessions に入れる */
+/** 2 つのファイルを 1 つのデータへ戻す。共有に無い taskId の枠は orphanSessions に入れる */
 function mergeData(shared, personal) {
   const ids = new Set(shared.tasks.map((t) => t.id));
-  const todos = personal.todos ?? [];
-  const todoIds = new Set(todos.map((t) => t.id));
+  // 個人ファイルに残っている、廃止した ToDo（personal.todos）と、その ToDo の枠は捨てる（orphanSessions にも入れない）。保存し直すと消える
+  const todoIds = new Set((Array.isArray(personal.todos) ? personal.todos : []).map((t) => t?.id));
   const byTask = new Map();
   const orphans = [];
   for (const s of personal.sessions ?? []) {
     const { taskId, ...session } = s;
-    if (!ids.has(taskId) && !todoIds.has(taskId)) { orphans.push({ ...session, taskId }); continue; }
+    if (!ids.has(taskId)) { if (!todoIds.has(taskId)) orphans.push({ ...session, taskId }); continue; }
     if (!byTask.has(taskId)) byTask.set(taskId, []);
     byTask.get(taskId).push(session);
   }
@@ -2245,7 +2090,6 @@ function mergeData(shared, personal) {
   return {
     ...shared,
     tasks: shared.tasks.map((t) => ({ ...t, sessions: byTask.get(t.id) ?? [] })),
-    todos: todos.map((t) => ({ ...t, sessions: byTask.get(t.id) ?? [] })),
     reviews: personal.reviews ?? {},
     events: events ?? [],
     settings: { ...(shared.settings ?? {}), ...(personal.settings ?? {}) },
@@ -2272,10 +2116,7 @@ const checkSharedShape = (x) => {
   checkShape(x, "data.json", ["projects", "tasks", "changeLog"]);
   if (isOldShared(x)) throw new Error("作業枠・予定を含む 1 ファイルの旧形式の data.json です。personal.json へ手で分けてください");
 };
-const checkPersonalShape = (x) => {
-  checkShape(x, "personal.json", ["sessions", "events"]);
-  if (x.todos !== undefined && !Array.isArray(x.todos)) throw new Error("personal.json のデータの形が違います（todos が配列ではありません）");
-};
+const checkPersonalShape = (x) => checkShape(x, "personal.json", ["sessions", "events"]);
 
 /** 直接保存できないブラウザの「JSON を書き出す」: ダウンロードする 2 つのファイル（名前は固定） */
 function exportFiles(data) {
@@ -3259,21 +3100,20 @@ function addUrgentTask(data, { title, projectId, date, start, minutes }) {
 /**
  * 実績の枠を保存する（addActual。ほかの実績の枠と重なる・開始が今より後・タスクが無いは Error）。
  * タスクが To Do・Waiting なら In Progress にする（updateTask の規則で、Waiting の待ち先は外れる。Done・Cancelled は変えない）。statusChanged・from（元の状態）を返す。
- * 持ち主が ToDo のときは、状態を持たないので変えない（statusChanged は false、from は ""）
  */
 function recordActual(data, taskId, slot, now) {
   const r = addActual(data, taskId, slot, now);
   if (r.error) throw new Error(r.error);
-  const from = data.tasks.find((x) => x.id === taskId)?.status ?? "";
+  const from = data.tasks.find((x) => x.id === taskId).status;
   const statusChanged = from === "To Do" || from === "Waiting";
   return { data: statusChanged ? updateTask(r.data, taskId, { status: "In Progress" }, now.date) : r.data, taskId, statusChanged, from };
 }
 
-/** 予定の枠の実績（actual）を書く（setActual。あれば上書き。失敗は Error）。状態の規則は recordActual と同じ。taskId は枠の持ち主（タスクか ToDo） */
+/** 予定の枠の実績（actual）を書く（setActual。あれば上書き。失敗は Error）。状態の規則は recordActual と同じ。taskId は枠の持ち主のタスク */
 function recordSlotActual(data, sessionId, slot, now) {
   const r = setActual(data, sessionId, slot, now);
   if (r.error) throw new Error(r.error);
-  const taskId = allSessions(data).find((s) => s.id === sessionId).taskId, from = data.tasks.find((x) => x.id === taskId)?.status ?? "";
+  const taskId = allSessions(data).find((s) => s.id === sessionId).taskId, from = data.tasks.find((x) => x.id === taskId).status;
   const statusChanged = from === "To Do" || from === "Waiting";
   return { data: statusChanged ? updateTask(r.data, taskId, { status: "In Progress" }, now.date) : r.data, taskId, statusChanged, from };
 }
@@ -4626,8 +4466,8 @@ function sessionBlocks(data, d, full, g, ctx) {
     const side = items.some((o) => o.isAct !== isAct && overlaps(o.t, t)) ? (isAct ? ";left:50%;width:50%" : ";left:0;width:50%") : "";
     const c = bar ? "act" : s.actual ? "plan" : KIND_CLS[sessionKind(s, ctx.now, ctx.actuals)]; // 実績を持つ予定のブロックは「予定」（未確認にしない）
     const task = data.tasks.find((x) => x.id === s.taskId);
-    const st = full && task ? ` <span class="stt">${STATUS_JA[task.status] ?? ""}</span>` : "";
-    const imp = task && isImportantMark(task) ? " imp" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
+    const st = full ? ` <span class="stt">${STATUS_JA[task.status] ?? ""}</span>` : "";
+    const imp = isImportantMark(task) ? " imp" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
     const short = toMin(t.end) - toMin(t.start) < SHORT_MIN ? " short" : "";
     const attrs = bar ? `tabindex="0" data-actbar="${esc(s.id)}"` : `draggable="true" tabindex="0" data-dragsess="${esc(s.id)}"`;
     return `<div class="blk task ${c}${imp}${short} ${ctx.selSess === s.id ? "sel" : ""}" ${attrs} style="top:${g.tp(toMin(t.start))};height:${g.ht(toMin(t.start), toMin(t.end))}${side}" title="${esc(s.title)}(${KIND_JA[c]})"><span class="tm">${esc(t.start)}-${esc(t.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${esc(s.title)}</span>${st}${bar ? "" : `<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i>`}</div>`;

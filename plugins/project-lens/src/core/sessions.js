@@ -6,25 +6,20 @@ const MIN_LEN = 15;
 /** 枠の終了の上限（分）。時刻は HH:MM（00:00〜23:59）で持つので、24:00 は書けない */
 export const LAST_END = 23 * 60 + 59;
 
-/** 枠の持ち主（タスクか ToDo）。list は data の配列の名前。どちらにも無ければ null */
+/** 枠の持ち主（タスク）。list は data の配列の名前。無ければ null */
 export function ownerOf(data, id) {
   const t = data.tasks.find((x) => x.id === id);
-  if (t) return { list: "tasks", item: t };
-  const o = (data.todos ?? []).find((x) => x.id === id);
-  return o ? { list: "todos", item: o } : null;
+  return t ? { list: "tasks", item: t } : null;
 }
-/** タスクと ToDo の全枠に taskId（持ち主の ID）・title・projectId（ToDo は null）を付けて平らに */
-export const allSessions = (data) => [
-  ...data.tasks.flatMap((t) => (t.sessions ?? []).map((s) => ({ ...s, taskId: t.id, title: t.title, projectId: t.projectId }))),
-  ...(data.todos ?? []).flatMap((t) => (t.sessions ?? []).map((s) => ({ ...s, taskId: t.id, title: t.title, projectId: null }))),
-];
+/** タスクの全枠に taskId（持ち主の ID）・title・projectId を付けて平らに */
+export const allSessions = (data) => data.tasks.flatMap((t) => (t.sessions ?? []).map((s) => ({ ...s, taskId: t.id, title: t.title, projectId: t.projectId })));
 const findSession = (data, id) => allSessions(data).find((s) => s.id === id);
 const clash = (a, b) => a.date === b.date && toMin(a.start) < toMin(b.end) && toMin(b.start) < toMin(a.end);
 const isPast = (slot, now) => slot.date < now.date || (slot.date === now.date && slot.end <= now.time);
 
 /** 枠の実績の区間。実績だけの枠は自身の時間、予定の枠は actual（無ければ undefined） */
 const spanOf = (s) => (s.kind === "actual" ? s : s.kind === "planned" ? s.actual : undefined);
-/** タスクと ToDo の実績の区間（実績だけの枠と、予定の枠の actual）。実績の時間は、すべてこれで数える */
+/** タスクの実績の区間（実績だけの枠と、予定の枠の actual）。実績の時間は、すべてこれで数える */
 export const actualSpans = (data) => allSessions(data).flatMap((s) => {
   const a = spanOf(s);
   return a ? [{ sessionId: s.id, taskId: s.taskId, title: s.title, projectId: s.projectId, date: a.date, start: a.start, end: a.end }] : [];
@@ -60,14 +55,14 @@ function check(data, slot, ignoreId, kind = "planned", word = kind === "actual" 
   return mtg ? { warning: `会議「${mtg.title}」（${mtg.start}〜${mtg.end}）と重なっています` } : {};
 }
 
-/** タスクと ToDo（あるときだけ）の持ち主ごとに fn を当てる */
-const mapOwners = (data, fn) => ({ ...data, tasks: data.tasks.map(fn), ...(data.todos && { todos: data.todos.map(fn) }) });
+/** 枠の持ち主（タスク）ごとに fn を当てる */
+const mapOwners = (data, fn) => ({ ...data, tasks: data.tasks.map(fn) });
 const withOwner = (data, id, fn) => mapOwners(data, (t) => (t.id === id ? fn(t) : t));
 const mapSessions = (data, id, fn) => mapOwners(data, (t) => ((t.sessions ?? []).some((s) => s.id === id) ? { ...t, sessions: t.sessions.map((s) => (s.id === id ? fn(s) : s)) } : t));
 
 const startsLater = (slot, now) => slot.date > now.date || (slot.date === now.date && slot.start > now.time);
 
-/** taskId はタスクか ToDo の ID。新しい枠は、過去の時間に置いても予定（planned）。過ぎた予定は、重なる実績が無ければ未確認として出る */
+/** taskId はタスクの ID。新しい枠は、過去の時間に置いても予定（planned）。過ぎた予定は、重なる実績が無ければ未確認として出る */
 export function addSession(data, taskId, slot) {
   if (!ownerOf(data, taskId)) return { data, error: `タスク ${taskId} がありません` };
   const r = check(data, slot);

@@ -677,17 +677,9 @@ test("recordActual: ほかの実績と重なる・開始が今より後・存在
   assert.equal(JSON.stringify(d), before);
 });
 
-test("recordActual: ToDo には、状態の変更がなく statusChanged が false（from は空）", () => {
-  const d = load();
-  const r = recordActual(d, "T-0004", { date: TODAY, start: "08:00", end: "09:00" }, at("10:15"));
-  assert.deepEqual([r.taskId, r.statusChanged, r.from], ["T-0004", false, ""]);
-  assert.deepEqual(r.data.todos.find((t) => t.id === "T-0004").sessions.map((s) => [s.start, s.kind]), [["08:00", "actual"]]);
-  assert.deepEqual(r.data.tasks, d.tasks);
-});
-
 // ---- 予定の枠の実績（recordSlotActual） ----
-const plan = (d, owner, s) => { const o = owner.startsWith("T-") ? d.todos.find((t) => t.id === owner) : task(d, owner); o.sessions = [...(o.sessions ?? []), { kind: "planned", ...s }]; return d; };
-const sessOf = (d, id) => [...d.tasks, ...d.todos].flatMap((t) => t.sessions ?? []).find((s) => s.id === id);
+const plan = (d, owner, s) => { const o = task(d, owner); o.sessions = [...(o.sessions ?? []), { kind: "planned", ...s }]; return d; };
+const sessOf = (d, id) => d.tasks.flatMap((t) => t.sessions ?? []).find((s) => s.id === id);
 
 test("recordSlotActual: To Do のタスクは In Progress になり statusChanged が true、実績の枠は予定の枠の actual に入る", () => {
   const d = plan(load(), "AA-0004", { id: "S40", date: TODAY, start: "08:00", end: "09:00" });
@@ -703,14 +695,6 @@ test("recordSlotActual: Waiting は In Progress にし、待ち先を外す（fr
   const d = plan(load(), "AC-0002", { id: "S40", date: TODAY, start: "08:00", end: "09:00" });
   const w = recordSlotActual(d, "S40", { date: TODAY, start: "08:00", end: "09:00" }, at("10:15"));
   assert.deepEqual([task(w.data, "AC-0002").status, task(w.data, "AC-0002").waitingOn, w.statusChanged, w.from], ["In Progress", null, true, "Waiting"]);
-});
-
-test("recordSlotActual: ToDo には、状態の変更がなく statusChanged が false（from は空）", () => {
-  const d = plan(load(), "T-0004", { id: "S40", date: TODAY, start: "08:00", end: "09:00" });
-  const r = recordSlotActual(d, "S40", { date: TODAY, start: "08:00", end: "09:00" }, at("10:15"));
-  assert.deepEqual([r.taskId, r.statusChanged, r.from], ["T-0004", false, ""]);
-  assert.deepEqual(sessOf(r.data, "S40").actual, { date: TODAY, start: "08:00", end: "09:00" });
-  assert.deepEqual(r.data.tasks, d.tasks);
 });
 
 test("recordSlotActual: 更新（2 回目）でも、重なりのエラーにならず、値が置き換わる", () => {

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { weekTasks, weekSummary } from "../plugins/project-lens/src/core/week.js";
+import { weekTasks, weekSummary, mondayOf, setReview } from "../plugins/project-lens/src/core/week.js";
 
 const WS = "2026-11-23"; // 月曜。日曜は 2026-11-29
 const TODAY = "2026-11-25";
@@ -112,4 +112,17 @@ test("weekSummary: done / total / planned / actual / note", () => {
   assert.deepEqual({ done: s.done, total: s.total, planned: s.planned, actual: s.actual, note: s.note }, { done: 1, total: 2, planned: 90, actual: 30, note: "気づき" });
   assert.equal(s.rows.length, 2);
   assert.equal(weekSummary(mk([]), WS, TODAY).note, "");
+});
+
+test("mondayOf: 月〜日は、その週の月曜日（日曜は前の月曜日）", () => {
+  assert.equal(mondayOf("2026-10-19"), "2026-10-19");
+  assert.equal(mondayOf("2026-10-20"), "2026-10-19");
+  assert.equal(mondayOf("2026-10-25"), "2026-10-19");
+  assert.equal(mondayOf("2026-10-26"), "2026-10-26");
+});
+
+test("setReview: 保存し、空文字でキーが消える", () => {
+  const a = setReview(mk([]), "2026-10-19", "気づき");
+  assert.deepEqual(a.reviews, { "2026-10-19": "気づき" });
+  assert.deepEqual(setReview(a, "2026-10-19", "").reviews, {});
 });

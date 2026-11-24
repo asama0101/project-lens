@@ -447,53 +447,12 @@ test("作業枠の重なりは、同じ種別どうしだけ error（予定と�
   assert.ok(v(aa).errors.some((e) => e.includes("S50") && e.includes("S52")), "実績どうしの重なりは error");
 });
 
-// ---- ToDo ----
-const withTodos = (todos) => ({ ...load(), todos });
-const T = (o = {}) => ({ id: "T-0001", scope: "day", title: "x", date: "2026-10-20", doneAt: null, carried: 0, sessions: [], ...o });
-const W = (o = {}) => T({ id: "T-0100", scope: "week", date: "2026-10-19", ...o });
-
-test("validate: 正しい ToDo は通る", () => {
-  const d = withTodos([W(), T({ parentId: "T-0100", checklist: [{ id: "c1", text: "a", done: true }], doneAt: "2026-10-20", sessions: [{ id: "S91", date: "2026-10-20", start: "09:00", end: "10:00", kind: "planned" }] })]);
-  assert.deepEqual(v(d).errors, []);
+// ---- 残っている todos ----
+test("validate: data に todos が残っていても見ない（形の不正・枠の重なり・ID の重複も、error・warning にしない）", () => {
+  const bad = { id: "AA-0001", scope: "month", title: "", date: "x", carried: -1, sessions: [{ id: "S1", date: "2026-10-21", start: "14:30", end: "15:30", kind: "x" }] };
+  const d = { ...load(), todos: [bad, bad] };
+  assert.deepEqual(v(d).errors, v(load()).errors);
   assert.deepEqual(v(d).warnings, v(load()).warnings);
-});
-
-test("validate: ToDo の不正は error", () => {
-  const bad = (todos, word) => assert.ok(hit(v(withTodos(todos)).errors, word), `${word}: ${JSON.stringify(v(withTodos(todos)).errors)}`);
-  bad([T({ scope: "month" })], "scope");
-  bad([T({ title: " " })], "件名");
-  bad([T({ date: "2026-13-40" })], "日付");
-  bad([W({ date: "2026-10-20" })], "月曜日");
-  bad([T({ parentId: "T-9999" })], "parentId");
-  bad([W({ parentId: "T-0001" }), T()], "parentId");
-  bad([T({ id: "T-0002", parentId: "T-0001" }), T()], "parentId");
-  bad([T({ doneAt: "x" })], "完了日");
-  bad([T({ carried: -1 })], "carried");
-  bad([T({ carried: 1.5 })], "carried");
-  bad([T(), T()], "重複");
-  bad([T({ id: "X-1" })], "ID");
-  bad([T({ checklist: [{ id: "c1", text: "", done: true }] })], "チェックリスト");
-});
-
-test("validate: ToDo の枠は、形式・kind・同じ種別の重なりを検査する。タスクとの間も判定する。完了でも未来の予定の警告は出ない", () => {
-  const s = (o) => ({ id: "S91", date: "2026-10-20", start: "09:00", end: "10:00", kind: "planned", ...o });
-  assert.ok(hit(v(withTodos([T({ sessions: [s({ start: "9:00" })] })])).errors, "形式"));
-  assert.ok(hit(v(withTodos([T({ sessions: [s({ kind: "x" })] })])).errors, "kind"));
-  assert.ok(hit(v(withTodos([T({ sessions: [s({ end: "08:00" })] })])).errors, "終了"));
-  assert.ok(hit(v(withTodos([T({ sessions: [s({}), s({ id: "S92", start: "09:30", end: "10:30" })] })])).errors, "重なって"));
-  const d = withTodos([T({ sessions: [s({ date: "2026-10-21", start: "14:30", end: "15:30" })] })]); // S3（タスクの予定枠 14:00-16:00）と重なる
-  assert.ok(hit(v(d).errors, "重なって"));
-  const done = withTodos([T({ doneAt: "2026-10-20", sessions: [s({ date: "2026-12-01" })] })]);
-  assert.deepEqual(v(done).errors, []);
-  assert.ok(!hit(v(done).warnings, "未来の予定枠"));
-  assert.ok(hit(v(withTodos([T({ sessions: [s({ id: "S1" })] })])).warnings, "ID が重複"));
-});
-
-test("validate: ToDo の ID が、タスクの ID と同じなら error", () => {
-  const d = withTodos([T({ id: "T-0001" })]);
-  assert.deepEqual(v(d).errors.filter((e) => e.includes("タスクと ID が重なっています")), []);
-  d.tasks[0] = { ...d.tasks[0], id: "T-0001" };
-  assert.ok(hit(v(d).errors, "タスクと ID が重なっています"), JSON.stringify(v(d).errors));
 });
 
 // ---- 予定の枠の実績（actual） ----
@@ -511,9 +470,9 @@ test("validate: 予定の枠の actual。正しいものは通り、kind: actual
   bad(withSess(P({ actual: { date: "2026-10-20", start: "09:00", end: "09:00" } })), "actual の終了が開始以前");
   // S2（実績だけの枠 10-19 10:00〜11:30）と、予定の枠の actual の重なり
   bad(withSess(P({ actual: { date: "2026-10-19", start: "11:00", end: "12:00" } })), "S60 の実績");
-  // 予定の枠の actual 2 つの重なり（ToDo との間も判定する）
+  // 予定の枠の actual 2 つの重なり（別のタスクの間も判定する）
   const two = withSess(P({ actual: { date: "2026-10-20", start: "08:00", end: "09:00" } }));
-  two.todos.find((t) => t.id === "T-0004").sessions = [P({ id: "S61", date: "2026-10-21", actual: { date: "2026-10-20", start: "08:30", end: "09:30" } })];
+  task(two, "AC-0003").sessions = [P({ id: "S61", date: "2026-10-21", actual: { date: "2026-10-20", start: "08:30", end: "09:30" } })];
   assert.ok(v(two).errors.some((e) => e.includes("S60") && e.includes("S61")), JSON.stringify(v(two).errors));
   // 今の形: 予定の枠（actual なし）と、同じ時間の別の実績の枠
   assert.deepEqual(v(withSess(P(), { id: "S61", date: "2026-10-20", start: "08:00", end: "09:00", kind: "actual" })).errors, []);

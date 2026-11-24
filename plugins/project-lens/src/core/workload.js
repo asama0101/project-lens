@@ -7,7 +7,7 @@ export const hours = (x) => (toMin(x.end) - toMin(x.start)) / 60;
 const inRange = (d, r) => !r || (d >= r.start && d <= r.end);
 const sumBy = (list, f) => list.reduce((a, x) => a + f(x), 0);
 
-/** 実績の区間（タスクと ToDo）。範囲は区間の日付で絞る。ToDo の区間は projectId が null（プロジェクト未設定） */
+/** 実績の区間（タスク）。範囲は区間の日付で絞る */
 const actualSessions = (data, range) => actualSpans(data).filter((s) => inRange(s.date, range));
 const meetingHours = (m) => hours(meetingActualSpan(m));
 const countedMeetings = (data, range) => data.events.filter((m) => m.confirmed === true && !m.skip && inRange(m.date, range));

@@ -11,9 +11,18 @@
 import { isClosed } from "./schema.js";
 import { checklistCount } from "./checklist.js";
 import { actualSpans } from "./sessions.js";
-import { addDays, toMin } from "./dates.js";
+import { addDays, toMin, weekday } from "./dates.js";
 
 const ORDER = ["overdue", "scheduled", "due", "done"];
+
+/** その日を含む週の月曜日 */
+export const mondayOf = (date) => addDays(date, -((weekday(date) + 6) % 7));
+
+/** 週（月曜日のキー）の気づき。空文字ならキーを消す */
+export function setReview(data, weekStart, text) {
+  const { [weekStart]: _, ...rest } = data.reviews ?? {};
+  return { ...data, reviews: text ? { ...rest, [weekStart]: text } : rest };
+}
 const minutes = (x) => toMin(x.end) - toMin(x.start);
 
 /** 今週の行（task・group・waiting・planned・actual・checked）。組の順・期限・ID の順 */

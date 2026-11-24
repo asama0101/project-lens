@@ -81,20 +81,6 @@ test("periodRange: day はその日だけ、week は月曜〜日曜、month は 
   assert.deepEqual(periodRange("month", "2026-12-31"), { start: "2026-12-01", end: "2026-12-31" });
 });
 
-const todo = (id, sessions = []) => ({ id, scope: "day", title: id, date: D, doneAt: null, carried: 0, sessions });
-
-test("workload: ToDo の実績の枠は「プロジェクト未設定」のタスクの列に入る（projectHours には入らない）", () => {
-  const d = { ...data([task("AA-0001", "AA", [sess("S1", D, "09:00", "10:00")])], []), todos: [todo("T-0001", [sess("S2", D, "10:00", "11:30"), sess("S3", D, "12:00", "13:00", "planned")])] };
-  const w = workload(d, periodRange("day", D));
-  assert.deepEqual([w.rows[0].task, w.unassigned.task, w.total], [1, 1.5, 2.5]);
-  assert.deepEqual(projectHours(d, "AA"), { task: 1, meeting: 0 });
-});
-
-test("workload: ToDo の過ぎた予定の枠は、未確認の件数に入る（重なる実績があれば入らない）", () => {
-  const d = { ...data([task("AA-0001", "AA", [sess("S1", D, "09:00", "10:00")])], []), todos: [todo("T-0001", [sess("S2", D, "09:00", "10:00", "planned"), sess("S3", D, "11:00", "12:00", "planned")])] };
-  assert.equal(workload(d, null, { date: D, time: "14:00" }).unconfirmedTasks, 1);
-});
-
 const planned = (id, date, start, end, actual) => ({ id, date, start, end, kind: "planned", ...(actual && { actual }) });
 
 test("workload: 予定の枠の actual の時間が、actual.date の日・持ち主のプロジェクトに数えられる", () => {
@@ -108,12 +94,6 @@ test("workload: 予定の枠を別の日へ動かしても、実績は actual.da
   const d = data([task("AA-0001", "AA", [planned("S1", "2026-10-27", "09:00", "10:00", { date: D, start: "09:00", end: "10:00" })])], []);
   assert.equal(workload(d, periodRange("day", D)).rows[0].task, 1);
   assert.equal(workload(d, periodRange("day", "2026-10-27")).rows[0].task, 0);
-});
-
-test("workload: ToDo の予定の枠の actual は「プロジェクト未設定」に入る", () => {
-  const d = { ...data([], []), todos: [todo("T-0001", [planned("S1", D, "09:00", "10:00", { date: D, start: "09:00", end: "10:30" })])] };
-  const w = workload(d, periodRange("day", D));
-  assert.deepEqual([w.unassigned.task, w.total], [1.5, 1.5]);
 });
 
 test("workload: 今の形のデータの数字は変わらない（サンプルの S8: 2026-10-15 の 09:10〜10:10 が AC に 1h）", () => {
