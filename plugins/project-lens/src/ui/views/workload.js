@@ -32,7 +32,7 @@ export function renderWorkload(data, today, opts = {}) {
   const sumTask = w.rows.reduce((a, r) => a + r.task, 0) + w.unassigned.task;
   const sumMtg = w.rows.reduce((a, r) => a + r.meeting, 0) + w.unassigned.meeting;
   const note = w.unconfirmed > 0
-    ? `<div class="banner">未確認 ${w.unconfirmed}件（作業枠 ${w.unconfirmedTasks}・会議 ${w.unconfirmedMeetings}）は、まだ含まれていません。スケジュール画面で「実績にする」と確認すると加わります。</div>`
+    ? `<div class="banner">未確認 ${w.unconfirmed}件（作業枠 ${w.unconfirmedTasks}・会議 ${w.unconfirmedMeetings}）は、まだ含まれていません。スケジュール画面で実績を入れると加わります。</div>`
     : "";
   const none = data.projects.length ? "" : `<p class="muted">プロジェクトがありません。ガントチャートかリストの「＋ プロジェクトを追加」から追加してください。</p>`;
   return `<section class="panel wl" aria-label="稼働">

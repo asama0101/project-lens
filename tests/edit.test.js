@@ -12,7 +12,8 @@ import {
   nextTaskId, nextProjectId, addUrgentTask, moveToProject,
 } from "../plugins/project-lens/src/ui/edit.js";
 
-import { addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, confirmTodaySession, recordActual } from "../plugins/project-lens/src/ui/edit.js";
+import { addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, recordActual } from "../plugins/project-lens/src/ui/edit.js";
+import * as editMod from "../plugins/project-lens/src/ui/edit.js";
 
 const load = () => JSON.parse(readFileSync(new URL("../plugins/project-lens/data/sample.json", import.meta.url), "utf8"));
 const TODAY = "2026-10-20";
@@ -630,39 +631,13 @@ test("removeOrphanSessions: orphanSessions だけを空にし、タスクと枠�
   assert.equal(validate(n, { date: TODAY, time: "10:15" }).warnings.some((w) => w.includes("共有ファイルに無い")), false);
 });
 
-// ---- 今日のタスクの「実績にする」 ----
 const at = (time) => ({ date: TODAY, time });
-const sess = (d, id) => d.tasks.flatMap((t) => t.sessions ?? []).find((s) => s.id === id);
-
-test("confirmTodaySession: 予定の枠を実績にし、To Do は In Progress にする（statusChanged）。時刻は変えない。元のデータは変えない", () => {
-  const d = load();
-  task(d, "AA-0004").sessions.push({ id: "S40", date: TODAY, start: "10:00", end: "11:00", kind: "planned" }, { id: "S41", date: TODAY, start: "08:00", end: "09:00", kind: "planned" });
-  const r = confirmTodaySession(d, "S40", at("10:15"));
-  assert.deepEqual([sess(r.data, "S40").kind, sess(r.data, "S40").start, sess(r.data, "S40").end], ["actual", "10:00", "11:00"], "まだ終わっていない枠も実績にする");
-  assert.deepEqual([r.taskId, r.statusChanged, task(r.data, "AA-0004").status], ["AA-0004", true, "In Progress"]);
-  assert.equal(sess(d, "S40").kind, "planned", "元のデータは変えない");
-  ok(r.data);
-  const r2 = confirmTodaySession(r.data, "S41", at("10:15"));
-  assert.deepEqual([sess(r2.data, "S41").kind, r2.statusChanged], ["actual", false], "In Progress はそのまま（未確認の枠も実績にできる）");
-});
-
-test("confirmTodaySession: Waiting は In Progress にし、待ち先を外す（from に元の状態）", () => {
-  const d = load();
-  task(d, "AC-0002").sessions = [{ id: "S42", date: TODAY, start: "15:00", end: "16:00", kind: "planned" }];
-  const w = confirmTodaySession(d, "S42", at("10:15"));
-  assert.deepEqual([task(w.data, "AC-0002").status, task(w.data, "AC-0002").waitingOn, w.statusChanged, w.from], ["In Progress", null, true, "Waiting"]);
-});
-
-test("confirmTodaySession: ほかの実績の枠と重なる・明日以降の枠は Error で、データは変えない", () => {
-  const d = load();
-  task(d, "AA-0004").sessions.push({ id: "S43", date: TODAY, start: "10:00", end: "11:00", kind: "actual" });
-  task(d, "AA-0005").sessions.push({ id: "S44", date: TODAY, start: "10:30", end: "11:30", kind: "planned" });
-  assert.throws(() => confirmTodaySession(d, "S44", at("10:15")), /他の実績の枠（10:00〜11:00）と重なっています/);
-  assert.throws(() => confirmTodaySession(load(), "S5", at("10:15")), /明日以降の枠は実績にできません/);
-  assert.throws(() => confirmTodaySession(load(), "S99", at("10:15")), /枠 S99 がありません/);
-});
 
 // ---- 実績を保存する（recordActual） ----
+test("「実績にする」の編集（confirmTodaySession）は持たない（実績は recordActual で、予定とは別の枠として入れる）", () => {
+  assert.equal("confirmTodaySession" in editMod, false);
+});
+
 test("recordActual: 実績の枠を足し、To Do は In Progress にする（statusChanged）。元のデータは変えない", () => {
   const d = load();
   const r = recordActual(d, "AA-0004", { date: TODAY, start: "09:00", end: "10:00" }, at("10:15"));

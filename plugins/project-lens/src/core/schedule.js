@@ -113,15 +113,6 @@ export function meetingKind(m, now) {
   return meetingPast(m, now) ? "unconfirmed" : "planned";
 }
 
-/** 過ぎた会議を実績として確認する。未来の会議と、参加しない会議は確認できない */
-export function confirmMeeting(data, id, now) {
-  const cur = data.events.find((e) => e.id === id);
-  if (!cur) throw new Error(`会議 ${id} がありません`);
-  if (cur.skip) throw new Error("参加しない会議は実績にできません");
-  if (!meetingPast(cur, now)) throw new Error("未来の会議は実績にできません");
-  return { ...data, events: data.events.map((e) => (e.id === id ? { ...e, confirmed: true } : e)) };
-}
-
 /** 会議の実際の時間。実績が無ければ予定の時間（confirmed のみ = 予定どおり） */
 export const meetingActualSpan = (m) => m.actual ?? { start: m.start, end: m.end };
 

@@ -90,17 +90,6 @@ export function resizeSession(data, sessionId, end, now) {
   return { data: mapSessions(data, sessionId, (s) => ({ ...s, end })), ...(r.warning && { warning: r.warning }) };
 }
 
-/** 予定の枠を実績にする。今日のまだ終わっていない枠も実績にできる（今日のタスクの「実績にする」）。明日以降の枠は error */
-export function confirmSession(data, sessionId, now) {
-  const cur = findSession(data, sessionId);
-  if (!cur) return { data, error: `枠 ${sessionId} がありません` };
-  if (cur.date > now.date) return { data, error: "明日以降の枠は実績にできません" };
-  // ほかの実績の枠と重なるなら、実績にしない（稼働に同じ時間を二重に数えないため）
-  const other = allSessions(data).find((x) => x.id !== sessionId && x.kind === "actual" && clash(x, cur));
-  if (other) return { data, error: `他の実績の枠（${other.start}〜${other.end}）と重なっています。どちらかの時間を直してから、実績にしてください` };
-  return { data: mapSessions(data, sessionId, (s) => ({ ...s, kind: "actual" })) };
-}
-
 export function removeSession(data, sessionId) {
   return { ...data, tasks: data.tasks.map((t) => ((t.sessions ?? []).some((s) => s.id === sessionId) ? { ...t, sessions: t.sessions.filter((s) => s.id !== sessionId) } : t)) };
 }

@@ -3,7 +3,7 @@ import { addDays, diffDays, isDate, isWeekend, toMin, toHHMM, nowLocal } from ".
 import { calendarOf } from "../core/holidays.js";
 import { taskStart } from "../core/metrics.js";
 import { groupSections } from "../core/groups.js";
-import { addSession, addActual, confirmSession } from "../core/sessions.js";
+import { addSession, addActual } from "../core/sessions.js";
 import { nextChecklistId } from "../core/checklist.js";
 import { isRepeat, nextRepeatDue } from "../core/repeat.js";
 import { HOLIDAY_KINDS } from "../core/schema.js";
@@ -373,18 +373,6 @@ export function addUrgentTask(data, { title, projectId, date, start, minutes }) 
   const r = addSession({ ...data, tasks: [...data.tasks, t] }, t.id, { date, start, end: toHHMM(toMin(start) + minutes) });
   if (r.error) throw new Error(r.error);
   return { data: r.data, id: t.id, ...(r.warning && { warning: r.warning }) };
-}
-
-/**
- * 今日のタスクの「実績にする」: 予定の枠を実績にし（confirmSession。ほかの実績の枠と重なる・明日以降は Error）、
- * タスクが To Do・Waiting なら In Progress にする（updateTask の規則で、Waiting の待ち先は外れる）。statusChanged・from（元の状態）を返す
- */
-export function confirmTodaySession(data, sessionId, now) {
-  const r = confirmSession(data, sessionId, now);
-  if (r.error) throw new Error(r.error);
-  const t = data.tasks.find((x) => (x.sessions ?? []).some((s) => s.id === sessionId));
-  const statusChanged = t.status === "To Do" || t.status === "Waiting";
-  return { data: statusChanged ? updateTask(r.data, t.id, { status: "In Progress" }, now.date) : r.data, taskId: t.id, statusChanged, from: t.status };
 }
 
 /**

@@ -135,7 +135,7 @@ test("app.js: 設定タブの入力が不正なときは、描き直さず、入
 test("app.js: 状態を Done・Cancelled にしたとき、進行中の枠を残したことを知らせる", () => {
   const fn = src.slice(src.indexOf("function setStatus"), src.indexOf("function setStatus") + 1200);
   assert.match(fn, /runningPlanned\(S\.data, id, clock\(\)\)/);
-  assert.ok(fn.includes("進行中の枠") && fn.includes("実績にする"));
+  assert.ok(fn.includes("進行中の枠") && fn.includes("実績を入れます") && !fn.includes("実績にする"));
 });
 
 test("app.js: 帯の対象は、利用者が選び直したあとは、画面の絞り込みで上書きしない（「すべて」を選んだのに戻される）", () => {
@@ -596,11 +596,15 @@ test("theme.css: カレンダーの上の入力欄（#mtgslot）は、中身が�
   assert.ok(css.includes("#view #mtgslot:not(:empty){position:sticky;top:calc(var(--hh,0px) + var(--stop-h,0px));"));
 });
 
-test("app.js: 今日のタスクの「実績にする」（data-session-actual）は、confirmTodaySession を 1 回の apply で保存し（枠と状態を一緒に）、状態を変えたら通知で言う。プロジェクト画面にも now を渡す", () => {
-  const a = src.slice(src.indexOf('q("[data-session-actual]")'), src.indexOf('q("[data-session-actual]")') + 700);
-  assert.ok(a.includes("confirmTodaySession(d, sid, now)") && a.includes("apply("), a);
-  assert.equal(a.match(/apply\(/g).length, 1, "apply は 1 回");
-  assert.ok(a.includes("を実績にしました") && a.includes("状態を In Progress にしました") && a.includes("待ち先の記録は外しました"), a);
+test("app.js: 実績の保存（data-actsave）は、入力欄（data-ac）を押した時に読み、recordActual を 1 回の apply で保存し（枠と状態を一緒に）、件名と時刻と、状態を変えたことを通知で言う。プロジェクト画面にも now を渡す", () => {
+  const i = src.indexOf('q("[data-actsave]")');
+  assert.ok(i > 0, "data-actsave のハンドラ");
+  const a = src.slice(i, i + 1200);
+  assert.ok(a.includes('view.querySelector(`[data-ac="${k}"]`)') && a.includes("recordActual(d, taskId, slot, now)") && a.includes("apply("), a);
+  assert.equal(a.slice(0, a.indexOf('q("[data-actcancel]")')).match(/apply\(/g).length, 1, "apply は 1 回");
+  assert.ok(a.includes("taskTitle(taskId)") && a.includes("の実績を入れました") && a.includes("状態を In Progress にしました") && a.includes("待ち先の記録は外しました"), a);
+  assert.ok(a.includes("clearSel()"), "保存したら、選択と入力欄を閉じる");
+  for (const old of ["data-session-actual", "data-confirm", "confirmTodaySession", "confirmSession", "confirmMeeting"]) assert.ok(!src.includes(old), old);
   assert.match(src, /renderProjects\(S\.data, today, \{[^}]*now: clock\(\)/);
   assert.ok(!src.includes("data-rec-start") && !src.includes("data-rec-end") && !src.includes("startActual") && !src.includes("stopActual"), "「開始」「終了」は持たない");
 });
@@ -650,8 +654,25 @@ test("app.js: 右の列の開け閉めで今日の位置へ戻すのは、ガン
   assert.match(fn, /if \(key === "showPrio" && S\.screen === "gantt"\) S\.resetScroll = true;/);
 });
 
-test("app.js: Delete・Backspace は、編集欄・入力欄（[data-tedit]・.mtgform）の中のボタンにフォーカスがあるときは枠を消さない", () => {
-  assert.ok(src.includes('const typing = e.target.matches?.("input,select,textarea") || !!e.target.closest?.("[data-tedit], .mtgform");'));
+test("app.js: Delete・Backspace は、編集欄・入力欄（[data-tedit]・.mtgform・.actform）の中のボタンにフォーカスがあるときは枠を消さない", () => {
+  assert.ok(src.includes('const typing = e.target.matches?.("input,select,textarea") || !!e.target.closest?.("[data-tedit], .mtgform, .actform");'));
+});
+
+test("app.js: 実績の入力欄（.actform）・実績の追加（data-actadd）・会議の実績の保存（data-mtgact）のクリックでは、選択を外さない。actAdd も選択と一緒に外す", () => {
+  const g = src.slice(src.indexOf("// 欄外のクリックで"), src.indexOf("// 欄外のクリックで") + 400);
+  for (const s of [".actform", "[data-actadd]", "[data-actsave]", "[data-mtgact]", "S.actAdd"]) assert.ok(g.includes(s), s);
+  assert.match(src, /const clearSel = \(\) => \{[^}]*S\.actAdd = null;/);
+  assert.match(src, /S\.actAdd = \{ date \}/);
+  assert.ok(src.includes("actAdd: S.actAdd"), "scheduleOpts に渡す");
+  assert.ok(src.includes("data-actadd") && src.includes("＋ 実績を追加"));
+  assert.ok(src.includes('if (q("[data-actcancel]")) { S.actAdd = null; render(); return; }'));
+});
+
+test("app.js: 会議の実績の保存（data-mtgact）は、入力欄（data-ma）を押した時に読み、setMeetingActual で保存する", () => {
+  const i = src.indexOf('q("[data-mtgact]")');
+  assert.ok(i > 0);
+  const a = src.slice(i, i + 500);
+  assert.ok(a.includes('view.querySelector(`[data-ma="${k}"]`)') && a.includes("setMeetingActual(d, id, span, now)") && a.includes("会議の実績を入れました"), a);
 });
 
 test("app.js: 読み直しなどで選択中の枠が無くなったら、選択と編集欄を外す", () => {
@@ -662,11 +683,10 @@ test("app.js: 書式（filebar の行の renderBar、keydown の閉じ）", () =
   assert.ok(!src.includes('` : "";  renderBar();') && !src.includes("return; }});"));
 });
 
-test("app.js: 一括の「実績にする」は、重なって実績にできない枠を飛ばして件数を言う。setStatus は実行中の枠を扱わない", () => {
+test("app.js: 一括の「実績にする」（data-confirmall）は持たない。setStatus は実行中の枠を扱わない", () => {
   const fn = src.slice(src.indexOf("function setStatus("), src.indexOf("function setStatus(") + 1500);
   assert.ok(!fn.includes("stopRunningIfClosed") && !fn.includes("実行中"), fn);
-  const all = src.slice(src.indexOf('q("[data-confirmall]")'), src.indexOf('q("[data-confirmall]")') + 900);
-  assert.ok(all.includes("skipped") && all.includes("ほかの実績の枠と重なる"), all);
+  assert.ok(!src.includes("data-confirmall"));
 });
 
 test("theme.css: スケジュールの重要の枠は、件名の赤い太字だけ（左の赤い線は付けない）", () => {
@@ -680,7 +700,7 @@ test("theme.css: プロジェクトの稼働の札（.mono.hrs）の塗りは、
   assert.ok(!css.includes(".rank .bb") && !css.includes(".rank.tl .bb"));
 });
 
-test("app.js: スケジュールから届く通知（今日のタスクの「実績にする」・状態の変更・待ち先・タスクの削除・定例の次回）は、タスクの ID でなく件名で言う", () => {
+test("app.js: スケジュールから届く通知（実績の保存・状態の変更・待ち先・タスクの削除・定例の次回）は、タスクの ID でなく件名で言う", () => {
   for (const bad of ["${r.taskId} の ${s.start}", "${id} の状態を ${status}", "${id} を Waiting にしました", "${id} を削除しました", "次回 ${sp.id}"]) assert.ok(!src.includes(bad), bad);
   assert.ok(src.includes("taskTitle("), "件名を引く");
 });

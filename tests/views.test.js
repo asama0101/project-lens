@@ -280,16 +280,64 @@ test("renderCalendar(week): 期限の行の重要のタスクの件名に impt �
   assert.ok(html.includes(`<span class="impt">${t.title}</span>`));
 });
 
-test("renderSchedule: 未確認 0 件なら『すべて実績にする』は出ない／選択がなければ『枠を削除』は無効", () => {
+test("renderSchedule: 『実績にする』のボタン（data-confirm・data-confirmmtg・data-confirmall）は、未確認があっても出さない／選択がなければ『枠を削除』は無効", () => {
   const d = load();
+  const un = load();
+  un.tasks.find((t) => t.id === "AA-0005").sessions.push({ id: "S9", date: TODAY, start: "08:00", end: "09:00", kind: "planned" }); // 過ぎた予定 = 未確認
+  Object.assign(un.events.find((e) => e.id === "m1"), { confirmed: false, end: "10:00" }); // 過ぎた会議 = 未確認
+  assert.ok(sched(un).includes("未確認 2件（作業枠 1・会議 1）"), "未確認の札は残す");
+  for (const v of ["day", "week"]) {
+    const h = sched(un, { view: v });
+    for (const a of ["data-confirm=", "data-confirmmtg=", "data-confirmall"]) assert.ok(!h.includes(a), `${v}: ${a}`);
+  }
   const html = sched(d);
-  assert.ok(!html.includes("data-confirmall"));
   assert.ok(/data-delsel disabled>枠や会議を選んで削除/.test(html));
   assert.ok(!sched(d, { selSess: "S2" }).includes("の枠を削除"), "表示外の選択は無効");
   const sel = sched(d, { selSess: "S2", date: "2026-10-19" });
   assert.ok(sel.includes("「切替手順書の作成」の枠を削除"));
   assert.ok(!/data-delsel disabled/.test(sel));
   assert.ok(sel.includes("blk task act sel"));
+});
+
+test("renderSchedule: 過ぎた予定の枠は、時間が重なる実績が無ければ unconf。重なる実績を足すと unconf でなくなる（予定の枠は残る）", () => {
+  const d = load();
+  d.tasks.find((t) => t.id === "AA-0005").sessions.push({ id: "S9", date: TODAY, start: "08:00", end: "09:00", kind: "planned" });
+  assert.ok(/class="blk task unconf[^"]*"[^>]*data-dragsess="S9"/.test(sched(d)), "実績が無ければ未確認");
+  d.tasks.find((t) => t.id === "AA-0004").sessions = [{ id: "S20", date: TODAY, start: "08:30", end: "09:30", kind: "actual" }];
+  const html = sched(d);
+  assert.ok(/class="blk task plan[^"]*"[^>]*data-dragsess="S9"/.test(html), "重なる実績があれば予定のまま");
+  assert.ok(!html.includes("blk task unconf"));
+});
+
+test("actualForm: 開始が今以前の予定の枠を選ぶと、実績の入力欄（開始・終了は枠の時刻、保存は data-actsave）を出す。実績の枠・未来の予定の枠では出さない", () => {
+  const d = load();
+  d.tasks.find((t) => t.id === "AA-0005").sessions.push({ id: "S9", date: TODAY, start: "08:00", end: "09:00", kind: "planned" }, { id: "S10", date: TODAY, start: "10:15", end: "11:00", kind: "planned" }, { id: "S11", date: TODAY, start: "10:30", end: "11:30", kind: "planned" });
+  const html = sched(d, { selSess: "S9" });
+  assert.ok(html.includes('<div class="actform" role="group" aria-label="実績の入力">'), html);
+  assert.match(html, /<input[^>]*data-ac="start"[^>]*value="08:00"/);
+  assert.match(html, /<input[^>]*data-ac="end"[^>]*value="09:00"/);
+  assert.ok(html.includes('data-actsave="S9"') && html.includes(">実績を保存</button>"));
+  assert.ok(!html.includes('data-ac="task"'), "枠から入れるときは、タスクを選ばない");
+  assert.ok(sched(d, { selSess: "S10" }).includes('data-actsave="S10"'), "開始が今ちょうどの枠も出す");
+  assert.ok(!sched(d, { selSess: "S11" }).includes('class="actform"'), "未来の予定の枠");
+  assert.ok(!sched(d, { selSess: "S2", date: "2026-10-19" }).includes('class="actform"'), "実績の枠");
+  assert.ok(!sched(d).includes('class="actform"'), "選択なし");
+});
+
+test("actualForm: 「実績を追加」（actAdd）では、タスク（Done・Cancelled 以外、文言は件名）・日付・開始・終了と、保存・キャンセルを出す", () => {
+  const d = load();
+  d.tasks.find((t) => t.id === "AA-0004").status = "Cancelled";
+  const html = sched(d, { actAdd: { date: TODAY } });
+  assert.ok(html.includes('<div class="actform" role="group" aria-label="実績の入力">'));
+  const sel = /<select[^>]*data-ac="task"[^>]*>([\s\S]*?)<\/select>/.exec(html)?.[1];
+  assert.ok(sel, "タスクの選択");
+  assert.ok(sel.includes(">切替手順書の作成</option>") && sel.includes(">問い合わせ対応</option>"));
+  assert.ok(!sel.includes("要件整理") && !sel.includes("検証環境の構築"), "Done・Cancelled は候補にしない");
+  assert.ok(!/>[A-Z]{2}-\d{4}</.test(sel), "ID は文言に出さない");
+  assert.match(html, /data-ac="date"[^>]*value="2026-10-20"/);
+  assert.ok(html.includes('data-ac="start"') && html.includes('data-ac="end"'));
+  assert.ok(html.includes('data-actsave=""') && html.includes("data-actcancel"));
+  assert.ok(!sched(d).includes('class="actform"'), "actAdd が無ければ出さない");
 });
 
 test("renderSchedule: 凡例（会議・予定・実績・未確認、日は現在時刻）。空き時間の凡例は出さない", () => {
@@ -480,17 +528,16 @@ test("利用者入力（group 名）はエスケープされる", () => {
 const NOW15 = { date: "2026-10-20", time: "15:10" };
 const noSessions = () => { const d = load(); for (const t of d.tasks) t.sessions = []; return d; };
 
-test("会議ブロック: 過ぎて未確認なら unconf と『実績にする』ボタン（日表示のみ）。確認済みは ✓。skip は従来の表示で確認ボタンなし", () => {
+test("会議ブロック: 過ぎて未確認なら unconf と「未確認」（ボタンは無い）。確認済みは ✓。skip は従来の表示", () => {
   const d = noSessions();
   d.events.find((e) => e.id === "m3").date = "2026-10-20";
   const html = renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15 });
   assert.ok(/class="blk mtg\s+act[^"]*"[^>]*data-mtg="m1"/.test(html) && html.includes("09:30-10:30 ✓"), "確認済み");
-  assert.ok(/class="blk mtg\s+unconf[^"]*"[^>]*data-mtg="m2"/.test(html) && html.includes('data-confirmmtg="m2"'), "未確認");
-  const wk = renderSchedule(d, TODAY, { view: "week", date: TODAY, now: NOW15 });
-  assert.ok(!wk.includes("data-confirmmtg"), "週表示にはボタンを出さない");
+  assert.ok(/class="blk mtg\s+unconf[^"]*"[^>]*data-mtg="m2"/.test(html) && html.includes("13:00-14:00 未確認"), "未確認");
+  assert.ok(!html.includes("data-confirmmtg"), "実績にするボタンは無い");
   d.events.find((e) => e.id === "m2").skip = true;
   const sk = renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15, showSkipped: true });
-  assert.ok(sk.includes("blk mtg skip") && !sk.includes('data-confirmmtg="m2"'));
+  assert.ok(sk.includes("blk mtg skip") && sk.includes("13:00-14:00 不参加"));
 });
 
 test("renderSchedule: 参加しない会議は、showSkipped が true のときだけ描く。凡例・ボタンの状態もそれに合わせる", () => {
@@ -534,13 +581,31 @@ test("会議フォーム: プロジェクト選択があり、mcp の会議で�
   assert.ok(/<option value="AB" selected>/.test(chosen));
 });
 
-test("サマリー: 未確認の会議も件数に入り（内訳つき）、0 件のときは data-confirmall が出ない。凡例に未確認の会議", () => {
+test("会議フォーム: 選んだ会議（mcp・manual）に、実績の開始・終了（初期値は実績、無ければ予定）と data-mtgact。参加しない・未来の会議には出さない", () => {
+  const d = noSessions();
+  const m1 = renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15, selMtg: "m1" });
+  assert.match(m1, /<input[^>]*data-ma="start"[^>]*value="09:30"/);
+  assert.match(m1, /<input[^>]*data-ma="end"[^>]*value="10:30"/);
+  assert.ok(m1.includes('data-mtgact="m1"') && m1.includes(">実績を保存</button>"));
+  assert.ok(!/<input[^>]*data-ma="start"[^>]*disabled/.test(m1), "予定表から取得した会議でも、実績は入れられる");
+  d.events.find((e) => e.id === "m2").actual = { start: "13:15", end: "14:30" };
+  const m2 = renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15, selMtg: "m2" });
+  assert.match(m2, /<input[^>]*data-ma="start"[^>]*value="13:15"/);
+  assert.match(m2, /<input[^>]*data-ma="end"[^>]*value="14:30"/);
+  assert.ok(m2.includes('data-mtgact="m2"'));
+  d.events.find((e) => e.id === "m2").skip = true;
+  assert.ok(!renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15, selMtg: "m2" }).includes("data-mtgact"), "参加しない会議");
+  assert.ok(!renderSchedule(d, TODAY, { view: "day", date: "2026-10-21", now: NOW15, selMtg: "m3" }).includes("data-mtgact"), "未来の会議");
+  assert.ok(!renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15, mtgDraft: { date: TODAY, start: "09:00", end: "10:00", title: "", skip: false } }).includes("data-mtgact"), "追加中の会議");
+});
+
+test("サマリー: 未確認の会議も件数に入り（内訳つき）、一括で実績にするボタン（data-confirmall）は出さない。凡例に未確認の会議", () => {
   const d = noSessions();
   const html = renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15 });
-  assert.ok(html.includes("未確認 1件（作業枠 0・会議 1）") && html.includes("data-confirmall"));
+  assert.ok(html.includes("未確認 1件（作業枠 0・会議 1）") && !html.includes("data-confirmall"));
   assert.ok(html.includes("未確認の会議"));
   d.events.find((e) => e.id === "m2").confirmed = true;
-  assert.ok(!renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15 }).includes("data-confirmall"));
+  assert.ok(!renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15 }).includes("未確認 1件"));
 });
 
 // ---- 見送った Minor の修正: 日程変更の履歴に、取り込みの記録を出さない ----
@@ -719,10 +784,9 @@ test("todayTaskIds・renderTodayTasks: 今日に枠があるタスクだけを�
   assert.deepEqual(items(html).map((x) => x.id), ["AA-0005", "AA-0007", done.id], "Done は末尾（開始は一番早くても）");
   const [a5, a7, dn] = items(html);
   assert.ok(a5.html.includes("In Progress") && a5.html.includes("11:00–12:00"), "状態と今日の枠の時間");
-  assert.ok(a5.html.includes('data-session-actual="S9"') && a5.html.includes(">実績にする</button>"), "予定の枠に「実績にする」");
-  assert.ok(a7.html.includes('data-session-actual="S10"'), "To Do も");
+  assert.ok(a7.html.includes("14:00–15:00"), "To Do も");
   assert.ok(!html.includes("data-setstatus") && !html.includes("着手</button>") && !html.includes("完了</button>") && !html.includes("data-rec-"), "着手・完了・開始・終了のボタンは無い");
-  assert.ok(!dn.html.includes("data-session-actual") && html.includes('class="closed"'), "Done はボタン無しで薄い");
+  assert.ok(dn.html.includes("09:30–10:00") && html.includes('class="closed"'), "Done は薄い");
   assert.equal(renderTodayTasks(load(), TODAY), "", "今日の枠が無ければ出さない");
   assert.deepEqual(todayTaskIds(load(), TODAY), []);
 });
@@ -740,16 +804,21 @@ test("renderTodayTasks: スケジュール画面では、終わっていない�
   assert.ok(s.includes("今日のタスクの行からも"), "注記");
 });
 
-test("renderTodayTasks: 「実績にする」は、予定の枠（未確認を含む）ごとに付け、実績の枠には付けない。スケジュール・プロジェクトの右の列にも出る", () => {
+test("renderTodayTasks: 「実績にする」のボタン（data-session-actual）は付けない（実績はスケジュールで入れる）。スケジュール・プロジェクトの右の列も同じ", () => {
   const { d } = withToday();
   d.tasks.find((t) => t.id === "AA-0007").sessions.push({ id: "S13", date: TODAY, start: "08:00", end: "09:00", kind: "planned" }, { id: "S14", date: TODAY, start: "16:00", end: "17:00", kind: "actual" });
-  const row = (html) => items(html).find((x) => x.id === "AA-0007").html;
-  const r = row(renderTodayTasks(d, TODAY, { now: NOW }));
-  for (const sid of ["S10", "S13"]) assert.ok(r.includes(`data-session-actual="${sid}"`), sid);
-  assert.ok(!r.includes('data-session-actual="S14"'), "実績の枠には付けない");
-  assert.ok(r.includes('aria-label="AA-0007 の 08:00–09:00 の枠を実績にする"'), r);
-  assert.ok(row(sched(d, { now: NOW })).includes('data-session-actual="S10"'), "スケジュールの右の列");
-  assert.ok(row(renderProjects(d, TODAY, { filter: "all", view: "list", now: NOW })).includes('data-session-actual="S10"'), "プロジェクト画面の右の列");
+  for (const html of [renderTodayTasks(d, TODAY, { now: NOW }), sched(d, { now: NOW }), renderProjects(d, TODAY, { filter: "all", view: "list", now: NOW })]) {
+    const side = html.slice(html.indexOf('class="panel todaytasks"'));
+    assert.ok(side.includes("08:00–09:00") && !side.includes("data-session-actual") && !side.includes("実績にする"), side);
+  }
+});
+
+test("renderTodayTasks: 過ぎた予定の枠は、重なる実績があれば「予定」の札（未確認にしない）", () => {
+  const { d } = withToday();
+  d.tasks.find((t) => t.id === "AA-0007").sessions.push({ id: "S13", date: TODAY, start: "08:00", end: "09:00", kind: "planned" });
+  d.tasks.find((t) => t.id === "AA-0004").sessions = [{ id: "S15", date: TODAY, start: "08:00", end: "09:00", kind: "actual" }];
+  const row = items(renderTodayTasks(d, TODAY, { now: NOW })).find((x) => x.id === "AA-0007").html;
+  assert.ok(row.includes('<span class="ktag plan">予定</span>08:00–09:00'), row);
 });
 
 test("renderTodayTasks: 枠の時間の前に、予定・実績・未確認（過ぎた予定）の札を付ける（文字で出す。色はカレンダーの凡例と同じ class）", () => {

@@ -1,7 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { sessionKind, actualSlots, addSession, addActual, moveSession, resizeSession, confirmSession, removeSession, taskActual, futurePlanned, runningPlanned } from "../plugins/project-lens/src/core/sessions.js";
+import { sessionKind, actualSlots, addSession, addActual, moveSession, resizeSession, removeSession, taskActual, futurePlanned, runningPlanned } from "../plugins/project-lens/src/core/sessions.js";
+import * as sessionsMod from "../plugins/project-lens/src/core/sessions.js";
+
+test("予定の枠を実績に書き換える confirmSession は持たない（実績は addActual で、予定とは別の枠として入れる）", () => {
+  assert.equal("confirmSession" in sessionsMod, false);
+});
 
 const load = () => JSON.parse(readFileSync(new URL("../plugins/project-lens/data/sample.json", import.meta.url), "utf8"));
 const NOW = { date: "2026-10-20", time: "12:00" }; // 火曜
@@ -71,16 +76,6 @@ test("resizeSession: 15分未満・23:59 超過・重なりは error", () => {
   assert.match(resizeSession(d, "S3", "24:00").error, /23:59/);
   const d2 = load(); task(d2, "AA-0004").sessions.push({ id: "S9", date: "2026-10-22", start: "12:30", end: "13:30", kind: "planned" });
   assert.ok(resizeSession(d2, "S5", "13:00").error);
-});
-
-test("confirmSession: 今日までの予定は actual（今日のまだ終わっていない枠も。今日のタスクの「実績にする」）、明日以降は error", () => {
-  const d = load();
-  d.tasks.find((t) => t.id === "AA-0005").sessions[2] = { id: "S3", date: "2026-10-20", start: "09:00", end: "10:00", kind: "planned" };
-  assert.equal(sess(confirmSession(d, "S3", NOW).data, "S3").kind, "actual");
-  task(d, "AA-0004").sessions.push({ id: "S8", date: "2026-10-20", start: "11:30", end: "12:30", kind: "planned" }, { id: "S9", date: "2026-10-20", start: "15:00", end: "16:00", kind: "planned" });
-  assert.equal(sess(confirmSession(d, "S8", NOW).data, "S8").kind, "actual", "進行中の枠");
-  assert.equal(sess(confirmSession(d, "S9", NOW).data, "S9").kind, "actual", "今日のこれからの枠");
-  assert.match(confirmSession(load(), "S5", NOW).error, /明日以降の枠は実績にできません/);
 });
 
 test("removeSession と、枠の操作でタスクの状態は変わらない", () => {
@@ -223,13 +218,6 @@ test("moveSession・resizeSession: 実績は今より後へ動かせない。予
   task(d, "AA-0004").sessions.push({ id: "S11", date: "2026-10-20", start: "10:00", end: "11:00", kind: "actual" });
   assert.match(moveSession(d, "S9", { date: "2026-10-20", start: "10:30" }, NOW).error, /他の実績の枠（/);
   assert.match(resizeSession(d, "S9", "10:30", NOW).error, /他の実績の枠（/);
-});
-
-test("confirmSession: ほかの実績の枠と重なる予定は、実績にしない", () => {
-  const d2 = load();
-  task(d2, "AA-0004").sessions.push({ id: "S73", date: "2026-10-20", start: "10:00", end: "11:00", kind: "actual" });
-  task(d2, "AA-0005").sessions.push({ id: "S74", date: "2026-10-20", start: "10:30", end: "11:30", kind: "planned" });
-  assert.match(confirmSession(d2, "S74", NOW).error, /他の実績の枠（10:00〜11:00）/);
 });
 
 test("sessionKind: 重なる実績があれば planned、無ければ unconfirmed（接するだけは重ならない）", () => {

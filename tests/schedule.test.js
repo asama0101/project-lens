@@ -154,7 +154,12 @@ test("updateTask 相当: Waiting で待ち先なしでも、他の項目の変�
 });
 
 // ---- 会議の確認とプロジェクト（Task 3） ----
-import { meetingKind, confirmMeeting, setMeetingActual, meetingActualSpan } from "../plugins/project-lens/src/core/schedule.js";
+import { meetingKind, setMeetingActual, meetingActualSpan } from "../plugins/project-lens/src/core/schedule.js";
+import * as scheduleMod from "../plugins/project-lens/src/core/schedule.js";
+
+test("会議を予定の時刻のまま確認する confirmMeeting は持たない（実績は setMeetingActual で入れる）", () => {
+  assert.equal("confirmMeeting" in scheduleMod, false);
+});
 
 test("meetingKind: skip→skipped / confirmed→actual / 過去→unconfirmed / 未来→planned（終了ちょうどは過去）", () => {
   const now = { date: "2026-10-20", time: "12:00" };
@@ -164,15 +169,6 @@ test("meetingKind: skip→skipped / confirmed→actual / 過去→unconfirmed / 
   assert.equal(meetingKind(ev("11:00", "12:00"), now), "unconfirmed", "終了ちょうどは過去");
   assert.equal(meetingKind(ev("11:00", "12:01"), now), "planned");
   assert.equal(meetingKind(ev("09:00", "10:00", { date: "2026-10-21" }), now), "planned");
-});
-
-test("confirmMeeting: 未来と skip は例外、過去なら confirmed:true", () => {
-  const now = { date: "2026-10-20", time: "12:00" };
-  const d = base([ev("09:00", "10:00"), ev("13:00", "14:00", { id: "f" }), ev("10:00", "11:00", { id: "s", skip: true })]);
-  assert.equal(confirmMeeting(d, "09:0010:00", now).events[0].confirmed, true);
-  assert.throws(() => confirmMeeting(d, "f", now), /未来/);
-  assert.throws(() => confirmMeeting(d, "s", now), /参加しない/);
-  assert.throws(() => confirmMeeting(d, "none", now));
 });
 
 test("updateMeeting: projectId を手動で付けると manual、'' で自動に戻り規則が再適用される。mcp の会議でも projectId と confirmed は変更できる", () => {

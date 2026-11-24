@@ -271,8 +271,6 @@ tr.drop-after>td,.g-row.drop-after>.g-label,.g-row.drop-after>.g-lane{box-shadow
 .blk.task.plan{background:var(--accent-soft);border:1px solid var(--accent);border-left-width:4px}
 .blk.task.act{background:color-mix(in srgb,var(--ok) 22%,var(--surface));border:1px solid var(--ok);border-left-width:4px}
 .blk.task.unconf{background:var(--warn-soft);border:1px dashed var(--warn);border-left:4px dashed var(--warn)}
-.blk .bb{display:flex;gap:4px;flex-wrap:wrap;margin-top:2px}
-.blk .bb .btn{padding:0 6px;font-size:11px}
 .blk .rz{position:absolute;left:0;right:0;bottom:0;height:6px;cursor:ns-resize}
 .blk .rz::after{content:"";position:absolute;left:50%;bottom:2px;width:16px;height:2px;margin-left:-8px;border-radius:1px;background:var(--ink);opacity:.35}
 .nowline{position:absolute;left:0;right:0;height:0;border-top:2px solid var(--bad);z-index:6;pointer-events:none}
@@ -329,8 +327,8 @@ tr.hl td{transition:background .3s}
 .blk.mtg.skip{opacity:.6;background:transparent;border:1px dashed var(--muted);text-decoration:line-through}
 .blk.mtg.sel{outline:2px solid var(--ink);outline-offset:1px;z-index:4}
 .blk.mtg:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-.mtgform{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:flex-end;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);margin-bottom:12px}
-.mtgform label{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted)}
+.mtgform,.actform{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:flex-end;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);margin-bottom:12px}
+.mtgform label,.actform label{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted)}
 .mtgform label.chk{flex-direction:row;align-items:center;gap:6px;color:var(--ink);font-size:13px}
 .mtgform .in:disabled{background:var(--line-soft);color:var(--muted);border-color:var(--line)}
 .sw.skipsw{background:transparent;border:1px dashed var(--muted)}
@@ -560,10 +558,9 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 #view .cal.wk .week>.dueoff{grid-column:2 / -1;padding:2px 6px;font-size:12px;color:var(--muted)}
 #view .cal.wk .duetg{font:inherit;font-size:11px;color:var(--muted);background:none;border:0;padding:4px 0;cursor:pointer;white-space:nowrap}
 #view .cal.wk .duetg:hover{color:var(--ink)}
-/* 今日のタスクの枠の時間。枠ごとに、時間と「実績にする」のボタン（予定・未確認の枠だけ）を並べ、折り返す */
+/* 今日のタスクの枠の時間。枠ごとに、札と時間を並べ、折り返す */
 #view .rank.tl .tss{display:flex;flex-wrap:wrap;gap:4px 12px}
 #view .rank.tl .ts{display:inline-flex;align-items:center;gap:6px}
-#view .rank.tl .ts .btn{padding:0 8px;font-size:12px;min-height:24px}
 /* 今日のタスクの枠の札（予定・実績・未確認）。色はカレンダーの凡例（.sw.plan・.sw.act・.sw.unconf）と同じ */
 #view .ktag{display:inline-block;font-family:var(--f-body);font-size:11px;font-weight:700;line-height:1.4;border-radius:4px;padding:0 6px;margin-right:4px;color:var(--ink);white-space:nowrap}
 #view .ktag.plan{background:var(--accent-soft);border:1px solid var(--accent)}
@@ -1242,7 +1239,7 @@ return { taskStart, ganttRows, ganttLayout, timeTicks, projectProgress, taskFlag
 })();
 
 /* src/core/sessions.js */
-const { LAST_END, allSessions, actualSlots, sessionKind, addSession, addActual, moveSession, resizeSession, confirmSession, removeSession, taskActual, runningPlanned, futurePlanned } = (() => {
+const { LAST_END, allSessions, actualSlots, sessionKind, addSession, addActual, moveSession, resizeSession, removeSession, taskActual, runningPlanned, futurePlanned } = (() => {
 // 作業枠（予定／実績）の規則。枠は「作業した時間の記録」で、タスクの状態は変えない。すべて不変更新。
 
 
@@ -1335,17 +1332,6 @@ function resizeSession(data, sessionId, end, now) {
   return { data: mapSessions(data, sessionId, (s) => ({ ...s, end })), ...(r.warning && { warning: r.warning }) };
 }
 
-/** 予定の枠を実績にする。今日のまだ終わっていない枠も実績にできる（今日のタスクの「実績にする」）。明日以降の枠は error */
-function confirmSession(data, sessionId, now) {
-  const cur = findSession(data, sessionId);
-  if (!cur) return { data, error: `枠 ${sessionId} がありません` };
-  if (cur.date > now.date) return { data, error: "明日以降の枠は実績にできません" };
-  // ほかの実績の枠と重なるなら、実績にしない（稼働に同じ時間を二重に数えないため）
-  const other = allSessions(data).find((x) => x.id !== sessionId && x.kind === "actual" && clash(x, cur));
-  if (other) return { data, error: `他の実績の枠（${other.start}〜${other.end}）と重なっています。どちらかの時間を直してから、実績にしてください` };
-  return { data: mapSessions(data, sessionId, (s) => ({ ...s, kind: "actual" })) };
-}
-
 function removeSession(data, sessionId) {
   return { ...data, tasks: data.tasks.map((t) => ((t.sessions ?? []).some((s) => s.id === sessionId) ? { ...t, sessions: t.sessions.filter((s) => s.id !== sessionId) } : t)) };
 }
@@ -1372,7 +1358,7 @@ function futurePlanned(data, taskId, now) {
   return (t?.sessions ?? []).filter((s) => s.kind === "planned" && notStarted(s)).map((s) => s.id);
 }
 
-return { LAST_END, allSessions, actualSlots, sessionKind, addSession, addActual, moveSession, resizeSession, confirmSession, removeSession, taskActual, runningPlanned, futurePlanned };
+return { LAST_END, allSessions, actualSlots, sessionKind, addSession, addActual, moveSession, resizeSession, removeSession, taskActual, runningPlanned, futurePlanned };
 })();
 
 /* src/core/impact.js */
@@ -1551,7 +1537,7 @@ return { matchProject, assignMeetingProjects, setProjectRule, removeProjectRule,
 })();
 
 /* src/core/schedule.js */
-const { rankTasks, addMeeting, updateMeeting, meetingPast, meetingKind, confirmMeeting, meetingActualSpan, setMeetingActual, deleteMeeting, syncMcpEvents } = (() => {
+const { rankTasks, addMeeting, updateMeeting, meetingPast, meetingKind, meetingActualSpan, setMeetingActual, deleteMeeting, syncMcpEvents } = (() => {
 // 優先順位・会議の操作（純関数、不変更新）
 
 
@@ -1667,15 +1653,6 @@ function meetingKind(m, now) {
   return meetingPast(m, now) ? "unconfirmed" : "planned";
 }
 
-/** 過ぎた会議を実績として確認する。未来の会議と、参加しない会議は確認できない */
-function confirmMeeting(data, id, now) {
-  const cur = data.events.find((e) => e.id === id);
-  if (!cur) throw new Error(`会議 ${id} がありません`);
-  if (cur.skip) throw new Error("参加しない会議は実績にできません");
-  if (!meetingPast(cur, now)) throw new Error("未来の会議は実績にできません");
-  return { ...data, events: data.events.map((e) => (e.id === id ? { ...e, confirmed: true } : e)) };
-}
-
 /** 会議の実際の時間。実績が無ければ予定の時間（confirmed のみ = 予定どおり） */
 const meetingActualSpan = (m) => m.actual ?? { start: m.start, end: m.end };
 
@@ -1720,7 +1697,7 @@ function syncMcpEvents(data, fetched, range, excludedIds = new Set(), keepIds = 
   return { ...data, events };
 }
 
-return { rankTasks, addMeeting, updateMeeting, meetingPast, meetingKind, confirmMeeting, meetingActualSpan, setMeetingActual, deleteMeeting, syncMcpEvents };
+return { rankTasks, addMeeting, updateMeeting, meetingPast, meetingKind, meetingActualSpan, setMeetingActual, deleteMeeting, syncMcpEvents };
 })();
 
 /* src/core/workload.js */
@@ -2587,7 +2564,7 @@ return { depPath, depMarkup, drawDeps, focusDeps };
 })();
 
 /* src/ui/edit.js */
-const { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, confirmTodaySession, recordActual, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject } = (() => {
+const { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, recordActual, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject } = (() => {
 // 画面からの編集（追加・削除・更新）。すべて不変更新で、不正な入力は例外にする（呼び出し側が理由を表示する）。
 
 
@@ -2966,18 +2943,6 @@ function addUrgentTask(data, { title, projectId, date, start, minutes }) {
 }
 
 /**
- * 今日のタスクの「実績にする」: 予定の枠を実績にし（confirmSession。ほかの実績の枠と重なる・明日以降は Error）、
- * タスクが To Do・Waiting なら In Progress にする（updateTask の規則で、Waiting の待ち先は外れる）。statusChanged・from（元の状態）を返す
- */
-function confirmTodaySession(data, sessionId, now) {
-  const r = confirmSession(data, sessionId, now);
-  if (r.error) throw new Error(r.error);
-  const t = data.tasks.find((x) => (x.sessions ?? []).some((s) => s.id === sessionId));
-  const statusChanged = t.status === "To Do" || t.status === "Waiting";
-  return { data: statusChanged ? updateTask(r.data, t.id, { status: "In Progress" }, now.date) : r.data, taskId: t.id, statusChanged, from: t.status };
-}
-
-/**
  * 実績の枠を保存する（addActual。ほかの実績の枠と重なる・開始が今より後・タスクが無いは Error）。
  * タスクが To Do・Waiting なら In Progress にする（updateTask の規則で、Waiting の待ち先は外れる。Done・Cancelled は変えない）。statusChanged・from（元の状態）を返す
  */
@@ -3114,7 +3079,7 @@ function deleteProject(data, projectId) {
   return { ...data, settings, events, ...(inbox ? { inbox } : {}), projects: data.projects.filter((p) => p.id !== projectId), tasks: data.tasks.filter((t) => t.projectId !== projectId) };
 }
 
-return { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, confirmTodaySession, recordActual, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject };
+return { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, recordActual, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject };
 })();
 
 /* src/ui/donecheck.js */
@@ -3383,12 +3348,10 @@ const statusPill = (t) => `<span class="pill ${PILL[t.status] ?? "off"}">${esc(t
 /** 枠の種類の札（カレンダーの凡例と同じ色の class。文字でも出す） */
 const KIND_TAG = { planned: ["plan", "予定"], actual: ["act", "実績"], unconfirmed: ["unconf", "未確認"] };
 
-/** 今日のタスクの枠の時間。前に予定・実績・未確認の札、終わっていないタスクの予定の枠（未確認を含む）には「実績にする」のボタンを付ける */
-function slotHtml(t, s, now) {
-  const time = esc(`${s.start}–${s.end}`);
-  const [cls, label] = KIND_TAG[sessionKind(s, now)];
-  const btn = !isClosed(t) && s.kind === "planned" ? `<button class="btn" data-session-actual="${esc(s.id)}" aria-label="${esc(t.id)} の ${time} の枠を実績にする">実績にする</button>` : "";
-  return `<span class="ts"><span class="ktag ${cls}">${label}</span>${time}${btn}</span>`;
+/** 今日のタスクの枠の時間。前に予定・実績・未確認の札を付ける（actuals は全タスクの実績の枠。過ぎた予定に重なる実績があれば、未確認にしない） */
+function slotHtml(s, now, actuals) {
+  const [cls, label] = KIND_TAG[sessionKind(s, now, actuals)];
+  return `<span class="ts"><span class="ktag ${cls}">${label}</span>${esc(`${s.start}–${s.end}`)}</span>`;
 }
 
 /** Done・Cancelled にする前の確認（今日のタスクの行と、リストの状態の欄が使う）。
@@ -3420,9 +3383,10 @@ function renderTodayTasks(data, today, opts = {}) {
   const rows = todayList(data, today);
   const now = opts.now ?? { date: today, time: "00:00" };
   if (!rows.length) return "";
+  const actuals = actualSlots(data);
   const items = rows.map(({ t, slots }) => {
     const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? (t.projectId == null ? "プロジェクトなし" : ""));
-    const times = slots.map((s) => slotHtml(t, s, now)).join("");
+    const times = slots.map((s) => slotHtml(s, now, actuals)).join("");
     const ask = opts.pendingDone?.id === t.id ? doneAskHtml(opts.pendingDone) : "";
     const drag = opts.sched && !isClosed(t) ? ` draggable="true" data-dragtask="${esc(t.id)}"` : "";
     return `<li data-today="${esc(t.id)}"${isClosed(t) ? ' class="closed"' : ""}${drag}><span class="pj">${proj}</span><span class="t">${esc(t.title)} ${statusPill(t)}${isImportantMark(t) ? IMP_BADGE : ""}</span><span class="why mono tss">${times}</span>${isClosed(t) ? "" : checkMeterHtml(t, { remain: true })}${ask}</li>`;
@@ -3689,7 +3653,7 @@ function renderWorkload(data, today, opts = {}) {
   const sumTask = w.rows.reduce((a, r) => a + r.task, 0) + w.unassigned.task;
   const sumMtg = w.rows.reduce((a, r) => a + r.meeting, 0) + w.unassigned.meeting;
   const note = w.unconfirmed > 0
-    ? `<div class="banner">未確認 ${w.unconfirmed}件（作業枠 ${w.unconfirmedTasks}・会議 ${w.unconfirmedMeetings}）は、まだ含まれていません。スケジュール画面で「実績にする」と確認すると加わります。</div>`
+    ? `<div class="banner">未確認 ${w.unconfirmed}件（作業枠 ${w.unconfirmedTasks}・会議 ${w.unconfirmedMeetings}）は、まだ含まれていません。スケジュール画面で実績を入れると加わります。</div>`
     : "";
   const none = data.projects.length ? "" : `<p class="muted">プロジェクトがありません。ガントチャートかリストの「＋ プロジェクトを追加」から追加してください。</p>`;
   return `<section class="panel wl" aria-label="稼働">
@@ -4214,7 +4178,7 @@ return { statusCellHtml, renderProjects };
 })();
 
 /* src/ui/views/schedule.js */
-const { snapStart, selectionKey, revealSelection, weekStartOf, calendarGeometry, urgentDefaultStart, urgentInput, urgentForm, renderCalendar, renderSchedule } = (() => {
+const { snapStart, selectionKey, revealSelection, weekStartOf, calendarGeometry, urgentDefaultStart, urgentInput, urgentForm, actualForm, renderCalendar, renderSchedule } = (() => {
 // スケジュール画面（週／日）。位置と高さは 1 日（00:00〜24:00）に対する % で表し、カレンダーの高さは CSS で決める。
 
 
@@ -4270,8 +4234,7 @@ function meetingBlocks(data, d, full, g, ctx) {
     const pname = (data.projects ?? []).find((p) => p.id === m.projectId)?.name;
     const by = m.projectBy === "manual" ? "（手動）" : m.projectBy === "rule" ? "（規則）" : "";
     const proj = full ? `<span class="mp">${pname ? `プロジェクト: ${esc(pname)}${by}` : "プロジェクト未設定"}</span>` : "";
-    const confirm = full && kind === "unconfirmed" ? `<span class="bb"><button class="btn" data-confirmmtg="${esc(m.id)}">実績にする</button></span>` : "";
-    return `<div class="blk mtg ${m.skip ? "skip" : ""} ${kc} ${ctx.selMtg === m.id ? "sel" : ""}${b - a < SHORT_MIN ? " short" : ""}" data-mtg="${esc(m.id)}" tabindex="0" ${manual ? `draggable="true" data-dragmtg="${esc(m.id)}"` : ""} style="top:${g.tp(a)};height:${g.ht(a, b)}" title="${esc(m.title)}${m.skip ? "(参加しない)" : ""}${manual ? "" : "(予定表から取得)"}"><span class="tm">${esc(m.start)}-${esc(m.end)}${mark}</span>${esc(m.title)}${proj}${confirm}${manual ? `<i class="rz" data-rzm="${esc(m.id)}" aria-label="終了時刻を変更"></i>` : ""}</div>`;
+    return `<div class="blk mtg ${m.skip ? "skip" : ""} ${kc} ${ctx.selMtg === m.id ? "sel" : ""}${b - a < SHORT_MIN ? " short" : ""}" data-mtg="${esc(m.id)}" tabindex="0" ${manual ? `draggable="true" data-dragmtg="${esc(m.id)}"` : ""} style="top:${g.tp(a)};height:${g.ht(a, b)}" title="${esc(m.title)}${m.skip ? "(参加しない)" : ""}${manual ? "" : "(予定表から取得)"}"><span class="tm">${esc(m.start)}-${esc(m.end)}${mark}</span>${esc(m.title)}${proj}${manual ? `<i class="rz" data-rzm="${esc(m.id)}" aria-label="終了時刻を変更"></i>` : ""}</div>`;
   }).join("");
 }
 
@@ -4282,14 +4245,12 @@ const STATUS_JA = { "To Do": "未着手", "In Progress": "着手中", Waiting: "
 
 function sessionBlocks(data, d, full, g, ctx) {
   return allSessions(data).filter((s) => s.date === d).map((s) => {
-    const kind = sessionKind(s, ctx.now);
-    const c = KIND_CLS[kind];
-    const confirm = full && kind === "unconfirmed" ? `<span class="bb"><button class="btn" data-confirm="${esc(s.id)}">実績にする</button></span>` : "";
+    const c = KIND_CLS[sessionKind(s, ctx.now, ctx.actuals)];
     const task = data.tasks.find((t) => t.id === s.taskId);
     const st = full ? ` <span class="stt">${STATUS_JA[task.status] ?? ""}</span>` : "";
     const imp = isImportantMark(task) ? " imp" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
     const short = toMin(s.end) - toMin(s.start) < SHORT_MIN ? " short" : "";
-    return `<div class="blk task ${c}${imp}${short} ${ctx.selSess === s.id ? "sel" : ""}" draggable="true" tabindex="0" data-dragsess="${esc(s.id)}" style="top:${g.tp(toMin(s.start))};height:${g.ht(toMin(s.start), toMin(s.end))}" title="${esc(s.title)}(${KIND_JA[c]})"><span class="tm">${esc(s.start)}-${esc(s.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${esc(s.title)}</span>${st}${confirm}<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i></div>`;
+    return `<div class="blk task ${c}${imp}${short} ${ctx.selSess === s.id ? "sel" : ""}" draggable="true" tabindex="0" data-dragsess="${esc(s.id)}" style="top:${g.tp(toMin(s.start))};height:${g.ht(toMin(s.start), toMin(s.end))}" title="${esc(s.title)}(${KIND_JA[c]})"><span class="tm">${esc(s.start)}-${esc(s.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${esc(s.title)}</span>${st}<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i></div>`;
   }).join("");
 }
 
@@ -4309,6 +4270,9 @@ function urgentInput(f) {
   return { input: { title, projectId: f.projectId || null, date, start, minutes: +f.minutes } };
 }
 
+/** 開始が今以前（今ちょうどを含む）か。実績を入れられるのは、始まった枠・会議だけ */
+const started = (x, now) => x.date < now.date || (x.date === now.date && x.start <= now.time);
+
 function meetingForm(data, ctx) {
   const draft = ctx.mtgDraft;
   const m = draft ?? (data.events ?? []).find((o) => o.id === ctx.selMtg);
@@ -4320,6 +4284,10 @@ function meetingForm(data, ctx) {
   const autoName = projects.find((p) => p.id === autoId)?.name ?? "未設定";
   const cur = isNew ? (m.projectId ?? "") : m.projectBy === "manual" ? m.projectId : "";
   const projOpts = [`<option value=""${cur === "" ? " selected" : ""}>自動（規則）→ ${esc(autoName)}</option>`, ...projects.map((p) => `<option value="${esc(p.id)}"${cur === p.id ? " selected" : ""}>${esc(p.name)}</option>`)].join("");
+  const act = !isNew && !m.skip && started(m, ctx.now) ? meetingActualSpan(m) : null; // 参加しない会議・始まっていない会議には、実績を入れない
+  const actHtml = act ? `<label>実績の開始<input class="in" type="time" step="900" data-ma="start" value="${esc(act.start)}"></label>
+    <label>実績の終了<input class="in" type="time" step="900" data-ma="end" value="${esc(act.end)}"></label>
+    <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-mtgact="${esc(m.id)}">実績を保存</button></div>` : "";
   return `<div class="mtgform" role="group" aria-label="会議の${isNew ? "追加" : "編集"}">
     <label>件名<input class="in" data-mt="title" value="${esc(m.title)}" placeholder="会議名" style="min-width:200px" ${lock}></label>
     <label>日付${dateInputHtml({ value: m.date, attrs: `data-mt="date" ${lock}`, label: "会議の日付" })}</label>
@@ -4327,7 +4295,7 @@ function meetingForm(data, ctx) {
     <label>終了<input class="in" type="time" step="900" data-mt="end" value="${esc(m.end)}" ${lock}></label>
     <label>プロジェクト<select class="in" data-mt="projectId" aria-label="会議のプロジェクト">${projOpts}</select></label>
     <label class="chk"><input type="checkbox" data-mt="skip" ${m.skip ? "checked" : ""}>参加しない(稼働に数えず、作業枠と重なっても注意しない)</label>
-    <div style="display:flex;gap:6px;align-items:center">${isNew ? `<button class="btn" data-mtgsave>追加</button><button class="btn" data-mtgcancel>キャンセル</button>` : `${m.source === "manual" ? `<button class="btn danger" data-delsel>会議を削除</button>` : ""}<button class="btn" data-mtgclose>閉じる</button>`}</div>
+    ${actHtml}<div style="display:flex;gap:6px;align-items:center">${isNew ? `<button class="btn" data-mtgsave>追加</button><button class="btn" data-mtgcancel>キャンセル</button>` : `${m.source === "manual" ? `<button class="btn danger" data-delsel>会議を削除</button>` : ""}<button class="btn" data-mtgclose>閉じる</button>`}</div>
     ${!isNew && m.source === "manual" ? `<p class="note" style="flex-basis:100%;margin:0">カレンダー上でドラッグして移動（別の日へも）、下端をドラッグして長さを変えられます。</p>` : ""}${!isNew && m.source === "mcp" ? `<p class="note" style="flex-basis:100%;margin:0">予定表から取得した会議です。件名と時間は取得内容が正のため変更できません。プロジェクトは、規則で自動に付き、ここで手動に変えられます。出席しない会議は「参加しない」にします（削除しても、次の取得で戻ります）。</p>` : ""}
   </div>`;
 }
@@ -4347,13 +4315,43 @@ function urgentForm(data, draft) {
   </div>`;
 }
 
+/** 「実績を追加」の開始・終了の初期値 */
+const ACT_ADD_START = "09:00", ACT_ADD_END = "10:00";
+
+/**
+ * 実績の入力欄。始まった予定の枠を選んでいるときは、その枠の時刻を初期値に（タスクは枠のタスク）。
+ * 「＋ 実績を追加」（ctx.add = { date }）のときは、タスク（Done・Cancelled 以外）・日付も選ぶ。どちらでもなければ出さない。
+ * 入力の値は、保存を押したときに画面から読む（app.js）
+ * @param ctx { selSess: 選択中の枠 ID, add: S.actAdd, today, now }
+ */
+function actualForm(data, ctx) {
+  const s = allSessions(data).find((x) => x.id === ctx.selSess);
+  const fromPlan = s && s.kind === "planned" && started(s, ctx.now);
+  if (!fromPlan && !ctx.add) return "";
+  const time = (k, v) => `<label>${k === "start" ? "開始" : "終了"}<input class="in" type="time" step="900" data-ac="${k}" value="${esc(v)}"></label>`;
+  if (fromPlan) {
+    return `<div class="actform" role="group" aria-label="実績の入力">
+    <span class="note" style="flex-basis:100%;margin:0">「${esc(s.title)}」の実績を入れます（予定の枠は残ります）</span>
+    ${time("start", s.start)}${time("end", s.end)}
+    <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-actsave="${esc(s.id)}">実績を保存</button></div>
+  </div>`;
+  }
+  const taskOpts = data.tasks.filter((t) => !isClosed(t)).map((t) => `<option value="${esc(t.id)}">${esc(t.title)}</option>`).join("");
+  return `<div class="actform" role="group" aria-label="実績の入力">
+    <label>タスク<select class="in" data-ac="task" aria-label="実績のタスク">${taskOpts}</select></label>
+    <label>日付${dateInputHtml({ value: ctx.add.date ?? ctx.today, attrs: 'data-ac="date"', label: "実績の日付" })}</label>
+    ${time("start", ACT_ADD_START)}${time("end", ACT_ADD_END)}
+    <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-actsave="">実績を保存</button><button class="btn" data-actcancel>キャンセル</button></div>
+  </div>`;
+}
+
 /** 色の凡例（上の操作の行に置く）。日表示は現在時刻の線、参加しない会議を出すときはその印も */
 const legendHtml = (day, showSkipped) => `<div class="slegend" aria-label="色の凡例"><span><i class="sw mtg"></i>会議</span>${showSkipped ? '<span><i class="sw skipsw"></i>参加しない会議</span>' : ""}<span><i class="sw mtgun"></i>未確認の会議</span><span><i class="sw plan"></i>予定</span><span><i class="sw act"></i>実績(✓)</span><span><i class="sw unconf"></i>未確認(過ぎた予定)</span>${day ? '<span><i class="sw now"></i>現在時刻</span>' : ""}<span><i class="sw sel"></i>選択中</span></div>`;
 
 /** カレンダー部分（週または日）。会議の編集中はここだけを描き直す */
 function renderCalendar(data, today, opts) {
   const { view = "week", date = today } = opts;
-  const ctx = { now: opts.now ?? { date: today, time: "00:00" }, selSess: opts.selSess ?? null, selMtg: opts.selMtg ?? null, showSkipped: opts.showSkipped === true };
+  const ctx = { now: opts.now ?? { date: today, time: "00:00" }, selSess: opts.selSess ?? null, selMtg: opts.selMtg ?? null, showSkipped: opts.showSkipped === true, actuals: actualSlots(data) };
   const g = calendarGeometry();
   const isOff = offDayChecker(data.settings);
   let cal;
@@ -4383,7 +4381,7 @@ function renderCalendar(data, today, opts) {
  * @param opts.view      "week" | "day"
  * @param opts.date      表示する日（週表示ではその日を含む週）
  * @param opts.now       {date, time}  現在時刻（過ぎた予定の判定に使う）
- * @param opts.selSess   選択中の枠 ID / opts.selMtg 選択中の会議 ID / opts.mtgDraft 追加中の会議の下書き / opts.urgentDraft 追加中の突発タスクの下書き / opts.taskEdit 編集欄を開いているタスク { id, full, askDel }
+ * @param opts.selSess   選択中の枠 ID / opts.selMtg 選択中の会議 ID / opts.mtgDraft 追加中の会議の下書き / opts.urgentDraft 追加中の突発タスクの下書き / opts.taskEdit 編集欄を開いているタスク { id, full, askDel } / opts.actAdd 「実績を追加」の入力欄 { date }
  * @param opts.showPrio  false なら今日の優先を出さない
  * @param opts.showSkipped  true なら「参加しない」の会議も出す（既定は出さない。選択中の会議だけは、隠さない）
  * @param opts.showDue   false なら週表示の期限の行を閉じる（既定は開く）
@@ -4395,7 +4393,8 @@ function renderSchedule(data, today, opts) {
   const days = view === "week" ? [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(weekStartOf(date), i)) : [date];
   const title = view === "week" ? `${fmtMD(days[0])}〜${fmtMD(days[6])} の週` : `${fmtMD(date)}(${wdJa(date)})`;
   const inView = allSessions(data).filter((s) => days.includes(s.date));
-  const kinds = inView.map((s) => sessionKind(s, now));
+  const actuals = actualSlots(data);
+  const kinds = inView.map((s) => sessionKind(s, now, actuals));
   const hours = inView.filter((s, i) => kinds[i] === "actual").reduce((a, s) => a + toMin(s.end) - toMin(s.start), 0) / 60;
   const planned = kinds.filter((k) => k === "planned").length;
   const unconfS = kinds.filter((k) => k === "unconfirmed").length;
@@ -4409,14 +4408,14 @@ function renderSchedule(data, today, opts) {
 
   const nav = `<div class="toolbar"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn" data-nav="${-step}" aria-label="前へ">←</button><button class="btn" data-nav="${step}" aria-label="次へ">→</button><button class="btn" data-sgoto>今日</button><strong style="margin-left:6px">${title}</strong>${legendHtml(view === "day", opts.showSkipped === true)}</div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="chip-btn pref" data-sskip aria-pressed="${opts.showSkipped === true}" title="「参加しない」にした会議を、カレンダーに出したり隠したりします">参加しない会議</button><button class="btn" data-mtgadd>＋ 会議を追加</button><div class="seg" role="group" aria-label="表示"><button data-sview="week" aria-pressed="${view === "week"}">週</button><button data-sview="day" aria-pressed="${view === "day"}">日</button></div></div></div>
-    <div class="summary"><span>実績 <b class="mono">${hours.toFixed(1)}時間</b></span><span>予定 <b class="mono">${planned}件</b></span>${unconf ? `<span class="pill wait">未確認 ${unconf}件（作業枠 ${unconfS}・会議 ${unconfM}）</span><button class="btn" data-confirmall>未確認をすべて実績にする</button>` : ""}<button class="btn danger" data-delsel ${delOk ? "" : "disabled"}>${delLabel}</button></div>`;
+    <div class="summary"><span>実績 <b class="mono">${hours.toFixed(1)}時間</b></span><span>予定 <b class="mono">${planned}件</b></span>${unconf ? `<span class="pill wait">未確認 ${unconf}件（作業枠 ${unconfS}・会議 ${unconfM}）</span>` : ""}<button class="btn danger" data-delsel ${delOk ? "" : "disabled"}>${delLabel}</button></div>`;
   const et = selSess && opts.taskEdit ? data.tasks.find((t) => t.id === opts.taskEdit.id) : null; // 編集欄は、表示中の枠を選んでいる間だけ出す（枠を選ぶと、そのタスクの編集欄になる）
   const editPanel = et ? renderTaskEditPanel(data, opts.taskEdit, statusCellHtml(et, { ...opts, todayIds: opts.showPrio === false ? new Set() : new Set(todayTaskIds(data, today)) }, taskFlags(et, today, data.settings).includes("overdue"))) : "";
-  return `<div class="cols${opts.showPrio === false ? " one" : ""}"><section class="panel"><div class="stop">${nav}</div><div id="mtgslot">${meetingForm(data, { mtgDraft: opts.mtgDraft, selMtg: selMtg?.id })}${urgentForm(data, opts.urgentDraft)}${editPanel}</div><div id="calslot">${renderCalendar(data, today, calOpts)}</div></section>${renderSideToggle(opts.showPrio !== false)}${opts.showPrio === false ? "" : renderSide(data, today, { sched: true, pendingDone: opts.pendingDone, now })}</div>`;
+  return `<div class="cols${opts.showPrio === false ? " one" : ""}"><section class="panel"><div class="stop">${nav}</div><div id="mtgslot">${meetingForm(data, { mtgDraft: opts.mtgDraft, selMtg: selMtg?.id, now })}${urgentForm(data, opts.urgentDraft)}${actualForm(data, { selSess: selSess?.id ?? null, add: opts.actAdd, today, now })}${editPanel}</div><div id="calslot">${renderCalendar(data, today, calOpts)}</div></section>${renderSideToggle(opts.showPrio !== false)}${opts.showPrio === false ? "" : renderSide(data, today, { sched: true, pendingDone: opts.pendingDone, now })}</div>`;
 }
 
 
-return { snapStart, selectionKey, revealSelection, weekStartOf, calendarGeometry, urgentDefaultStart, urgentInput, urgentForm, renderCalendar, renderSchedule };
+return { snapStart, selectionKey, revealSelection, weekStartOf, calendarGeometry, urgentDefaultStart, urgentInput, urgentForm, actualForm, renderCalendar, renderSchedule };
 })();
 
 /* src/ui/dnd.js */
@@ -4629,7 +4628,7 @@ const S = {
   screen: "gantt",
   filter: "all", gwin: "m6", hideDone: false,
   askDel: null, askDelProject: null, pendingWait: null, pendingDone: null, checkOpen: new Set(),
-  sview: "week", sdate: clock().date, selSess: null, selMtg: null, mtgDraft: null, urgentDraft: null, taskEdit: null,
+  sview: "week", sdate: clock().date, selSess: null, selMtg: null, mtgDraft: null, urgentDraft: null, actAdd: null, taskEdit: null,
   prefs: loadPrefs(), settingsClosed: loadSettingsClosed(), tpop: null, addAt: null, last: null, ruleError: "",
   ib: { open: false, text: loadInboxDraft(), projectId: "", replies: {}, reasons: {}, causes: {} },
   wperiod: "day", wdate: clock().date,
@@ -4666,7 +4665,7 @@ function startScreen() {
     ${S.openError ? `<p class="ask" style="max-width:none" role="alert">${esc(S.openError)}</p>` : ""}</section>`;
 }
 
-const scheduleOpts = () => ({ view: S.sview, date: S.sdate, now: clock(), selSess: S.selSess, selMtg: S.selMtg, mtgDraft: S.mtgDraft, urgentDraft: S.urgentDraft, taskEdit: S.taskEdit, pendingWait: S.pendingWait, showPrio: S.prefs.showPrio, showSkipped: S.prefs.showSkipped, showDue: S.prefs.showDue, pendingDone: S.pendingDone });
+const scheduleOpts = () => ({ view: S.sview, date: S.sdate, now: clock(), selSess: S.selSess, selMtg: S.selMtg, mtgDraft: S.mtgDraft, urgentDraft: S.urgentDraft, actAdd: S.actAdd, taskEdit: S.taskEdit, pendingWait: S.pendingWait, showPrio: S.prefs.showPrio, showSkipped: S.prefs.showSkipped, showDue: S.prefs.showDue, pendingDone: S.pendingDone });
 
 function renderBody() {
   const { date: today } = clock();
@@ -4710,7 +4709,7 @@ function render() {
   const c = clock();
   $("todaylabel").textContent = `${c.date.replace(/-/g, "/")}(${wdJa(c.date)})`;
   document.querySelectorAll("nav [role=tab]").forEach((b) => b.setAttribute("aria-selected", String(b.id === "tab-" + S.screen)));
-  $("filebar").innerHTML = S.data ? `<button class="chip-btn pref" data-pref="actual" aria-pressed="${S.prefs.showActual}" title="ガントの実績の線を出したり隠したりします">ガント実績</button><span class="fsep" aria-hidden="true"></span><button class="btn primary" data-urgent-open title="突発タスクの入力欄を開きます">＋ 突発タスク</button><button class="btn" data-refresh title="ファイルを読み直します(Claude Code などが更新した内容を反映)">更新</button><button class="btn" data-open="shared" title="別の共有ファイル（data.json）を選びます">別の共有ファイル</button><button class="btn" data-open="personal" title="別の個人ファイル（personal.json）を選びます">別の個人ファイル</button>${typeof window.showOpenFilePicker === "function" ? "" : `<button class="btn" data-download>JSON を書き出す</button>`}` : "";
+  $("filebar").innerHTML = S.data ? `<button class="chip-btn pref" data-pref="actual" aria-pressed="${S.prefs.showActual}" title="ガントの実績の線を出したり隠したりします">ガント実績</button><span class="fsep" aria-hidden="true"></span><button class="btn primary" data-urgent-open title="突発タスクの入力欄を開きます">＋ 突発タスク</button><button class="btn" data-actadd title="予定の無い作業の実績を入れる欄を開きます">＋ 実績を追加</button><button class="btn" data-refresh title="ファイルを読み直します(Claude Code などが更新した内容を反映)">更新</button><button class="btn" data-open="shared" title="別の共有ファイル（data.json）を選びます">別の共有ファイル</button><button class="btn" data-open="personal" title="別の個人ファイル（personal.json）を選びます">別の個人ファイル</button>${typeof window.showOpenFilePicker === "function" ? "" : `<button class="btn" data-download>JSON を書き出す</button>`}` : "";
   renderBar();
   // ガントの横スクロール位置(全プロジェクトで同じ)とページの縦の位置は、編集で描き直しても保つ(表示期間・絞り込みなどを変えたときだけ今日の位置へ戻す)。
   // 描き直しの間、ページが縮んで scrollY が飛ばないよう、#view の高さを保つ
@@ -5007,7 +5006,7 @@ function submitGAdd(input) {
 }
 
 /* ---------- 選択と削除 ---------- */
-const clearSel = () => { S.selSess = null; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.taskEdit = null; };
+const clearSel = () => { S.selSess = null; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.taskEdit = null; };
 /** 作業枠を選ぶ（id が null なら外す）。選んだ枠のタスクの編集欄を開き（外すと閉じる）、詳細を開いているか（full）は引き継ぐ */
 const selectSession = (id) => {
   const s = id ? allSessions(S.data).find((x) => x.id === id) : null;
@@ -5071,6 +5070,14 @@ $("filebar").addEventListener("click", async (e) => {
     render(); view.querySelector('[data-ug="title"]')?.focus();
     return;
   }
+  if (e.target.closest("[data-actadd]")) { // 予定の無い作業の実績を入れる欄。開いている日（スケジュール以外からは今日）を初期値にする
+    clearSel(); S.tpop = null; S.pendingDone = null; S.ruleError = "";
+    const date = S.screen === "schedule" ? S.sdate : clock().date;
+    S.screen = "schedule"; S.sdate = date; S.resetScroll = true;
+    S.actAdd = { date };
+    render(); view.querySelector('[data-ac="task"]')?.focus();
+    return;
+  }
   if (e.target.closest("[data-refresh]")) {
     await sync.whenIdle();
     if (sync.failed && !S.confirmRefresh) { S.confirmRefresh = true; toast("保存できていない変更があります。もう一度「更新」を押すと破棄して読み直します"); return; }
@@ -5100,7 +5107,7 @@ $("banner").addEventListener("click", async (e) => {
  *  画面の描き直しで target が DOM から外れる前に判定するため、キャプチャ段階で処理する */
 document.addEventListener("click", (e) => {
   if (S.tpop && !view.contains(e.target)) { S.tpop = null; render(); return; } // ガントの編集の窓は、画面の外のクリックでも閉じる
-  if (view.contains(e.target) || !(S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.taskEdit)) return;
+  if (view.contains(e.target) || !(S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.actAdd || S.taskEdit)) return;
   if (e.target.closest("[data-delsel]")) return;
   clearSel();
   render();
@@ -5120,7 +5127,7 @@ view.addEventListener("click", (e) => {
   if (S.tpop && !q(".tpop,[data-gt],[data-gh]")) { S.tpop = null; render(); } // 閉じたあと、押したものの操作もそのまま行う
   let cleared = false;
   // 欄外のクリックで、枠・会議の選択と追加中の下書きを外す
-  if ((S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.taskEdit) && !q("[data-dragsess],[data-mtg],[data-delsel],.mtgform,[data-mtgadd],[data-confirm],[data-confirmmtg],[data-confirmall]")) { clearSel(); cleared = true; }
+  if ((S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.actAdd || S.taskEdit) && !q("[data-dragsess],[data-mtg],[data-delsel],.mtgform,.actform,[data-mtgadd],[data-actadd],[data-actsave],[data-mtgact]")) { clearSel(); cleared = true; }
   const { date: today, time } = clock();
   const now = clock();
 
@@ -5211,41 +5218,33 @@ view.addEventListener("click", (e) => {
   if (q("[data-wtoday]")) { S.wdate = today; render(); return; }
 
   /* スケジュール画面 */
-  const sa = q("[data-session-actual]"); // 今日のタスクの「実績にする」。枠を実績にし、To Do・Waiting なら In Progress にする（1 回の保存）
-  if (sa) {
-    const sid = sa.dataset.sessionActual; let r;
-    if (apply((d) => { r = confirmTodaySession(d, sid, now); return r.data; }, null)) {
-      const s = allSessions(S.data).find((x) => x.id === sid);
-      toast(`${taskTitle(r.taskId)} の ${s.start}–${s.end} を実績にしました${r.statusChanged ? `（状態を In Progress にしました${r.from === "Waiting" ? "。待ち先の記録は外しました" : ""}）` : ""}`);
-    }
-    return;
-  }
   const sv = q("[data-sview]"); if (sv) { S.sview = sv.dataset.sview; render(); return; }
   const nv = q("[data-nav]"); if (nv) { S.sdate = addDays(S.sdate, +nv.dataset.nav); render(); return; }
   if (q("[data-sgoto]")) { S.sdate = today; render(); return; }
   if (q("[data-sskip]")) { togglePref("showSkipped"); return; }
   if (q("[data-sdue]")) { togglePref("showDue"); return; }
   const dy0 = q("[data-day]"); if (dy0) { S.sdate = dy0.dataset.day; S.sview = "day"; render(); return; }
-  const cf = q("[data-confirm]");
-  if (cf) { apply((d) => { const r = confirmSession(d, cf.dataset.confirm, now); if (r.error) throw new Error(r.error); return r.data; }, "実績にしました。時間が違うときは、枠をドラッグして直します"); return; }
-  const cm = q("[data-confirmmtg]");
-  if (cm) { apply((d) => confirmMeeting(d, cm.dataset.confirmmtg, now), "会議を実績にしました。参加しなかったときは「参加しない」にします"); return; }
-  if (q("[data-confirmall]")) {
-    const days = S.sview === "week" ? [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(weekStartOf(S.sdate), i)) : [S.sdate];
-    let skipped = 0; // ほかの実績の枠と重なって、実績にできなかった枠（confirmSession が断る）
-    apply((d) => {
-      skipped = 0;
-      const next = d.tasks.flatMap((t) => t.sessions ?? []).filter((s) => days.includes(s.date) && sessionKind(s, now) === "unconfirmed").reduce((acc, s) => { const r = confirmSession(acc, s.id, now); if (r.error) skipped++; return r.data; }, d);
-      return next.events.filter((m) => days.includes(m.date) && meetingKind(m, now) === "unconfirmed").reduce((acc, m) => confirmMeeting(acc, m.id, now), next);
-    }, null);
-    toast(skipped ? `未確認の枠と会議を実績にしました。ほかの実績の枠と重なる ${skipped} 件は、未確認のまま残しました` : "未確認の枠と会議を実績にしました");
+  const acs = q("[data-actsave]"); // 実績の保存。入力欄の値は、押したときに読む。予定の枠から入れるときは、枠のタスク・日付
+  if (acs) {
+    const f = (k) => view.querySelector(`[data-ac="${k}"]`)?.value ?? "";
+    const s = acs.dataset.actsave ? allSessions(S.data).find((x) => x.id === acs.dataset.actsave) : null;
+    const taskId = s ? s.taskId : f("task"), slot = { date: s ? s.date : f("date"), start: f("start"), end: f("end") };
+    if (!taskId || !slot.date || !slot.start || !slot.end) { toast("タスク・日付・時刻を入力してください"); return; }
+    let r;
+    if (apply((d) => { r = recordActual(d, taskId, slot, now); return r.data; }, null, { quiet: true })) {
+      clearSel(); render();
+      toast(`${taskTitle(taskId)} の ${slot.start}–${slot.end} の実績を入れました${r.statusChanged ? `（状態を In Progress にしました${r.from === "Waiting" ? "。待ち先の記録は外しました" : ""}）` : ""}`);
+    }
     return;
   }
+  if (q("[data-actcancel]")) { S.actAdd = null; render(); return; }
+  const mact = q("[data-mtgact]"); // 会議の実績の保存（confirmed と actual を書く）
+  if (mact) { const id = mact.dataset.mtgact, f = (k) => view.querySelector(`[data-ma="${k}"]`)?.value ?? "", span = { start: f("start"), end: f("end") }; apply((d) => setMeetingActual(d, id, span, now), "会議の実績を入れました"); return; }
   if (q("[data-delsel]")) { deleteSelected(); return; }
   const sb = q("[data-dragsess]");
-  if (sb && !q("[data-rz]")) { selectSession(S.selSess === sb.dataset.dragsess ? null : sb.dataset.dragsess); S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; render(); return; }
+  if (sb && !q("[data-rz]")) { selectSession(S.selSess === sb.dataset.dragsess ? null : sb.dataset.dragsess); S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; render(); return; }
   const mb = q("[data-mtg]");
-  if (mb && !q("[data-rzm]")) { S.selMtg = S.selMtg === mb.dataset.mtg ? null : mb.dataset.mtg; S.selSess = null; S.mtgDraft = null; S.urgentDraft = null; S.taskEdit = null; render(); return; }
+  if (mb && !q("[data-rzm]")) { S.selMtg = S.selMtg === mb.dataset.mtg ? null : mb.dataset.mtg; S.selSess = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.taskEdit = null; render(); return; }
   if (q("[data-mtgadd]")) {
     const base = S.sdate === today ? Math.ceil((toMin(time) + 1) / 60) * 60 : 10 * 60;
     const st = Math.min(base, 22 * 60); // 1 時間の会議が 23:59 までに収まる、最後の正時
@@ -5296,7 +5295,7 @@ function changeStatus(id, status) {
 
 function setStatus(id, status, future, checkAll = false) {
   const kept = status === "Done" || status === "Cancelled" ? runningPlanned(S.data, id, clock()).length : 0; // 完了にしても進行中の枠は残る
-  const keptMsg = kept ? `。進行中の枠 ${kept} 件は残しました（終わったら「実績にする」で確定します）` : "";
+  const keptMsg = kept ? `。進行中の枠 ${kept} 件は残しました（終わったら、スケジュールで実績を入れます）` : "";
   const n0 = S.data.tasks.length;
   const doneMsg = future.length ? `${taskTitle(id)} の状態を ${status} にしました。未来の予定の枠 ${future.length} 件を解除しました${keptMsg}` : `変更を保存しました${keptMsg}`;
   apply((d) => {
@@ -5739,10 +5738,10 @@ view.addEventListener("mousedown", (e) => {
 
 /* ---------- キーボード ---------- */
 document.addEventListener("keydown", (e) => {
-  const typing = e.target.matches?.("input,select,textarea") || !!e.target.closest?.("[data-tedit], .mtgform"); // 編集欄・入力欄のボタンでも、枠を消さない
+  const typing = e.target.matches?.("input,select,textarea") || !!e.target.closest?.("[data-tedit], .mtgform, .actform"); // 編集欄・入力欄のボタンでも、枠を消さない
   if ((e.key === "Delete" || e.key === "Backspace") && S.screen === "schedule" && (S.selSess || S.selMtg) && !typing) { e.preventDefault(); deleteSelected(); }
   if (e.key === "Escape" && S.tpop) { S.tpop = null; render(); return; }
-  if (e.key === "Escape" && S.screen === "schedule" && (S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.taskEdit)) { clearSel(); render(); }
+  if (e.key === "Escape" && S.screen === "schedule" && (S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.actAdd || S.taskEdit)) { clearSel(); render(); }
 });
 view.addEventListener("keydown", (e) => {
   // 日本語入力の変換確定の Enter(isComposing)では追加しない
