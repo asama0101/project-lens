@@ -3,7 +3,7 @@ import { addDays, toMin, toHHMM, weekday } from "../../core/dates.js";
 import { meetingKind, meetingActualSpan } from "../../core/schedule.js";
 import { matchProject } from "../../core/rules.js";
 import { offDayChecker } from "../../core/holidays.js";
-import { sessionKind, allSessions, ownerOf, actualSlots, LAST_END } from "../../core/sessions.js";
+import { sessionKind, allSessions, actualSlots, LAST_END } from "../../core/sessions.js";
 import { isImportantMark, isClosed } from "../../core/schema.js";
 import { esc, fmtMD, wdJa, STATUS_UI, dateInputHtml } from "../common.js";
 import { renderSide, renderSideToggle, todayTaskIds } from "./prio.js";
@@ -24,13 +24,12 @@ export function snapStart(minutes, durationMin) {
 /** 選んだ枠と編集欄（タスク・詳細の開閉・削除の確認）の状態の鍵。選んでいなければ null */
 export const selectionKey = (selSess, taskEdit) => (selSess ? `${selSess}|${taskEdit?.id ?? ""}|${taskEdit?.full ? 1 : 0}|${taskEdit?.askDel ? 1 : 0}` : null);
 /**
- * 作業枠を選んだときの選択と編集欄（id が null・無い枠なら両方外す）。編集欄（タスクの編集）は、持ち主がタスクの枠だけ開き、詳細を開いているか（full）は prev から引き継ぐ。
- * ToDo の枠は選択だけ（編集欄の id がタスクでないと、描き直しで選択ごと外れるため）
+ * 作業枠を選んだときの選択と編集欄（id が null・無い枠なら両方外す）。編集欄（タスクの編集）は、詳細を開いているか（full）を prev から引き継ぐ
  */
 export function sessionSelection(data, id, prev) {
   const s = id ? allSessions(data).find((x) => x.id === id) : null;
   if (!s) return { selSess: null, taskEdit: null };
-  return { selSess: id, taskEdit: ownerOf(data, s.taskId)?.list === "tasks" ? { id: s.taskId, full: prev?.full ?? false, askDel: false } : null };
+  return { selSess: id, taskEdit: { id: s.taskId, full: prev?.full ?? false, askDel: false } };
 }
 /** 選んだ枠を見える位置へ出すか: 選択か編集欄が、この描き直しで開いた・変わったときだけ（同じ選択のままの描き直しでは、ページを動かさない） */
 export const revealSelection = (prevKey, key) => key != null && key !== prevKey;
@@ -87,9 +86,9 @@ function sessionBlocks(data, d, full, g, ctx) {
   return items.map(({ s, t, bar, isAct }) => {
     const side = items.some((o) => o.isAct !== isAct && overlaps(o.t, t)) ? (isAct ? ";left:50%;width:50%" : ";left:0;width:50%") : "";
     const c = bar ? "act" : s.actual ? "plan" : KIND_CLS[sessionKind(s, ctx.now, ctx.actuals)]; // 実績を持つ予定のブロックは「予定」（未確認にしない）
-    const task = data.tasks.find((x) => x.id === s.taskId); // ToDo の枠は無し（件名だけを出し、状態・重要の印は出さない）
-    const st = full && task ? ` <span class="stt">${STATUS_JA[task.status] ?? ""}</span>` : "";
-    const imp = task && isImportantMark(task) ? " imp" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
+    const task = data.tasks.find((x) => x.id === s.taskId);
+    const st = full ? ` <span class="stt">${STATUS_JA[task.status] ?? ""}</span>` : "";
+    const imp = isImportantMark(task) ? " imp" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
     const short = toMin(t.end) - toMin(t.start) < SHORT_MIN ? " short" : "";
     const attrs = bar ? `tabindex="0" data-actbar="${esc(s.id)}"` : `draggable="true" tabindex="0" data-dragsess="${esc(s.id)}"`;
     return `<div class="blk task ${c}${imp}${short} ${ctx.selSess === s.id ? "sel" : ""}" ${attrs} style="top:${g.tp(toMin(t.start))};height:${g.ht(toMin(t.start), toMin(t.end))}${side}" title="${esc(s.title)}(${KIND_JA[c]})"><span class="tm">${esc(t.start)}-${esc(t.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${esc(s.title)}</span>${st}${bar ? "" : `<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i>`}</div>`;
@@ -170,7 +169,7 @@ const delAsk = (s, askId) => s && s.actual && askId === s.id
   ? `<div class="ask" role="alert"><span class="note">実績 ${toMin(s.actual.end) - toMin(s.actual.start)} 分も消えます</span><button class="btn danger" data-delsessok="${esc(s.id)}">削除する</button><button class="btn" data-delsessno>やめる</button></div>` : "";
 
 /**
- * 実績の入力欄。始まった予定の枠か、実績（actual）を持つ予定の枠を選んでいるときは、その枠の actual を書く欄（日付・開始・終了。持ち主は枠の持ち主。タスクか ToDo）。actual があれば「実績を更新」と「実績を消す」。
+ * 実績の入力欄。始まった予定の枠か、実績（actual）を持つ予定の枠を選んでいるときは、その枠の actual を書く欄（日付・開始・終了。持ち主は枠のタスク）。actual があれば「実績を更新」と「実績を消す」。
  * 「＋ 実績を追加」（ctx.add = { date }）のときは、タスク（Done・Cancelled 以外）・日付も選ぶ。どちらでもなければ出さない。
  * 入力の値は、保存を押したときに画面から読む（app.js）。入力中の値は下書き（ctx.draft = { key, task, date, start, end }。key は枠の ID・"add"）に残り、key が同じ欄は下書きの値で描く
  * @param ctx { selSess: 選択中の枠 ID, add: S.actAdd, draft: S.actDraft, today, now }

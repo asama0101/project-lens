@@ -3,7 +3,7 @@ import { addDays, diffDays, isDate, isWeekend, toMin, toHHMM, nowLocal } from ".
 import { calendarOf } from "../core/holidays.js";
 import { taskStart } from "../core/metrics.js";
 import { groupSections } from "../core/groups.js";
-import { addSession, addActual, setActual, allSessions } from "../core/sessions.js";
+import { addSession, addActual, setActual, allSessions, futurePlanned, removeSession } from "../core/sessions.js";
 import { nextChecklistId } from "../core/checklist.js";
 import { isRepeat, nextRepeatDue } from "../core/repeat.js";
 import { HOLIDAY_KINDS } from "../core/schema.js";
@@ -378,23 +378,55 @@ export function addUrgentTask(data, { title, projectId, date, start, minutes }) 
 /**
  * 実績の枠を保存する（addActual。ほかの実績の枠と重なる・開始が今より後・タスクが無いは Error）。
  * タスクが To Do・Waiting なら In Progress にする（updateTask の規則で、Waiting の待ち先は外れる。Done・Cancelled は変えない）。statusChanged・from（元の状態）を返す。
- * 持ち主が ToDo のときは、状態を持たないので変えない（statusChanged は false、from は ""）
  */
 export function recordActual(data, taskId, slot, now) {
   const r = addActual(data, taskId, slot, now);
   if (r.error) throw new Error(r.error);
-  const from = data.tasks.find((x) => x.id === taskId)?.status ?? "";
+  const from = data.tasks.find((x) => x.id === taskId).status;
   const statusChanged = from === "To Do" || from === "Waiting";
   return { data: statusChanged ? updateTask(r.data, taskId, { status: "In Progress" }, now.date) : r.data, taskId, statusChanged, from };
 }
 
-/** 予定の枠の実績（actual）を書く（setActual。あれば上書き。失敗は Error）。状態の規則は recordActual と同じ。taskId は枠の持ち主（タスクか ToDo） */
+/** 予定の枠の実績（actual）を書く（setActual。あれば上書き。失敗は Error）。状態の規則は recordActual と同じ。taskId は枠の持ち主のタスク */
 export function recordSlotActual(data, sessionId, slot, now) {
   const r = setActual(data, sessionId, slot, now);
   if (r.error) throw new Error(r.error);
-  const taskId = allSessions(data).find((s) => s.id === sessionId).taskId, from = data.tasks.find((x) => x.id === taskId)?.status ?? "";
+  const taskId = allSessions(data).find((s) => s.id === sessionId).taskId, from = data.tasks.find((x) => x.id === taskId).status;
   const statusChanged = from === "To Do" || from === "Waiting";
   return { data: statusChanged ? updateTask(r.data, taskId, { status: "In Progress" }, now.date) : r.data, taskId, statusChanged, from };
+}
+
+const COMPLETE_STATUSES = ["To Do", "In Progress", "Done", "Cancelled"];
+
+/**
+ * タスクの完了を、実績・状態・チェックでまとめて保存する。失敗は Error（純関数なので、入力のデータは変わらない）。
+ * actual: { date, start, end }（3 つとも空・undefined なら実績なし）。status は To Do／In Progress／Done／Cancelled（選んだ状態が優先で、実績による In Progress への自動変更は上書きする）。
+ * checks: { 項目 ID: done }。Done・Cancelled は、未来の予定の枠を解除する（released は件数）。Done は定例の次回を作る（spawned）。
+ */
+export function completeTask(data, taskId, { actual, status, checks = {} }, now) {
+  const orig = data.tasks.find((t) => t.id === taskId);
+  if (!orig) throw new Error(`タスク ${taskId} がありません`);
+  if (!COMPLETE_STATUSES.includes(status)) throw new Error("状態は、To Do・In Progress・Done・Cancelled から選んでください");
+  const slot = { date: actual?.date ?? "", start: actual?.start ?? "", end: actual?.end ?? "" };
+  const filled = Object.values(slot).filter(Boolean).length;
+  if (filled !== 0 && filled !== 3) throw new Error("実績の日付と開始・終了の時刻は、すべて入れるか、すべて空にしてください");
+  let d = data;
+  if (filled === 3) {
+    const planned = (orig.sessions ?? []).filter((s) => s.kind === "planned" && s.date === slot.date && !s.actual).sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0))[0];
+    d = (planned ? recordSlotActual(d, planned.id, slot, now) : recordActual(d, taskId, slot, now)).data;
+  }
+  d = updateTask(d, taskId, { status }, now.date);
+  for (const [id, done] of Object.entries(checks)) d = updateChecklistItem(d, taskId, id, { done });
+  let released = 0;
+  if (status === "Done" || status === "Cancelled") {
+    const ids = futurePlanned(d, taskId, now);
+    released = ids.length;
+    for (const id of ids) d = removeSession(d, id);
+  }
+  const count = d.tasks.length;
+  if (status === "Done") d = spawnNextRepeat(d, taskId, now.date);
+  const spawned = d.tasks.length > count;
+  return { data: d, statusChanged: status !== orig.status, released, spawned };
 }
 
 export function addTask(data, task) {

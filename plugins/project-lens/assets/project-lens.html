@@ -445,28 +445,25 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .tpop .tp-r{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
 .tpop .tp-a{display:flex;gap:8px;justify-content:space-between}
 
-/* ToDo 画面: 左に週・右に日の 2 列（狭い画面では縦に並ぶ）、下に週の見返し */
+/* ToDo 画面: 上に週のタスクの一覧（組ごと）、下に週の見返し */
 .tdpage .toolbar{margin-bottom:12px}
-.tdcols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin-bottom:16px;align-items:start}
-@media(max-width:860px){.tdcols{grid-template-columns:minmax(0,1fr)}}
-.td-dayhead{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px}
-.td-dayhead h2{margin:0}
-.tdlist{list-style:none;margin:0 0 10px;padding:0;display:flex;flex-direction:column;gap:8px}
+.tdweek{margin-bottom:16px}
+.tdweek h3{margin:14px 0 6px;font-size:13px;color:var(--muted)}
+.tdweek h3:first-of-type{margin-top:0}
+.tdlist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
 .tdlist>li{border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:6px}
 .tdlist>li.closed{opacity:.55}
 .tdlist>li.closed .td-title{text-decoration:line-through}
-.td-main{display:flex;align-items:center;gap:8px}
-.td-main input[type=checkbox],.td-ck input[type=checkbox]{width:18px;height:18px;margin:0;accent-color:var(--accent);flex:none}
+.td-main{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.td-main .pj{font-size:11px;font-weight:700;color:var(--accent);overflow-wrap:anywhere}
+.td-main .td-title{flex:1 1 12em;min-width:0;overflow-wrap:anywhere}
+.td-main .btn{font-size:12px;padding:3px 9px}
 .td-meta{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
-.td-ops{display:flex;gap:6px;flex-wrap:wrap}
-.td-ops .btn,.td-ck .btn{font-size:12px;padding:3px 9px}
-.td-ck{display:flex;flex-direction:column;gap:4px}
-.td-ck .ck-row{display:flex;align-items:center;gap:6px}
-.td-ck .td-cktext{flex:1;min-width:0;font-size:13px}
-.td-ck .td-cktext.done{text-decoration:line-through;color:var(--muted)}
 .tdlist .actform{margin:0}
+.tf-cks{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;flex-basis:100%}
+.tdform label.tf-ck{flex-direction:row;align-items:center;gap:6px;font-size:13px;color:var(--ink)}
+.tf-ck input[type=checkbox]{width:18px;height:18px;margin:0;accent-color:var(--accent);flex:none}
 .tdreview .td-sum{margin:0 0 10px}
-.tdreview tr.hot td{background:var(--warn-soft)}
 .tdreview .td-note{display:flex;flex-direction:column;gap:4px;margin-top:12px;font-size:12px;color:var(--muted)}
 .tdreview .td-note textarea{resize:vertical;font-size:13px}
 
@@ -942,15 +939,13 @@ function validate(data, now = nowLocal()) {
       seen.add(x.id);
     }
   };
-  const todos = data.todos ?? []; // 個人ファイルの ToDo。無いデータもある
   dup(data.projects, "プロジェクト");
   dup(data.tasks, "タスク");
   dup(data.events, "会議");
-  dup(todos, "ToDo");
   // 作業枠の ID は、移動・削除が ID だけで探すので、重複すると両方に効く。保存は止めず、注意に出す
   // 共有ファイルに無いタスクの作業枠（orphanSessions）も、同じ個人ファイルの枠なので含める
   const sessionIds = new Set();
-  for (const s of [...data.tasks.flatMap((t) => t.sessions ?? []), ...todos.flatMap((t) => t.sessions ?? []), ...(data.orphanSessions ?? [])]) {
+  for (const s of [...data.tasks.flatMap((t) => t.sessions ?? []), ...(data.orphanSessions ?? [])]) {
     if (sessionIds.has(s.id)) warn(`作業枠の ID が重複しています: ${s.id}（移動・削除が両方に効きます。data.json から直接直してください）`);
     sessionIds.add(s.id);
   }
@@ -969,7 +964,7 @@ function validate(data, now = nowLocal()) {
     }
   }
 
-  // チェックリストの形（タスクと ToDo で共通）
+  // チェックリストの形
   const checkChecklist = (t, who) => {
     if (t.checklist === undefined) return;
     if (!Array.isArray(t.checklist)) { err(`${who}: チェックリスト (checklist) が配列ではありません`); return; }
@@ -982,7 +977,7 @@ function validate(data, now = nowLocal()) {
       if (typeof c?.done !== "boolean") err(`${who}: チェックリストの項目 ${c?.id} の done が真偽値ではありません`);
     }
   };
-  // 作業枠の形（タスクと ToDo で共通）。まだ始まっていない枠か（形が不正なら false）を返す
+  // 作業枠の形。まだ始まっていない枠か（形が不正なら false）を返す
   const checkSession = (s, label) => {
     if (!isDate(s.date) || !isTime(s.start) || !isTime(s.end)) { err(`${label}: 日付または時刻の形式が不正です`); return false; }
     if (toMin(s.end) <= toMin(s.start)) err(`${label}: 終了が開始以前です`);
@@ -1024,33 +1019,14 @@ function validate(data, now = nowLocal()) {
     }
   }
 
-  const weekTodoIds = new Set(todos.filter((t) => t.scope === "week").map((t) => t.id));
-  for (const t of todos) {
-    const who = `ToDo ${t.id}`;
-    if (typeof t.id !== "string" || !/^T-\d{4}$/.test(t.id)) err(`${who}: ID は T-0001 の形にしてください`);
-    if (data.tasks.some((x) => x.id === t.id)) err(`${who}: タスクと ID が重なっています`);
-    if (!["week", "day"].includes(t.scope)) err(`${who}: scope は week か day にしてください ("${t.scope}")`);
-    if (typeof t.title !== "string" || !t.title.trim()) err(`${who}: 件名が空です`);
-    if (!isDate(t.date)) err(`${who}: 日付の形式が不正です (${t.date})`);
-    else if (t.scope === "week" && weekday(t.date) !== 1) err(`${who}: 週の ToDo の日付は、月曜日にしてください (${t.date})`);
-    if (t.parentId != null) {
-      if (t.scope !== "day") err(`${who}: parentId を持てるのは、日の ToDo だけです`);
-      else if (!weekTodoIds.has(t.parentId)) err(`${who}: parentId "${t.parentId}" は、存在する週の ToDo ではありません`);
-    }
-    if (t.doneAt != null && !isDate(t.doneAt)) err(`${who}: 完了日の形式が不正です (${t.doneAt})`);
-    if (!(Number.isInteger(t.carried) && t.carried >= 0)) err(`${who}: carried は 0 以上の整数にしてください`);
-    checkChecklist(t, who);
-    for (const s of t.sessions ?? []) checkSession(s, `${who} の枠 ${s.id}`);
-  }
-
   const cycle = findCycle(data.tasks);
   if (cycle) err(`前のタスクが循環しています: ${cycle.join(" → ")}`);
 
-  // 同じ日の同じ種別の枠どうしの重なり（予定と実績は重なってよい。タスクと ToDo をまたいで判定）。実績は、実績だけの枠と予定の枠の actual（実績の区間）を合わせて比べる
+  // 同じ日の同じ種別の枠どうしの重なり（予定と実績は重なってよい。タスクをまたいで判定）。実績は、実績だけの枠と予定の枠の actual（実績の区間）を合わせて比べる
   // 日付で束ねて、同じ日の中だけ総当たりにする（全枠の総当たりは、数年分で秒単位になる）
   const byDay = new Map();
   const put = (date, x) => { if (!byDay.has(date)) byDay.set(date, []); byDay.get(date).push(x); };
-  for (const t of [...data.tasks, ...todos]) {
+  for (const t of data.tasks) {
     for (const s of t.sessions ?? []) {
       if (isDate(s.date) && isTime(s.start) && isTime(s.end)) put(s.date, s);
       const a = s.actual;
@@ -1310,25 +1286,20 @@ const MIN_LEN = 15;
 /** 枠の終了の上限（分）。時刻は HH:MM（00:00〜23:59）で持つので、24:00 は書けない */
 const LAST_END = 23 * 60 + 59;
 
-/** 枠の持ち主（タスクか ToDo）。list は data の配列の名前。どちらにも無ければ null */
+/** 枠の持ち主（タスク）。list は data の配列の名前。無ければ null */
 function ownerOf(data, id) {
   const t = data.tasks.find((x) => x.id === id);
-  if (t) return { list: "tasks", item: t };
-  const o = (data.todos ?? []).find((x) => x.id === id);
-  return o ? { list: "todos", item: o } : null;
+  return t ? { list: "tasks", item: t } : null;
 }
-/** タスクと ToDo の全枠に taskId（持ち主の ID）・title・projectId（ToDo は null）を付けて平らに */
-const allSessions = (data) => [
-  ...data.tasks.flatMap((t) => (t.sessions ?? []).map((s) => ({ ...s, taskId: t.id, title: t.title, projectId: t.projectId }))),
-  ...(data.todos ?? []).flatMap((t) => (t.sessions ?? []).map((s) => ({ ...s, taskId: t.id, title: t.title, projectId: null }))),
-];
+/** タスクの全枠に taskId（持ち主の ID）・title・projectId を付けて平らに */
+const allSessions = (data) => data.tasks.flatMap((t) => (t.sessions ?? []).map((s) => ({ ...s, taskId: t.id, title: t.title, projectId: t.projectId })));
 const findSession = (data, id) => allSessions(data).find((s) => s.id === id);
 const clash = (a, b) => a.date === b.date && toMin(a.start) < toMin(b.end) && toMin(b.start) < toMin(a.end);
 const isPast = (slot, now) => slot.date < now.date || (slot.date === now.date && slot.end <= now.time);
 
 /** 枠の実績の区間。実績だけの枠は自身の時間、予定の枠は actual（無ければ undefined） */
 const spanOf = (s) => (s.kind === "actual" ? s : s.kind === "planned" ? s.actual : undefined);
-/** タスクと ToDo の実績の区間（実績だけの枠と、予定の枠の actual）。実績の時間は、すべてこれで数える */
+/** タスクの実績の区間（実績だけの枠と、予定の枠の actual）。実績の時間は、すべてこれで数える */
 const actualSpans = (data) => allSessions(data).flatMap((s) => {
   const a = spanOf(s);
   return a ? [{ sessionId: s.id, taskId: s.taskId, title: s.title, projectId: s.projectId, date: a.date, start: a.start, end: a.end }] : [];
@@ -1364,14 +1335,14 @@ function check(data, slot, ignoreId, kind = "planned", word = kind === "actual" 
   return mtg ? { warning: `会議「${mtg.title}」（${mtg.start}〜${mtg.end}）と重なっています` } : {};
 }
 
-/** タスクと ToDo（あるときだけ）の持ち主ごとに fn を当てる */
-const mapOwners = (data, fn) => ({ ...data, tasks: data.tasks.map(fn), ...(data.todos && { todos: data.todos.map(fn) }) });
+/** 枠の持ち主（タスク）ごとに fn を当てる */
+const mapOwners = (data, fn) => ({ ...data, tasks: data.tasks.map(fn) });
 const withOwner = (data, id, fn) => mapOwners(data, (t) => (t.id === id ? fn(t) : t));
 const mapSessions = (data, id, fn) => mapOwners(data, (t) => ((t.sessions ?? []).some((s) => s.id === id) ? { ...t, sessions: t.sessions.map((s) => (s.id === id ? fn(s) : s)) } : t));
 
 const startsLater = (slot, now) => slot.date > now.date || (slot.date === now.date && slot.start > now.time);
 
-/** taskId はタスクか ToDo の ID。新しい枠は、過去の時間に置いても予定（planned）。過ぎた予定は、重なる実績が無ければ未確認として出る */
+/** taskId はタスクの ID。新しい枠は、過去の時間に置いても予定（planned）。過ぎた予定は、重なる実績が無ければ未確認として出る */
 function addSession(data, taskId, slot) {
   if (!ownerOf(data, taskId)) return { data, error: `タスク ${taskId} がありません` };
   const r = check(data, slot);
@@ -1462,138 +1433,83 @@ function futurePlanned(data, taskId, now) {
 return { LAST_END, ownerOf, allSessions, actualSpans, actualSlots, sessionKind, addSession, addActual, setActual, clearActual, moveSession, resizeSession, removeSession, taskActual, runningPlanned, futurePlanned };
 })();
 
-/* src/core/todos.js */
-const { mondayOf, addTodo, renameTodo, setTodoDone, deleteTodo, assignToDay, carryTodo, addTodoCheck, toggleTodoCheck, removeTodoCheck, setReview, todoMinutes, weekReview } = (() => {
-// ToDo（日・週）の規則。個人ファイルの data.todos / data.reviews を扱う。すべて純関数（入力を変えず、新しいデータを返す）。不正なときは例外
+/* src/core/week.js */
+const { mondayOf, setReview, weekTasks, weekSummary } = (() => {
+// 週のタスクの一覧と見返しの計算。保存せず、タスクと枠から、その場で求める純関数。
+// 週は weekStart（月曜）〜 weekStart + 6 日（日曜）。日付は文字列のまま比べる。
+// - Cancelled は、どの週にも出さない。1 つのタスクは 1 行だけで、組の優先は overdue > scheduled > due > done。
+// - overdue: 未完了で、期限が today より前。
+// - scheduled: 未完了で、期限超過でなく、週の日付の予定の枠か実績の区間がある（期限は週より後でもよい）。
+// - due: 未完了で、期限超過でも scheduled でもなく、期限が週の終わり以前。
+// - done: Done で、doneAt が週の中、または週の日付の予定の枠か実績の区間がある。
+// - waiting: 前のタスクのうち、data.tasks にあって、完了していないものが 1 つでもある。
+// - planned: 自身の予定の枠（actual を持つ枠も数える）の、週の日付の分。actual: 自身の実績の区間の、週の日付の分。
+// - 並び: 組の順、同じ組の中は期限の昇順（期限なしは最後）、同じなら ID の昇順。
 
 
 
 
 
-const todosOf = (data) => data.todos ?? [];
-const find = (data, id) => {
-  const t = todosOf(data).find((x) => x.id === id);
-  if (!t) throw new Error(`ToDo ${id} がありません`);
-  return t;
-};
-const mapTodo = (data, id, fn) => ({ ...data, todos: todosOf(data).map((t) => (t.id === id ? fn(t) : t)) });
-const cleanTitle = (title) => {
-  const s = String(title ?? "").trim();
-  if (!s) throw new Error("件名を入れてください");
-  return s;
-};
-const checkDate = (date) => {
-  if (!isDate(date)) throw new Error("日付は YYYY-MM-DD の形で入れてください");
-  return date;
-};
+const ORDER = ["overdue", "scheduled", "due", "done"];
 
 /** その日を含む週の月曜日 */
 const mondayOf = (date) => addDays(date, -((weekday(date) + 6) % 7));
-
-/** 新しい ToDo を足す。週は date を月曜日にそろえる。parentId は週の ToDo だけを指せる（日の ToDo だけが持てる） */
-function addTodo(data, { scope, title, date, parentId }) {
-  if (scope !== "week" && scope !== "day") throw new Error("種類は週か日にしてください");
-  const t = cleanTitle(title);
-  checkDate(date);
-  if (parentId !== undefined && (scope !== "day" || todosOf(data).find((x) => x.id === parentId)?.scope !== "week")) throw new Error("割り当て元は週の ToDo にしてください");
-  const max = todosOf(data).reduce((m, x) => Math.max(m, +(/^T-(\d+)$/.exec(x.id)?.[1] ?? 0)), 0);
-  const id = `T-${String(max + 1).padStart(4, "0")}`;
-  const todo = { id, scope, title: t, date: scope === "week" ? mondayOf(date) : date, ...(parentId !== undefined && { parentId }), doneAt: null, carried: 0, sessions: [] };
-  return { data: { ...data, todos: [...todosOf(data), todo] }, id };
-}
-
-/** 週の ToDo の件名を直すと、直す前と同じ件名の子（日の ToDo）も新しい件名にする */
-function renameTodo(data, id, title) {
-  const cur = find(data, id), t = cleanTitle(title);
-  const follows = (x) => x.id === id || (cur.scope === "week" && x.parentId === id && x.title === cur.title);
-  return { ...data, todos: todosOf(data).map((x) => (follows(x) ? { ...x, title: t } : x)) };
-}
-
-const setTodoDone = (data, id, done, today) => (find(data, id), mapTodo(data, id, (t) => ({ ...t, doneAt: done ? today : null })));
-
-/** ToDo を、その枠ごと消す。週の ToDo なら、子の parentId を外す（子とその枠は残る） */
-function deleteTodo(data, id) {
-  find(data, id);
-  return { ...data, todos: todosOf(data).filter((t) => t.id !== id).map(({ parentId, ...t }) => (parentId === id ? t : { ...t, ...(parentId !== undefined && { parentId }) })) };
-}
-
-/** 週の ToDo を日に割り当てる（同じ件名の日の ToDo を作る）。同じ週の ToDo の同じ日の分があれば何もしない */
-function assignToDay(data, weekTodoId, date) {
-  const w = find(data, weekTodoId);
-  if (w.scope !== "week") throw new Error("日へ割り当てられるのは週の ToDo だけです");
-  checkDate(date);
-  if (todosOf(data).some((t) => t.parentId === weekTodoId && t.date === date)) return { data, created: false };
-  return { data: addTodo(data, { scope: "day", title: w.title, date, parentId: weekTodoId }).data, created: true };
-}
-
-const clash = (a, b) => a.date === b.date && toMin(a.start) < toMin(b.end) && toMin(b.start) < toMin(a.end);
-
-/** 日は次の営業日へ、週は 7 日後へ動かし、carried を 1 増やす。回す前の日の予定の枠のうち、重なる実績が無いものは消す */
-function carryTodo(data, id) {
-  const cur = find(data, id);
-  if (cur.doneAt) throw new Error("完了した ToDo は回せません");
-  let date = cur.date;
-  if (cur.scope === "week") date = addDays(date, 7);
-  else {
-    const off = offDayChecker(data.settings);
-    do date = addDays(date, 1); while (off(date));
-  }
-  const actuals = actualSlots(data);
-  const stale = (cur.sessions ?? []).filter((s) => s.kind === "planned" && !s.actual && s.date === cur.date && !actuals.some((a) => clash(a, s)));
-  const moved = mapTodo(data, id, (t) => ({ ...t, date, carried: t.carried + 1 }));
-  return stale.reduce((d, s) => removeSession(d, s.id), moved);
-}
-
-function addTodoCheck(data, id, text) {
-  find(data, id);
-  const s = String(text ?? "").trim();
-  if (!s) throw new Error("項目の文言を入れてください");
-  return mapTodo(data, id, (t) => ({ ...t, checklist: [...(t.checklist ?? []), { id: nextChecklistId(t.checklist ?? []), text: s, done: false }] }));
-}
-const toggleTodoCheck = (data, id, itemId) => (find(data, id), mapTodo(data, id, (t) => ({ ...t, checklist: (t.checklist ?? []).map((x) => (x.id === itemId ? { ...x, done: !x.done } : x)) })));
-const removeTodoCheck = (data, id, itemId) => (find(data, id), mapTodo(data, id, (t) => ({ ...t, checklist: (t.checklist ?? []).filter((x) => x.id !== itemId) })));
 
 /** 週（月曜日のキー）の気づき。空文字ならキーを消す */
 function setReview(data, weekStart, text) {
   const { [weekStart]: _, ...rest } = data.reviews ?? {};
   return { ...data, reviews: text ? { ...rest, [weekStart]: text } : rest };
 }
+const minutes = (x) => toMin(x.end) - toMin(x.start);
 
-/** 範囲内の分数。予定は kind が planned の枠の自身の時間（actual を持っていても数える。枠の日付で絞る）、実績は実績の区間（区間の日付で絞る） */
-const minutesIn = (data, ids, range) => {
-  const inRange = (d) => !range || (d >= range.start && d <= range.end);
-  const len = (s) => toMin(s.end) - toMin(s.start);
-  const planned = todosOf(data).filter((t) => ids.has(t.id)).flatMap((t) => t.sessions ?? []).filter((s) => s.kind === "planned" && inRange(s.date)).reduce((m, s) => m + len(s), 0);
-  const actual = actualSpans({ tasks: [], todos: todosOf(data).filter((t) => ids.has(t.id)) }).filter((s) => inRange(s.date)).reduce((m, s) => m + len(s), 0);
-  return { planned, actual };
-};
-
-/** その ToDo と、parentId がその ToDo の日の ToDo の枠の、range（start〜end の日付。省略は全期間）内の分の合計 */
-function todoMinutes(data, id, range) {
-  return minutesIn(data, new Set(todosOf(data).filter((t) => t.id === id || t.parentId === id).map((t) => t.id)), range);
+/** 今週の行（task・group・waiting・planned・actual・checked）。組の順・期限・ID の順 */
+function weekTasks(data, weekStart, today) {
+  const weekEnd = addDays(weekStart, 6);
+  const inWeek = (date) => date >= weekStart && date <= weekEnd;
+  const byId = new Map(data.tasks.map((t) => [t.id, t]));
+  const spans = actualSpans(data);
+  const rows = [];
+  for (const task of data.tasks) {
+    if (task.status === "Cancelled") continue;
+    const planned = (task.sessions ?? []).filter((s) => s.kind === "planned" && inWeek(s.date));
+    const actuals = spans.filter((a) => a.taskId === task.id && inWeek(a.date));
+    const touched = planned.length > 0 || actuals.length > 0;
+    let group = null;
+    if (task.status === "Done") {
+      if ((task.doneAt && inWeek(task.doneAt)) || touched) group = "done";
+    } else if (task.due && task.due < today) group = "overdue";
+    else if (touched) group = "scheduled";
+    else if (task.due && task.due <= weekEnd) group = "due";
+    if (!group) continue;
+    const { total, done } = checklistCount(task);
+    rows.push({
+      task,
+      group,
+      waiting: (task.predecessors ?? []).some((id) => byId.has(id) && !isClosed(byId.get(id))),
+      planned: planned.reduce((n, s) => n + minutes(s), 0),
+      actual: actuals.reduce((n, a) => n + minutes(a), 0),
+      checked: total ? { done, total } : null,
+    });
+  }
+  const dueKey = (r) => r.task.due ?? "9999-99-99";
+  return rows.sort((a, b) => ORDER.indexOf(a.group) - ORDER.indexOf(b.group) || dueKey(a).localeCompare(dueKey(b)) || a.task.id.localeCompare(b.task.id));
 }
 
-/** 週の見返し。見出しの分数は、その週の日付にある全 ToDo の枠の合計。行は、date がその週に入る週の ToDo と、parentId を持たない日の ToDo（inWeek: true。割り当てた日の分は親の行に含む）に、
- *  date は別の週でも自分か子の枠がその週にある、親のない ToDo（inWeek: false。回す前の週の分）を足す。完了・件数は inWeek: true の行だけ */
-function weekReview(data, weekStart) {
-  const range = { start: weekStart, end: addDays(weekStart, 6) };
-  const roots = todosOf(data).filter((t) => t.scope === "week" || t.parentId == null);
-  const order = (a, b) => (a.scope === b.scope ? 0 : a.scope === "week" ? -1 : 1) || a.date.localeCompare(b.date) || a.id.localeCompare(b.id);
-  const inWeek = (t) => t.date >= range.start && t.date <= range.end;
-  const items = roots.filter(inWeek).sort(order);
-  const row = (todo, w) => ({ todo, inWeek: w, checked: todo.checklist?.length ? { done: todo.checklist.filter((x) => x.done).length, total: todo.checklist.length } : null, ...todoMinutes(data, todo.id, range) });
-  const rows = [...items.map((t) => row(t, true)), ...roots.filter((t) => !inWeek(t)).sort(order).map((t) => row(t, false)).filter((r) => r.planned + r.actual > 0)];
-  const all = minutesIn(data, new Set(todosOf(data).map((t) => t.id)), range);
+/** 週の見返し。done はそのうち Done の数、planned・actual は行の合計、note は reviews の気づき */
+function weekSummary(data, weekStart, today) {
+  const rows = weekTasks(data, weekStart, today);
+  const sum = (k) => rows.reduce((n, r) => n + r[k], 0);
   return {
-    done: items.filter((t) => t.doneAt).length,
-    total: items.length,
-    ...all,
+    done: rows.filter((r) => r.task.status === "Done").length,
+    total: rows.length,
+    planned: sum("planned"),
+    actual: sum("actual"),
     note: data.reviews?.[weekStart] ?? "",
     rows,
   };
 }
 
-return { mondayOf, addTodo, renameTodo, setTodoDone, deleteTodo, assignToDay, carryTodo, addTodoCheck, toggleTodoCheck, removeTodoCheck, setReview, todoMinutes, weekReview };
+return { mondayOf, setReview, weekTasks, weekSummary };
 })();
 
 /* src/core/impact.js */
@@ -1798,7 +1714,7 @@ function openDownstream(tasks, id) {
 }
 
 /**
- * 今日の優先。対象は Done/Cancelled 以外で、前のタスクがすべて完了しているもの。
+ * 今日の優先。対象は Done/Cancelled 以外。前のタスクが未完了（data.tasks にあって完了していない）のものも含め、理由の先頭に「前のタスク待ち」を入れる（点数は変えない）。
  * 点数 = 期限超過 100 + 期限点 × 倍率 + 重要(important: true で 12)
  *   期限点 = 残り 30 日以内なら (30−残り日数)×1.5（超過した分も加算）、それより先は 0
  *   倍率   = 1 + min(未チェックの項目数, 10)/10（Waiting は 1）
@@ -1809,7 +1725,6 @@ function rankTasks(data, today) {
   const out = [];
   for (const t of data.tasks) {
     if (isClosed(t)) continue;
-    if ((t.predecessors ?? []).some((p) => byId.has(p) && !isClosed(byId.get(p)))) continue;
     const left = diffDays(t.due, today);
     const reasons = [];
     let score = 0;
@@ -1829,6 +1744,7 @@ function rankTasks(data, today) {
       reasons.unshift(w ? `${w.party} への${left < 0 || lapsed ? "催促" : "確認"}${isDate(w.since) ? `（回答待ち ${diffDays(today, w.since)}日）` : ""}` : "待ち先が未設定");
       if (lapsed) { score += 40; reasons.push(`回答予定日を過ぎています（${diffDays(today, w.expected)}日）`); }
     }
+    if ((t.predecessors ?? []).some((p) => byId.has(p) && !isClosed(byId.get(p)))) reasons.unshift("前のタスク待ち");
     out.push({ taskId: t.id, score, reasons, action, due: t.due });
   }
   return out.sort((a, b) => b.score - a.score || (a.due < b.due ? -1 : a.due > b.due ? 1 : a.taskId < b.taskId ? -1 : 1));
@@ -1947,7 +1863,7 @@ const hours = (x) => (toMin(x.end) - toMin(x.start)) / 60;
 const inRange = (d, r) => !r || (d >= r.start && d <= r.end);
 const sumBy = (list, f) => list.reduce((a, x) => a + f(x), 0);
 
-/** 実績の区間（タスクと ToDo）。範囲は区間の日付で絞る。ToDo の区間は projectId が null（プロジェクト未設定） */
+/** 実績の区間（タスク）。範囲は区間の日付で絞る */
 const actualSessions = (data, range) => actualSpans(data).filter((s) => inRange(s.date, range));
 const meetingHours = (m) => hours(meetingActualSpan(m));
 const countedMeetings = (data, range) => data.events.filter((m) => m.confirmed === true && !m.skip && inRange(m.date, range));
@@ -2141,15 +2057,11 @@ const SHARED_SETTINGS = ["countWeekendsAndHolidays", "nationalHolidays", "waitin
 
 const pick = (obj, keys) => Object.fromEntries(keys.filter((k) => k in obj).map((k) => [k, obj[k]]));
 
-/** 共有ファイルと個人ファイルへ分ける。共有の設定は、個人の設定のキー以外すべて（未知のキーも共有） */
+/** 共有ファイルと個人ファイルへ分ける。共有の設定は、個人の設定のキー以外すべて（未知のキーも共有）。入力に todos があっても、どちらにも書かない */
 function splitData(data) {
-  const { tasks, events, inbox, settings = {}, orphanSessions, todos, reviews, ...rest } = data;
+  const { tasks, events, inbox, settings = {}, orphanSessions, todos, reviews, ...rest } = data; // todos（廃止した ToDo）は捨てる
   const sessions = [];
   const sharedTasks = (tasks ?? []).map(({ sessions: ss, ...t }) => {
-    for (const s of ss ?? []) sessions.push({ ...s, taskId: t.id });
-    return t;
-  });
-  const personalTodos = (todos ?? []).map(({ sessions: ss, ...t }) => {
     for (const s of ss ?? []) sessions.push({ ...s, taskId: t.id });
     return t;
   });
@@ -2157,20 +2069,20 @@ function splitData(data) {
   const personalSettings = pick(settings, PERSONAL_SETTINGS);
   const sharedSettings = Object.fromEntries(Object.entries(settings).filter(([k]) => !PERSONAL_SETTINGS.includes(k)));
   const shared = { ...rest, tasks: sharedTasks, settings: sharedSettings };
-  const personal = { version: data.version, sessions, events: events ?? [], settings: personalSettings, ...(inbox !== undefined ? { inbox } : {}), ...(personalTodos.length ? { todos: personalTodos } : {}), ...(reviews && Object.keys(reviews).length ? { reviews } : {}) };
+  const personal = { version: data.version, sessions, events: events ?? [], settings: personalSettings, ...(inbox !== undefined ? { inbox } : {}), ...(reviews && Object.keys(reviews).length ? { reviews } : {}) };
   return { shared, personal };
 }
 
-/** 2 つのファイルを 1 つのデータへ戻す。taskId が ToDo の ID の枠はその ToDo へ。どちらにも無い taskId の枠は orphanSessions に入れる */
+/** 2 つのファイルを 1 つのデータへ戻す。共有に無い taskId の枠は orphanSessions に入れる */
 function mergeData(shared, personal) {
   const ids = new Set(shared.tasks.map((t) => t.id));
-  const todos = personal.todos ?? [];
-  const todoIds = new Set(todos.map((t) => t.id));
+  // 個人ファイルに残っている、廃止した ToDo（personal.todos）と、その ToDo の枠は捨てる（orphanSessions にも入れない）。保存し直すと消える
+  const todoIds = new Set((Array.isArray(personal.todos) ? personal.todos : []).map((t) => t?.id));
   const byTask = new Map();
   const orphans = [];
   for (const s of personal.sessions ?? []) {
     const { taskId, ...session } = s;
-    if (!ids.has(taskId) && !todoIds.has(taskId)) { orphans.push({ ...session, taskId }); continue; }
+    if (!ids.has(taskId)) { if (!todoIds.has(taskId)) orphans.push({ ...session, taskId }); continue; }
     if (!byTask.has(taskId)) byTask.set(taskId, []);
     byTask.get(taskId).push(session);
   }
@@ -2178,7 +2090,6 @@ function mergeData(shared, personal) {
   return {
     ...shared,
     tasks: shared.tasks.map((t) => ({ ...t, sessions: byTask.get(t.id) ?? [] })),
-    todos: todos.map((t) => ({ ...t, sessions: byTask.get(t.id) ?? [] })),
     reviews: personal.reviews ?? {},
     events: events ?? [],
     settings: { ...(shared.settings ?? {}), ...(personal.settings ?? {}) },
@@ -2205,10 +2116,7 @@ const checkSharedShape = (x) => {
   checkShape(x, "data.json", ["projects", "tasks", "changeLog"]);
   if (isOldShared(x)) throw new Error("作業枠・予定を含む 1 ファイルの旧形式の data.json です。personal.json へ手で分けてください");
 };
-const checkPersonalShape = (x) => {
-  checkShape(x, "personal.json", ["sessions", "events"]);
-  if (x.todos !== undefined && !Array.isArray(x.todos)) throw new Error("personal.json のデータの形が違います（todos が配列ではありません）");
-};
+const checkPersonalShape = (x) => checkShape(x, "personal.json", ["sessions", "events"]);
 
 /** 直接保存できないブラウザの「JSON を書き出す」: ダウンロードする 2 つのファイル（名前は固定） */
 function exportFiles(data) {
@@ -2811,7 +2719,7 @@ return { depPath, depMarkup, drawDeps, focusDeps };
 })();
 
 /* src/ui/edit.js */
-const { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, recordActual, recordSlotActual, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject } = (() => {
+const { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, recordActual, recordSlotActual, completeTask, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject } = (() => {
 // 画面からの編集（追加・削除・更新）。すべて不変更新で、不正な入力は例外にする（呼び出し側が理由を表示する）。
 
 
@@ -3192,23 +3100,55 @@ function addUrgentTask(data, { title, projectId, date, start, minutes }) {
 /**
  * 実績の枠を保存する（addActual。ほかの実績の枠と重なる・開始が今より後・タスクが無いは Error）。
  * タスクが To Do・Waiting なら In Progress にする（updateTask の規則で、Waiting の待ち先は外れる。Done・Cancelled は変えない）。statusChanged・from（元の状態）を返す。
- * 持ち主が ToDo のときは、状態を持たないので変えない（statusChanged は false、from は ""）
  */
 function recordActual(data, taskId, slot, now) {
   const r = addActual(data, taskId, slot, now);
   if (r.error) throw new Error(r.error);
-  const from = data.tasks.find((x) => x.id === taskId)?.status ?? "";
+  const from = data.tasks.find((x) => x.id === taskId).status;
   const statusChanged = from === "To Do" || from === "Waiting";
   return { data: statusChanged ? updateTask(r.data, taskId, { status: "In Progress" }, now.date) : r.data, taskId, statusChanged, from };
 }
 
-/** 予定の枠の実績（actual）を書く（setActual。あれば上書き。失敗は Error）。状態の規則は recordActual と同じ。taskId は枠の持ち主（タスクか ToDo） */
+/** 予定の枠の実績（actual）を書く（setActual。あれば上書き。失敗は Error）。状態の規則は recordActual と同じ。taskId は枠の持ち主のタスク */
 function recordSlotActual(data, sessionId, slot, now) {
   const r = setActual(data, sessionId, slot, now);
   if (r.error) throw new Error(r.error);
-  const taskId = allSessions(data).find((s) => s.id === sessionId).taskId, from = data.tasks.find((x) => x.id === taskId)?.status ?? "";
+  const taskId = allSessions(data).find((s) => s.id === sessionId).taskId, from = data.tasks.find((x) => x.id === taskId).status;
   const statusChanged = from === "To Do" || from === "Waiting";
   return { data: statusChanged ? updateTask(r.data, taskId, { status: "In Progress" }, now.date) : r.data, taskId, statusChanged, from };
+}
+
+const COMPLETE_STATUSES = ["To Do", "In Progress", "Done", "Cancelled"];
+
+/**
+ * タスクの完了を、実績・状態・チェックでまとめて保存する。失敗は Error（純関数なので、入力のデータは変わらない）。
+ * actual: { date, start, end }（3 つとも空・undefined なら実績なし）。status は To Do／In Progress／Done／Cancelled（選んだ状態が優先で、実績による In Progress への自動変更は上書きする）。
+ * checks: { 項目 ID: done }。Done・Cancelled は、未来の予定の枠を解除する（released は件数）。Done は定例の次回を作る（spawned）。
+ */
+function completeTask(data, taskId, { actual, status, checks = {} }, now) {
+  const orig = data.tasks.find((t) => t.id === taskId);
+  if (!orig) throw new Error(`タスク ${taskId} がありません`);
+  if (!COMPLETE_STATUSES.includes(status)) throw new Error("状態は、To Do・In Progress・Done・Cancelled から選んでください");
+  const slot = { date: actual?.date ?? "", start: actual?.start ?? "", end: actual?.end ?? "" };
+  const filled = Object.values(slot).filter(Boolean).length;
+  if (filled !== 0 && filled !== 3) throw new Error("実績の日付と開始・終了の時刻は、すべて入れるか、すべて空にしてください");
+  let d = data;
+  if (filled === 3) {
+    const planned = (orig.sessions ?? []).filter((s) => s.kind === "planned" && s.date === slot.date && !s.actual).sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0))[0];
+    d = (planned ? recordSlotActual(d, planned.id, slot, now) : recordActual(d, taskId, slot, now)).data;
+  }
+  d = updateTask(d, taskId, { status }, now.date);
+  for (const [id, done] of Object.entries(checks)) d = updateChecklistItem(d, taskId, id, { done });
+  let released = 0;
+  if (status === "Done" || status === "Cancelled") {
+    const ids = futurePlanned(d, taskId, now);
+    released = ids.length;
+    for (const id of ids) d = removeSession(d, id);
+  }
+  const count = d.tasks.length;
+  if (status === "Done") d = spawnNextRepeat(d, taskId, now.date);
+  const spawned = d.tasks.length > count;
+  return { data: d, statusChanged: status !== orig.status, released, spawned };
 }
 
 function addTask(data, task) {
@@ -3336,7 +3276,7 @@ function deleteProject(data, projectId) {
   return { ...data, settings, events, ...(inbox ? { inbox } : {}), projects: data.projects.filter((p) => p.id !== projectId), tasks: data.tasks.filter((t) => t.projectId !== projectId) };
 }
 
-return { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, recordActual, recordSlotActual, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject };
+return { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, recordActual, recordSlotActual, completeTask, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject };
 })();
 
 /* src/ui/donecheck.js */
@@ -3591,7 +3531,7 @@ return { summarizeSections, planOps, applyProposal, approveEdit };
 })();
 
 /* src/ui/views/prio.js */
-const { doneAskHtml, todayTaskIds, renderTodayTasks, renderTodayTodos, renderPrio, renderSide, renderSideToggle } = (() => {
+const { statusPill, doneAskHtml, todayTaskIds, renderTodayTasks, renderPrio, renderSide, renderSideToggle } = (() => {
 // 「今日のタスク」「今日の優先」パネル（プロジェクト画面・スケジュール画面で共通。右の列に並ぶ）
 
 
@@ -3652,23 +3592,6 @@ function renderTodayTasks(data, today, opts = {}) {
   return `<section class="panel todaytasks" aria-labelledby="h-td"><h2 id="h-td">今日のタスク</h2><ul class="rank tl">${items}</ul></section>`;
 }
 
-/** 今日の ToDo（スケジュール画面の右の列）。今日の日の ToDo を、件名とその日の枠の時間つきで出す。未完了を先に（枠の開始順）、完了は薄く末尾。0 件なら空文字
- *  @param opts.sched  true なら、未完了の行をカレンダーへドラッグできる（予定の枠を置く）。省略なら、ドラッグの属性を付けない（スケジュール画面だけに出すのは、`renderSide` が決める）
- *  @param opts.now    {date, time} 現在時刻（過ぎた予定を未確認にする。省略は today の 00:00） */
-function renderTodayTodos(data, today, opts = {}) {
-  const now = opts.now ?? { date: today, time: "00:00" };
-  const rows = (data.todos ?? []).filter((t) => t.scope === "day" && t.date === today)
-    .map((t) => ({ t, slots: (t.sessions ?? []).filter((s) => s.date === today).sort((a, b) => a.start.localeCompare(b.start)) }))
-    .sort((a, b) => !!a.t.doneAt - !!b.t.doneAt || (a.slots[0]?.start ?? "").localeCompare(b.slots[0]?.start ?? ""));
-  if (!rows.length) return "";
-  const actuals = actualSlots(data);
-  const items = rows.map(({ t, slots }) => {
-    const closed = !!t.doneAt, drag = opts.sched && !closed ? ` draggable="true" data-dragtask="${esc(t.id)}"` : "";
-    return `<li${closed ? ' class="closed"' : ""}${drag}><span class="t">${esc(t.title)}</span><span class="why mono tss">${slots.map((s) => slotHtml(s, now, actuals)).join("")}</span></li>`;
-  }).join("");
-  return `<section class="panel todaytodos" aria-labelledby="h-tt"><h2 id="h-tt">今日の ToDo</h2><ul class="rank tl">${items}</ul></section>`;
-}
-
 /**
  * @param opts.sched   true ならスケジュール画面用（全件・ドラッグ可）。false なら上位 4 件
  * 今日のタスクに入っているタスクは出さない（順位の計算は変えず、表示で除く）
@@ -3692,16 +3615,16 @@ function renderPrio(data, today, opts = {}) {
   return `<section class="panel prio" aria-labelledby="h-rk"><h2 id="h-rk">今日の優先</h2>${shown.length ? `<ol class="rank">${items}</ol>` : `<p class="muted">優先するタスクはありません。</p>`}<p class="note" style="margin:10px 0 0">${note}</p></section>`;
 }
 
-/** 右の列: 今日の ToDo（スケジュール画面だけ。あれば）＋今日のタスク（あれば）＋今日の優先。列の直下の要素として固定表示（sticky）にするため、1 つの箱にまとめる */
+/** 右の列: 今日のタスク（あれば）＋今日の優先。列の直下の要素として固定表示（sticky）にするため、1 つの箱にまとめる */
 function renderSide(data, today, opts = {}) {
-  return `<div class="side">${opts.sched ? renderTodayTodos(data, today, opts) : ""}${renderTodayTasks(data, today, opts)}${renderPrio(data, today, opts)}</div>`;
+  return `<div class="side">${renderTodayTasks(data, today, opts)}${renderPrio(data, today, opts)}</div>`;
 }
 
 /** 本体と右の列の境界線の取っ手。押すと右の列（今日のタスク・今日の優先）を開け閉めする。閉じても、この取っ手は残る */
 const renderSideToggle = (open) =>
   `<button class="side-toggle" data-pref="prio" aria-expanded="${open}" aria-label="${open ? "今日の優先を閉じる" : "今日の優先を開く"}" title="${open ? "右の「今日のタスク」「今日の優先」を閉じます" : "右の「今日のタスク」「今日の優先」を開きます"}">${open ? "›" : "‹"}</button>`;
 
-return { doneAskHtml, todayTaskIds, renderTodayTasks, renderTodayTodos, renderPrio, renderSide, renderSideToggle };
+return { statusPill, doneAskHtml, todayTaskIds, renderTodayTasks, renderPrio, renderSide, renderSideToggle };
 })();
 
 /* src/ui/views/gantt.js */
@@ -4480,13 +4403,12 @@ function snapStart(minutes, durationMin) {
 /** 選んだ枠と編集欄（タスク・詳細の開閉・削除の確認）の状態の鍵。選んでいなければ null */
 const selectionKey = (selSess, taskEdit) => (selSess ? `${selSess}|${taskEdit?.id ?? ""}|${taskEdit?.full ? 1 : 0}|${taskEdit?.askDel ? 1 : 0}` : null);
 /**
- * 作業枠を選んだときの選択と編集欄（id が null・無い枠なら両方外す）。編集欄（タスクの編集）は、持ち主がタスクの枠だけ開き、詳細を開いているか（full）は prev から引き継ぐ。
- * ToDo の枠は選択だけ（編集欄の id がタスクでないと、描き直しで選択ごと外れるため）
+ * 作業枠を選んだときの選択と編集欄（id が null・無い枠なら両方外す）。編集欄（タスクの編集）は、詳細を開いているか（full）を prev から引き継ぐ
  */
 function sessionSelection(data, id, prev) {
   const s = id ? allSessions(data).find((x) => x.id === id) : null;
   if (!s) return { selSess: null, taskEdit: null };
-  return { selSess: id, taskEdit: ownerOf(data, s.taskId)?.list === "tasks" ? { id: s.taskId, full: prev?.full ?? false, askDel: false } : null };
+  return { selSess: id, taskEdit: { id: s.taskId, full: prev?.full ?? false, askDel: false } };
 }
 /** 選んだ枠を見える位置へ出すか: 選択か編集欄が、この描き直しで開いた・変わったときだけ（同じ選択のままの描き直しでは、ページを動かさない） */
 const revealSelection = (prevKey, key) => key != null && key !== prevKey;
@@ -4543,9 +4465,9 @@ function sessionBlocks(data, d, full, g, ctx) {
   return items.map(({ s, t, bar, isAct }) => {
     const side = items.some((o) => o.isAct !== isAct && overlaps(o.t, t)) ? (isAct ? ";left:50%;width:50%" : ";left:0;width:50%") : "";
     const c = bar ? "act" : s.actual ? "plan" : KIND_CLS[sessionKind(s, ctx.now, ctx.actuals)]; // 実績を持つ予定のブロックは「予定」（未確認にしない）
-    const task = data.tasks.find((x) => x.id === s.taskId); // ToDo の枠は無し（件名だけを出し、状態・重要の印は出さない）
-    const st = full && task ? ` <span class="stt">${STATUS_JA[task.status] ?? ""}</span>` : "";
-    const imp = task && isImportantMark(task) ? " imp" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
+    const task = data.tasks.find((x) => x.id === s.taskId);
+    const st = full ? ` <span class="stt">${STATUS_JA[task.status] ?? ""}</span>` : "";
+    const imp = isImportantMark(task) ? " imp" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
     const short = toMin(t.end) - toMin(t.start) < SHORT_MIN ? " short" : "";
     const attrs = bar ? `tabindex="0" data-actbar="${esc(s.id)}"` : `draggable="true" tabindex="0" data-dragsess="${esc(s.id)}"`;
     return `<div class="blk task ${c}${imp}${short} ${ctx.selSess === s.id ? "sel" : ""}" ${attrs} style="top:${g.tp(toMin(t.start))};height:${g.ht(toMin(t.start), toMin(t.end))}${side}" title="${esc(s.title)}(${KIND_JA[c]})"><span class="tm">${esc(t.start)}-${esc(t.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${esc(s.title)}</span>${st}${bar ? "" : `<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i>`}</div>`;
@@ -4626,7 +4548,7 @@ const delAsk = (s, askId) => s && s.actual && askId === s.id
   ? `<div class="ask" role="alert"><span class="note">実績 ${toMin(s.actual.end) - toMin(s.actual.start)} 分も消えます</span><button class="btn danger" data-delsessok="${esc(s.id)}">削除する</button><button class="btn" data-delsessno>やめる</button></div>` : "";
 
 /**
- * 実績の入力欄。始まった予定の枠か、実績（actual）を持つ予定の枠を選んでいるときは、その枠の actual を書く欄（日付・開始・終了。持ち主は枠の持ち主。タスクか ToDo）。actual があれば「実績を更新」と「実績を消す」。
+ * 実績の入力欄。始まった予定の枠か、実績（actual）を持つ予定の枠を選んでいるときは、その枠の actual を書く欄（日付・開始・終了。持ち主は枠のタスク）。actual があれば「実績を更新」と「実績を消す」。
  * 「＋ 実績を追加」（ctx.add = { date }）のときは、タスク（Done・Cancelled 以外）・日付も選ぶ。どちらでもなければ出さない。
  * 入力の値は、保存を押したときに画面から読む（app.js）。入力中の値は下書き（ctx.draft = { key, task, date, start, end }。key は枠の ID・"add"）に残り、key が同じ欄は下書きの値で描く
  * @param ctx { selSess: 選択中の枠 ID, add: S.actAdd, draft: S.actDraft, today, now }
@@ -4732,78 +4654,88 @@ return { snapStart, selectionKey, sessionSelection, revealSelection, weekStartOf
 })();
 
 /* src/ui/views/todo.js */
-const { renderTodo } = (() => {
-// 「ToDo」画面: 左に表示中の週の ToDo、右に表示中の日の ToDo（2 列）、下に週の見返し。操作の結線は app.js（data-td*）。
+const { completeInput, renderTodo } = (() => {
+// 「ToDo」画面: 表示中の週のタスクの一覧（weekTasks。組ごと）、行の完了の入力欄、週の見返し（weekSummary）。操作の結線は app.js（data-td*・data-tf*）。
 
 
 
 
 
 
-/** 実績の入力欄。初期値は、その日のその ToDo の予定の枠の時刻、なければ actAddSpan（今日は今から 60 分、ほかの日は 09:00–10:00）。下書き（key が同じ）があれば、その値 */
-function actForm(t, day, now, draft) {
-  const plan = (t.sessions ?? []).filter((s) => s.kind === "planned" && s.date === day).sort((a, b) => a.start.localeCompare(b.start))[0];
-  const [start, end] = plan ? [plan.start, plan.end] : actAddSpan(day, now);
+const GROUP_JA = { overdue: "期限超過", scheduled: "今週に予定あり", due: "今週の期限", done: "完了" };
+/** 完了の入力欄で選べる状態（completeTask と同じ。Waiting は選べない） */
+const FORM_STATUSES = ["To Do", "In Progress", "Done", "Cancelled"];
+
+const progress = (r) => (r.checked ? `${r.checked.done}/${r.checked.total}` : "—");
+
+/**
+ * 完了の入力欄。初期値は、日付が day、時刻がその日のそのタスクの、始まった予定の枠（actual なし）の時刻（なければ空）、状態が Done、チェックがタスクの今の状態。
+ * 下書き（key が同じ）があれば、その値。Done・Cancelled で解除される未来の予定の枠があれば、その件数を添える
+ */
+function completeForm(data, t, day, now, draft) {
   const dr = draft?.key === t.id ? draft : null;
-  const time = (k, v) => `<label>${k === "start" ? "開始" : "終了"}<input class="in" type="time" step="900" data-ta="${k}" value="${esc(dr?.[k] ?? v)}"></label>`;
-  return `<div class="actform" role="group" aria-label="実績の入力">
-    <span class="note" style="flex-basis:100%;margin:0">「${esc(t.title)}」の実績を入れます</span>
-    <label>日付${dateInputHtml({ value: dr?.date || day, attrs: 'data-ta="date"', label: "実績の日付" })}</label>
-    ${time("start", start)}${time("end", end)}
-    <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-tdactsave="${esc(t.id)}">実績を保存</button><button class="btn" data-tdactcancel>キャンセル</button></div>
+  const started = (s) => s.date < now.date || (s.date === now.date && s.start <= now.time); // 始まっていない枠の時刻は、実績に入れられないので初期値にしない
+  const plan = (t.sessions ?? []).filter((s) => s.kind === "planned" && s.date === day && !s.actual && started(s)).sort((a, b) => a.start.localeCompare(b.start))[0];
+  const time = (k) => `<label>${k === "start" ? "開始" : "終了"}<input class="in" type="time" step="900" data-tf="${k}" value="${esc(dr ? dr[k] : plan?.[k] ?? "")}"></label>`;
+  const status = dr?.status ?? "Done";
+  const ck = t.checklist ?? [];
+  const items = ck.map((c) => `<label class="tf-ck"><input type="checkbox" data-tfck="${esc(c.id)}"${(dr?.checks?.[c.id] ?? c.done) ? " checked" : ""}>${esc(c.text)}</label>`).join("");
+  const n = futurePlanned(data, t.id, now).length;
+  return `<div class="actform tdform" role="group" aria-label="完了の入力">
+    <span class="note" style="flex-basis:100%;margin:0">実績（省略できます）・状態・チェックリストを、まとめて保存します</span>
+    <label>日付${dateInputHtml({ value: dr ? dr.date : day, attrs: 'data-tf="date"', label: "実績の日付" })}</label>
+    ${time("start")}${time("end")}
+    <label>状態<select class="in" data-tf="status">${FORM_STATUSES.map((s) => `<option value="${s}"${s === status ? " selected" : ""}>${s}</option>`).join("")}</select></label>
+    ${ck.length ? `<div class="tf-cks">${items}<button class="btn" data-tdckall>残りをすべてチェック</button></div>` : ""}
+    ${n ? `<span class="note" style="flex-basis:100%;margin:0">Done・Cancelled にすると、未来の予定の枠 ${n} 件を解除します</span>` : ""}
+    <div style="display:flex;gap:6px;align-items:center"><button class="btn primary" data-tdsave="${esc(t.id)}">保存</button><button class="btn" data-tdcancel>キャンセル</button></div>
   </div>`;
 }
 
-/** ToDo の 1 行。range は分数を数える範囲（左は週、右は日） */
-function row(data, t, ctx, range) {
-  const id = esc(t.id), title = esc(t.title), ck = t.checklist ?? [];
-  const { planned, actual } = todoMinutes(data, t.id, range);
-  const items = ck.map((c) => `<div class="ck-row"><input type="checkbox" data-tdcktoggle="${id}:${esc(c.id)}"${c.done ? " checked" : ""} aria-label="${esc(c.text)} を済みにする"><span class="td-cktext${c.done ? " done" : ""}">${esc(c.text)}</span><button class="btn" data-tdckdel="${id}:${esc(c.id)}" aria-label="${esc(c.text)} を削除">×</button></div>`).join("");
-  return `<li class="td-row${t.doneAt ? " closed" : ""}" data-todo="${id}">
-    <div class="td-main"><input type="checkbox" data-tdone="${id}"${t.doneAt ? " checked" : ""} aria-label="「${title}」を完了にする"><input class="in td-title" data-tdtitle="${id}" value="${title}" aria-label="件名"></div>
-    <div class="td-meta">${ck.length ? `<span class="mono">${ck.filter((c) => c.done).length}/${ck.length}</span>` : ""}<span>予定 <b class="mono">${planned}</b> 分</span><span>実績 <b class="mono">${actual}</b> 分</span>${t.carried ? `<span class="pill wait">${t.carried} 回回しています</span>` : ""}</div>
-    <div class="td-ops">${t.scope === "week" ? `<button class="btn" data-tdassign="${id}">${ctx.dayIsToday ? "今日へ" : "この日へ"}</button>` : ""}${t.doneAt ? "" : `<button class="btn" data-tdcarry="${id}">${t.scope === "week" ? "来週へ回す" : "明日へ回す"}</button>`}<button class="btn" data-tdact="${id}">実績を入れる</button>${ctx.askDel === t.id ? `<span class="note" role="alert">実績 ${actualSpans({ tasks: [], todos: [t] }).reduce((m, s) => m + toMin(s.end) - toMin(s.start), 0)} 分も消えます</span><button class="btn danger" data-tddelok="${id}">削除する</button><button class="btn" data-tddelno>やめる</button>` : `<button class="btn danger" data-tddel="${id}">削除</button>`}</div>
-    <div class="td-ck">${items}<input class="in" data-tdck="${id}" placeholder="＋ 項目を追加（Enter）" aria-label="「${title}」のチェックリストに項目を追加"></div>
-    ${ctx.actFor === t.id ? actForm(t, ctx.day, ctx.now, ctx.draft) : ""}
+/** 一覧の 1 行 */
+function row(data, r, ctx) {
+  const t = r.task, id = esc(t.id);
+  const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? "プロジェクトなし");
+  const done = r.group === "done";
+  return `<li class="td-row${done ? " closed" : ""}" data-tdrow="${id}">
+    <div class="td-main"><span class="pj">${proj}</span><span class="td-title">${esc(t.title)}</span>${statusPill(t)}${r.waiting ? `<span class="pill wait">前のタスク待ち</span>` : ""}${done ? "" : `<button class="btn" data-tdopen="${id}" aria-expanded="${ctx.open === t.id}">完了</button>`}</div>
+    <div class="td-meta">${t.due ? `<span>期限 <b class="mono">${fmtMD(t.due)}</b></span>` : ""}${r.checked ? `<span>チェック <b class="mono">${progress(r)}</b></span>` : ""}<span>予定 <b class="mono">${r.planned}</b> 分</span><span>実績 <b class="mono">${r.actual}</b> 分</span></div>
+    ${ctx.open === t.id ? completeForm(data, t, ctx.day, ctx.now, ctx.draft) : ""}
   </li>`;
 }
 
-/** 完了していないものを先に、完了したものを末尾に（それぞれ元の並びのまま） */
-const openFirst = (list) => [...list.filter((t) => !t.doneAt), ...list.filter((t) => t.doneAt)];
+/** 完了の入力欄の下書き → completeTask の入力。開始・終了がどちらも空なら、日付が入っていても実績は送らない（日付は初期値で埋まるため）。片方だけなら送って、completeTask の検査で止める */
+const completeInput = (dr) => ({ actual: dr.start || dr.end ? { date: dr.date, start: dr.start, end: dr.end } : undefined, status: dr.status, checks: dr.checks });
 
 /**
- * @param opts.week   表示中の週の月曜日
- * @param opts.day    右の列の日
- * @param opts.now    {date, time} 実績の入力欄の時刻の初期値
- * @param opts.actFor 実績の入力欄を開いている ToDo の id か null
- * @param opts.draft  実績の入力欄の下書き（{ key: ToDo の id, date, start, end }）か null
- * @param opts.askDel 削除の確認を出している ToDo の id か null（その ToDo 自身の実績の枠があるときだけ入る）
+ * @param opts.week  表示中の週の月曜日
+ * @param opts.now   {date, time} 未来の予定の枠の判定
+ * @param opts.open  完了の入力欄を開いているタスクの ID か null
+ * @param opts.draft 完了の入力欄の下書き（{ key: タスクの ID, date, start, end, status, checks: { 項目 ID: 済みか } }）か null
  */
 function renderTodo(data, today, opts) {
-  const { week, day, now, actFor = null, draft = null, askDel = null } = opts;
-  const todos = data.todos ?? [];
+  const { week, now, open = null, draft = null } = opts;
   const weekEnd = addDays(week, 6);
-  const ctx = { day, now, actFor, draft, askDel, dayIsToday: day === today };
-  const list = (items, range) => `<ul class="tdlist">${openFirst(items).map((t) => row(data, t, ctx, range)).join("")}</ul>`;
-  const weekItems = todos.filter((t) => t.scope === "week" && t.date === week);
-  const dayItems = todos.filter((t) => t.scope === "day" && t.date === day);
-  const rv = weekReview(data, week);
-  const rows = rv.rows.map((r) => `<tr${r.todo.carried ? ' class="hot"' : ""}><td>${esc(r.todo.title)} <span class="note">${r.todo.scope === "week" ? "週" : `${fmtMD(r.todo.date)}(${wdJa(r.todo.date)})`}</span>${r.inWeek ? "" : ' <span class="note">（別の週の ToDo）</span>'}</td><td class="num mono">${r.checked ? `${r.checked.done}/${r.checked.total}` : "—"}</td><td class="num mono">${r.planned} 分</td><td class="num mono">${r.actual} 分</td><td class="num mono">${r.todo.carried} 回</td></tr>`).join("");
+  const ctx = { open, draft, now, day: today >= week && today <= weekEnd ? today : week };
+  const rows = weekTasks(data, week, today);
+  const groups = Object.keys(GROUP_JA).map((g) => [g, rows.filter((r) => r.group === g)]).filter(([, rs]) => rs.length);
+  const list = groups.length
+    ? groups.map(([g, rs]) => `<h3>${GROUP_JA[g]}</h3><ul class="tdlist">${rs.map((r) => row(data, r, ctx)).join("")}</ul>`).join("")
+    : `<p class="muted">この週のタスクはありません。</p>`;
+  const rv = weekSummary(data, week, today);
+  const trs = rv.rows.map((r) => `<tr><td>${esc(r.task.title)}</td><td class="num mono">${progress(r)}</td><td class="num mono">${r.planned} 分</td><td class="num mono">${r.actual} 分</td></tr>`).join("");
   return `<div class="tdpage">
     <div class="toolbar"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn" data-tdweek="-1" aria-label="前の週">←</button><button class="btn" data-tdweek="1" aria-label="次の週">→</button><button class="btn" data-tdweek-today>今週</button><strong style="margin-left:6px">${fmtMD(week)}〜${fmtMD(weekEnd)} の週</strong></div></div>
-    <div class="tdcols">
-      <section class="panel tdcol" data-tdcol="week" aria-label="この週の ToDo"><h2>この週の ToDo</h2>${list(weekItems, { start: week, end: weekEnd })}<input class="in" data-tdnew="week" placeholder="＋ 週の ToDo を追加（件名を入れて Enter）" aria-label="週の ToDo を追加"></section>
-      <section class="panel tdcol" data-tdcol="day" aria-label="${fmtMD(day)} の ToDo"><div class="td-dayhead"><h2>${fmtMD(day)}(${wdJa(day)}) の ToDo</h2><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn" data-tdday="-1">‹ 前の日</button><button class="btn" data-tdday="1">次の日 ›</button><button class="btn" data-tdday-today>今日</button></div></div>${list(dayItems, { start: day, end: day })}<input class="in" data-tdnew="day" placeholder="＋ 日の ToDo を追加（件名を入れて Enter）" aria-label="日の ToDo を追加"></section>
-    </div>
+    <section class="panel tdweek" aria-label="この週のタスク"><h2>この週のタスク</h2>${list}</section>
     <section class="tdreview panel" aria-label="週の見返し"><h2>週の見返し（${fmtMD(week)}〜${fmtMD(weekEnd)}）</h2>
       <p class="td-sum"><b>完了 ${rv.done} / ${rv.total} 件</b>　予定 ${rv.planned} 分に対して実績 ${rv.actual} 分</p>
-      <div class="tscroll"><table class="tbl"><thead><tr><th>ToDo</th><th class="num">進捗</th><th class="num">予定</th><th class="num">実績</th><th class="num">回した回数</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="tscroll"><table class="tbl"><thead><tr><th>タスク</th><th class="num">進捗</th><th class="num">予定</th><th class="num">実績</th></tr></thead><tbody>${trs}</tbody></table></div>
       <label class="td-note">気づき<textarea class="in" rows="3" data-tdnote="${esc(week)}">${esc(rv.note)}</textarea></label>
     </section>
   </div>`;
 }
 
-return { renderTodo };
+return { completeInput, renderTodo };
 })();
 
 /* src/ui/dnd.js */
@@ -5020,13 +4952,13 @@ const S = {
   prefs: loadPrefs(), settingsClosed: loadSettingsClosed(), tpop: null, addAt: null, last: null, ruleError: "",
   ib: { open: false, text: loadInboxDraft(), projectId: "", replies: {}, reasons: {}, causes: {} },
   wperiod: "day", wdate: clock().date,
-  todoWeek: mondayOf(clock().date), todoDay: clock().date, tdAct: null, tdDraft: null, tdAskDel: null, askDelSess: null, // 実績つきの枠の削除の確認を出している枠の id（メモリのみ）。ToDo 画面の週（月曜日）・右の列の日・実績の入力欄を開いている ToDo と、その下書き・削除の確認を出している ToDo
+  todoWeek: mondayOf(clock().date), tdOpen: null, tdDraft: null, askDelSess: null, // 実績つきの枠の削除の確認を出している枠の id（メモリのみ）。ToDo 画面の週（月曜日）・完了の入力欄を開いているタスクと、その下書き
 };
 const $ = (id) => document.getElementById(id);
 const view = $("view");
 
-/** 通知で言うタスク（作業枠の持ち主の ToDo も）の名前（件名）。スケジュールでも出る通知は、ID でなく件名で言う */
-const taskTitle = (id) => ownerOf(S.data, id)?.item.title ?? id;
+/** 通知で言うタスクの名前（件名）。スケジュールでも出る通知は、ID でなく件名で言う */
+const taskTitle = (id) => S.data.tasks.find((t) => t.id === id)?.title ?? id;
 
 function toast(msg) {
   const t = $("toast");
@@ -5040,7 +4972,7 @@ function toast(msg) {
 /** 開始画面の、まだ開いていないファイルごとの案内と選ぶボタン */
 const PICK = {
   shared: `<p><b>共有ファイルを選んでください。</b>プロジェクトとタスク（<code>/project-lens:init</code> が作った <code>.project-lens/data.json</code>）です。</p><button class="btn" data-open="shared">共有ファイルを選ぶ</button>`,
-  personal: `<p><b>個人ファイルを選んでください。</b>自分の作業枠・予定・休み・ToDo（既定は <code>.project-lens/personal.json</code>）です。</p><button class="btn" data-open="personal">個人ファイルを選ぶ</button>`,
+  personal: `<p><b>個人ファイルを選んでください。</b>自分の作業枠・予定・休み（既定は <code>.project-lens/personal.json</code>）です。</p><button class="btn" data-open="personal">個人ファイルを選ぶ</button>`,
 };
 function startScreen() {
   const canPick = typeof window.showOpenFilePicker === "function";
@@ -5063,7 +4995,7 @@ function renderBody() {
     return renderProjects(S.data, today, { filter: S.filter, view: S.screen, window: S.gwin, hideDone: S.hideDone, askDel: S.askDel, askDelProject: S.askDelProject, pendingWait: S.pendingWait, pendingDone: S.pendingDone, checkOpen: S.checkOpen, addAt: S.addAt, tpop: S.screen === "gantt" ? S.tpop : null, showPrio: S.prefs.showPrio, showActual: S.prefs.showActual, now: clock() });
   }
   if (S.screen === "settings") return renderSettings(S.data, today, { ruleError: S.ruleError, closed: S.settingsClosed });
-  if (S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, day: S.todoDay, now: clock(), actFor: S.tdAct, draft: S.tdDraft, askDel: S.tdAskDel });
+  if (S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, draft: S.tdDraft });
   if (S.screen === "workload") return renderWorkload(S.data, today, { period: S.wperiod, date: S.wdate, now: clock() });
   return renderSchedule(S.data, today, scheduleOpts());
 }
@@ -5097,8 +5029,7 @@ function render() {
   if (S.selSess && !allSessions(S.data).some((s) => s.id === S.selSess)) { S.selSess = null; S.taskEdit = null; } // 読み直しなどで選択中の枠が無くなったら、選択と編集欄を外す
   if (S.taskEdit && (S.screen !== "schedule" || !S.data.tasks.some((t) => t.id === S.taskEdit.id))) { S.taskEdit = null; S.selSess = null; } // スケジュールの編集欄も同じ（編集欄は枠の選択と一緒なので、選択も外す）
   if (S.askDelSess && (S.screen !== "schedule" || S.askDelSess !== S.selSess)) S.askDelSess = null; // 削除の確認は、その枠を選んでいる間だけ（枠の id は S.data.tasks で検証しない）
-  if (S.tdAct && !S.data?.todos?.some((t) => t.id === S.tdAct)) { S.tdAct = null; S.tdDraft = null; } // 読み直しなどで ToDo が無くなったら、実績の入力欄を閉じる
-  if (S.tdAskDel && !S.data?.todos?.some((t) => t.id === S.tdAskDel)) S.tdAskDel = null; // 削除の確認も同じ（ToDo の id は S.data.tasks で検証しない）
+  if (S.tdOpen && !S.data?.tasks.some((t) => t.id === S.tdOpen)) { S.tdOpen = null; S.tdDraft = null; } // 読み直しなどでタスクが無くなったら、完了の入力欄を閉じる
   const c = clock();
   $("todaylabel").textContent = `${c.date.replace(/-/g, "/")}(${wdJa(c.date)})`;
   document.querySelectorAll("nav [role=tab]").forEach((b) => b.setAttribute("aria-selected", String(b.id === "tab-" + S.screen)));
@@ -5182,7 +5113,7 @@ function focusSelector(el) {
   if (d.rnewpj !== undefined) return "[data-rnewpj]";
   if (d.waitparty) return q("data-waitparty", d.waitparty);
   if (d.ug) return q("data-ug", d.ug); // 突発タスクの欄（読み直しで待たせた描き直しが、欄を移ったときに走る）
-  for (const k of ["tdnew", "tdtitle", "tdck", "tdnote", "ta"]) if (d[k] !== undefined) return q(`data-${k}`, d[k]); // ToDo 画面の欄
+  for (const k of ["tdnote", "tf"]) if (d[k] !== undefined) return q(`data-${k}`, d[k]); // ToDo 画面の欄
   return null;
 }
 
@@ -5400,8 +5331,8 @@ function submitGAdd(input) {
 }
 
 /* ---------- 選択と削除 ---------- */
-const clearSel = () => { S.selSess = null; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.actDraft = null; S.taskEdit = null; S.tdAct = null; S.tdDraft = null; S.tdAskDel = null; S.askDelSess = null; };
-/** 作業枠を選ぶ（id が null なら外す）。規則は sessionSelection（タスクの枠は編集欄も開く。ToDo の枠は選択だけ） */
+const clearSel = () => { S.selSess = null; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.actDraft = null; S.taskEdit = null; S.tdOpen = null; S.tdDraft = null; S.askDelSess = null; };
+/** 作業枠を選ぶ（id が null なら外す）。規則は sessionSelection（編集欄も開く） */
 const selectSession = (id) => { Object.assign(S, sessionSelection(S.data, id, S.taskEdit)); };
 
 function deleteSelected() {
@@ -5609,46 +5540,29 @@ view.addEventListener("click", (e) => {
   /* ToDo 画面 */
   const tw = q("[data-tdweek]"); if (tw) { moveTodoWeek(addDays(S.todoWeek, 7 * +tw.dataset.tdweek)); return; }
   if (q("[data-tdweek-today]")) { moveTodoWeek(mondayOf(today)); return; }
-  const tdd = q("[data-tdday]"); if (tdd) { setTodoDay(addDays(S.todoDay, +tdd.dataset.tdday)); return; }
-  if (q("[data-tdday-today]")) { setTodoDay(today); return; }
-  const tas = q("[data-tdassign]");
-  if (tas) {
-    const id = tas.dataset.tdassign, day = S.todoDay;
-    let r;
-    try { r = assignToDay(S.data, id, day); } catch (err) { toast(err.message); return; }
-    if (!r.created) { toast("すでにこの日に割り当てています"); return; }
-    apply((d) => assignToDay(d, id, day).data, `「${taskTitle(id)}」を ${fmtMD(day)} の ToDo にしました`);
+  const tdo = q("[data-tdopen]");
+  if (tdo) { const id = tdo.dataset.tdopen; S.tdOpen = S.tdOpen === id ? null : id; S.tdDraft = null; S.focusSel = S.tdOpen ? '[data-tf="start"]' : null; render(); return; }
+  const tdca = q("[data-tdckall]"); // 入力欄のチェックを、すべて付ける（描き直さない。保存で書く）
+  if (tdca) { // 欄の値を変えても change は起きないので、下書きへも写す（読み直しの描き直しで、チェックが戻らないように）
+    const form = tdca.closest(".tdform"), key = form.querySelector("[data-tdsave]")?.dataset.tdsave;
+    form.querySelectorAll("[data-tfck]").forEach((c) => { c.checked = true; });
+    if (key && key === S.tdOpen) S.tdDraft = tdFormDraft(form, key);
     return;
   }
-  const tcar = q("[data-tdcarry]");
-  if (tcar) { const id = tcar.dataset.tdcarry; if (apply((d) => carryTodo(d, id))) toast(`「${taskTitle(id)}」を ${fmtMD(S.data.todos.find((t) => t.id === id).date)} へ回しました`); return; }
-  const tdel = q("[data-tddel]"); // 実績の枠がある ToDo は、消す前に確認を出す（その行に。メモリ上の S.tdAskDel）
-  if (tdel) {
-    const id = tdel.dataset.tddel;
-    const own = S.data.todos?.find((t) => t.id === id);
-    if (own && actualSpans({ tasks: [], todos: [own] }).length) { S.tdAskDel = id; render(); return; }
-    deleteTodoNow(id); return;
-  }
-  const tdok = q("[data-tddelok]");
-  if (tdok) { deleteTodoNow(tdok.dataset.tddelok); return; }
-  if (q("[data-tddelno]")) { S.tdAskDel = null; render(); return; }
-  const tckd = q("[data-tdckdel]");
-  if (tckd) { const [id, iid] = tckd.dataset.tdckdel.split(":"); apply((d) => removeTodoCheck(d, id, iid)); return; }
-  const tact = q("[data-tdact]");
-  if (tact) { const id = tact.dataset.tdact; S.tdAct = S.tdAct === id ? null : id; S.tdDraft = null; S.focusSel = S.tdAct ? '[data-ta="start"]' : null; render(); return; }
-  const tsave = q("[data-tdactsave]"); // ToDo の実績の保存。入力欄の値は、押したときに読む。失敗しても打った値が消えないよう、先に下書きへ写す
-  if (tsave) {
-    const id = tsave.dataset.tdactsave, f = (k) => tsave.closest(".actform")?.querySelector(`[data-ta="${k}"]`)?.value ?? "";
-    const slot = { date: f("date"), start: f("start"), end: f("end") };
-    S.tdDraft = { key: id, ...slot };
-    if (!slot.date || !slot.start || !slot.end) { toast("日付・時刻を入力してください"); return; }
-    if (apply((d) => recordActual(d, id, slot, now).data, null, { quiet: true })) {
-      S.tdAct = null; S.tdDraft = null; render();
-      toast(`「${taskTitle(id)}」の ${slot.start}–${slot.end} の実績を入れました`);
+  const tds = q("[data-tdsave]"); // 完了の保存。入力欄の値は、押したときに読む。失敗しても打った値が消えないよう、先に下書きへ写す
+  if (tds) {
+    const id = tds.dataset.tdsave;
+    S.tdDraft = tdFormDraft(tds.closest(".tdform"), id);
+    const draft = S.tdDraft, title = taskTitle(id);
+    let r;
+    if (apply((d) => { r = completeTask(d, id, completeInput(draft), now); return r.data; }, null, { quiet: true })) {
+      S.tdOpen = null; S.tdDraft = null; render();
+      const sp = r.spawned ? S.data.tasks.find((x) => x.id === S.data.tasks.find((y) => y.id === id).repeat.spawned) : null;
+      toast(`「${title}」を ${draft.status} にしました${r.released ? `。未来の予定の枠 ${r.released} 件を解除しました` : ""}${sp ? `。次回（期限 ${fmtMD(sp.due)}）を作りました` : ""}`);
     }
     return;
   }
-  if (q("[data-tdactcancel]")) { S.tdAct = null; S.tdDraft = null; render(); return; }
+  if (q("[data-tdcancel]")) { S.tdOpen = null; S.tdDraft = null; render(); return; }
 
   /* 稼働画面 */
   const wp = q("[data-wperiod]"); if (wp) { S.wperiod = wp.dataset.wperiod; render(); return; }
@@ -5728,30 +5642,17 @@ view.addEventListener("click", (e) => {
   if (cleared) render();
 });
 
-/** ToDo を消す（実績の入力欄・削除の確認を外してから） */
-function deleteTodoNow(id) {
-  const name = taskTitle(id);
-  if (S.tdAct === id) { S.tdAct = null; S.tdDraft = null; }
-  S.tdAskDel = null;
-  apply((d) => deleteTodo(d, id), `「${name}」を削除しました`);
-}
-
-/** ToDo 画面の週を動かす。右の列の日は、その週に今日が含まれれば今日、なければ月曜日 */
+/** ToDo 画面の週を動かす（完了の入力欄は閉じる） */
 function moveTodoWeek(week) {
-  const today = clock().date;
-  S.todoWeek = week; S.todoDay = mondayOf(today) === week ? today : week; S.tdAct = null; S.tdDraft = null; S.tdAskDel = null;
+  S.todoWeek = week; S.tdOpen = null; S.tdDraft = null;
   render();
 }
-/** ToDo 画面の右の列の日を変える。左の週も、その日の週にそろえる */
-function setTodoDay(day) { S.todoDay = day; S.todoWeek = mondayOf(day); S.tdAct = null; S.tdDraft = null; S.tdAskDel = null; render(); }
 
-/** ToDo 画面の追加の欄（data-tdnew・data-tdck）の Enter。失敗は通知だけにして、打った文字を残す（描き直さない）。成功の描き直しで欄は空になる */
-function submitTodoInput(el) {
-  const text = el.value, scope = el.dataset.tdnew, id = el.dataset.tdck;
-  const edit = scope ? (d) => addTodo(d, { scope, title: text, date: scope === "week" ? S.todoWeek : S.todoDay }).data : (d) => addTodoCheck(d, id, text);
-  try { edit(S.data); } catch (err) { toast(err.message); return; }
-  S.focusSel = scope ? `[data-tdnew="${scope}"]` : `[data-tdck="${CSS.escape(id)}"]`;
-  apply(edit, scope ? `「${text.trim()}」を追加しました` : null);
+/** 完了の入力欄（.tdform）の値 → 下書き（{ key, date, start, end, status, checks }） */
+function tdFormDraft(form, key) {
+  const f = (k) => form?.querySelector(`[data-tf="${k}"]`)?.value ?? "";
+  const checks = Object.fromEntries([...(form?.querySelectorAll("[data-tfck]") ?? [])].map((c) => [c.dataset.tfck, c.checked]));
+  return { key, date: f("date"), start: f("start"), end: f("end"), status: f("status"), checks };
 }
 
 /** 突発タスクの入力欄の確定。件名が空なら何もしない。Error のときは通知だけで、入力欄を残す */
@@ -5918,14 +5819,11 @@ function onChange(el) {
     return;
   }
   // ToDo 画面
-  if (el.dataset.ta !== undefined) { // 実績の欄の下書き（描き直しても入力を残す）。この欄を開いたままのときだけ（別の欄に移ったあとの change では書かない）
-    const form = el.closest(".actform"), g = (k) => form?.querySelector(`[data-ta="${k}"]`)?.value ?? "", key = form?.querySelector("[data-tdactsave]")?.dataset.tdactsave;
-    if (key && key === S.tdAct) S.tdDraft = { key, date: g("date"), start: g("start"), end: g("end") };
+  if (el.dataset.tf !== undefined || el.dataset.tfck !== undefined) { // 完了の入力欄の下書き（描き直しても入力を残す）。この欄を開いたままのときだけ
+    const form = el.closest(".tdform"), key = form?.querySelector("[data-tdsave]")?.dataset.tdsave;
+    if (key && key === S.tdOpen) S.tdDraft = tdFormDraft(form, key);
     return;
   }
-  if (el.dataset.tdone !== undefined) { const id = el.dataset.tdone, done = el.checked; apply((d) => setTodoDone(d, id, done, today), done ? `「${taskTitle(id)}」を完了にしました` : `「${taskTitle(id)}」の完了を外しました`); return; }
-  if (el.dataset.tdtitle !== undefined) { const id = el.dataset.tdtitle, title = el.value; apply((d) => renameTodo(d, id, title), "件名を変更しました"); return; }
-  if (el.dataset.tdcktoggle !== undefined) { const [id, iid] = el.dataset.tdcktoggle.split(":"); apply((d) => toggleTodoCheck(d, id, iid)); return; }
   if (el.dataset.tdnote !== undefined) { const wk = el.dataset.tdnote, text = el.value.trim(); apply((d) => setReview(d, wk, text), "気づきを保存しました"); return; }
   if (el.dataset.mt) {
     const f = el.dataset.mt, v = f === "skip" ? el.checked : el.value;
@@ -6250,8 +6148,6 @@ view.addEventListener("keydown", (e) => {
   // 日本語入力の変換確定の Enter(isComposing)では追加しない
   if (e.key === "Enter" && !e.isComposing && e.target.matches("[data-gadd]")) { e.preventDefault(); submitGAdd(e.target); return; }
   if (e.key === "Enter" && !e.isComposing && e.target.matches("[data-ug=\"title\"]")) { e.preventDefault(); submitUrgent(); return; }
-  if (e.key === "Enter" && !e.isComposing && e.target.matches("[data-tdnew]")) { e.preventDefault(); submitTodoInput(e.target); return; }
-  if (e.key === "Enter" && !e.isComposing && e.target.matches("[data-tdck]")) { e.preventDefault(); submitTodoInput(e.target); return; }
   if (e.key === "Enter" && !e.isComposing && e.target.matches("[data-rnew]")) { e.preventDefault(); addRule(); return; }
   if (e.key === "Enter" && !e.isComposing && e.target.matches("[data-hnew],[data-hto],[data-hnote]")) { e.preventDefault(); addHolidayFromInput(); return; }
   if (e.key === "Enter" && !e.isComposing && e.target.matches("[data-wnew],[data-wnote]")) { e.preventDefault(); addWorkdayFromInput(); return; }

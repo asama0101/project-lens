@@ -1,5 +1,5 @@
 // data.json の検証。errors は保存してはいけない不整合、warnings は保存を止めない注意。
-import { isDate, isTime, toMin, nowLocal, diffDays, weekday } from "./dates.js";
+import { isDate, isTime, toMin, nowLocal, diffDays } from "./dates.js";
 import { isRepeat } from "./repeat.js";
 
 export const TASK_STATUS = ["To Do", "In Progress", "Waiting", "Done", "Cancelled"];
@@ -85,15 +85,13 @@ export function validate(data, now = nowLocal()) {
       seen.add(x.id);
     }
   };
-  const todos = data.todos ?? []; // 個人ファイルの ToDo。無いデータもある
   dup(data.projects, "プロジェクト");
   dup(data.tasks, "タスク");
   dup(data.events, "会議");
-  dup(todos, "ToDo");
   // 作業枠の ID は、移動・削除が ID だけで探すので、重複すると両方に効く。保存は止めず、注意に出す
   // 共有ファイルに無いタスクの作業枠（orphanSessions）も、同じ個人ファイルの枠なので含める
   const sessionIds = new Set();
-  for (const s of [...data.tasks.flatMap((t) => t.sessions ?? []), ...todos.flatMap((t) => t.sessions ?? []), ...(data.orphanSessions ?? [])]) {
+  for (const s of [...data.tasks.flatMap((t) => t.sessions ?? []), ...(data.orphanSessions ?? [])]) {
     if (sessionIds.has(s.id)) warn(`作業枠の ID が重複しています: ${s.id}（移動・削除が両方に効きます。data.json から直接直してください）`);
     sessionIds.add(s.id);
   }
@@ -112,7 +110,7 @@ export function validate(data, now = nowLocal()) {
     }
   }
 
-  // チェックリストの形（タスクと ToDo で共通）
+  // チェックリストの形
   const checkChecklist = (t, who) => {
     if (t.checklist === undefined) return;
     if (!Array.isArray(t.checklist)) { err(`${who}: チェックリスト (checklist) が配列ではありません`); return; }
@@ -125,7 +123,7 @@ export function validate(data, now = nowLocal()) {
       if (typeof c?.done !== "boolean") err(`${who}: チェックリストの項目 ${c?.id} の done が真偽値ではありません`);
     }
   };
-  // 作業枠の形（タスクと ToDo で共通）。まだ始まっていない枠か（形が不正なら false）を返す
+  // 作業枠の形。まだ始まっていない枠か（形が不正なら false）を返す
   const checkSession = (s, label) => {
     if (!isDate(s.date) || !isTime(s.start) || !isTime(s.end)) { err(`${label}: 日付または時刻の形式が不正です`); return false; }
     if (toMin(s.end) <= toMin(s.start)) err(`${label}: 終了が開始以前です`);
@@ -167,33 +165,14 @@ export function validate(data, now = nowLocal()) {
     }
   }
 
-  const weekTodoIds = new Set(todos.filter((t) => t.scope === "week").map((t) => t.id));
-  for (const t of todos) {
-    const who = `ToDo ${t.id}`;
-    if (typeof t.id !== "string" || !/^T-\d{4}$/.test(t.id)) err(`${who}: ID は T-0001 の形にしてください`);
-    if (data.tasks.some((x) => x.id === t.id)) err(`${who}: タスクと ID が重なっています`);
-    if (!["week", "day"].includes(t.scope)) err(`${who}: scope は week か day にしてください ("${t.scope}")`);
-    if (typeof t.title !== "string" || !t.title.trim()) err(`${who}: 件名が空です`);
-    if (!isDate(t.date)) err(`${who}: 日付の形式が不正です (${t.date})`);
-    else if (t.scope === "week" && weekday(t.date) !== 1) err(`${who}: 週の ToDo の日付は、月曜日にしてください (${t.date})`);
-    if (t.parentId != null) {
-      if (t.scope !== "day") err(`${who}: parentId を持てるのは、日の ToDo だけです`);
-      else if (!weekTodoIds.has(t.parentId)) err(`${who}: parentId "${t.parentId}" は、存在する週の ToDo ではありません`);
-    }
-    if (t.doneAt != null && !isDate(t.doneAt)) err(`${who}: 完了日の形式が不正です (${t.doneAt})`);
-    if (!(Number.isInteger(t.carried) && t.carried >= 0)) err(`${who}: carried は 0 以上の整数にしてください`);
-    checkChecklist(t, who);
-    for (const s of t.sessions ?? []) checkSession(s, `${who} の枠 ${s.id}`);
-  }
-
   const cycle = findCycle(data.tasks);
   if (cycle) err(`前のタスクが循環しています: ${cycle.join(" → ")}`);
 
-  // 同じ日の同じ種別の枠どうしの重なり（予定と実績は重なってよい。タスクと ToDo をまたいで判定）。実績は、実績だけの枠と予定の枠の actual（実績の区間）を合わせて比べる
+  // 同じ日の同じ種別の枠どうしの重なり（予定と実績は重なってよい。タスクをまたいで判定）。実績は、実績だけの枠と予定の枠の actual（実績の区間）を合わせて比べる
   // 日付で束ねて、同じ日の中だけ総当たりにする（全枠の総当たりは、数年分で秒単位になる）
   const byDay = new Map();
   const put = (date, x) => { if (!byDay.has(date)) byDay.set(date, []); byDay.get(date).push(x); };
-  for (const t of [...data.tasks, ...todos]) {
+  for (const t of data.tasks) {
     for (const s of t.sessions ?? []) {
       if (isDate(s.date) && isTime(s.start) && isTime(s.end)) put(s.date, s);
       const a = s.actual;
