@@ -4,19 +4,20 @@ import { readFileSync } from "node:fs";
 import { addDays, diffDays } from "../plugins/project-lens/src/core/dates.js";
 import { renderProjects } from "../plugins/project-lens/src/ui/views/project.js";
 import { renderGantt, assignLevels, layoutMilestones } from "../plugins/project-lens/src/ui/views/gantt.js";
-import { renderPrio, renderTodayTasks, todayTaskIds, doneAskHtml } from "../plugins/project-lens/src/ui/views/prio.js";
+import { renderPrio, renderSide, renderTodayTasks, renderTodayTodos, todayTaskIds, doneAskHtml } from "../plugins/project-lens/src/ui/views/prio.js";
 import { renderSettings } from "../plugins/project-lens/src/ui/views/settings.js";
 import { checkMeterHtml, dateInputHtml } from "../plugins/project-lens/src/ui/common.js";
 import { checklistEditorHtml } from "../plugins/project-lens/src/ui/views/checklist.js";
 import { renderTaskPop, renderTaskEditPanel } from "../plugins/project-lens/src/ui/views/taskpop.js";
 import { renderInboxBar, ibExamples } from "../plugins/project-lens/src/ui/views/inboxpanel.js";
 import { ruleMeetingCounts } from "../plugins/project-lens/src/core/rules.js";
-import { renderSchedule, renderCalendar, selectionKey, revealSelection, snapStart, calendarGeometry, urgentDefaultStart, urgentInput } from "../plugins/project-lens/src/ui/views/schedule.js";
+import { renderSchedule, renderCalendar, selectionKey, sessionSelection, revealSelection, snapStart, calendarGeometry, urgentDefaultStart, urgentInput } from "../plugins/project-lens/src/ui/views/schedule.js";
 import { taskActual } from "../plugins/project-lens/src/core/sessions.js";
 import { rankTasks } from "../plugins/project-lens/src/core/schedule.js";
 import { bannerHtml } from "../plugins/project-lens/src/ui/common.js";
 import { validate } from "../plugins/project-lens/src/core/schema.js";
 import { renderWorkload } from "../plugins/project-lens/src/ui/views/workload.js";
+import { renderTodo } from "../plugins/project-lens/src/ui/views/todo.js";
 
 
 const load = () => JSON.parse(readFileSync(new URL("../plugins/project-lens/data/sample.json", import.meta.url), "utf8"));
@@ -233,7 +234,7 @@ test("renderSchedule(day): 優先タスクと理由・枠の種別クラス・�
   const w = renderSchedule(load(), TODAY, { view: "week", date: "2026-10-19", now: NOW });
   assert.ok(w.includes("class=\"blk task act"), "実績");
   assert.ok(w.includes("class=\"blk task plan"), "予定");
-  assert.ok(w.includes(`${(3.5).toFixed(1)}時間`), "週の実績(10/19 の 1.5h + 1h + ZZ-0001 の 1h)");
+  assert.ok(w.includes(`${(4).toFixed(1)}時間`), "週の実績(10/19 の 1.5h + 1h + ZZ-0001 の 1h + ToDo T-0003 の 0.5h)");
   assert.equal(taskActual(load(), "AA-0005").hours + taskActual(load(), "AB-0002").hours, 4.5);
 });
 
@@ -1984,4 +1985,181 @@ test("renderSchedule: 予定の枠と時間が重なる実績の枠は、予定�
     assert.ok(!/left:|width:/.test(blk(html, "S23")), `${view} 重ならない予定は全幅`);
     assert.ok(!/left:|width:/.test(blk(html, "S24")), `${view} 重ならない実績は全幅`);
   }
+});
+
+test("ToDo の枠のブロックは、件名だけを出し、状態の文字・重要の印を出さない。選んだ ToDo の始まった予定の枠に、実績の入力欄が出る", () => {
+  const d = load();
+  d.todos.find((t) => t.id === "T-0004").sessions = [{ id: "S30", date: TODAY, start: "08:00", end: "09:00", kind: "planned" }];
+  const html = sched(d);
+  const blk = (id) => html.match(new RegExp(`<div class="blk task [^"]*"[^>]*data-dragsess="${id}"[^]*?</div>`))?.[0] ?? "";
+  assert.ok(blk("S7").includes('<span class="ttl">納期の問い合わせメールを送る</span>'), html);
+  assert.ok(!blk("S7").includes('class="stt"') && !/class="blk task [^"]* imp/.test(blk("S7")));
+  assert.ok(/class="blk task unconf[^"]*"[^>]*data-dragsess="S30"/.test(html));
+  const sel = sched(d, { selSess: "S30", taskEdit: { id: "T-0004", full: false, askDel: false } });
+  assert.ok(sel.includes('data-actsave="S30"') && sel.includes("「経費精算」の実績を入れます"));
+  assert.ok(sel.includes("「経費精算」の枠を削除"));
+});
+
+test("sessionSelection: タスクの枠は選択と編集欄（full を引き継ぐ）。ToDo の枠は選択だけ（編集欄は開かない。描き直しで外れない）。無い枠・null は両方外す", () => {
+  const d = load();
+  assert.deepEqual(sessionSelection(d, "S2", { id: "X", full: true, askDel: true }), { selSess: "S2", taskEdit: { id: "AA-0005", full: true, askDel: false } });
+  assert.deepEqual(sessionSelection(d, "S7", { id: "AA-0005", full: true, askDel: false }), { selSess: "S7", taskEdit: null });
+  assert.deepEqual(sessionSelection(d, "S999", null), { selSess: null, taskEdit: null });
+  assert.deepEqual(sessionSelection(d, null, null), { selSess: null, taskEdit: null });
+});
+
+/* ---------- ToDo タブ ---------- */
+const TD_WEEK = "2026-10-19";
+const tdItem = (o) => ({ scope: "day", date: TODAY, doneAt: null, carried: 0, sessions: [], ...o });
+const tdData = (todos, reviews) => ({ ...load(), todos, ...(reviews && { reviews }) });
+const tdHtml = (d, o = {}) => renderTodo(d, TODAY, { week: TD_WEEK, day: TODAY, now: { date: TODAY, time: "10:20" }, actFor: null, ...o });
+const tdCol = (html, which) => (which === "week" ? html.slice(html.indexOf('data-tdcol="week"'), html.indexOf('data-tdcol="day"')) : html.slice(html.indexOf('data-tdcol="day"'), html.indexOf('class="tdreview')));
+const tdRow = (html, id) => html.match(new RegExp(`<li[^>]*data-todo="${id}"[^]*?</li>`))?.[0] ?? "";
+
+test("renderTodo: 左に週の ToDo だけ、右に表示中の日の日の ToDo が並ぶ", () => {
+  const d = tdData([
+    tdItem({ id: "T-0001", scope: "week", title: "週", date: TD_WEEK }),
+    tdItem({ id: "T-0002", title: "単独の日" }),
+    tdItem({ id: "T-0003", title: "別の日", date: "2026-10-21" }),
+    tdItem({ id: "T-0004", title: "割り当て", parentId: "T-0001" }),
+    tdItem({ id: "T-0005", scope: "week", title: "翌週", date: "2026-10-26" }),
+  ]);
+  const html = tdHtml(d), left = tdCol(html, "week"), right = tdCol(html, "day");
+  assert.ok(left.includes('data-todo="T-0001"'));
+  for (const id of ["T-0002", "T-0003", "T-0004", "T-0005"]) assert.ok(!left.includes(`data-todo="${id}"`), id);
+  for (const id of ["T-0002", "T-0004"]) assert.ok(right.includes(`data-todo="${id}"`), id);
+  for (const id of ["T-0001", "T-0003", "T-0005"]) assert.ok(!right.includes(`data-todo="${id}"`), id);
+  for (const a of ['data-tdweek="-1"', 'data-tdweek="1"', "data-tdweek-today", 'data-tdday="-1"', 'data-tdday="1"', "data-tdday-today", "‹ 前の日", "次の日 ›"]) assert.ok(html.includes(a), a);
+});
+
+test("renderTodo: 件名に <script> が入っていても、エスケープされる。ID は画面の文字に出ない", () => {
+  const d = tdData([tdItem({ id: "T-0001", title: "<script>alert(1)</script>", checklist: [{ id: "c1", text: "<b>x</b>", done: false }] })]);
+  const html = tdHtml(d, { actFor: "T-0001" });
+  assert.ok(!html.includes("<script>") && !html.includes("<b>x</b>"));
+  assert.ok(html.includes("&lt;script&gt;"));
+  assert.doesNotMatch(visibleText(html), /T-\d{4}/);
+});
+
+test("renderTodo: 回した回数が 1 以上の行に「回しています」、0 の行に出ない。完了した ToDo は回すが無く、closed で列の末尾", () => {
+  const d = tdData([
+    tdItem({ id: "T-0001", scope: "week", title: "週", date: TD_WEEK, carried: 2 }),
+    tdItem({ id: "T-0002", title: "済み", doneAt: TODAY }),
+    tdItem({ id: "T-0003", title: "回していない" }),
+  ]);
+  const html = tdHtml(d), right = tdCol(html, "day");
+  assert.ok(tdRow(html, "T-0001").includes("2 回回しています"));
+  assert.ok(tdRow(html, "T-0001").includes('data-tdcarry="T-0001"') && tdRow(html, "T-0001").includes("来週へ回す"));
+  assert.ok(!tdRow(html, "T-0003").includes("回しています"));
+  assert.ok(tdRow(html, "T-0003").includes("明日へ回す"));
+  assert.ok(!html.includes('data-tdcarry="T-0002"'));
+  assert.match(tdRow(html, "T-0002"), /<li class="[^"]*\bclosed\b/);
+  assert.ok(right.indexOf('data-todo="T-0003"') < right.indexOf('data-todo="T-0002"'), "完了は末尾");
+  for (const a of ['data-tdone="T-0003"', 'data-tdtitle="T-0003"', 'data-tddel="T-0003"', 'data-tdact="T-0003"', 'data-tdck="T-0003"']) assert.ok(html.includes(a), a);
+});
+
+test("renderTodo: 割り当てのボタンの文言は、右の日が今日なら「今日へ」、そうでなければ「この日へ」", () => {
+  const d = tdData([tdItem({ id: "T-0001", scope: "week", title: "週", date: TD_WEEK })]);
+  const row = (day) => tdRow(tdHtml(d, { day }), "T-0001");
+  assert.match(row(TODAY), /data-tdassign="T-0001"[^>]*>今日へ</);
+  assert.match(row("2026-10-21"), /data-tdassign="T-0001"[^>]*>この日へ</);
+  assert.ok(!row("2026-10-21").includes("今日へ"));
+});
+
+test("renderTodo: チェックリストの項目は、チェック・削除の属性（ToDo の id:項目 id）と、進捗 M/N", () => {
+  const d = tdData([tdItem({ id: "T-0001", title: "項目あり", checklist: [{ id: "c1", text: "一", done: true }, { id: "c2", text: "二", done: false }] })]);
+  const row = tdRow(tdHtml(d), "T-0001");
+  assert.ok(row.includes('data-tdcktoggle="T-0001:c1"') && row.includes('data-tdckdel="T-0001:c2"'));
+  assert.ok(row.includes("1/2"));
+});
+
+test("renderTodo: 実績の入力欄の初期値（予定の枠があればその時刻。なければ今を 15 分に切り捨てて 60 分。今日以外は 09:00–10:00）", () => {
+  const d = tdData([
+    tdItem({ id: "T-0001", title: "予定あり", sessions: [{ id: "S90", date: TODAY, start: "13:00", end: "14:00", kind: "planned" }] }),
+    tdItem({ id: "T-0002", title: "予定なし" }),
+    tdItem({ id: "T-0003", title: "翌日", date: "2026-10-21" }),
+  ]);
+  const form = (o) => tdRow(tdHtml(d, o), o.actFor);
+  const f1 = form({ actFor: "T-0001" });
+  assert.ok(f1.includes('class="actform"') && f1.includes('data-tdactsave="T-0001"') && f1.includes("data-tdactcancel"));
+  assert.match(f1, /data-ta="date" value="2026-10-20"/);
+  assert.match(f1, /data-ta="start" value="13:00"/);
+  assert.match(f1, /data-ta="end" value="14:00"/);
+  const f2 = form({ actFor: "T-0002" });
+  assert.match(f2, /data-ta="start" value="10:15"/);
+  assert.match(f2, /data-ta="end" value="11:15"/);
+  const f3 = form({ actFor: "T-0003", day: "2026-10-21" });
+  assert.match(f3, /data-ta="date" value="2026-10-21"/);
+  assert.match(f3, /data-ta="start" value="09:00"/);
+  assert.match(f3, /data-ta="end" value="10:00"/);
+  assert.ok(!tdRow(tdHtml(d), "T-0001").includes("actform"), "開いていない行には出ない");
+  const kept = form({ actFor: "T-0002", draft: { key: "T-0002", date: TODAY, start: "08:00", end: "08:30" } });
+  assert.match(kept, /data-ta="start" value="08:00"/, "下書きがあれば、その値");
+});
+
+test("renderTodo: 見返しの完了数・分数・回した回数の行（割り当てた日の ToDo は数えない）", () => {
+  const d = tdData([
+    tdItem({ id: "T-0001", scope: "week", title: "週", date: TD_WEEK, doneAt: TODAY, carried: 1 }),
+    tdItem({ id: "T-0002", title: "単独", sessions: [{ id: "S91", date: TODAY, start: "09:00", end: "10:00", kind: "planned" }] }),
+    tdItem({ id: "T-0003", title: "割り当て", parentId: "T-0001", sessions: [{ id: "S92", date: TODAY, start: "13:00", end: "13:30", kind: "actual" }] }),
+  ], { [TD_WEEK]: "会議が多い週" });
+  const html = tdHtml(d), rv = html.slice(html.indexOf('class="tdreview'));
+  assert.ok(rv.startsWith('class="tdreview'));
+  assert.ok(rv.includes("完了 1 / 2 件"), rv);
+  assert.ok(rv.includes("予定 60 分に対して実績 30 分"), rv);
+  assert.match(rv, /<tr class="hot">[^]*?週[^]*?<\/tr>/);
+  assert.equal(count(rv, /<tr class="hot">/g), 1);
+  assert.ok(!rv.includes("割り当て"), "割り当てた日の ToDo は表に出ない");
+  assert.match(rv, /<textarea[^>]*data-tdnote="2026-10-19"[^>]*>会議が多い週<\/textarea>/);
+});
+
+test("renderTodo: ToDo が 1 件もなくても、空の列と追加の入力が出る", () => {
+  const html = tdHtml(tdData([]));
+  for (const a of ['data-tdcol="week"', 'data-tdcol="day"', 'data-tdnew="week"', 'data-tdnew="day"', 'class="tdreview', "完了 0 / 0 件"]) assert.ok(html.includes(a), a);
+  assert.ok(!html.includes("data-todo="));
+});
+
+test("renderSide（sched: true）: 今日の ToDo の行が、今日のタスクの前に出て、完了していない行だけ data-dragtask を持つ", () => {
+  const d = load();
+  d.todos.find((t) => t.id === "T-0004").sessions = [{ id: "S8", date: TODAY, start: "11:00", end: "12:00", kind: "planned" }];
+  d.tasks.find((t) => t.id === "AA-0005").sessions = [{ id: "s5", date: TODAY, start: "14:00", end: "15:00", kind: "planned" }];
+  const html = renderSide(d, TODAY, { sched: true, now: NOW });
+  assert.ok(html.indexOf("今日の ToDo") >= 0 && html.indexOf("今日の ToDo") < html.indexOf("今日のタスク"), "今日のタスクの前");
+  const lis = [...html.slice(0, html.indexOf("今日のタスク")).matchAll(/<li[^>]*>[\s\S]*?<\/li>/g)].map((m) => m[0]);
+  assert.equal(lis.length, 2);
+  const [open, done] = lis;
+  assert.ok(open.includes("経費精算") && open.includes('draggable="true"') && open.includes('data-dragtask="T-0004"') && open.includes("11:00–12:00") && open.includes("ktag plan"), "未完了");
+  assert.ok(done.includes("納期の問い合わせメールを送る") && done.includes('class="closed"') && !done.includes("draggable") && !done.includes("data-dragtask") && done.includes("13:00–13:30") && done.includes("ktag act"), "完了は薄く末尾・ドラッグ不可");
+  assert.ok(!html.slice(html.indexOf("今日のタスク")).includes("T-0004"), "今日のタスクに ToDo は出ない");
+  assert.ok(!html.includes("T-0001") && !html.includes("ベンダーX へ納期の再確認"), "週の ToDo は出ない");
+  assert.ok(!renderSide(d, TODAY, { sched: false, now: NOW }).includes("今日の ToDo"), "ガント・リストでは出ない");
+  assert.ok(!renderSide(d, TODAY, { now: NOW }).includes("今日の ToDo"));
+  d.todos = [];
+  assert.equal(renderTodayTodos(d, TODAY, { sched: true }), "");
+  assert.ok(!renderSide(d, TODAY, { sched: true, now: NOW }).includes("今日の ToDo"), "0 件なら出ない");
+});
+
+test("renderTodo: 削除の確認（askDel）。その ToDo 自身の実績の分数が入り、削除する／やめるが出る。ほかの行と、確認なしの行は今までどおり", () => {
+  const d = tdData([
+    tdItem({ id: "T-0001", title: "確認", sessions: [{ id: "S91", date: TODAY, start: "09:00", end: "09:45", kind: "actual" }, { id: "S92", date: TODAY, start: "11:00", end: "11:30", kind: "actual" }, { id: "S93", date: TODAY, start: "13:00", end: "14:00", kind: "planned" }] }),
+    tdItem({ id: "T-0002", title: "別" }),
+  ]);
+  const r1 = tdRow(tdHtml(d, { askDel: "T-0001" }), "T-0001");
+  assert.ok(r1.includes("実績 75 分も消えます"), r1);
+  assert.ok(r1.includes('data-tddelok="T-0001"') && r1.includes("data-tddelno") && r1.includes("削除する") && r1.includes("やめる"));
+  assert.ok(!r1.includes("data-tddel="), "確認の間は、最初の削除ボタンを出さない");
+  const r2 = tdRow(tdHtml(d, { askDel: "T-0001" }), "T-0002");
+  assert.ok(r2.includes('data-tddel="T-0002"') && !r2.includes("data-tddelok"));
+  assert.ok(tdRow(tdHtml(d), "T-0001").includes('data-tddel="T-0001"'));
+});
+
+test("renderTodo: 見返しで、別の週の ToDo（inWeek: false の行）に「（別の週の ToDo）」が出る。その週の行には出ない", () => {
+  const d = tdData([
+    tdItem({ id: "T-0001", title: "回した", date: "2026-10-26", carried: 1, sessions: [{ id: "S91", date: "2026-10-23", start: "09:00", end: "10:00", kind: "actual" }] }),
+    tdItem({ id: "T-0002", title: "今週", date: "2026-10-21" }),
+  ]);
+  const rv = tdHtml(d).slice(tdHtml(d).indexOf('class="tdreview'));
+  const tr = (t) => rv.split("<tr").find((x) => x.includes(`<td>${t}`));
+  assert.ok(tr("回した").includes("（別の週の ToDo）") && tr("回した").includes("60 分"), tr("回した"));
+  assert.ok(!tr("今週").includes("別の週"));
+  assert.ok(rv.includes("完了 0 / 1 件") && rv.includes("実績 60 分"), rv);
 });

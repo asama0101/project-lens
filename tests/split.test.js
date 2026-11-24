@@ -112,3 +112,70 @@ test("checkSharedShape: 作業枠・予定を含む 1 ファイルの旧形式�
 test("dataFromTexts: JSON でないファイルは、ファイル名つきで「JSON として読めません」", () => {
   assert.throws(() => dataFromTexts(["{ x", JSON.stringify(emptyPersonal())], ["data.json", "personal.json"]), /JSON として読めません（data\.json）/);
 });
+
+// ---- ToDo（個人ファイルの todos・reviews） ----
+const plain = () => { const { todos, reviews, ...d } = sample(); return d; }; // ToDo の無いデータ
+const todoData = () => {
+  const d = plain();
+  d.todos = [
+    { id: "T-0001", scope: "week", title: "週の ToDo", date: "2026-10-19", doneAt: null, carried: 0, sessions: [{ id: "S90", date: "2026-10-20", start: "09:00", end: "10:00", kind: "planned" }] },
+    { id: "T-0002", scope: "day", title: "日の ToDo", date: "2026-10-20", parentId: "T-0001", doneAt: null, carried: 1, checklist: [{ id: "c1", text: "a", done: false }], sessions: [] },
+  ];
+  d.reviews = { "2026-10-19": "気づき" };
+  return d;
+};
+
+test("splitData: ToDo の枠は、taskId つきで個人の sessions に入り、todos には sessions が入らない", () => {
+  const { shared, personal } = splitData(todoData());
+  assert.deepEqual(personal.sessions.find((s) => s.id === "S90"), { id: "S90", date: "2026-10-20", start: "09:00", end: "10:00", kind: "planned", taskId: "T-0001" });
+  assert.ok(personal.todos.length === 2 && personal.todos.every((t) => !("sessions" in t)));
+  assert.deepEqual(personal.reviews, { "2026-10-19": "気づき" });
+  assert.ok(!("todos" in shared) && !("reviews" in shared));
+});
+
+test("splitData: todos が空・reviews が空なら、個人ファイルに todos・reviews のキーを書かない", () => {
+  const d = { ...plain(), todos: [], reviews: {} };
+  const { personal } = splitData(d);
+  assert.ok(!("todos" in personal) && !("reviews" in personal));
+  assert.deepEqual(personal, splitData(plain()).personal);
+});
+
+test("mergeData: taskId が ToDo の ID の枠は、その ToDo の sessions に戻り、orphanSessions にならない", () => {
+  const { shared, personal } = splitData(todoData());
+  const m = mergeData(shared, personal);
+  assert.deepEqual(m.todos[0].sessions.map((s) => s.id), ["S90"]);
+  assert.ok(!("taskId" in m.todos[0].sessions[0]));
+  assert.ok(!m.orphanSessions);
+});
+
+test("mergeData: 共有のタスクの枠は、今までどおりタスクへ", () => {
+  const { shared, personal } = splitData(todoData());
+  const m = mergeData(shared, personal);
+  assert.ok(m.tasks.some((t) => t.sessions.length > 0));
+  assert.ok(m.tasks.every((t) => !t.sessions.some((s) => s.id === "S90")));
+});
+
+test("mergeData: todos・reviews が個人ファイルに無いとき、data.todos は []・data.reviews は {}", () => {
+  const { shared, personal } = splitData(plain());
+  const m = mergeData(shared, personal);
+  assert.deepEqual(m.todos, []);
+  assert.deepEqual(m.reviews, {});
+});
+
+test("ToDo ありのデータは、分けて結合すると元に戻る", () => {
+  const d = todoData();
+  const { shared, personal } = splitData(d);
+  assert.deepEqual(mergeData(shared, personal), d);
+});
+
+test("ToDo の無い個人ファイルは、結合して分け直しても同じ（todos・reviews のキーが増えない）", () => {
+  const { shared, personal } = splitData(plain());
+  const again = splitData(mergeData(shared, personal));
+  assert.equal(JSON.stringify(again.personal), JSON.stringify(personal));
+});
+
+test("checkPersonalShape: todos があるとき、配列でなければ例外", () => {
+  assert.doesNotThrow(() => checkPersonalShape({ sessions: [], events: [] }));
+  assert.doesNotThrow(() => checkPersonalShape({ sessions: [], events: [], todos: [] }));
+  assert.throws(() => checkPersonalShape({ sessions: [], events: [], todos: {} }), /todos/);
+});

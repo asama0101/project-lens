@@ -377,12 +377,13 @@ export function addUrgentTask(data, { title, projectId, date, start, minutes }) 
 
 /**
  * 実績の枠を保存する（addActual。ほかの実績の枠と重なる・開始が今より後・タスクが無いは Error）。
- * タスクが To Do・Waiting なら In Progress にする（updateTask の規則で、Waiting の待ち先は外れる。Done・Cancelled は変えない）。statusChanged・from（元の状態）を返す
+ * タスクが To Do・Waiting なら In Progress にする（updateTask の規則で、Waiting の待ち先は外れる。Done・Cancelled は変えない）。statusChanged・from（元の状態）を返す。
+ * 持ち主が ToDo のときは、状態を持たないので変えない（statusChanged は false、from は ""）
  */
 export function recordActual(data, taskId, slot, now) {
   const r = addActual(data, taskId, slot, now);
   if (r.error) throw new Error(r.error);
-  const from = data.tasks.find((x) => x.id === taskId).status;
+  const from = data.tasks.find((x) => x.id === taskId)?.status ?? "";
   const statusChanged = from === "To Do" || from === "Waiting";
   return { data: statusChanged ? updateTask(r.data, taskId, { status: "In Progress" }, now.date) : r.data, taskId, statusChanged, from };
 }

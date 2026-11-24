@@ -1,6 +1,6 @@
 // ドラッグ&ドロップの「どこへ落とすと何が起きるか」の判断。DOM には触れない（落とし先の読み取りは app.js）。データは変えない。
 import { toMin, toHHMM } from "../core/dates.js";
-import { allSessions, addSession, moveSession } from "../core/sessions.js";
+import { allSessions, ownerOf, addSession, moveSession } from "../core/sessions.js";
 import { updateMeeting } from "../core/schedule.js";
 import { moveTask, moveChecklistItem } from "./edit.js";
 import { snapStart } from "./views/schedule.js";
@@ -16,19 +16,19 @@ export const asEdit = (fn) => (d) => { const r = fn(d); if (r.error) throw new E
 export function planDropAt(data, drag, { date, at }, now) {
   if (drag.kind === "mtg") {
     const m = data.events.find((o) => o.id === drag.id), dur = toMin(m.end) - toMin(m.start), st = snapStart(at, dur);
-    const clash = data.tasks.some((t) => (t.sessions ?? []).some((s) => s.date === date && toMin(s.start) < st + dur && toMin(s.end) > st));
+    const clash = allSessions(data).some((s) => s.date === date && toMin(s.start) < st + dur && toMin(s.end) > st);
     return { st, end: st + dur, warning: clash ? "配置済みの枠と重なっています" : "", next: (d) => updateMeeting(d, m.id, { date, start: toHHMM(st), end: toHHMM(st + dur) }), msg: `会議「${m.title}」を ${fmtMD(date)} ${hm(st)} に移動しました` };
   }
   if (drag.kind === "sess") {
     const s = allSessions(data).find((x) => x.id === drag.id), dur = toMin(s.end) - toMin(s.start), st = snapStart(at, dur);
     const to = { date, start: toHHMM(st) };
     const r = moveSession(data, s.id, to, now);
-    return { st, end: st + dur, error: r.error, warning: r.warning, next: asEdit((d) => moveSession(d, s.id, to, now)), msg: `${data.tasks.find((t) => t.id === s.taskId).title} を ${fmtMD(date)} ${hm(st)} に移動しました` };
+    return { st, end: st + dur, error: r.error, warning: r.warning, next: asEdit((d) => moveSession(d, s.id, to, now)), msg: `${s.title} を ${fmtMD(date)} ${hm(st)} に移動しました` };
   }
   const st = snapStart(at, 60);
   const did = drag.id, put = { date, start: toHHMM(st), end: toHHMM(st + 60) };
   const r = addSession(data, did, put);
-  return { st, end: st + 60, error: r.error, warning: r.warning, next: asEdit((d) => addSession(d, did, put)), msg: `${data.tasks.find((t) => t.id === did).title} を ${fmtMD(date)} ${hm(st)} に予定として配置しました` };
+  return { st, end: st + 60, error: r.error, warning: r.warning, next: asEdit((d) => addSession(d, did, put)), msg: `${ownerOf(data, did)?.item.title ?? did} を ${fmtMD(date)} ${hm(st)} に予定として配置しました` };
 }
 
 /**

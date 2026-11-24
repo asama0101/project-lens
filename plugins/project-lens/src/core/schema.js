@@ -1,5 +1,5 @@
 // data.json の検証。errors は保存してはいけない不整合、warnings は保存を止めない注意。
-import { isDate, isTime, toMin, nowLocal, diffDays } from "./dates.js";
+import { isDate, isTime, toMin, nowLocal, diffDays, weekday } from "./dates.js";
 import { isRepeat } from "./repeat.js";
 
 export const TASK_STATUS = ["To Do", "In Progress", "Waiting", "Done", "Cancelled"];
@@ -85,13 +85,15 @@ export function validate(data, now = nowLocal()) {
       seen.add(x.id);
     }
   };
+  const todos = data.todos ?? []; // 個人ファイルの ToDo。無いデータもある
   dup(data.projects, "プロジェクト");
   dup(data.tasks, "タスク");
   dup(data.events, "会議");
+  dup(todos, "ToDo");
   // 作業枠の ID は、移動・削除が ID だけで探すので、重複すると両方に効く。保存は止めず、注意に出す
   // 共有ファイルに無いタスクの作業枠（orphanSessions）も、同じ個人ファイルの枠なので含める
   const sessionIds = new Set();
-  for (const s of [...data.tasks.flatMap((t) => t.sessions ?? []), ...(data.orphanSessions ?? [])]) {
+  for (const s of [...data.tasks.flatMap((t) => t.sessions ?? []), ...todos.flatMap((t) => t.sessions ?? []), ...(data.orphanSessions ?? [])]) {
     if (sessionIds.has(s.id)) warn(`作業枠の ID が重複しています: ${s.id}（移動・削除が両方に効きます。data.json から直接直してください）`);
     sessionIds.add(s.id);
   }
@@ -110,6 +112,27 @@ export function validate(data, now = nowLocal()) {
     }
   }
 
+  // チェックリストの形（タスクと ToDo で共通）
+  const checkChecklist = (t, who) => {
+    if (t.checklist === undefined) return;
+    if (!Array.isArray(t.checklist)) { err(`${who}: チェックリスト (checklist) が配列ではありません`); return; }
+    const seen = new Set();
+    for (const c of t.checklist) {
+      if (typeof c?.id !== "string" || !c.id) err(`${who}: チェックリストの項目の ID が文字列ではありません`);
+      else if (seen.has(c.id)) err(`${who}: チェックリストの項目の ID が重複しています: ${c.id}`);
+      else seen.add(c.id);
+      if (typeof c?.text !== "string" || !c.text.trim()) err(`${who}: チェックリストの項目 ${c?.id} の文言が空です`);
+      if (typeof c?.done !== "boolean") err(`${who}: チェックリストの項目 ${c?.id} の done が真偽値ではありません`);
+    }
+  };
+  // 作業枠の形（タスクと ToDo で共通）。まだ始まっていない枠か（形が不正なら false）を返す
+  const checkSession = (s, label) => {
+    if (!isDate(s.date) || !isTime(s.start) || !isTime(s.end)) { err(`${label}: 日付または時刻の形式が不正です`); return false; }
+    if (toMin(s.end) <= toMin(s.start)) err(`${label}: 終了が開始以前です`);
+    if (!["planned", "actual"].includes(s.kind)) err(`${label}: 不明な kind "${s.kind}"`);
+    return s.date > now.date || (s.date === now.date && s.start > now.time); // 進行中の枠は、完了にしても残す（futurePlanned）
+  };
+
   for (const t of data.tasks) {
     if (!TASK_STATUS.includes(t.status)) err(`タスク ${t.id}: 不明な状態 "${t.status}"`);
     if (t.projectId !== null && !projectIds.has(t.projectId)) err(`タスク ${t.id}: 不明な projectId "${t.projectId}"`);
@@ -119,19 +142,7 @@ export function validate(data, now = nowLocal()) {
     if (t.doneAt != null && !isDate(t.doneAt)) err(`タスク ${t.id}: 完了日の形式が不正です (${t.doneAt})`);
     if (t.repeat != null && !isRepeat(t.repeat)) err(`タスク ${t.id}: 繰り返し (repeat) は、{ unit: "week" } か { unit: "month", day: 1〜31 } にしてください`);
     if (t.important !== undefined && t.important !== true) err(`タスク ${t.id}: 重要 (important) は true にするか、項目を消してください`);
-    if (t.checklist !== undefined) {
-      if (!Array.isArray(t.checklist)) err(`タスク ${t.id}: チェックリスト (checklist) が配列ではありません`);
-      else {
-        const seen = new Set();
-        for (const c of t.checklist) {
-          if (typeof c?.id !== "string" || !c.id) err(`タスク ${t.id}: チェックリストの項目の ID が文字列ではありません`);
-          else if (seen.has(c.id)) err(`タスク ${t.id}: チェックリストの項目の ID が重複しています: ${c.id}`);
-          else seen.add(c.id);
-          if (typeof c?.text !== "string" || !c.text.trim()) err(`タスク ${t.id}: チェックリストの項目 ${c?.id} の文言が空です`);
-          if (typeof c?.done !== "boolean") err(`タスク ${t.id}: チェックリストの項目 ${c?.id} の done が真偽値ではありません`);
-        }
-      }
-    }
+    checkChecklist(t, `タスク ${t.id}`);
     const preds = t.predecessors ?? [];
     for (const pid of preds) {
       if (!taskIds.has(pid)) err(`タスク ${t.id}: 存在しない前のタスク "${pid}"`);
@@ -145,13 +156,28 @@ export function validate(data, now = nowLocal()) {
     if (isDate(t.start) && isDate(t.due) && t.start > t.due) err(`タスク ${t.id}: 開始日が期限より後です`);
 
     for (const s of t.sessions ?? []) {
-      const label = `タスク ${t.id} の枠 ${s.id}`;
-      if (!isDate(s.date) || !isTime(s.start) || !isTime(s.end)) { err(`${label}: 日付または時刻の形式が不正です`); continue; }
-      if (toMin(s.end) <= toMin(s.start)) err(`${label}: 終了が開始以前です`);
-      if (!["planned", "actual"].includes(s.kind)) err(`${label}: 不明な kind "${s.kind}"`);
-      const notStarted = s.date > now.date || (s.date === now.date && s.start > now.time); // 進行中の枠は、完了にしても残す（futurePlanned）
-      if (isClosed(t) && s.kind === "planned" && notStarted) warn(`タスク ${t.id}: ${t.status} なのに未来の予定枠 ${s.id} が残っています`);
+      const notStarted = checkSession(s, `タスク ${t.id} の枠 ${s.id}`);
+      if (notStarted && isClosed(t) && s.kind === "planned") warn(`タスク ${t.id}: ${t.status} なのに未来の予定枠 ${s.id} が残っています`);
     }
+  }
+
+  const weekTodoIds = new Set(todos.filter((t) => t.scope === "week").map((t) => t.id));
+  for (const t of todos) {
+    const who = `ToDo ${t.id}`;
+    if (typeof t.id !== "string" || !/^T-\d{4}$/.test(t.id)) err(`${who}: ID は T-0001 の形にしてください`);
+    if (data.tasks.some((x) => x.id === t.id)) err(`${who}: タスクと ID が重なっています`);
+    if (!["week", "day"].includes(t.scope)) err(`${who}: scope は week か day にしてください ("${t.scope}")`);
+    if (typeof t.title !== "string" || !t.title.trim()) err(`${who}: 件名が空です`);
+    if (!isDate(t.date)) err(`${who}: 日付の形式が不正です (${t.date})`);
+    else if (t.scope === "week" && weekday(t.date) !== 1) err(`${who}: 週の ToDo の日付は、月曜日にしてください (${t.date})`);
+    if (t.parentId != null) {
+      if (t.scope !== "day") err(`${who}: parentId を持てるのは、日の ToDo だけです`);
+      else if (!weekTodoIds.has(t.parentId)) err(`${who}: parentId "${t.parentId}" は、存在する週の ToDo ではありません`);
+    }
+    if (t.doneAt != null && !isDate(t.doneAt)) err(`${who}: 完了日の形式が不正です (${t.doneAt})`);
+    if (!(Number.isInteger(t.carried) && t.carried >= 0)) err(`${who}: carried は 0 以上の整数にしてください`);
+    checkChecklist(t, who);
+    for (const s of t.sessions ?? []) checkSession(s, `${who} の枠 ${s.id}`);
   }
 
   const cycle = findCycle(data.tasks);
@@ -159,7 +185,7 @@ export function validate(data, now = nowLocal()) {
 
   // 同じ日の同じ種別の枠どうしの重なり（予定と実績は重なってよい。タスクをまたいで判定）。日付で束ねて、同じ日の中だけ総当たりにする（全枠の総当たりは、数年分で秒単位になる）
   const byDay = new Map();
-  for (const t of data.tasks) {
+  for (const t of [...data.tasks, ...todos]) {
     for (const s of t.sessions ?? []) {
       if (!isDate(s.date) || !isTime(s.start) || !isTime(s.end)) continue;
       if (!byDay.has(s.date)) byDay.set(s.date, []);

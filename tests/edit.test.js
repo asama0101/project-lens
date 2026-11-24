@@ -676,3 +676,11 @@ test("recordActual: ほかの実績と重なる・開始が今より後・存在
   assert.throws(() => recordActual(d, "ZZ-9999", { date: TODAY, start: "09:00", end: "10:00" }, at("10:15")), /ZZ-9999 がありません/);
   assert.equal(JSON.stringify(d), before);
 });
+
+test("recordActual: ToDo には、状態の変更がなく statusChanged が false（from は空）", () => {
+  const d = load();
+  const r = recordActual(d, "T-0004", { date: TODAY, start: "08:00", end: "09:00" }, at("10:15"));
+  assert.deepEqual([r.taskId, r.statusChanged, r.from], ["T-0004", false, ""]);
+  assert.deepEqual(r.data.todos.find((t) => t.id === "T-0004").sessions.map((s) => [s.start, s.kind]), [["08:00", "actual"]]);
+  assert.deepEqual(r.data.tasks, d.tasks);
+});

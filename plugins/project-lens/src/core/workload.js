@@ -1,14 +1,14 @@
 // 稼働の集計（純関数）: 実績の作業枠（タスク）と、確認済みで参加する会議の時間をプロジェクト別に集める。
 import { addDays, toMin, weekday } from "./dates.js";
-import { actualSlots, sessionKind } from "./sessions.js";
+import { allSessions, actualSlots, sessionKind } from "./sessions.js";
 import { meetingActualSpan, meetingKind } from "./schedule.js";
 
 export const hours = (x) => (toMin(x.end) - toMin(x.start)) / 60;
 const inRange = (d, r) => !r || (d >= r.start && d <= r.end);
 const sumBy = (list, f) => list.reduce((a, x) => a + f(x), 0);
 
-const actualSessions = (data, range) =>
-  data.tasks.flatMap((t) => (t.sessions ?? []).filter((s) => s.kind === "actual" && inRange(s.date, range)).map((s) => ({ ...s, projectId: t.projectId })));
+/** 実績の作業枠（タスクと ToDo）。ToDo の枠は projectId が null（プロジェクト未設定） */
+const actualSessions = (data, range) => allSessions(data).filter((s) => s.kind === "actual" && inRange(s.date, range));
 const meetingHours = (m) => hours(meetingActualSpan(m));
 const countedMeetings = (data, range) => data.events.filter((m) => m.confirmed === true && !m.skip && inRange(m.date, range));
 
@@ -37,7 +37,7 @@ export function workload(data, range, now) {
   let unconfirmedTasks = 0, unconfirmedMeetings = 0;
   if (now) {
     const actuals = actualSlots(data);
-    unconfirmedTasks = data.tasks.flatMap((t) => t.sessions ?? []).filter((s) => inRange(s.date, range) && sessionKind(s, now, actuals) === "unconfirmed").length;
+    unconfirmedTasks = allSessions(data).filter((s) => inRange(s.date, range) && sessionKind(s, now, actuals) === "unconfirmed").length;
     unconfirmedMeetings = data.events.filter((m) => inRange(m.date, range) && meetingKind(m, now) === "unconfirmed").length;
   }
   return { rows, unassigned, total: sumBy(rows, (r) => r.total) + unassigned.task + unassigned.meeting, unconfirmed: unconfirmedTasks + unconfirmedMeetings, unconfirmedTasks, unconfirmedMeetings };
