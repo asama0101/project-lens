@@ -160,22 +160,24 @@ export function actAddSpan(date, now) {
 }
 
 /**
- * 実績の入力欄。始まった予定の枠を選んでいるときは、その枠の時刻を初期値に（持ち主は枠の持ち主。タスクか ToDo）。
+ * 実績の入力欄。始まった予定の枠か、実績（actual）を持つ予定の枠を選んでいるときは、その枠の actual を書く欄（日付・開始・終了。持ち主は枠の持ち主。タスクか ToDo）。actual があれば「実績を更新」と「実績を消す」。
  * 「＋ 実績を追加」（ctx.add = { date }）のときは、タスク（Done・Cancelled 以外）・日付も選ぶ。どちらでもなければ出さない。
  * 入力の値は、保存を押したときに画面から読む（app.js）。入力中の値は下書き（ctx.draft = { key, task, date, start, end }。key は枠の ID・"add"）に残り、key が同じ欄は下書きの値で描く
  * @param ctx { selSess: 選択中の枠 ID, add: S.actAdd, draft: S.actDraft, today, now }
  */
 export function actualForm(data, ctx) {
   const s = allSessions(data).find((x) => x.id === ctx.selSess);
-  const fromPlan = s && s.kind === "planned" && started(s, ctx.now);
+  const fromPlan = s && s.kind === "planned" && (started(s, ctx.now) || !!s.actual);
   if (!fromPlan && !ctx.add) return "";
   const dr = ctx.draft?.key === (fromPlan ? s.id : "add") ? ctx.draft : null;
   const time = (k, v) => `<label>${k === "start" ? "開始" : "終了"}<input class="in" type="time" step="900" data-ac="${k}" value="${esc(dr?.[k] ?? v)}"></label>`;
-  if (fromPlan) {
+  if (fromPlan) { // 初期値は、実績（actual）があればその値、なければ枠の日付と予定の時刻
+    const a = s.actual ?? s;
     return `<div class="actform" role="group" aria-label="実績の入力">
     <span class="note" style="flex-basis:100%;margin:0">「${esc(s.title)}」の実績を入れます（予定の枠は残ります）</span>
-    ${time("start", s.start)}${time("end", s.end)}
-    <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-actsave="${esc(s.id)}">実績を保存</button></div>
+    <label>日付${dateInputHtml({ value: dr?.date || a.date, attrs: 'data-ac="date"', label: "実績の日付" })}</label>
+    ${time("start", a.start)}${time("end", a.end)}
+    <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-actsave="${esc(s.id)}">${s.actual ? "実績を更新" : "実績を保存"}</button>${s.actual ? `<button class="btn" data-actclear="${esc(s.id)}">実績を消す</button>` : ""}</div>
   </div>`;
   }
   const pn = (t) => (data.projects ?? []).find((p) => p.id === t.projectId)?.name;

@@ -3,7 +3,7 @@ import { addDays, diffDays, isDate, isWeekend, toMin, toHHMM, nowLocal } from ".
 import { calendarOf } from "../core/holidays.js";
 import { taskStart } from "../core/metrics.js";
 import { groupSections } from "../core/groups.js";
-import { addSession, addActual } from "../core/sessions.js";
+import { addSession, addActual, setActual, allSessions } from "../core/sessions.js";
 import { nextChecklistId } from "../core/checklist.js";
 import { isRepeat, nextRepeatDue } from "../core/repeat.js";
 import { HOLIDAY_KINDS } from "../core/schema.js";
@@ -384,6 +384,15 @@ export function recordActual(data, taskId, slot, now) {
   const r = addActual(data, taskId, slot, now);
   if (r.error) throw new Error(r.error);
   const from = data.tasks.find((x) => x.id === taskId)?.status ?? "";
+  const statusChanged = from === "To Do" || from === "Waiting";
+  return { data: statusChanged ? updateTask(r.data, taskId, { status: "In Progress" }, now.date) : r.data, taskId, statusChanged, from };
+}
+
+/** 予定の枠の実績（actual）を書く（setActual。あれば上書き。失敗は Error）。状態の規則は recordActual と同じ。taskId は枠の持ち主（タスクか ToDo） */
+export function recordSlotActual(data, sessionId, slot, now) {
+  const r = setActual(data, sessionId, slot, now);
+  if (r.error) throw new Error(r.error);
+  const taskId = allSessions(data).find((s) => s.id === sessionId).taskId, from = data.tasks.find((x) => x.id === taskId)?.status ?? "";
   const statusChanged = from === "To Do" || from === "Waiting";
   return { data: statusChanged ? updateTask(r.data, taskId, { status: "In Progress" }, now.date) : r.data, taskId, statusChanged, from };
 }

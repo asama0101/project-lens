@@ -1404,6 +1404,7 @@ function setActual(data, sessionId, slot, now) {
 function clearActual(data, sessionId) {
   const cur = findSession(data, sessionId);
   if (!cur) return { data, error: `枠 ${sessionId} がありません` };
+  if (cur.kind === "actual") return { data, error: "この枠は実績だけの枠です" };
   if (!cur.actual) return { data, error: "この枠には実績がありません" };
   return { data: mapSessions(data, sessionId, ({ actual, ...s }) => s) };
 }
@@ -2808,7 +2809,7 @@ return { depPath, depMarkup, drawDeps, focusDeps };
 })();
 
 /* src/ui/edit.js */
-const { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, recordActual, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject } = (() => {
+const { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, recordActual, recordSlotActual, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject } = (() => {
 // 画面からの編集（追加・削除・更新）。すべて不変更新で、不正な入力は例外にする（呼び出し側が理由を表示する）。
 
 
@@ -3199,6 +3200,15 @@ function recordActual(data, taskId, slot, now) {
   return { data: statusChanged ? updateTask(r.data, taskId, { status: "In Progress" }, now.date) : r.data, taskId, statusChanged, from };
 }
 
+/** 予定の枠の実績（actual）を書く（setActual。あれば上書き。失敗は Error）。状態の規則は recordActual と同じ。taskId は枠の持ち主（タスクか ToDo） */
+function recordSlotActual(data, sessionId, slot, now) {
+  const r = setActual(data, sessionId, slot, now);
+  if (r.error) throw new Error(r.error);
+  const taskId = allSessions(data).find((s) => s.id === sessionId).taskId, from = data.tasks.find((x) => x.id === taskId)?.status ?? "";
+  const statusChanged = from === "To Do" || from === "Waiting";
+  return { data: statusChanged ? updateTask(r.data, taskId, { status: "In Progress" }, now.date) : r.data, taskId, statusChanged, from };
+}
+
 function addTask(data, task) {
   if (!data.projects.some((p) => p.id === task.projectId)) throw new Error(`プロジェクト ${task.projectId} がありません`);
   const title = String(task.title ?? "").trim();
@@ -3324,7 +3334,7 @@ function deleteProject(data, projectId) {
   return { ...data, settings, events, ...(inbox ? { inbox } : {}), projects: data.projects.filter((p) => p.id !== projectId), tasks: data.tasks.filter((t) => t.projectId !== projectId) };
 }
 
-return { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, recordActual, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject };
+return { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, recordActual, recordSlotActual, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject };
 })();
 
 /* src/ui/donecheck.js */
@@ -4603,22 +4613,24 @@ function actAddSpan(date, now) {
 }
 
 /**
- * 実績の入力欄。始まった予定の枠を選んでいるときは、その枠の時刻を初期値に（持ち主は枠の持ち主。タスクか ToDo）。
+ * 実績の入力欄。始まった予定の枠か、実績（actual）を持つ予定の枠を選んでいるときは、その枠の actual を書く欄（日付・開始・終了。持ち主は枠の持ち主。タスクか ToDo）。actual があれば「実績を更新」と「実績を消す」。
  * 「＋ 実績を追加」（ctx.add = { date }）のときは、タスク（Done・Cancelled 以外）・日付も選ぶ。どちらでもなければ出さない。
  * 入力の値は、保存を押したときに画面から読む（app.js）。入力中の値は下書き（ctx.draft = { key, task, date, start, end }。key は枠の ID・"add"）に残り、key が同じ欄は下書きの値で描く
  * @param ctx { selSess: 選択中の枠 ID, add: S.actAdd, draft: S.actDraft, today, now }
  */
 function actualForm(data, ctx) {
   const s = allSessions(data).find((x) => x.id === ctx.selSess);
-  const fromPlan = s && s.kind === "planned" && started(s, ctx.now);
+  const fromPlan = s && s.kind === "planned" && (started(s, ctx.now) || !!s.actual);
   if (!fromPlan && !ctx.add) return "";
   const dr = ctx.draft?.key === (fromPlan ? s.id : "add") ? ctx.draft : null;
   const time = (k, v) => `<label>${k === "start" ? "開始" : "終了"}<input class="in" type="time" step="900" data-ac="${k}" value="${esc(dr?.[k] ?? v)}"></label>`;
-  if (fromPlan) {
+  if (fromPlan) { // 初期値は、実績（actual）があればその値、なければ枠の日付と予定の時刻
+    const a = s.actual ?? s;
     return `<div class="actform" role="group" aria-label="実績の入力">
     <span class="note" style="flex-basis:100%;margin:0">「${esc(s.title)}」の実績を入れます（予定の枠は残ります）</span>
-    ${time("start", s.start)}${time("end", s.end)}
-    <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-actsave="${esc(s.id)}">実績を保存</button></div>
+    <label>日付${dateInputHtml({ value: dr?.date || a.date, attrs: 'data-ac="date"', label: "実績の日付" })}</label>
+    ${time("start", a.start)}${time("end", a.end)}
+    <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-actsave="${esc(s.id)}">${s.actual ? "実績を更新" : "実績を保存"}</button>${s.actual ? `<button class="btn" data-actclear="${esc(s.id)}">実績を消す</button>` : ""}</div>
   </div>`;
   }
   const pn = (t) => (data.projects ?? []).find((p) => p.id === t.projectId)?.name;
@@ -5490,7 +5502,7 @@ view.addEventListener("click", (e) => {
   if (S.tpop && !q(".tpop,[data-gt],[data-gh]")) { S.tpop = null; render(); } // 閉じたあと、押したものの操作もそのまま行う
   let cleared = false;
   // 欄外のクリックで、枠・会議の選択と追加中の下書きを外す
-  if ((S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.actAdd || S.taskEdit) && !q("[data-dragsess],[data-mtg],[data-delsel],.mtgform,.actform,[data-mtgadd],[data-actadd],[data-actsave],[data-mtgact]")) { clearSel(); cleared = true; }
+  if ((S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.actAdd || S.taskEdit) && !q("[data-dragsess],[data-mtg],[data-delsel],.mtgform,.actform,[data-mtgadd],[data-actadd],[data-actsave],[data-actclear],[data-mtgact]")) { clearSel(); cleared = true; }
   const { date: today, time } = clock();
   const now = clock();
 
@@ -5630,16 +5642,35 @@ view.addEventListener("click", (e) => {
   if (q("[data-sskip]")) { togglePref("showSkipped"); return; }
   if (q("[data-sdue]")) { togglePref("showDue"); return; }
   const dy0 = q("[data-day]"); if (dy0) { S.sdate = dy0.dataset.day; S.sview = "day"; render(); return; }
-  const acs = q("[data-actsave]"); // 実績の保存。入力欄の値は、押したときに読む。予定の枠から入れるときは、枠のタスク・日付
+  const acs = q("[data-actsave]"); // 実績の保存。入力欄の値は、押したときに読む。data-actsave に枠の ID があれば、その予定の枠の actual を書く（なければ「＋ 実績を追加」）
   if (acs) {
-    const f = (k) => view.querySelector(`[data-ac="${k}"]`)?.value ?? "";
-    const s = acs.dataset.actsave ? allSessions(S.data).find((x) => x.id === acs.dataset.actsave) : null;
-    const taskId = s ? s.taskId : f("task"), slot = { date: s ? s.date : f("date"), start: f("start"), end: f("end") };
-    if (!taskId || !slot.date || !slot.start || !slot.end) { toast("タスク・日付・時刻を入力してください"); return; }
+    const f = (k) => view.querySelector(`[data-ac="${k}"]`)?.value ?? "", sid = acs.dataset.actsave;
+    const note = (r) => (r.statusChanged ? `（状態を In Progress にしました${r.from === "Waiting" ? "。待ち先の記録は外しました" : ""}）` : "");
     let r;
+    if (sid) { // 失敗しても打った値が消えないよう、検査の前に下書きへ写す
+      const slot = { date: f("date"), start: f("start"), end: f("end") }, had = !!allSessions(S.data).find((x) => x.id === sid)?.actual;
+      S.actDraft = { key: sid, task: "", ...slot };
+      if (!isDate(slot.date) || !isTime(slot.start) || !isTime(slot.end)) { toast("日付・時刻を入力してください"); return; }
+      if (apply((d) => { r = recordSlotActual(d, sid, slot, now); return r.data; }, null, { quiet: true })) {
+        clearSel(); render();
+        toast(had ? `${taskTitle(r.taskId)} の実績を ${slot.start}–${slot.end} に更新しました` : `${taskTitle(r.taskId)} の ${slot.start}–${slot.end} の実績を入れました${note(r)}`);
+      }
+      return;
+    }
+    const taskId = f("task"), slot = { date: f("date"), start: f("start"), end: f("end") };
+    if (!taskId || !slot.date || !slot.start || !slot.end) { toast("タスク・日付・時刻を入力してください"); return; }
     if (apply((d) => { r = recordActual(d, taskId, slot, now); return r.data; }, null, { quiet: true })) {
       clearSel(); render();
-      toast(`${taskTitle(taskId)} の ${slot.start}–${slot.end} の実績を入れました${r.statusChanged ? `（状態を In Progress にしました${r.from === "Waiting" ? "。待ち先の記録は外しました" : ""}）` : ""}`);
+      toast(`${taskTitle(taskId)} の ${slot.start}–${slot.end} の実績を入れました${note(r)}`);
+    }
+    return;
+  }
+  const acl = q("[data-actclear]"); // 予定の枠の実績（actual）だけを外す（予定の枠と選択は残る）
+  if (acl) {
+    const s = allSessions(S.data).find((x) => x.id === acl.dataset.actclear);
+    if (s && apply((d) => { const r = clearActual(d, s.id); if (r.error) throw new Error(r.error); return r.data; }, null, { quiet: true })) {
+      S.actDraft = null; render();
+      toast(`${taskTitle(s.taskId)} の実績を消しました`);
     }
     return;
   }

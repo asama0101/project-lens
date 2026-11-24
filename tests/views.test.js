@@ -369,6 +369,36 @@ test("actualForm: 下書き（actDraft）の key が同じ欄は、下書きの�
   assert.ok(!other.includes(" selected") && !other.includes('value="11:30"'), "別の欄の下書きは使わない");
 });
 
+// ---- 予定の枠の実績（actual）の入力欄 ----
+const withPlan = (s) => { const d = load(); d.tasks.find((t) => t.id === "AA-0005").sessions.push({ kind: "planned", ...s }); return d; };
+const acv = (html, k) => new RegExp(`<input[^>]*data-ac="${k}"[^>]*value="([^"]*)"`).exec(html)?.[1];
+
+test("actualForm: 予定の枠（開始が今以前）で、日付・開始・終了が予定の値、ボタンの文言は「実績を保存」、実績を消すボタンは無い", () => {
+  const html = sched(withPlan({ id: "S9", date: TODAY, start: "08:00", end: "09:00" }), { selSess: "S9" });
+  assert.deepEqual([acv(html, "date"), acv(html, "start"), acv(html, "end")], [TODAY, "08:00", "09:00"]);
+  assert.ok(html.includes('data-actsave="S9">実績を保存</button>'), html);
+  assert.ok(!html.includes("data-actclear"));
+});
+
+test("actualForm: actual を持つ予定の枠では、初期値が actual の値、文言は「実績を更新」、data-actclear が出る", () => {
+  const html = sched(withPlan({ id: "S9", date: TODAY, start: "08:00", end: "09:00", actual: { date: "2026-10-19", start: "08:15", end: "09:30" } }), { selSess: "S9" });
+  assert.deepEqual([acv(html, "date"), acv(html, "start"), acv(html, "end")], ["2026-10-19", "08:15", "09:30"]);
+  assert.ok(html.includes('data-actsave="S9">実績を更新</button>'), html);
+  assert.ok(html.includes('data-actclear="S9">実績を消す</button>'), html);
+});
+
+test("actualForm: 開始が今より後の予定の枠でも、actual を持てば出る（持たなければ出ない）", () => {
+  const fut = { id: "S9", date: "2026-10-21", start: "08:00", end: "09:00" };
+  assert.ok(!sched(withPlan(fut), { selSess: "S9", date: fut.date }).includes('class="actform"'));
+  const html = sched(withPlan({ ...fut, actual: { date: TODAY, start: "08:00", end: "09:00" } }), { selSess: "S9", date: fut.date });
+  assert.ok(html.includes('data-actsave="S9">実績を更新</button>') && html.includes('data-actclear="S9"'), html);
+});
+
+test("actualForm: 下書きの日付・時刻が値になる", () => {
+  const html = sched(withPlan({ id: "S9", date: TODAY, start: "08:00", end: "09:00" }), { selSess: "S9", actDraft: { key: "S9", task: "", date: "2026-10-19", start: "07:00", end: "07:45" } });
+  assert.deepEqual([acv(html, "date"), acv(html, "start"), acv(html, "end")], ["2026-10-19", "07:00", "07:45"]);
+});
+
 test("会議フォーム: 下書き（key が m:<会議 ID>）の実績の開始・終了で描く。別の会議の下書きは使わない", () => {
   const d = noSessions();
   const html = renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15, selMtg: "m1", actDraft: { key: "m:m1", start: "09:45", end: "10:15" } });

@@ -599,9 +599,9 @@ test("theme.css: カレンダーの上の入力欄（#mtgslot）は、中身が�
 test("app.js: 実績の保存（data-actsave）は、入力欄（data-ac）を押した時に読み、recordActual を 1 回の apply で保存し（枠と状態を一緒に）、件名と時刻と、状態を変えたことを通知で言う。プロジェクト画面にも now を渡す", () => {
   const i = src.indexOf('q("[data-actsave]")');
   assert.ok(i > 0, "data-actsave のハンドラ");
-  const a = src.slice(i, i + 1200);
+  const a = src.slice(i, src.indexOf('q("[data-actclear]")'));
   assert.ok(a.includes('view.querySelector(`[data-ac="${k}"]`)') && a.includes("recordActual(d, taskId, slot, now)") && a.includes("apply("), a);
-  assert.equal(a.slice(0, a.indexOf('q("[data-actcancel]")')).match(/apply\(/g).length, 1, "apply は 1 回");
+  assert.equal(a.match(/apply\(/g).length, 2, "apply は、予定の枠（recordSlotActual）と「＋ 実績を追加」（recordActual）の経路で 1 回ずつ");
   assert.ok(a.includes("taskTitle(taskId)") && a.includes("の実績を入れました") && a.includes("状態を In Progress にしました") && a.includes("待ち先の記録は外しました"), a);
   assert.ok(a.includes("clearSel()"), "保存したら、選択と入力欄を閉じる");
   for (const old of ["data-session-actual", "data-confirm", "confirmTodaySession", "confirmSession", "confirmMeeting"]) assert.ok(!src.includes(old), old);
@@ -726,8 +726,31 @@ test("app.js: 実績の入力欄（data-ac・data-ma）は、change で S.actDra
   const i = src.indexOf('q("[data-actsave]")');
   const a = src.slice(i, src.indexOf('q("[data-actcancel]")'));
   assert.ok(a.includes("clearSel(); render();"), "枠・追加の保存の成功は clearSel で消す");
-  assert.ok(!a.slice(0, a.indexOf("if (apply(")).includes("actDraft"), "失敗の経路では消さない");
+  assert.ok(!a.slice(0, a.indexOf("if (apply(")).includes("S.actDraft = null"), "失敗の経路では消さない");
   assert.ok(src.includes('if (apply((d) => setMeetingActual(d, id, span, now), "会議の実績を入れました")) S.actDraft = null;'), "会議は成功したときだけ消す");
+});
+
+test("app.js: 予定の枠の実績の保存（data-actsave に枠の ID）は、日付・開始・終了を下書きへ先に写し、空・不正なら通知して下書きを残し、recordSlotActual を apply に通す。初回と更新で通知を分ける", () => {
+  const i = src.indexOf('q("[data-actsave]")');
+  const a = src.slice(i, src.indexOf('q("[data-actcancel]")'));
+  const slotPath = a.slice(0, a.indexOf("recordActual(d, taskId"));
+  assert.match(slotPath, /S\.actDraft = \{ key: sid, task: "", \.\.\.slot \};[\s\S]*isDate\(slot\.date\)[^\n]*toast\("日付・時刻を入力してください"\); return; \}/, slotPath);
+  assert.ok(slotPath.indexOf("S.actDraft = { key: sid") < slotPath.indexOf("isDate(slot.date)"), "検査の前に下書きへ写す");
+  assert.match(slotPath, /apply\(\(d\) => \{ r = recordSlotActual\(d, sid, slot, now\); return r\.data; \}, null, \{ quiet: true \}\)/);
+  assert.ok(!slotPath.slice(0, slotPath.indexOf("if (apply(")).includes("S.actDraft = null"), "失敗の経路では下書きを消さない");
+  assert.ok(slotPath.includes("clearSel(); render();"), "成功で選択と下書きを外す");
+  assert.ok(slotPath.includes("の実績を ${slot.start}–${slot.end} に更新しました") && slotPath.includes("の ${slot.start}–${slot.end} の実績を入れました"), slotPath);
+  assert.ok(slotPath.includes("taskTitle(r.taskId)"));
+});
+
+test("app.js: 実績を消す（data-actclear）は clearActual を apply に通し、成功で下書きを消し、件名で通知する。欄外のクリックでも選択を外さない", () => {
+  const i = src.indexOf('q("[data-actclear]")');
+  assert.ok(i > 0, "data-actclear のハンドラ");
+  const a = src.slice(i, i + 600);
+  assert.match(a, /apply\(\(d\) => \{ const r = clearActual\(d, s\.id\); if \(r\.error\) throw new Error\(r\.error\); return r\.data; \}, null, \{ quiet: true \}\)/, a);
+  assert.ok(a.includes("S.actDraft = null") && a.includes("の実績を消しました") && a.includes("taskTitle(s.taskId)"), a);
+  const g = src.slice(src.indexOf("// 欄外のクリックで"), src.indexOf("// 欄外のクリックで") + 400);
+  assert.ok(g.includes("[data-actclear]"), g);
 });
 
 test("ToDo タブ: index.html のタブ（スケジュールと稼働の間）、renderBody の renderTodo、build の MODULES（schedule.js の後）", () => {

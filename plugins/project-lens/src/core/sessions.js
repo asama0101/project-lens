@@ -102,6 +102,7 @@ export function setActual(data, sessionId, slot, now) {
 export function clearActual(data, sessionId) {
   const cur = findSession(data, sessionId);
   if (!cur) return { data, error: `枠 ${sessionId} がありません` };
+  if (cur.kind === "actual") return { data, error: "この枠は実績だけの枠です" };
   if (!cur.actual) return { data, error: "この枠には実績がありません" };
   return { data: mapSessions(data, sessionId, ({ actual, ...s }) => s) };
 }

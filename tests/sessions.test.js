@@ -382,6 +382,7 @@ test("clearActual: actual だけが外れ、予定の枠は残る。actual が�
   assert.ok(clearActual(d, "S31").error);
   assert.equal(clearActual(d, "S31").data, d);
   assert.match(clearActual(d, "SX").error, /枠 SX がありません/);
+  assert.match(clearActual(d, "S1").error, /この枠は実績だけの枠です/);
 });
 
 test("sessionKind: actual を持つ予定の枠は actual（過ぎていても未確認にならない）。actual が無く、重なる実績の枠も無い過ぎた予定は unconfirmed。今の形（別の実績の枠が重なる）は planned のまま", () => {
