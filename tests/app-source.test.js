@@ -454,7 +454,7 @@ test("app.js・theme.css: ヘッダーの「＋ 突発タスク」は、塗り�
 test("theme.css: 週表示の今日の列は背景色を持たず、上端の線（--accent）だけで示す", () => {
   const rule = (sel) => css.slice(css.indexOf(sel + "{"), css.indexOf("}", css.indexOf(sel + "{")));
   const today = rule(".week .col.today");
-  assert.ok(!today.includes("background") && today.includes("inset 0 3px 0 var(--accent)"), today);
+  assert.ok(!today.includes("background") && today.includes("inset 0 5px 0 var(--accent)"), today);
   assert.ok(!css.includes("--today-col"));
 });
 

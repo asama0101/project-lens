@@ -49,6 +49,12 @@ const hoursHtml = (g) => {
   return s;
 };
 
+/** 描いたブロックの区間（span）が、今日の今を含むか（開始ちょうどは含み、終了ちょうどは含まない）。含むなら、ブロックの class と時刻の前の「いま」 */
+const nowMark = (ctx, d, span) => {
+  const n = toMin(ctx.now.time);
+  return d === ctx.now.date && toMin(span.start) <= n && n < toMin(span.end) ? { cls: " now", tag: "<b class=\"nw\">いま</b> " } : { cls: "", tag: "" };
+};
+
 /** 実績の区間が予定の区間と違うか（違うときだけ、予定の時刻に影を描く） */
 const differs = (p, a) => a.start !== p.start || a.end !== p.end || (a.date ?? p.date) !== p.date;
 /** 実績とずれた予定の影（薄い点線の枠。ドラッグ・伸縮なし。押すと同じ枠・会議を選ぶ）。attr は data-ghost / data-mghost */
@@ -77,7 +83,8 @@ const meetingProj = (data, m) => {
 function meetingActualBlock(data, m, full, g, ctx) {
   const span = meetingActualSpan(m);
   const a = toMin(span.start), b = toMin(span.end);
-  return `<div class="blk mtg act ${ctx.selMtg === m.id ? "sel" : ""}${b - a < SHORT_MIN ? " short" : ""}" data-mact="${esc(m.id)}" tabindex="0" style="top:${g.tp(a)};height:${g.ht(a, b)}" title="${esc(m.title)}(予定 ${esc(m.start)}-${esc(m.end)})${m.source === "manual" ? "" : "(予定表から取得)"}"><span class="tm">実績 ${esc(span.start)}-${esc(span.end)} ✓</span>${esc(m.title)}${full ? meetingProj(data, m) : ""}</div>`;
+  const nw = nowMark(ctx, m.date, span);
+  return `<div class="blk mtg act${nw.cls} ${ctx.selMtg === m.id ? "sel" : ""}${b - a < SHORT_MIN ? " short" : ""}" data-mact="${esc(m.id)}" tabindex="0" style="top:${g.tp(a)};height:${g.ht(a, b)}" title="${esc(m.title)}(予定 ${esc(m.start)}-${esc(m.end)})${m.source === "manual" ? "" : "(予定表から取得)"}"><span class="tm">${nw.tag}実績 ${esc(span.start)}-${esc(span.end)} ✓</span>${esc(m.title)}${full ? meetingProj(data, m) : ""}</div>`;
 }
 
 /** 予定の時刻の会議のブロック（actual の無い会議・参加しない会議）。confirmed: true なら実績後の見た目（act）。手動の会議はドラッグ・伸縮できる */
@@ -91,7 +98,8 @@ function meetingBlock(data, m, full, g, ctx) {
   const mark = m.skip ? " 不参加" : kind === "actual" ? " ✓" : kind === "unconfirmed" ? " 未確認" : "";
   const gap = m.actual && (m.actual.start !== m.start || m.actual.end !== m.end) ? ` 実績 ${m.actual.start}-${m.actual.end}` : ""; // 予定とずれた実績（参加しない会議に actual が残っているとき）
   const proj = full ? meetingProj(data, m) : "";
-  return `<div class="blk mtg ${m.skip ? "skip" : ""} ${kc} ${ctx.selMtg === m.id ? "sel" : ""}${b - a < SHORT_MIN ? " short" : ""}" data-mtg="${esc(m.id)}" tabindex="0" ${manual ? `draggable="true" data-dragmtg="${esc(m.id)}"` : ""} style="top:${g.tp(a)};height:${g.ht(a, b)}" title="${esc(m.title)}${m.skip ? "(参加しない)" : ""}${manual ? "" : "(予定表から取得)"}${esc(gap)}"><span class="tm">${esc(m.start)}-${esc(m.end)}${esc(mark + gap)}</span>${esc(m.title)}${proj}${manual ? `<i class="rz" data-rzm="${esc(m.id)}" aria-label="終了時刻を変更"></i>` : ""}</div>`;
+  const nw = m.skip ? { cls: "", tag: "" } : nowMark(ctx, m.date, m);
+  return `<div class="blk mtg ${m.skip ? "skip" : ""} ${kc}${nw.cls} ${ctx.selMtg === m.id ? "sel" : ""}${b - a < SHORT_MIN ? " short" : ""}" data-mtg="${esc(m.id)}" tabindex="0" ${manual ? `draggable="true" data-dragmtg="${esc(m.id)}"` : ""} style="top:${g.tp(a)};height:${g.ht(a, b)}" title="${esc(m.title)}${m.skip ? "(参加しない)" : ""}${manual ? "" : "(予定表から取得)"}${esc(gap)}"><span class="tm">${nw.tag}${esc(m.start)}-${esc(m.end)}${esc(mark + gap)}</span>${esc(m.title)}${proj}${manual ? `<i class="rz" data-rzm="${esc(m.id)}" aria-label="終了時刻を変更"></i>` : ""}</div>`;
 }
 
 const KIND_CLS = { actual: "act", unconfirmed: "unconf", planned: "plan" };
@@ -130,7 +138,8 @@ function sessionBlocks(data, d, full, g, ctx) {
     const attrs = bar ? `tabindex="0" data-actbar="${esc(s.id)}"` : `draggable="true" tabindex="0" data-dragsess="${esc(s.id)}"`;
     const plan = bar ? `予定 ${fmtMD(s.date)} ${s.start}-${s.end}` : ""; // 実績のブロックに添える予定の時刻
     const note = bar && len >= PLAN_NOTE_MIN && differs(s, s.actual) ? `<span class="pl">${esc(plan)}</span>` : "";
-    return `<div class="blk task ${c}${imp}${short} ${ctx.selSess === s.id ? "sel" : ""}" ${attrs} style="top:${g.tp(toMin(t.start))};height:${g.ht(toMin(t.start), toMin(t.end))}${side}" title="${esc(s.title)}(${KIND_JA[c]})${bar ? ` ${esc(plan)}` : ""}"><span class="tm">${bar ? "実績 " : ""}${esc(t.start)}-${esc(t.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${esc(s.title)}</span>${st}${note}${bar ? "" : `<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i>`}</div>`;
+    const nw = nowMark(ctx, d, t);
+    return `<div class="blk task ${c}${imp}${short}${nw.cls} ${ctx.selSess === s.id ? "sel" : ""}" ${attrs} style="top:${g.tp(toMin(t.start))};height:${g.ht(toMin(t.start), toMin(t.end))}${side}" title="${esc(s.title)}(${KIND_JA[c]})${bar ? ` ${esc(plan)}` : ""}"><span class="tm">${nw.tag}${bar ? "実績 " : ""}${esc(t.start)}-${esc(t.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${esc(s.title)}</span>${st}${note}${bar ? "" : `<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i>`}</div>`;
   }).join("");
   return { ghosts, html };
 }
@@ -250,6 +259,9 @@ export function actualForm(data, ctx) {
 /** 色の凡例（上の操作の行に置く）。枠・会議それぞれの 3 つの状態（予定・未確認・実績）と、実績とずれた予定の影。日表示は現在時刻の線、参加しない会議を出すときはその印も */
 const legendHtml = (day, showSkipped) => `<div class="slegend" aria-label="色の凡例"><span><i class="sw plan"></i>予定</span><span><i class="sw unconf"></i>未確認(過ぎた予定)</span><span><i class="sw act"></i>実績(✓)</span><span><i class="sw mtg"></i>会議</span><span><i class="sw mtgun"></i>未確認の会議</span><span><i class="sw mtgact"></i>会議の実績(✓)</span>${showSkipped ? '<span><i class="sw skipsw"></i>参加しない会議</span>' : ""}<span><i class="sw pghost"></i>実績とずれた予定</span>${day ? '<span><i class="sw now"></i>現在時刻</span>' : ""}<span><i class="sw sel"></i>選択中</span></div>`;
 
+/** 現在時刻の赤い線。その日が今日のときだけ（日表示・週表示の今日の列で共通） */
+const nowLineHtml = (d, g, ctx) => d === ctx.now.date && toMin(ctx.now.time) >= g.h0 && toMin(ctx.now.time) <= g.h0 + g.span ? `<span class="nowline" style="top:${g.tp(toMin(ctx.now.time))}" title="現在 ${ctx.now.time}"></span>` : "";
+
 /** カレンダー部分（週または日）。会議の編集中はここだけを描き直す */
 export function renderCalendar(data, today, opts) {
   const { view = "week", date = today } = opts;
@@ -260,7 +272,7 @@ export function renderCalendar(data, today, opts) {
   if (view === "week") {
     const days = [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(weekStartOf(date), i));
     const heads = days.map((d) => `<button class="dh ${d === today ? "t" : ""}" data-day="${d}" aria-label="${fmtMD(d)}の1日表示">${fmtMD(d)}(${wdJa(d)})${isOff(d) ? '<small class="mono">—</small>' : ""}</button>`).join("");
-    const cols = days.map((d) => `<div class="col dz ${d === today ? "today" : ""} ${isOff(d) ? "weekend" : ""}" data-date="${d}">${dayBlocks(data, d, false, g, ctx)}</div>`).join("");
+    const cols = days.map((d) => `<div class="col dz ${d === today ? "today" : ""} ${isOff(d) ? "weekend" : ""}" data-date="${d}">${dayBlocks(data, d, false, g, ctx)}${nowLineHtml(d, g, ctx)}</div>`).join("");
     const dueByDay = days.map((d) => data.tasks.filter((t) => t.due === d && t.status !== "Done" && t.status !== "Cancelled"));
     // 期限の行: 日付の見出しのすぐ下に固定する（theme.css）。閉じると、各日のセルの代わりに、週の件数の帯だけを出す
     const dueOpen = opts.showDue !== false;
@@ -271,7 +283,7 @@ export function renderCalendar(data, today, opts) {
     cal = `<div class="cal wk"><div class="week"><div></div>${heads}${dueToggle}${dues}<div class="hrs">${hoursHtml(g)}</div>${cols}</div></div>
       <p class="note" style="margin:8px 0 0">日付を押すと1日表示に切り替わります。枠をクリックして選び、「枠を削除」か Delete キーで削除できます。</p>`;
   } else {
-    const nowLine = date === ctx.now.date && toMin(ctx.now.time) >= g.h0 && toMin(ctx.now.time) <= g.h0 + g.span ? `<span class="nowline" style="top:${g.tp(toMin(ctx.now.time))}" title="現在 ${ctx.now.time}"></span>` : "";
+    const nowLine = nowLineHtml(date, g, ctx);
     const offKinds = data.settings?.countWeekendsAndHolidays === true ? "休み" : "土日・日本の祝日・休み"; // 土日祝を営業日に数える設定のときは、手動の休みだけが休みの日
     const offNote = isOff(date) ? `<p class="note" style="margin:0 0 8px">この日は休みです（${offKinds}）。作業枠は置けません。設定タブの「営業日として扱う日」に指定すると置けます。</p>` : "";
     cal = `${offNote}<div class="cal"><div class="cal-grid">${hoursHtml(g)}<div class="cal-body dz" id="calbody" data-date="${date}">${dayBlocks(data, date, true, g, ctx)}${nowLine}</div></div></div>`;
@@ -308,7 +320,7 @@ export function renderSchedule(data, today, opts) {
   const delOk = !!selSess || (selMtg && selMtg.source === "manual");
   const calOpts = { ...opts, view, date, now, selSess: selSess?.id ?? null, selMtg: selMtg?.id ?? null };
 
-  const nav = `<div class="toolbar"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn" data-nav="${-step}" aria-label="前へ">←</button><button class="btn" data-nav="${step}" aria-label="次へ">→</button><button class="btn" data-sgoto>今日</button><strong style="margin-left:6px">${title}</strong>${legendHtml(view === "day", opts.showSkipped === true)}</div>
+  const nav = `<div class="toolbar"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn" data-nav="${-step}" aria-label="前へ">←</button><button class="btn" data-nav="${step}" aria-label="次へ">→</button><button class="btn" data-sgoto>今日</button><strong class="${view === "day" && date === today ? "dtt" : ""}" style="margin-left:6px">${title}</strong>${legendHtml(view === "day", opts.showSkipped === true)}</div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="chip-btn pref" data-sskip aria-pressed="${opts.showSkipped === true}" title="「参加しない」にした会議を、カレンダーに出したり隠したりします">参加しない会議</button><button class="btn" data-mtgadd>＋ 会議を追加</button><div class="seg" role="group" aria-label="表示"><button data-sview="week" aria-pressed="${view === "week"}">週</button><button data-sview="day" aria-pressed="${view === "day"}">日</button></div></div></div>
     <div class="summary"><span>実績 <b class="mono">${hours.toFixed(1)}時間</b></span><span>予定 <b class="mono">${planned}件</b></span>${unconf ? `<span class="pill wait">未確認 ${unconf}件（作業枠 ${unconfS}・会議 ${unconfM}）</span>` : ""}<button class="btn danger" data-delsel ${delOk ? "" : "disabled"}>${delLabel}</button></div>`;
   const et = selSess && opts.taskEdit ? data.tasks.find((t) => t.id === opts.taskEdit.id) : null; // 編集欄は、表示中の枠を選んでいる間だけ出す（枠を選ぶと、そのタスクの編集欄になる）

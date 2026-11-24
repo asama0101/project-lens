@@ -2394,3 +2394,73 @@ test("会議フォーム: 「実績を消す」（data-mtgactclear）は、確�
   assert.ok(!html({ selMtg: "m2" }).includes("data-mtgactclear"), "参加しない");
   assert.ok(!html({ mtgDraft: { date: TODAY, start: "09:00", end: "10:00", title: "", skip: false, confirmed: true } }).includes("data-mtgactclear"), "追加中");
 });
+
+// ---- 現在時刻の線・いまのブロック・今日の強調 ----
+const blkTag = (h, a) => new RegExp(`<div class="blk[^>]*${a}[^>]*>`).exec(h)?.[0] ?? "";
+const nowD = (time, date = TODAY) => ({ date, time });
+const mtgAt = (d, id, start, end, extra = {}) => Object.assign(d.events.find((e) => e.id === id), { date: TODAY, start, end, ...extra });
+const wk = (d, now, o = {}) => renderSchedule(d, TODAY, { view: "week", date: TODAY, now, ...o });
+const dayv = (d, now, o = {}) => renderSchedule(d, TODAY, { view: "day", date: TODAY, now, ...o });
+
+test("現在時刻の線: 週表示は、今日が表示中の週にあるとき今日の列にだけ 1 本。今日が週に無いと出ない。日表示は今までどおり", () => {
+  const d = noSessions();
+  const h = wk(d, nowD("10:15"));
+  assert.equal((h.match(/class="nowline"/g) ?? []).length, 1);
+  const col = /<div class="col dz today[^>]*>([\s\S]*?)(?=<div class="col dz|$)/.exec(h)[1];
+  assert.ok(col.includes('class="nowline"') && col.includes("現在 10:15"));
+  assert.ok(!wk(d, nowD("10:15"), { date: "2026-10-27" }).includes('class="nowline"'), "今日が週に無い");
+  assert.ok(dayv(d, nowD("10:15")).includes('class="nowline"'));
+  assert.ok(!dayv(d, nowD("10:15"), { date: "2026-10-21" }).includes('class="nowline"'), "日表示で今日以外");
+});
+
+test("いまのブロック: 今を含む枠・会議に class now と「いま」。開始ちょうどは付き、終了ちょうどは付かない", () => {
+  for (const view of [wk, dayv]) {
+    const d = noSessions();
+    mtgAt(d, "m1", "10:00", "11:00"); mtgAt(d, "m2", "09:00", "10:15");
+    const h = view(d, nowD("10:15"));
+    assert.match(blkTag(h, 'data-mtg="m1"'), /class="blk mtg[^"]*\bnow\b/);
+    assert.ok(/data-mtg="m1"[^>]*><span class="tm"><b class="nw">いま<\/b> 10:00-11:00/.test(h), "いま は時刻の前");
+    assert.doesNotMatch(blkTag(h, 'data-mtg="m2"'), /\bnow\b/, "終了ちょうど");
+    mtgAt(d, "m1", "10:15", "11:00");
+    assert.match(blkTag(view(d, nowD("10:15")), 'data-mtg="m1"'), /\bnow\b/, "開始ちょうど");
+  }
+});
+
+test("いまのブロック: skip の会議・影・今日以外の日・今日でない now には付かない", () => {
+  const d = noSessions();
+  mtgAt(d, "m1", "10:00", "11:00", { skip: true });
+  mtgAt(d, "m2", "09:00", "11:00", { confirmed: true, actual: { start: "12:00", end: "13:00" } });
+  const h = dayv(d, nowD("10:15"), { showSkipped: true });
+  assert.doesNotMatch(blkTag(h, 'data-mtg="m1"'), /\bnow\b/, "skip");
+  assert.doesNotMatch(blkTag(h, 'data-mghost="m2"'), /\bnow\b/, "影（予定の時刻に今が入っても）");
+  assert.ok(!/class="blk[^"]*\bnow\b/.test(h) && !h.includes("いま"), "描いたブロック（実績 12:00-13:00）に今は入らない");
+  const e = noSessions();
+  mtgAt(e, "m1", "10:00", "11:00"); e.events = e.events.filter((x) => x.id === "m1");
+  assert.doesNotMatch(wk(e, nowD("10:15", "2026-10-21")), /\bnow\b/, "今日でない now");
+  const o = noSessions();
+  Object.assign(o.events.find((x) => x.id === "m1"), { date: "2026-10-21", start: "10:00", end: "11:00" });
+  assert.doesNotMatch(blkTag(wk(o, nowD("10:15")), 'data-mtg="m1"'), /\bnow\b/, "今日以外の日のブロック");
+});
+
+test("いまのブロック: 実績を持つ枠・会議は、実績の時刻で判定する（予定 9-10・実績 10-11 で 10:15 なら付く。予定側の時刻では付かない）", () => {
+  const d = withPlan({ id: "S9", date: TODAY, start: "09:00", end: "10:00", actual: { date: TODAY, start: "10:00", end: "11:00" } });
+  for (const t of d.tasks) t.sessions = t.sessions.filter((s) => s.id === "S9");
+  const h = dayv(d, nowD("10:15"));
+  assert.match(blkTag(h, 'data-actbar="S9"'), /class="blk task act[^"]*\bnow\b/);
+  assert.ok(/data-actbar="S9"[^>]*><span class="tm"><b class="nw">いま<\/b> 実績 10:00-11:00/.test(h));
+  assert.doesNotMatch(blkTag(h, 'data-ghost="S9"'), /\bnow\b/);
+  assert.doesNotMatch(blkTag(dayv(d, nowD("09:30")), 'data-actbar="S9"'), /\bnow\b/, "予定の時刻は判定に使わない");
+  const m = noSessions();
+  mtgAt(m, "m1", "09:00", "10:00", { confirmed: true, actual: { start: "10:00", end: "11:00" } });
+  assert.match(blkTag(dayv(m, nowD("10:15")), 'data-mact="m1"'), /\bnow\b/);
+  assert.doesNotMatch(blkTag(dayv(m, nowD("09:30")), 'data-mact="m1"'), /\bnow\b/);
+});
+
+test("今日の強調: 週表示は今日の見出しだけ .dh.t・今日の列だけ today。日表示は今日のときだけ見出しに印（dtt）", () => {
+  const h = wk(noSessions(), nowD("10:15"));
+  assert.equal((h.match(/class="dh t"/g) ?? []).length, 1);
+  assert.equal((h.match(/class="col dz today/g) ?? []).length, 1);
+  assert.ok(dayv(noSessions(), nowD("10:15")).includes('<strong class="dtt"'));
+  assert.ok(!dayv(noSessions(), nowD("10:15"), { date: "2026-10-21" }).includes("dtt"));
+  assert.ok(!wk(noSessions(), nowD("10:15"), { date: "2026-10-27" }).includes('class="dh t"'));
+});
