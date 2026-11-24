@@ -331,13 +331,36 @@ test("actualForm: 「実績を追加」（actAdd）では、タスク（Done・C
   assert.ok(html.includes('<div class="actform" role="group" aria-label="実績の入力">'));
   const sel = /<select[^>]*data-ac="task"[^>]*>([\s\S]*?)<\/select>/.exec(html)?.[1];
   assert.ok(sel, "タスクの選択");
-  assert.ok(sel.includes(">切替手順書の作成</option>") && sel.includes(">問い合わせ対応</option>"));
+  assert.ok(sel.includes(">切替手順書の作成（本社コアSW更改）</option>") && sel.includes(">問い合わせ対応</option>"), "プロジェクトありは（名前）を添え、なしは件名だけ");
   assert.ok(!sel.includes("要件整理") && !sel.includes("検証環境の構築"), "Done・Cancelled は候補にしない");
   assert.ok(!/>[A-Z]{2}-\d{4}</.test(sel), "ID は文言に出さない");
   assert.match(html, /data-ac="date"[^>]*value="2026-10-20"/);
   assert.ok(html.includes('data-ac="start"') && html.includes('data-ac="end"'));
   assert.ok(html.includes('data-actsave=""') && html.includes("data-actcancel"));
   assert.ok(!sched(d).includes('class="actform"'), "actAdd が無ければ出さない");
+});
+
+test("actualForm: 「実績を追加」の開始・終了の既定。今日は現在時刻を 15 分刻みに切り捨て＋60 分（23:59 まで）、過去は 09:00-10:00", () => {
+  const d = load();
+  const f = (date, time) => {
+    const h = sched(d, { actAdd: { date }, now: { date: TODAY, time } });
+    return [/data-ac="start"[^>]*value="([^"]*)"/.exec(h)[1], /data-ac="end"[^>]*value="([^"]*)"/.exec(h)[1]];
+  };
+  assert.deepEqual(f(TODAY, "08:20"), ["08:15", "09:15"]);
+  assert.deepEqual(f(TODAY, "23:50"), ["23:45", "23:59"]);
+  assert.deepEqual(f("2026-10-19", "08:20"), ["09:00", "10:00"]);
+});
+
+test("meetingBlocks: 実績が予定とずれた会議のブロックだけ、時刻と title に「実績 開始-終了」を足す", () => {
+  const d = noSessions();
+  d.events.find((e) => e.id === "m1").actual = { start: "09:35", end: "10:20" };
+  d.events.find((e) => e.id === "m2").actual = { start: "13:00", end: "14:00" };
+  const blk = (h, id) => new RegExp(`<div class="blk mtg[^>]*data-mtg="${id}"[^>]*>`).exec(h)[0];
+  const h = renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15 });
+  assert.ok(blk(h, "m1").includes("実績 09:35-10:20") && h.includes("09:30-10:30 ✓ 実績 09:35-10:20"));
+  assert.ok(!blk(h, "m2").includes("実績 ") && !h.includes("13:00-14:00 ✓ 実績"), "同じ時刻");
+  delete d.events.find((e) => e.id === "m1").actual;
+  assert.ok(!renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15 }).includes("実績 09"), "actual なし");
 });
 
 test("renderSchedule: 凡例（会議・予定・実績・未確認、日は現在時刻）。空き時間の凡例は出さない", () => {

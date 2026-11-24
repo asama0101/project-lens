@@ -50,10 +50,11 @@ function meetingBlocks(data, d, full, g, ctx) {
     const kind = meetingKind(m, ctx.now);
     const kc = kind === "actual" ? "act" : kind === "unconfirmed" ? "unconf" : "";
     const mark = m.skip ? " 不参加" : kind === "actual" ? " ✓" : kind === "unconfirmed" ? " 未確認" : "";
+    const gap = m.actual && (m.actual.start !== m.start || m.actual.end !== m.end) ? ` 実績 ${m.actual.start}-${m.actual.end}` : ""; // 予定とずれた実績
     const pname = (data.projects ?? []).find((p) => p.id === m.projectId)?.name;
     const by = m.projectBy === "manual" ? "（手動）" : m.projectBy === "rule" ? "（規則）" : "";
     const proj = full ? `<span class="mp">${pname ? `プロジェクト: ${esc(pname)}${by}` : "プロジェクト未設定"}</span>` : "";
-    return `<div class="blk mtg ${m.skip ? "skip" : ""} ${kc} ${ctx.selMtg === m.id ? "sel" : ""}${b - a < SHORT_MIN ? " short" : ""}" data-mtg="${esc(m.id)}" tabindex="0" ${manual ? `draggable="true" data-dragmtg="${esc(m.id)}"` : ""} style="top:${g.tp(a)};height:${g.ht(a, b)}" title="${esc(m.title)}${m.skip ? "(参加しない)" : ""}${manual ? "" : "(予定表から取得)"}"><span class="tm">${esc(m.start)}-${esc(m.end)}${mark}</span>${esc(m.title)}${proj}${manual ? `<i class="rz" data-rzm="${esc(m.id)}" aria-label="終了時刻を変更"></i>` : ""}</div>`;
+    return `<div class="blk mtg ${m.skip ? "skip" : ""} ${kc} ${ctx.selMtg === m.id ? "sel" : ""}${b - a < SHORT_MIN ? " short" : ""}" data-mtg="${esc(m.id)}" tabindex="0" ${manual ? `draggable="true" data-dragmtg="${esc(m.id)}"` : ""} style="top:${g.tp(a)};height:${g.ht(a, b)}" title="${esc(m.title)}${m.skip ? "(参加しない)" : ""}${manual ? "" : "(予定表から取得)"}${esc(gap)}"><span class="tm">${esc(m.start)}-${esc(m.end)}${esc(mark + gap)}</span>${esc(m.title)}${proj}${manual ? `<i class="rz" data-rzm="${esc(m.id)}" aria-label="終了時刻を変更"></i>` : ""}</div>`;
   }).join("");
 }
 
@@ -134,8 +135,12 @@ export function urgentForm(data, draft) {
   </div>`;
 }
 
-/** 「実績を追加」の開始・終了の初期値 */
-const ACT_ADD_START = "09:00", ACT_ADD_END = "10:00";
+/** 「実績を追加」の開始・終了の初期値: 今日は現在時刻を 15 分刻みに切り捨てた時刻から 60 分（23:59 まで。開始が今より後だと保存できない）、ほかの日は 09:00-10:00 */
+function actAddSpan(date, now) {
+  if (date !== now.date) return ["09:00", "10:00"];
+  const s = Math.floor(toMin(now.time) / SLOT_STEP) * SLOT_STEP;
+  return [toHHMM(s), toHHMM(Math.min(s + 60, 24 * 60 - 1))];
+}
 
 /**
  * 実績の入力欄。始まった予定の枠を選んでいるときは、その枠の時刻を初期値に（タスクは枠のタスク）。
@@ -155,11 +160,14 @@ export function actualForm(data, ctx) {
     <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-actsave="${esc(s.id)}">実績を保存</button></div>
   </div>`;
   }
-  const taskOpts = data.tasks.filter((t) => !isClosed(t)).map((t) => `<option value="${esc(t.id)}">${esc(t.title)}</option>`).join("");
+  const pn = (t) => (data.projects ?? []).find((p) => p.id === t.projectId)?.name;
+  const taskOpts = data.tasks.filter((t) => !isClosed(t)).map((t) => `<option value="${esc(t.id)}">${esc(pn(t) ? `${t.title}（${pn(t)}）` : t.title)}</option>`).join("");
+  const date = ctx.add.date ?? ctx.today;
+  const [start, end] = actAddSpan(date, ctx.now);
   return `<div class="actform" role="group" aria-label="実績の入力">
     <label>タスク<select class="in" data-ac="task" aria-label="実績のタスク">${taskOpts}</select></label>
-    <label>日付${dateInputHtml({ value: ctx.add.date ?? ctx.today, attrs: 'data-ac="date"', label: "実績の日付" })}</label>
-    ${time("start", ACT_ADD_START)}${time("end", ACT_ADD_END)}
+    <label>日付${dateInputHtml({ value: date, attrs: 'data-ac="date"', label: "実績の日付" })}</label>
+    ${time("start", start)}${time("end", end)}
     <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-actsave="">実績を保存</button><button class="btn" data-actcancel>キャンセル</button></div>
   </div>`;
 }
