@@ -2174,11 +2174,15 @@ test("renderTodo: open の行に完了の入力欄（日付・開始・終了・
   assert.ok(!tdRow(tdHtml(tdData()), "AA-0001").includes("data-tf="), "open が null");
 });
 
-test("renderTodo: 入力欄の時刻は、その日のそのタスクの予定の枠（actual なし）。未来の予定の枠があれば解除の注意（件数）。今日が週の外なら、日付は週の月曜日", () => {
-  const f = tdRow(tdHtml(tdData(), { open: "AA-0002" }), "AA-0002");
-  assert.match(f, /data-tf="start" value="15:00"/);
-  assert.match(f, /data-tf="end" value="16:00"/);
+test("renderTodo: 入力欄の時刻は、その日のそのタスクの、始まった予定の枠（actual なし）。始まっていなければ空。未来の予定の枠があれば解除の注意（件数）。今日が週の外なら、日付は週の月曜日", () => {
+  const f = tdRow(tdHtml(tdData(), { open: "AA-0002" }), "AA-0002"); // 10:20。S2（15:00–16:00）はまだ始まっていない
+  assert.match(f, /data-tf="start" value=""/);
+  assert.match(f, /data-tf="end" value=""/);
   assert.ok(f.includes("未来の予定の枠 2 件"), f);
+  const g = tdRow(tdHtml(tdData(), { open: "AA-0002", now: { date: TODAY, time: "15:00" } }), "AA-0002"); // 開始ちょうどは始まった枠
+  assert.match(g, /data-tf="start" value="15:00"/);
+  assert.match(g, /data-tf="end" value="16:00"/);
+  assert.ok(g.includes("未来の予定の枠 1 件"), g);
   assert.ok(!f.includes("data-tdckall"), "チェックリストが無ければ、ボタンも無い");
   const next = tdRow(tdHtml(tdData(), { week: "2026-10-26", open: "AA-0001" }), "AA-0001");
   assert.match(next, /data-tf="date" value="2026-10-26"/);
@@ -2242,6 +2246,17 @@ test("完了の保存: 予定の枠が無いタスクで、初期値のまま保
   const t = r.data.tasks.find((x) => x.id === "AA-0001");
   assert.equal(t.status, "Done");
   assert.deepEqual(t.sessions, [], "実績は足さない");
+});
+
+test("完了の保存: その日の予定の枠がまだ始まっていなければ、初期値のまま保存すると、実績なしで Done になる（その枠は未来の枠として解除）", () => {
+  const d = tdData();
+  const dr = formDraft(tdRow(tdHtml(d, { open: "AA-0002" }), "AA-0002"), "AA-0002");
+  assert.deepEqual([dr.start, dr.end], ["", ""]);
+  const r = completeTask(d, "AA-0002", completeInput(dr), TD_NOW);
+  const t = r.data.tasks.find((x) => x.id === "AA-0002");
+  assert.equal(t.status, "Done");
+  assert.deepEqual(t.sessions.map((s) => s.id), ["S3"], "実績は足さず、S1・S2 は解除");
+  assert.equal(r.released, 2);
 });
 
 test("完了の保存: 予定の枠があるタスクを初期値のまま保存すると、その時刻で実績が入る。開始・終了の片方だけは、completeTask の検査で止まる", () => {

@@ -12,12 +12,13 @@ const FORM_STATUSES = ["To Do", "In Progress", "Done", "Cancelled"];
 const progress = (r) => (r.checked ? `${r.checked.done}/${r.checked.total}` : "—");
 
 /**
- * 完了の入力欄。初期値は、日付が day、時刻がその日のそのタスクの予定の枠（actual なし）の時刻（なければ空）、状態が Done、チェックがタスクの今の状態。
+ * 完了の入力欄。初期値は、日付が day、時刻がその日のそのタスクの、始まった予定の枠（actual なし）の時刻（なければ空）、状態が Done、チェックがタスクの今の状態。
  * 下書き（key が同じ）があれば、その値。Done・Cancelled で解除される未来の予定の枠があれば、その件数を添える
  */
 function completeForm(data, t, day, now, draft) {
   const dr = draft?.key === t.id ? draft : null;
-  const plan = (t.sessions ?? []).filter((s) => s.kind === "planned" && s.date === day && !s.actual).sort((a, b) => a.start.localeCompare(b.start))[0];
+  const started = (s) => s.date < now.date || (s.date === now.date && s.start <= now.time); // 始まっていない枠の時刻は、実績に入れられないので初期値にしない
+  const plan = (t.sessions ?? []).filter((s) => s.kind === "planned" && s.date === day && !s.actual && started(s)).sort((a, b) => a.start.localeCompare(b.start))[0];
   const time = (k) => `<label>${k === "start" ? "開始" : "終了"}<input class="in" type="time" step="900" data-tf="${k}" value="${esc(dr ? dr[k] : plan?.[k] ?? "")}"></label>`;
   const status = dr?.status ?? "Done";
   const ck = t.checklist ?? [];

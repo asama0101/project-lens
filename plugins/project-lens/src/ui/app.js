@@ -604,7 +604,12 @@ view.addEventListener("click", (e) => {
   const tdo = q("[data-tdopen]");
   if (tdo) { const id = tdo.dataset.tdopen; S.tdOpen = S.tdOpen === id ? null : id; S.tdDraft = null; S.focusSel = S.tdOpen ? '[data-tf="start"]' : null; render(); return; }
   const tdca = q("[data-tdckall]"); // 入力欄のチェックを、すべて付ける（描き直さない。保存で書く）
-  if (tdca) { tdca.closest(".tdform").querySelectorAll("[data-tfck]").forEach((c) => { c.checked = true; }); return; }
+  if (tdca) { // 欄の値を変えても change は起きないので、下書きへも写す（読み直しの描き直しで、チェックが戻らないように）
+    const form = tdca.closest(".tdform"), key = form.querySelector("[data-tdsave]")?.dataset.tdsave;
+    form.querySelectorAll("[data-tfck]").forEach((c) => { c.checked = true; });
+    if (key && key === S.tdOpen) S.tdDraft = tdFormDraft(form, key);
+    return;
+  }
   const tds = q("[data-tdsave]"); // 完了の保存。入力欄の値は、押したときに読む。失敗しても打った値が消えないよう、先に下書きへ写す
   if (tds) {
     const id = tds.dataset.tdsave;

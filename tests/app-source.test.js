@@ -785,8 +785,9 @@ test("ToDo タブ: 状態（S.todoWeek・S.tdOpen・S.tdDraft）。描き直し�
 
 test("ToDo タブ: 完了（data-tdopen）は開閉。残りをすべてチェック（data-tdckall）は描き直さずに欄を変える。キャンセル（data-tdcancel）は閉じる", () => {
   assert.match(src, /const tdo = q\("\[data-tdopen\]"\);\s*if \(tdo\) \{ const id = tdo\.dataset\.tdopen; S\.tdOpen = S\.tdOpen === id \? null : id; S\.tdDraft = null;/);
-  const i = src.indexOf('q("[data-tdckall]")'), a = src.slice(i, i + 300);
+  const i = src.indexOf('q("[data-tdckall]")'), a = src.slice(i, i + 600);
   assert.ok(i > 0 && a.includes("[data-tfck]") && a.includes(".checked = true") && !a.includes("render()"), a);
+  assert.ok(a.indexOf(".checked = true") < a.indexOf("if (key && key === S.tdOpen) S.tdDraft = tdFormDraft(form, key);"), "change が起きないので、チェックを付けたあとで下書きへ写す（読み直しの描き直しで戻らない）");
   assert.match(src, /q\("\[data-tdcancel\]"\)\) \{ S\.tdOpen = null; S\.tdDraft = null; render\(\); return; \}/);
 });
 

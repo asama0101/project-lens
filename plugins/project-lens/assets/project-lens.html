@@ -4669,12 +4669,13 @@ const FORM_STATUSES = ["To Do", "In Progress", "Done", "Cancelled"];
 const progress = (r) => (r.checked ? `${r.checked.done}/${r.checked.total}` : "—");
 
 /**
- * 完了の入力欄。初期値は、日付が day、時刻がその日のそのタスクの予定の枠（actual なし）の時刻（なければ空）、状態が Done、チェックがタスクの今の状態。
+ * 完了の入力欄。初期値は、日付が day、時刻がその日のそのタスクの、始まった予定の枠（actual なし）の時刻（なければ空）、状態が Done、チェックがタスクの今の状態。
  * 下書き（key が同じ）があれば、その値。Done・Cancelled で解除される未来の予定の枠があれば、その件数を添える
  */
 function completeForm(data, t, day, now, draft) {
   const dr = draft?.key === t.id ? draft : null;
-  const plan = (t.sessions ?? []).filter((s) => s.kind === "planned" && s.date === day && !s.actual).sort((a, b) => a.start.localeCompare(b.start))[0];
+  const started = (s) => s.date < now.date || (s.date === now.date && s.start <= now.time); // 始まっていない枠の時刻は、実績に入れられないので初期値にしない
+  const plan = (t.sessions ?? []).filter((s) => s.kind === "planned" && s.date === day && !s.actual && started(s)).sort((a, b) => a.start.localeCompare(b.start))[0];
   const time = (k) => `<label>${k === "start" ? "開始" : "終了"}<input class="in" type="time" step="900" data-tf="${k}" value="${esc(dr ? dr[k] : plan?.[k] ?? "")}"></label>`;
   const status = dr?.status ?? "Done";
   const ck = t.checklist ?? [];
@@ -5542,7 +5543,12 @@ view.addEventListener("click", (e) => {
   const tdo = q("[data-tdopen]");
   if (tdo) { const id = tdo.dataset.tdopen; S.tdOpen = S.tdOpen === id ? null : id; S.tdDraft = null; S.focusSel = S.tdOpen ? '[data-tf="start"]' : null; render(); return; }
   const tdca = q("[data-tdckall]"); // 入力欄のチェックを、すべて付ける（描き直さない。保存で書く）
-  if (tdca) { tdca.closest(".tdform").querySelectorAll("[data-tfck]").forEach((c) => { c.checked = true; }); return; }
+  if (tdca) { // 欄の値を変えても change は起きないので、下書きへも写す（読み直しの描き直しで、チェックが戻らないように）
+    const form = tdca.closest(".tdform"), key = form.querySelector("[data-tdsave]")?.dataset.tdsave;
+    form.querySelectorAll("[data-tfck]").forEach((c) => { c.checked = true; });
+    if (key && key === S.tdOpen) S.tdDraft = tdFormDraft(form, key);
+    return;
+  }
   const tds = q("[data-tdsave]"); // 完了の保存。入力欄の値は、押したときに読む。失敗しても打った値が消えないよう、先に下書きへ写す
   if (tds) {
     const id = tds.dataset.tdsave;
