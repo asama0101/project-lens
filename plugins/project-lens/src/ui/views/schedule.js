@@ -63,14 +63,21 @@ const KIND_JA = { act: "実績", unconf: "未確認", plan: "予定" };
 /** 日表示の枠に出す、タスクの状態の文字 */
 const STATUS_JA = { "To Do": "未着手", "In Progress": "着手中", Waiting: "待ち", Done: "完了", Cancelled: "中止" };
 
+/** 2 つの枠（同じ日）の時間が重なるか */
+const overlaps = (a, b) => toMin(a.start) < toMin(b.end) && toMin(b.start) < toMin(a.end);
+
 function sessionBlocks(data, d, full, g, ctx) {
-  return allSessions(data).filter((s) => s.date === d).map((s) => {
+  const day = allSessions(data).filter((s) => s.date === d);
+  return day.map((s) => {
+    // 予定・未確認の枠と実績の枠が重なるときは、予定を左半分・実績を右半分に並べる（重ならなければ全幅）
+    const isAct = s.kind === "actual";
+    const side = day.some((o) => (o.kind === "actual") !== isAct && overlaps(o, s)) ? (isAct ? ";left:50%;width:50%" : ";left:0;width:50%") : "";
     const c = KIND_CLS[sessionKind(s, ctx.now, ctx.actuals)];
     const task = data.tasks.find((t) => t.id === s.taskId);
     const st = full ? ` <span class="stt">${STATUS_JA[task.status] ?? ""}</span>` : "";
     const imp = isImportantMark(task) ? " imp" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
     const short = toMin(s.end) - toMin(s.start) < SHORT_MIN ? " short" : "";
-    return `<div class="blk task ${c}${imp}${short} ${ctx.selSess === s.id ? "sel" : ""}" draggable="true" tabindex="0" data-dragsess="${esc(s.id)}" style="top:${g.tp(toMin(s.start))};height:${g.ht(toMin(s.start), toMin(s.end))}" title="${esc(s.title)}(${KIND_JA[c]})"><span class="tm">${esc(s.start)}-${esc(s.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${esc(s.title)}</span>${st}<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i></div>`;
+    return `<div class="blk task ${c}${imp}${short} ${ctx.selSess === s.id ? "sel" : ""}" draggable="true" tabindex="0" data-dragsess="${esc(s.id)}" style="top:${g.tp(toMin(s.start))};height:${g.ht(toMin(s.start), toMin(s.end))}${side}" title="${esc(s.title)}(${KIND_JA[c]})"><span class="tm">${esc(s.start)}-${esc(s.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${esc(s.title)}</span>${st}<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i></div>`;
   }).join("");
 }
 

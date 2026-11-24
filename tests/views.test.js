@@ -1946,3 +1946,17 @@ test("revealSelection: 選んだ枠を見える位置へ出すのは、枠の選
   assert.equal(revealSelection(k("S1", { id: "A" }), k("S2", { id: "A" })), true, "別の枠");
   assert.equal(revealSelection(k("S1", { id: "A" }), null), false, "外した");
 });
+
+test("renderSchedule: 予定の枠と時間が重なる実績の枠は、予定を左半分・実績を右半分に並べる。重ならない枠は左右を指定しない（週・日）", () => {
+  const d = load();
+  d.tasks.find((t) => t.id === "AA-0005").sessions.push({ id: "S21", date: TODAY, start: "10:00", end: "11:00", kind: "planned" }, { id: "S23", date: TODAY, start: "14:00", end: "15:00", kind: "planned" });
+  d.tasks.find((t) => t.id === "AA-0004").sessions = [{ id: "S22", date: TODAY, start: "10:00", end: "10:40", kind: "actual" }, { id: "S24", date: TODAY, start: "16:00", end: "17:00", kind: "actual" }];
+  const blk = (html, id) => new RegExp(`<div class="blk task[^"]*"[^>]*data-dragsess="${id}" style="([^"]*)"`).exec(html)?.[1];
+  for (const view of ["week", "day"]) {
+    const html = renderSchedule(d, TODAY, { view, date: TODAY, now: NOW });
+    assert.match(blk(html, "S21"), /left:0;width:50%/, `${view} 予定は左半分`);
+    assert.match(blk(html, "S22"), /left:50%;width:50%/, `${view} 実績は右半分`);
+    assert.ok(!/left:|width:/.test(blk(html, "S23")), `${view} 重ならない予定は全幅`);
+    assert.ok(!/left:|width:/.test(blk(html, "S24")), `${view} 重ならない実績は全幅`);
+  }
+});
