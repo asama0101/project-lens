@@ -37,7 +37,8 @@
   "events": [
     { "id": "m1", "date": "2026-10-20", "start": "09:30", "end": "10:30", "title": "NW運用定例", "source": "mcp", "skip": false, "externalId": "ext-001", "confirmed": true },
     { "id": "m2", "date": "2026-10-20", "start": "13:00", "end": "14:00", "title": "ベンダーX 打合せ", "source": "manual", "skip": false, "externalId": null, "projectId": "AA", "projectBy": "rule" },
-    { "id": "m3", "date": "2026-10-21", "start": "10:00", "end": "11:00", "title": "部内会議", "source": "mcp", "skip": false, "externalId": "ext-002" }
+    { "id": "m3", "date": "2026-10-21", "start": "10:00", "end": "11:00", "title": "部内会議", "source": "mcp", "skip": false, "externalId": "ext-002" },
+    { "id": "m4", "date": "2026-10-19", "start": "10:00", "end": "11:00", "title": "週次の進捗確認", "source": "mcp", "skip": false, "externalId": "ext-003", "confirmed": true, "actual": { "start": "10:05", "end": "10:50" } }
   ],
   "changeLog": [
     { "at": "2026-10-09", "taskIds": ["AA-0003", "AA-0004"], "reason": "ベンダーX の納期回答が遅れたため", "cause": "ベンダー", "deltaDays": 7 }

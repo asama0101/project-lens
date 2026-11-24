@@ -1,6 +1,6 @@
 // 「今日のタスク」「今日の優先」パネル（プロジェクト画面・スケジュール画面で共通。右の列に並ぶ）
 import { rankTasks } from "../../core/schedule.js";
-import { taskActual, sessionKind } from "../../core/sessions.js";
+import { taskActual, sessionKind, actualSlots } from "../../core/sessions.js";
 import { isClosed, isImportantMark } from "../../core/schema.js";
 import { esc, checkMeterHtml } from "../common.js";
 
@@ -11,12 +11,10 @@ const statusPill = (t) => `<span class="pill ${PILL[t.status] ?? "off"}">${esc(t
 /** 枠の種類の札（カレンダーの凡例と同じ色の class。文字でも出す） */
 const KIND_TAG = { planned: ["plan", "予定"], actual: ["act", "実績"], unconfirmed: ["unconf", "未確認"] };
 
-/** 今日のタスクの枠の時間。前に予定・実績・未確認の札、終わっていないタスクの予定の枠（未確認を含む）には「実績にする」のボタンを付ける */
-function slotHtml(t, s, now) {
-  const time = esc(`${s.start}–${s.end}`);
-  const [cls, label] = KIND_TAG[sessionKind(s, now)];
-  const btn = !isClosed(t) && s.kind === "planned" ? `<button class="btn" data-session-actual="${esc(s.id)}" aria-label="${esc(t.id)} の ${time} の枠を実績にする">実績にする</button>` : "";
-  return `<span class="ts"><span class="ktag ${cls}">${label}</span>${time}${btn}</span>`;
+/** 今日のタスクの枠の時間。前に予定・実績・未確認の札を付ける（actuals は全タスクの実績の枠。過ぎた予定に重なる実績があれば、未確認にしない） */
+function slotHtml(s, now, actuals) {
+  const [cls, label] = KIND_TAG[sessionKind(s, now, actuals)];
+  return `<span class="ts"><span class="ktag ${cls}">${label}</span>${esc(`${s.start}–${s.end}`)}</span>`;
 }
 
 /** Done・Cancelled にする前の確認（今日のタスクの行と、リストの状態の欄が使う）。
@@ -48,9 +46,10 @@ export function renderTodayTasks(data, today, opts = {}) {
   const rows = todayList(data, today);
   const now = opts.now ?? { date: today, time: "00:00" };
   if (!rows.length) return "";
+  const actuals = actualSlots(data);
   const items = rows.map(({ t, slots }) => {
     const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? (t.projectId == null ? "プロジェクトなし" : ""));
-    const times = slots.map((s) => slotHtml(t, s, now)).join("");
+    const times = slots.map((s) => slotHtml(s, now, actuals)).join("");
     const ask = opts.pendingDone?.id === t.id ? doneAskHtml(opts.pendingDone) : "";
     const drag = opts.sched && !isClosed(t) ? ` draggable="true" data-dragtask="${esc(t.id)}"` : "";
     return `<li data-today="${esc(t.id)}"${isClosed(t) ? ' class="closed"' : ""}${drag}><span class="pj">${proj}</span><span class="t">${esc(t.title)} ${statusPill(t)}${isImportantMark(t) ? IMP_BADGE : ""}</span><span class="why mono tss">${times}</span>${isClosed(t) ? "" : checkMeterHtml(t, { remain: true })}${ask}</li>`;

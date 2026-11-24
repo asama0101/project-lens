@@ -154,7 +154,12 @@ test("updateTask 相当: Waiting で待ち先なしでも、他の項目の変�
 });
 
 // ---- 会議の確認とプロジェクト（Task 3） ----
-import { meetingKind, confirmMeeting } from "../plugins/project-lens/src/core/schedule.js";
+import { meetingKind, setMeetingActual, meetingActualSpan } from "../plugins/project-lens/src/core/schedule.js";
+import * as scheduleMod from "../plugins/project-lens/src/core/schedule.js";
+
+test("会議を予定の時刻のまま確認する confirmMeeting は持たない（実績は setMeetingActual で入れる）", () => {
+  assert.equal("confirmMeeting" in scheduleMod, false);
+});
 
 test("meetingKind: skip→skipped / confirmed→actual / 過去→unconfirmed / 未来→planned（終了ちょうどは過去）", () => {
   const now = { date: "2026-10-20", time: "12:00" };
@@ -164,15 +169,6 @@ test("meetingKind: skip→skipped / confirmed→actual / 過去→unconfirmed / 
   assert.equal(meetingKind(ev("11:00", "12:00"), now), "unconfirmed", "終了ちょうどは過去");
   assert.equal(meetingKind(ev("11:00", "12:01"), now), "planned");
   assert.equal(meetingKind(ev("09:00", "10:00", { date: "2026-10-21" }), now), "planned");
-});
-
-test("confirmMeeting: 未来と skip は例外、過去なら confirmed:true", () => {
-  const now = { date: "2026-10-20", time: "12:00" };
-  const d = base([ev("09:00", "10:00"), ev("13:00", "14:00", { id: "f" }), ev("10:00", "11:00", { id: "s", skip: true })]);
-  assert.equal(confirmMeeting(d, "09:0010:00", now).events[0].confirmed, true);
-  assert.throws(() => confirmMeeting(d, "f", now), /未来/);
-  assert.throws(() => confirmMeeting(d, "s", now), /参加しない/);
-  assert.throws(() => confirmMeeting(d, "none", now));
 });
 
 test("updateMeeting: projectId を手動で付けると manual、'' で自動に戻り規則が再適用される。mcp の会議でも projectId と confirmed は変更できる", () => {
@@ -259,4 +255,42 @@ test("rankTasks: プロジェクトなしのタスク（projectId が null）も
   const d = base();
   d.tasks = [{ id: "ZZ-0001", projectId: null, title: "突発", due: "2026-10-21", start: null, status: "In Progress", predecessors: [], waitingOn: null, sessions: [] }];
   assert.deepEqual(rankTasks(d, "2026-10-20").map((r) => r.taskId), ["ZZ-0001"]);
+});
+
+test("setMeetingActual: 予定と違う時刻の実績を書き、confirmed を true にする", () => {
+  const now = { date: "2026-10-20", time: "12:00" };
+  const d = base([ev("09:00", "10:00", { id: "a" })]);
+  const e = setMeetingActual(d, "a", { start: "10:05", end: "10:50" }, now).events[0];
+  assert.deepEqual(e.actual, { start: "10:05", end: "10:50" });
+  assert.equal(e.confirmed, true);
+});
+
+test("setMeetingActual: 実績の開始が今より後なら例外。開始がちょうど今は通る", () => {
+  const now = { date: "2026-10-20", time: "10:15" };
+  const d = base([ev("10:00", "11:00", { id: "a" })]);
+  assert.throws(() => setMeetingActual(d, "a", { start: "10:30", end: "11:00" }, now), /まだ始まっていない時間には実績を入れられません/);
+  assert.deepEqual(setMeetingActual(d, "a", { start: "10:15", end: "10:50" }, now).events[0].actual, { start: "10:15", end: "10:50" });
+});
+
+test("setMeetingActual: skip・未来・時刻の不正は例外", () => {
+  const now = { date: "2026-10-20", time: "12:00" };
+  const d = base([ev("09:00", "10:00", { id: "a" }), ev("13:00", "14:00", { id: "f" }), ev("10:00", "11:00", { id: "s", skip: true })]);
+  assert.throws(() => setMeetingActual(d, "s", { start: "10:00", end: "11:00" }, now), /参加しない会議は実績にできません/);
+  assert.throws(() => setMeetingActual(d, "f", { start: "13:00", end: "14:00" }, now), /未来の会議は実績にできません/);
+  assert.throws(() => setMeetingActual(d, "a", { start: "9:0", end: "10:00" }, now), /日付または時刻の形式が不正です/);
+  assert.throws(() => setMeetingActual(d, "a", { start: "10:00", end: "10:00" }, now), /終了は開始より後にしてください/);
+  assert.throws(() => setMeetingActual(d, "none", { start: "10:00", end: "11:00" }, now));
+});
+
+test("meetingActualSpan: actual が無ければ予定の時刻、あればそれ", () => {
+  assert.deepEqual(meetingActualSpan({ start: "09:00", end: "10:00" }), { start: "09:00", end: "10:00" });
+  assert.deepEqual(meetingActualSpan({ start: "09:00", end: "10:00", actual: { start: "09:10", end: "10:20" } }), { start: "09:10", end: "10:20" });
+});
+
+test("updateMeeting: 日時を動かすと confirmed と actual が外れる（手入力の会議）。actual は直接渡せない", () => {
+  const d = base([ev("09:00", "10:00", { id: "a", confirmed: true, actual: { start: "09:05", end: "10:00" } })]);
+  const e = updateMeeting(d, "a", { start: "09:30", end: "10:30" }).events[0];
+  assert.equal(e.confirmed, false);
+  assert.equal("actual" in e, false);
+  assert.throws(() => updateMeeting(d, "a", { actual: { start: "09:00", end: "09:30" } }));
 });

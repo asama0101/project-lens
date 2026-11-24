@@ -5,6 +5,7 @@ import { planCalendarSync, excludeSolo, planAutoSync } from "../plugins/project-
 
 const D = "2026-10-20";
 const range = { start: "2026-10-19", end: "2026-10-25" };
+const TODAY = "2026-10-19"; // 固定日付のテストデータで動かすための今日
 const ev = (id, title, extra = {}) => ({ id, date: D, start: "10:00", end: "11:00", title, source: "mcp", skip: false, externalId: id, ...extra });
 const f = (externalId, title, extra = {}) => ({ externalId, title, date: D, start: "10:00", end: "11:00", ...extra });
 const mk = (events) => ({
@@ -15,7 +16,7 @@ const mk = (events) => ({
 
 test("planCalendarSync: 追加・更新・削除の差分と、規則による projectId（rule）。手入力の会議と skip は変わらない", () => {
   const d = mk([ev("m1", "旧題", { externalId: "e1", skip: true }), ev("m2", "消える会議", { externalId: "e2" }), ev("m3", "手入力", { source: "manual", externalId: null })]);
-  const p = planCalendarSync(d, [f("e1", "ベンダーX 打合せ"), f("e9", "ベンダーX 定例", { start: "13:00", end: "14:00" })], range);
+  const p = planCalendarSync(d, [f("e1", "ベンダーX 打合せ"), f("e9", "ベンダーX 定例", { start: "13:00", end: "14:00" })], range, undefined, TODAY);
   assert.deepEqual(p.added.map((e) => [e.title, e.projectId, e.projectBy]), [["ベンダーX 定例", "AA", "rule"]]);
   assert.equal(p.updated.length, 1);
   assert.deepEqual([p.updated[0].after.title, p.updated[0].after.skip], ["ベンダーX 打合せ", true]);
@@ -26,9 +27,16 @@ test("planCalendarSync: 追加・更新・削除の差分と、規則による p
 test("planCalendarSync: 確認済み（confirmed）と手動のひも付けは保たれる", () => {
   const d = mk([ev("m1", "ベンダーX 打合せ", { externalId: "e1", confirmed: true, projectId: "AB", projectBy: "manual" })]);
   d.projects.push({ ...d.projects[0], id: "AB" });
-  const n = planCalendarSync(d, [f("e1", "ベンダーX 打合せ（変更）")], range).data;
+  const n = planCalendarSync(d, [f("e1", "ベンダーX 打合せ（変更）")], range, undefined, TODAY).data;
   const m = n.events[0];
   assert.deepEqual([m.title, m.confirmed, m.projectId, m.projectBy], ["ベンダーX 打合せ（変更）", true, "AB", "manual"]);
+});
+
+test("planCalendarSync: 予定表で日時が変わった確認済みの会議は、confirmed と actual が外れる", () => {
+  const d = mk([ev("m1", "定例", { externalId: "e1", confirmed: true, actual: { start: "10:05", end: "10:50" } })]);
+  const m = planCalendarSync(d, [f("e1", "定例", { start: "11:00", end: "12:00" })], range, undefined, TODAY).data.events[0];
+  assert.equal(m.confirmed, false);
+  assert.equal("actual" in m, false);
 });
 
 // ---- 自分だけ・自分と会議室だけの予定を除く ----
@@ -108,7 +116,7 @@ test("planCalendarSync: 対象外の予定は追加されない。取り込み�
     f("e9", "新しい自分だけの予定", { attendees: [who(SELF)] }),
     f("e10", "ベンダーX 定例", { start: "13:00", end: "14:00", attendees: [who(SELF), who("v@example.com")] }),
   ];
-  const p = planCalendarSync(d, fetched, range, cfg);
+  const p = planCalendarSync(d, fetched, range, cfg, TODAY);
   assert.deepEqual(p.excluded.map((e) => e.externalId), ["e1", "e2", "e9"]);
   assert.deepEqual(p.added.map((e) => e.title), ["ベンダーX 定例"]);
   assert.deepEqual(p.removed.map((e) => [e.id, !!e.confirmed]), [["m1", true], ["m2", false]]);
@@ -118,7 +126,7 @@ test("planCalendarSync: 対象外の予定は追加されない。取り込み�
 });
 
 test("planCalendarSync: cfg を渡さなければ、従来どおりすべて取り込む（excluded は空）", () => {
-  const p = planCalendarSync(mk([]), [f("e1", "x", { attendees: [who(SELF)] })], range);
+  const p = planCalendarSync(mk([]), [f("e1", "x", { attendees: [who(SELF)] })], range, undefined, TODAY);
   assert.deepEqual([p.added.length, p.excluded.length], [1, 0]);
 });
 
@@ -240,7 +248,7 @@ test("planCalendarSync: 形が不正な予定（終日・24:00・秒つき・ext
     { title: "id なし", date: D, start: "10:00", end: "11:00" },
     null,
     f("e5", "正常", { start: "13:00", end: "14:00" }),
-  ], range);
+  ], range, undefined, TODAY);
   assert.deepEqual(p.added.map((e) => e.title), ["正常"]);
   assert.equal(validate(p.data).errors.length, 0);
   assert.match(p.warnings.join("\n"), /5 件は、形が不正/);
@@ -248,13 +256,13 @@ test("planCalendarSync: 形が不正な予定（終日・24:00・秒つき・ext
 
 test("planCalendarSync: 取得で形が不正だった予定でも、externalId が読めれば、取り込み済みの会議は消さない", () => {
   const d = mk([ev("m1", "既存", { externalId: "e1" })]);
-  const p = planCalendarSync(d, [f("e1", "既存", { start: "09:00:00" }), f("e9", "別", { start: "13:00", end: "14:00" })], range);
+  const p = planCalendarSync(d, [f("e1", "既存", { start: "09:00:00" }), f("e9", "別", { start: "13:00", end: "14:00" })], range, undefined, TODAY);
   assert.deepEqual(p.removed, []);
   assert.deepEqual(p.data.events.filter((e) => e.externalId === "e1").map((e) => [e.title, e.start]), [["既存", "10:00"]]);
 });
 
 test("planCalendarSync: 同じ externalId が重なると、最初の 1 件だけ取り込み、警告に出す（黙って消さない）", () => {
-  const p = planCalendarSync(mk([]), [f("s", "定例", { date: "2026-10-21" }), f("s", "定例", { date: "2026-10-28" })], { start: "2026-10-19", end: "2026-10-31" });
+  const p = planCalendarSync(mk([]), [f("s", "定例", { date: "2026-10-21" }), f("s", "定例", { date: "2026-10-28" })], { start: "2026-10-19", end: "2026-10-31" }, undefined, TODAY);
   assert.equal(p.added.length, 1);
   assert.match(p.warnings.join("\n"), /1 件は、同じ externalId/);
 });
@@ -272,4 +280,29 @@ test("planAutoSync: 割合の分母は、終わった会議・確認済みの会
   assert.equal(p.removed.length, 0);
   assert.equal(p.blocked.count, 4);
   assert.match(p.blocked.reason, /4 件のうち 4 件/);
+});
+
+// ---- today より前の会議は取り込まない。範囲の開始も today に切り上げるので、過去の取り込み済みの会議は消えない ----
+test("planCalendarSync: today より前の会議は追加しない（valid も、落としたあとの件数）", () => {
+  const p = planCalendarSync(mk([]), [f("p", "昨日", { date: "2026-10-19" }), f("t", "今日", { date: "2026-10-20" })], range, undefined, "2026-10-20");
+  assert.deepEqual(p.added.map((e) => e.title), ["今日"]);
+  assert.equal(p.valid, 1);
+});
+
+test("planCalendarSync: 取り込み済みの過去の会議は、取得に無くても消えない", () => {
+  const d = mk([ev("m1", "過去", { externalId: "e1", date: "2026-10-19" }), ev("m2", "未来", { externalId: "e2", date: "2026-10-21" })]);
+  const p = planCalendarSync(d, [], range, undefined, "2026-10-20");
+  assert.deepEqual(p.removed.map((e) => e.id), ["m2"]);
+});
+
+test("planCalendarSync: 当日のすでに終わった会議は取り込む", () => {
+  const p = planCalendarSync(mk([]), [f("e1", "朝の会議", { start: "08:00", end: "09:00" })], range, undefined, D);
+  assert.deepEqual(p.added.map((e) => e.title), ["朝の会議"]);
+});
+
+test("planAutoSync: now.date より前の会議も取り込まず、過去の取り込み済みの会議を消さない", () => {
+  const p = auto([ev("m1", "過去", { externalId: "e1", date: "2026-10-19" })], [f("p", "昨日", { date: "2026-10-19" }), f("t", "今日", { externalId: "t" })]);
+  assert.deepEqual(p.added.map((e) => e.title), ["今日"]);
+  assert.deepEqual(p.removed, []);
+  assert.equal(p.valid, 1);
 });

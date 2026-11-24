@@ -7,6 +7,10 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import { writeTwo, readTwo, rawTwo } from "./twofiles.js";
+import { today, addDays } from "../plugins/project-lens/src/core/dates.js";
+
+// 予定表の取り込みは、今日より前の会議を落とすので、calendar-* の日付は実行日からの相対にする
+const T0 = today(), T1 = addDays(T0, 1), T3 = addDays(T0, 3), T4 = addDays(T0, 4), T6 = addDays(T0, 6);
 
 const REPO = fileURLToPath(new URL("../plugins/project-lens/", import.meta.url));
 const base = mkdtempSync(join(tmpdir(), "project-lens-intake-"));
@@ -80,13 +84,13 @@ test("wbs-apply: 前のタスクが循環する rows は、循環になる指定
 
 test("calendar-apply: 会議が追加され、規則でプロジェクトが付く。calendar-plan は書かない", () => {
   const w = work();
-  const fetched = w.put("fetched.json", [{ externalId: "ext-new", title: "ベンダーX 週次", date: "2026-10-22", start: "15:00", end: "16:00" }]);
+  const fetched = w.put("fetched.json", [{ externalId: "ext-new", title: "ベンダーX 週次", date: T3, start: "15:00", end: "16:00" }]);
   const before = w.read();
-  const p = run("calendar-plan", w.data, fetched, "2026-10-19", "2026-10-25");
+  const p = run("calendar-plan", w.data, fetched, T0, T6);
   assert.equal(p.status, 0, p.err);
   assert.equal(p.out.added.length, 1);
   assert.equal(w.read(), before);
-  assert.equal(run("calendar-apply", w.data, fetched, "2026-10-19", "2026-10-25", "--plan-key", p.out.planKey).status, 0);
+  assert.equal(run("calendar-apply", w.data, fetched, T0, T6, "--plan-key", p.out.planKey).status, 0);
   const e = w.json().events.find((x) => x.externalId === "ext-new");
   assert.deepEqual([e.projectId, e.projectBy], ["AA", "rule"]);
 });
@@ -94,12 +98,12 @@ test("calendar-apply: 会議が追加され、規則でプロジェクトが付�
 test("calendar-apply: 反映後のデータが検証に通らないときは、終了コード 1 で何も書かない", () => {
   const w = work();
   const d = w.json();
-  d.events.push({ id: "mz", date: "2026-10-22", start: "09:00", end: "10:00", title: "x", source: "mcp", skip: false, externalId: "ext-z", projectId: "ZZ" });
+  d.events.push({ id: "mz", date: T3, start: "09:00", end: "10:00", title: "x", source: "mcp", skip: false, externalId: "ext-z", projectId: "ZZ" });
   writeTwo(w.data, d);
   const before = w.read();
-  const fetched = w.put("fetched.json", [{ externalId: "ext-z", title: "x", date: "2026-10-22", start: "09:00", end: "10:00" }]);
-  const key = run("calendar-plan", w.data, fetched, "2026-10-19", "2026-10-25").out.planKey;
-  const r = run("calendar-apply", w.data, fetched, "2026-10-19", "2026-10-25", "--plan-key", key);
+  const fetched = w.put("fetched.json", [{ externalId: "ext-z", title: "x", date: T3, start: "09:00", end: "10:00" }]);
+  const key = run("calendar-plan", w.data, fetched, T0, T6).out.planKey;
+  const r = run("calendar-apply", w.data, fetched, T0, T6, "--plan-key", key);
   assert.equal(r.status, 1);
   assert.match(r.err, /ZZ/);
   assert.equal(w.read(), before);
@@ -108,12 +112,12 @@ test("calendar-apply: 反映後のデータが検証に通らないときは、�
 test("calendar-apply: 確認した削除の一覧（planKey）と同じときだけ消す。取得し直しが欠けて一覧が変わった・キーがないときは、書かずに止める", () => {
   const w = work();
   const d = w.json();
-  const ev = (i) => ({ id: `cm${i}`, date: "2026-10-22", start: `0${i + 4}:00`, end: `0${i + 4}:30`, title: `会議${i}`, source: "mcp", skip: false, externalId: `ext-${i}` });
+  const ev = (i) => ({ id: `cm${i}`, date: T3, start: `0${i + 4}:00`, end: `0${i + 4}:30`, title: `会議${i}`, source: "mcp", skip: false, externalId: `ext-${i}` });
   d.events.push(...[1, 2, 3, 4, 5].map(ev));
   writeTwo(w.data, d);
-  const all = [1, 2, 3, 4, 5].map((i) => ({ externalId: `ext-${i}`, title: `会議${i}`, date: "2026-10-22", start: `0${i + 4}:00`, end: `0${i + 4}:30` }));
+  const all = [1, 2, 3, 4, 5].map((i) => ({ externalId: `ext-${i}`, title: `会議${i}`, date: T3, start: `0${i + 4}:00`, end: `0${i + 4}:30` }));
   const two = w.put("two.json", all.slice(0, 2)), none = w.put("none.json", []);
-  const R = ["2026-10-19", "2026-10-25"];
+  const R = [T0, T6];
   const keyNone = run("calendar-plan", w.data, none, ...R).out.planKey; // 利用者が一覧を見て「はい」と答えた時点のキー（全件消える）
   const before = w.read();
   const bad = run("calendar-apply", w.data, two, ...R, "--plan-key", keyNone); // 取得し直しが 2 件に増えた → 消える会議が変わる
@@ -127,8 +131,8 @@ test("calendar-apply: 確認した削除の一覧（planKey）と同じときだ
   assert.notEqual(keyTwo, keyNone);
   const ok = run("calendar-apply", w.data, two, ...R, "--plan-key", keyTwo);
   assert.equal(ok.status, 0, ok.err);
-  assert.equal(ok.out.summary.removed, 5); // cm3〜cm5 と、sample の m1・m3
-  assert.deepEqual(w.json().events.filter((e) => e.source === "mcp").map((e) => e.id).sort(), ["cm1", "cm2"]);
+  assert.equal(ok.out.summary.removed, 3); // cm3〜cm5（sample の m1・m3 は今日より前なので、範囲の外）
+  assert.deepEqual(w.json().events.filter((e) => e.source === "mcp").map((e) => e.id).sort(), ["cm1", "cm2", "m1", "m3", "m4"]); // 今日より前の m1・m3・m4 は残る
 });
 
 test("fetched-remove: 一時フォルダの下（深さは問わない）の project-lens-fetched-*.json だけを消す。名前が違う・一時フォルダの外・.. で外へ出る形は、消さず非 0。無ければ成功", () => {
@@ -204,9 +208,9 @@ const runEnv = (env, ...args) => {
 };
 const SELF = "me@example.com";
 const fetchedSolo = () => [
-  { externalId: "solo1", title: "作業ブロック", date: "2026-10-22", start: "09:00", end: "10:00", attendees: [{ type: "person", email: SELF, name: "me" }] },
-  { externalId: "solo2", title: "ひとりで会議室", date: "2026-10-22", start: "10:00", end: "11:00", attendees: [{ type: "person", email: SELF, name: "me" }, { type: "resource", email: "r@example.com", name: "会議室 A" }] },
-  { externalId: "mtg1", title: "ベンダーX 週次", date: "2026-10-22", start: "15:00", end: "16:00", attendees: [{ type: "person", email: SELF, name: "me" }, { type: "person", email: "v@example.com", name: "v" }] },
+  { externalId: "solo1", title: "作業ブロック", date: T3, start: "09:00", end: "10:00", attendees: [{ type: "person", email: SELF, name: "me" }] },
+  { externalId: "solo2", title: "ひとりで会議室", date: T3, start: "10:00", end: "11:00", attendees: [{ type: "person", email: SELF, name: "me" }, { type: "resource", email: "r@example.com", name: "会議室 A" }] },
+  { externalId: "mtg1", title: "ベンダーX 週次", date: T3, start: "15:00", end: "16:00", attendees: [{ type: "person", email: SELF, name: "me" }, { type: "person", email: "v@example.com", name: "v" }] },
 ];
 const homeWith = (cal) => {
   const home = join(base, `home${++n}`);
@@ -222,12 +226,12 @@ test("calendar-plan・calendar-apply: 設定の selfEmails（PROJECT_LENS_HOME �
   const before = w.read();
   for (const env of [{ PROJECT_LENS_HOME: home }, {}]) {
     const args = env.PROJECT_LENS_HOME ? [] : ["--data", home];
-    const p = runEnv(env, "calendar-plan", w.data, fetched, "2026-10-19", "2026-10-25", ...args);
+    const p = runEnv(env, "calendar-plan", w.data, fetched, T0, T6, ...args);
     assert.equal(p.status, 0, p.err);
     assert.deepEqual([p.out.added.map((e) => e.externalId), p.out.excluded.map((e) => e.externalId), p.out.warnings], [["mtg1"], ["solo1", "solo2"], []]);
     assert.equal(w.read(), before);
   }
-  const a = runEnv({ PROJECT_LENS_HOME: home }, "calendar-apply", w.data, fetched, "2026-10-19", "2026-10-25", "--plan-key", runEnv({ PROJECT_LENS_HOME: home }, "calendar-plan", w.data, fetched, "2026-10-19", "2026-10-25").out.planKey);
+  const a = runEnv({ PROJECT_LENS_HOME: home }, "calendar-apply", w.data, fetched, T0, T6, "--plan-key", runEnv({ PROJECT_LENS_HOME: home }, "calendar-plan", w.data, fetched, T0, T6).out.planKey);
   assert.equal(a.status, 0, a.err);
   assert.deepEqual([a.out.summary.added, a.out.summary.excluded], [1, 2]);
   assert.deepEqual(w.json().events.filter((e) => e.source === "mcp" && e.externalId.startsWith("solo")), []);
@@ -236,7 +240,7 @@ test("calendar-plan・calendar-apply: 設定の selfEmails（PROJECT_LENS_HOME �
 test("calendar-plan: 設定の selfNames だけ（selfEmails なし）でも、名前が一致する自分だけの予定を除く", () => {
   const w = work();
   const fetched = w.put("fetched.json", fetchedSolo());
-  const p = runEnv({ PROJECT_LENS_HOME: homeWith({ selfNames: ["me"] }) }, "calendar-plan", w.data, fetched, "2026-10-19", "2026-10-25");
+  const p = runEnv({ PROJECT_LENS_HOME: homeWith({ selfNames: ["me"] }) }, "calendar-plan", w.data, fetched, T0, T6);
   assert.equal(p.status, 0, p.err);
   assert.deepEqual([p.out.added.map((e) => e.externalId), p.out.excluded.map((e) => e.externalId), p.out.warnings], [["mtg1"], ["solo1", "solo2"], []]);
 });
@@ -245,7 +249,7 @@ test("calendar-plan: 設定がない（置き場がない・selfEmails が未設
   const w = work();
   const fetched = w.put("fetched.json", fetchedSolo());
   for (const env of [{}, { PROJECT_LENS_HOME: homeWith({}) }]) {
-    const p = runEnv(env, "calendar-plan", w.data, fetched, "2026-10-19", "2026-10-25");
+    const p = runEnv(env, "calendar-plan", w.data, fetched, T0, T6);
     assert.equal(p.status, 0, p.err);
     assert.deepEqual([p.out.added.length, p.out.excluded.length], [3, 0]);
     assert.match(p.out.warnings[0], /selfEmails/);
@@ -255,9 +259,9 @@ test("calendar-plan: 設定がない（置き場がない・selfEmails が未設
 test("calendar-plan: excluded には、参加者（メールアドレス）を含めず、externalId・件名・日時だけを出す", () => {
   const w = work();
   const fetched = w.put("fetched.json", fetchedSolo());
-  const p = runEnv({ PROJECT_LENS_HOME: homeWith({ selfEmails: [SELF] }) }, "calendar-plan", w.data, fetched, "2026-10-19", "2026-10-25");
+  const p = runEnv({ PROJECT_LENS_HOME: homeWith({ selfEmails: [SELF] }) }, "calendar-plan", w.data, fetched, T0, T6);
   assert.equal(p.status, 0, p.err);
-  assert.deepEqual(p.out.excluded[0], { externalId: "solo1", title: "作業ブロック", date: "2026-10-22", start: "09:00", end: "10:00" });
+  assert.deepEqual(p.out.excluded[0], { externalId: "solo1", title: "作業ブロック", date: T3, start: "09:00", end: "10:00" });
   assert.ok(!JSON.stringify(p.out.excluded).includes("example.com"));
 });
 
@@ -267,7 +271,7 @@ test("calendar-plan・calendar-apply: 設定ファイルの指定が正しくな
   const before = w.read();
   const env = { PROJECT_LENS_HOME: homeWith({ selfEmails: SELF }) };
   for (const cmd of ["calendar-plan", "calendar-apply"]) {
-    const r = runEnv(env, cmd, w.data, fetched, "2026-10-19", "2026-10-25", "--plan-key", "x");
+    const r = runEnv(env, cmd, w.data, fetched, T0, T6, "--plan-key", "x");
     assert.equal(r.status, 1);
     assert.match(r.err, /project-lens-mcp\.json.*selfEmails/s);
   }
@@ -277,16 +281,16 @@ test("calendar-plan・calendar-apply: 設定ファイルの指定が正しくな
 test("calendar-plan: 取り込み済みの会議が対象外になって削除される場合は、removedByExclusion に、確認済み（confirmed）かどうかとあわせて出る（エージェントの文章に頼らず、確認済みの実績が消えることを見せるため）", () => {
   const w = work();
   const d = w.json();
-  d.events.push({ id: "m90", date: "2026-10-22", start: "09:00", end: "10:00", title: "作業ブロック", source: "mcp", skip: false, externalId: "solo1", confirmed: true });
-  d.events.push({ id: "m91", date: "2026-10-22", start: "10:00", end: "11:00", title: "ひとりで会議室", source: "mcp", skip: true, externalId: "solo2" });
-  d.events.push({ id: "m92", date: "2026-10-23", start: "10:00", end: "11:00", title: "予定表から消えた会議", source: "mcp", skip: false, externalId: "gone" });
+  d.events.push({ id: "m90", date: T3, start: "09:00", end: "10:00", title: "作業ブロック", source: "mcp", skip: false, externalId: "solo1", confirmed: true });
+  d.events.push({ id: "m91", date: T3, start: "10:00", end: "11:00", title: "ひとりで会議室", source: "mcp", skip: true, externalId: "solo2" });
+  d.events.push({ id: "m92", date: T4, start: "10:00", end: "11:00", title: "予定表から消えた会議", source: "mcp", skip: false, externalId: "gone" });
   writeTwo(w.data, d);
   const fetched = w.put("fetched.json", fetchedSolo());
-  const p = runEnv({ PROJECT_LENS_HOME: homeWith({ selfEmails: [SELF] }) }, "calendar-plan", w.data, fetched, "2026-10-19", "2026-10-25");
+  const p = runEnv({ PROJECT_LENS_HOME: homeWith({ selfEmails: [SELF] }) }, "calendar-plan", w.data, fetched, T0, T6);
   assert.equal(p.status, 0, p.err);
   assert.deepEqual(p.out.removedByExclusion, [
-    { id: "m90", title: "作業ブロック", date: "2026-10-22", confirmed: true },
-    { id: "m91", title: "ひとりで会議室", date: "2026-10-22", confirmed: false },
+    { id: "m90", title: "作業ブロック", date: T3, confirmed: true },
+    { id: "m91", title: "ひとりで会議室", date: T3, confirmed: false },
   ]);
   const removedIds = p.out.removed.map((e) => e.id);
   assert.ok(["m90", "m91", "m92"].every((id) => removedIds.includes(id)), "3 件とも removed に出る");
@@ -307,13 +311,13 @@ const autoWork = () => {
   return w;
 };
 
-test("calendar-auto: 承認の確認なしで書く。消えた未来の会議は削除し、終わった会議（確認済み）は残す。結果に summary・held が出る", () => {
+test("calendar-auto: 承認の確認なしで書く。消えた未来の会議は削除し、今日より前の会議（確認済み）は変えずに残す。結果に summary・held が出る", () => {
   const w = autoWork();
   const fetched = w.put("fetched.json", [{ externalId: "new", title: "新しい会議", date: FAR, start: "15:00", end: "16:00" }]);
   const r = run("calendar-auto", w.data, fetched, OLD, "2999-12-31");
   assert.equal(r.status, 0, r.err);
-  assert.deepEqual(r.out.summary, { added: 1, updated: 0, removed: 1, excluded: 0, held: 1 });
-  assert.deepEqual(r.out.held, [{ id: "m1", title: "終わった会議", date: OLD, change: "removed" }]);
+  assert.deepEqual(r.out.summary, { added: 1, updated: 0, removed: 1, excluded: 0, held: 0 }); // 今日より前は範囲の外なので、held にも出ない（held は calendar.test.js で確かめる）
+  assert.deepEqual(r.out.held, []);
   assert.equal(r.out.blocked, null);
   assert.deepEqual(w.json().events.map((e) => e.externalId ?? e.id).sort(), ["m3", "new", "old"]);
 });
@@ -372,10 +376,10 @@ const rdJson = (p) => JSON.parse(readFileSync(p, "utf8"));
 
 test("2 ファイル: calendar-apply は personal.json の events だけ、wbs-apply は data.json の tasks だけを変える", () => {
   const w = work(), pp = join(w.dir, "personal.json");
-  const fetched = w.put("fetched.json", [{ externalId: "x1", title: "新しい会議", date: "2026-10-20", start: "10:00", end: "11:00" }]);
-  const p = run("calendar-plan", w.data, fetched, "2026-10-19", "2026-10-25");
+  const fetched = w.put("fetched.json", [{ externalId: "x1", title: "新しい会議", date: T1, start: "10:00", end: "11:00" }]);
+  const p = run("calendar-plan", w.data, fetched, T0, T6);
   const sharedBefore = readFileSync(w.data, "utf8"), personalBefore = readFileSync(pp, "utf8");
-  assert.equal(run("calendar-apply", w.data, fetched, "2026-10-19", "2026-10-25", "--plan-key", p.out.planKey).status, 0);
+  assert.equal(run("calendar-apply", w.data, fetched, T0, T6, "--plan-key", p.out.planKey).status, 0);
   assert.equal(readFileSync(w.data, "utf8"), sharedBefore, "共有は変わらない");
   assert.ok(rdJson(pp).events.some((e) => e.title === "新しい会議"));
   const mid = readFileSync(pp, "utf8");
@@ -389,9 +393,9 @@ test("2 ファイル: calendar-apply は personal.json の events だけ、wbs-a
 test("--mine: 別の場所の個人ファイルへ events が書かれる。指定先が無ければ、終了コード 1 で何も書かない", () => {
   const w = work(), pp = join(w.dir, "personal.json"), other = join(w.dir, "elsewhere.json");
   copyFileSync(pp, other); rmSync(pp);
-  const fetched = w.put("fetched.json", [{ externalId: "x1", title: "別の場所の会議", date: "2026-10-20", start: "10:00", end: "11:00" }]);
-  const p = run("calendar-plan", w.data, fetched, "2026-10-19", "2026-10-25", "--mine", other);
-  assert.equal(run("calendar-apply", "--mine", other, w.data, fetched, "2026-10-19", "2026-10-25", "--plan-key", p.out.planKey).status, 0);
+  const fetched = w.put("fetched.json", [{ externalId: "x1", title: "別の場所の会議", date: T1, start: "10:00", end: "11:00" }]);
+  const p = run("calendar-plan", w.data, fetched, T0, T6, "--mine", other);
+  assert.equal(run("calendar-apply", "--mine", other, w.data, fetched, T0, T6, "--plan-key", p.out.planKey).status, 0);
   assert.ok(rdJson(other).events.some((e) => e.title === "別の場所の会議"));
   assert.equal(existsSync(pp), false);
   const nope = join(w.dir, "nope.json"), before = w.read();

@@ -1,7 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { sessionKind, addSession, moveSession, resizeSession, confirmSession, removeSession, taskActual, futurePlanned, runningPlanned } from "../plugins/project-lens/src/core/sessions.js";
+import { sessionKind, actualSlots, addSession, addActual, moveSession, resizeSession, removeSession, taskActual, futurePlanned, runningPlanned } from "../plugins/project-lens/src/core/sessions.js";
+import * as sessionsMod from "../plugins/project-lens/src/core/sessions.js";
+
+test("予定の枠を実績に書き換える confirmSession は持たない（実績は addActual で、予定とは別の枠として入れる）", () => {
+  assert.equal("confirmSession" in sessionsMod, false);
+});
 
 const load = () => JSON.parse(readFileSync(new URL("../plugins/project-lens/data/sample.json", import.meta.url), "utf8"));
 const NOW = { date: "2026-10-20", time: "12:00" }; // 火曜
@@ -73,16 +78,6 @@ test("resizeSession: 15分未満・23:59 超過・重なりは error", () => {
   assert.ok(resizeSession(d2, "S5", "13:00").error);
 });
 
-test("confirmSession: 今日までの予定は actual（今日のまだ終わっていない枠も。今日のタスクの「実績にする」）、明日以降は error", () => {
-  const d = load();
-  d.tasks.find((t) => t.id === "AA-0005").sessions[2] = { id: "S3", date: "2026-10-20", start: "09:00", end: "10:00", kind: "planned" };
-  assert.equal(sess(confirmSession(d, "S3", NOW).data, "S3").kind, "actual");
-  task(d, "AA-0004").sessions.push({ id: "S8", date: "2026-10-20", start: "11:30", end: "12:30", kind: "planned" }, { id: "S9", date: "2026-10-20", start: "15:00", end: "16:00", kind: "planned" });
-  assert.equal(sess(confirmSession(d, "S8", NOW).data, "S8").kind, "actual", "進行中の枠");
-  assert.equal(sess(confirmSession(d, "S9", NOW).data, "S9").kind, "actual", "今日のこれからの枠");
-  assert.match(confirmSession(load(), "S5", NOW).error, /明日以降の枠は実績にできません/);
-});
-
 test("removeSession と、枠の操作でタスクの状態は変わらない", () => {
   const d = load();
   const r = removeSession(d, "S1");
@@ -106,12 +101,12 @@ test("taskActual / futurePlanned", () => {
   assert.equal(t.sessions.length, 3);
 });
 
-test("実績の枠を未来へ動かす・延ばすと予定に戻る（I3）", () => {
+test("実績の枠を未来へ動かすと error（予定へは戻らない）。過去へ動かす・延ばすのは実績のまま", () => {
   const d = load();
   const m = moveSession(d, "S1", { date: "2026-10-28", start: "13:00" }, NOW);
-  assert.equal(sess(m.data, "S1").kind, "planned");
+  assert.match(m.error, /今より後/);
+  assert.equal(m.data, d, "データは変わらない");
   assert.equal(sess(moveSession(d, "S1", { date: "2026-10-16", start: "13:00" }, NOW).data, "S1").kind, "actual", "過去へなら実績のまま");
-  // 10/20 09:00-10:00 の実績を 14:00 まで延ばす（現在 12:00 より後）
   const d2 = load(); d2.tasks.find((t) => t.id === "AA-0004").sessions.push({ id: "S9", date: "2026-10-20", start: "09:00", end: "10:00", kind: "actual" });
   d2.events = [];
   assert.equal(sess(resizeSession(d2, "S9", "14:00", NOW).data, "S9").kind, "actual", "開始が過去なら、終了が未来でも実績のまま");
@@ -144,7 +139,7 @@ test("休みの日にすでにある枠は、同じ日の中なら伸縮も移�
   d.settings = { ...d.settings, holidays: [{ date: "2026-10-22", kind: "有給" }] }; // S5 は 10-22 10:00-12:00
   assert.equal(resizeSession(d, "S5", "12:30", NOW).error, undefined, "伸縮");
   assert.equal(moveSession(d, "S5", { date: "2026-10-22", start: "13:00" }, NOW).error, undefined, "同じ日の中の移動");
-  assert.match(moveSession(d, "S4", { date: "2026-10-22", start: "13:00" }, NOW).error, /休みの日には置けません/, "別の日の枠を休みの日へ動かすのは不可");
+  assert.match(moveSession(d, "S3", { date: "2026-10-22", start: "13:00" }, NOW).error, /休みの日には置けません/, "別の日の枠を休みの日へ動かすのは不可");
   assert.equal(moveSession(d, "S5", { date: "2026-10-23", start: "13:00" }, NOW).error, undefined, "休みの日から平日へは動かせる");
 });
 
@@ -209,29 +204,61 @@ test("resizeSession: 会議と重なると warning を返す（moveSession と�
   assert.equal(resizeSession(d, "SX", "09:45", NOW0).warning, undefined);
 });
 
-test("moveSession・resizeSession: 実績の枠は、開始が未来にならない限り実績のまま（終了が未来でも）", () => {
+test("moveSession・resizeSession: 実績は今より後へ動かせない。予定と実績は重なって動かせ、同じ種別どうしは error", () => {
   const d = load();
   task(d, "AA-0004").sessions.push({ id: "S9", date: "2026-10-20", start: "09:00", end: "10:00", kind: "actual" });
   d.events = [];
   assert.equal(sess(resizeSession(d, "S9", "14:00", NOW).data, "S9").kind, "actual", "終了が未来でも実績");
   assert.equal(sess(moveSession(d, "S9", { date: "2026-10-20", start: "11:30" }, NOW).data, "S9").kind, "actual", "開始が今より前なら実績");
-  assert.equal(sess(moveSession(d, "S9", { date: "2026-10-20", start: "12:30" }, NOW).data, "S9").kind, "planned", "開始が未来なら予定");
+  assert.match(moveSession(d, "S9", { date: "2026-10-20", start: "12:30" }, NOW).error, /今より後/);
+  task(d, "AA-0004").sessions.push({ id: "S10", date: "2026-10-20", start: "15:00", end: "16:00", kind: "planned" });
+  assert.equal(moveSession(d, "S9", { date: "2026-10-20", start: "10:30" }, NOW).error, undefined);
+  assert.equal(moveSession(d, "S10", { date: "2026-10-20", start: "09:30" }, NOW).error, undefined, "予定は実績と重なって動かせる");
+  assert.equal(resizeSession(d, "S10", "16:30", NOW).error, undefined);
+  task(d, "AA-0004").sessions.push({ id: "S11", date: "2026-10-20", start: "10:00", end: "11:00", kind: "actual" });
+  assert.match(moveSession(d, "S9", { date: "2026-10-20", start: "10:30" }, NOW).error, /他の実績の枠（/);
+  assert.match(resizeSession(d, "S9", "10:30", NOW).error, /他の実績の枠（/);
 });
 
-test("confirmSession: ほかの実績の枠と重なる予定は、実績にしない", () => {
-  const d2 = load();
-  task(d2, "AA-0004").sessions.push({ id: "S73", date: "2026-10-20", start: "10:00", end: "11:00", kind: "actual" });
-  task(d2, "AA-0005").sessions.push({ id: "S74", date: "2026-10-20", start: "10:30", end: "11:30", kind: "planned" });
-  assert.match(confirmSession(d2, "S74", NOW).error, /他の実績の枠（10:00〜11:00）/);
+test("sessionKind: 重なる実績があれば planned、無ければ unconfirmed（接するだけは重ならない）", () => {
+  const p = { kind: "planned", date: "2026-10-20", start: "09:00", end: "10:00" };
+  assert.equal(sessionKind(p, NOW, [{ date: "2026-10-20", start: "09:30", end: "10:00" }]), "planned");
+  assert.equal(sessionKind(p, NOW, []), "unconfirmed");
+  assert.equal(sessionKind(p, NOW, [{ date: "2026-10-20", start: "10:00", end: "11:00" }]), "unconfirmed");
 });
 
-test("先に実績にした今日のこれからの枠は、伸縮・移動（未来から未来）しても実績のまま。過去・進行中の実績の開始を未来へ動かすと予定に戻る", () => {
+test("actualSlots: 全タスクの実績の枠だけ", () => {
+  const d = load();
+  task(d, "AA-0004").sessions.push({ id: "S9", date: "2026-10-20", start: "09:00", end: "10:00", kind: "actual" }, { id: "S10", date: "2026-10-20", start: "15:00", end: "16:00", kind: "planned" });
+  const a = actualSlots(d);
+  assert.ok(a.some((x) => x.date === "2026-10-20" && x.start === "09:00" && x.end === "10:00"));
+  assert.ok(!a.some((x) => x.start === "15:00" && x.date === "2026-10-20"));
+});
+
+test("addActual: 予定と重なって置ける。実績どうしの重なりは error で data は変わらない", () => {
   const d = load(); d.events = [];
-  task(d, "AA-0004").sessions.push({ id: "S8", date: "2026-10-20", start: "15:00", end: "16:00", kind: "planned" }, { id: "S9", date: "2026-10-20", start: "11:30", end: "12:30", kind: "actual" });
-  const c = confirmSession(d, "S8", NOW).data;
-  assert.equal(sess(resizeSession(c, "S8", "16:15", NOW).data, "S8").kind, "actual", "伸縮");
-  assert.equal(sess(moveSession(c, "S8", { date: "2026-10-20", start: "14:00" }, NOW).data, "S8").kind, "actual", "未来から未来へ");
-  assert.equal(sess(moveSession(c, "S8", { date: "2026-10-21", start: "14:00" }, NOW).data, "S8").kind, "actual", "別の日の未来へ");
-  assert.equal(sess(moveSession(c, "S9", { date: "2026-10-20", start: "13:00" }, NOW).data, "S9").kind, "planned", "進行中の実績の開始を未来へ");
-  assert.equal(sess(resizeSession(c, "S9", "13:00", NOW).data, "S9").kind, "actual", "伸縮では開始が変わらないので戻さない");
+  const slot = { date: "2026-10-20", start: "10:00", end: "11:00" };
+  const p = addSession(d, "AA-0004", slot).data;
+  const a = addActual(p, "AA-0004", slot, NOW);
+  assert.equal(a.error, undefined);
+  assert.deepEqual(task(a.data, "AA-0004").sessions.map((s) => s.kind), ["planned", "actual"]);
+  const b = addActual(a.data, "AA-0005", slot, NOW);
+  assert.match(b.error, /他の実績の枠（/);
+  assert.equal(b.data, a.data);
+});
+
+test("addActual: 開始が今より後は error、終了が今より後でも開始が前なら通る", () => {
+  const d = load(); d.events = [];
+  const now = { date: "2026-10-20", time: "10:15" };
+  assert.match(addActual(d, "AA-0004", { date: "2026-10-20", start: "10:30", end: "11:00" }, now).error, /まだ始まっていない/);
+  assert.equal(addActual(d, "AA-0004", { date: "2026-10-20", start: "10:00", end: "11:00" }, now).error, undefined);
+});
+
+test("addActual: 休みの日にも置ける（予定は置けない）。15 分未満・存在しないタスクは error", () => {
+  const d = load(); d.events = [];
+  const sat = { date: "2026-10-17", start: "10:00", end: "11:00" };
+  assert.equal(addActual(d, "AA-0004", sat, NOW).error, undefined);
+  assert.ok(addSession(d, "AA-0004", sat).error);
+  assert.ok(addActual(d, "AA-0004", { date: "2026-10-20", start: "10:00", end: "10:10" }, NOW).error);
+  assert.match(addActual(d, "XX", sat, NOW).error, /タスク XX がありません/);
 });
