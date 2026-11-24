@@ -75,18 +75,24 @@ const STATUS_JA = { "To Do": "未着手", "In Progress": "着手中", Waiting: "
 /** 2 つの枠（同じ日）の時間が重なるか */
 const overlaps = (a, b) => toMin(a.start) < toMin(b.end) && toMin(b.start) < toMin(a.end);
 
+/**
+ * その日の描く要素: 枠のブロック（予定の日付がその日）と、予定の枠の実績の帯（actual.date がその日。ドラッグ・サイズ変更なし）。
+ * 実績の側（実績だけの枠・実績の帯）と予定の側の要素が重なるときは、予定を左半分・実績を右半分に並べる（重ならなければ全幅）
+ */
 function sessionBlocks(data, d, full, g, ctx) {
-  const day = allSessions(data).filter((s) => s.date === d);
-  return day.map((s) => {
-    // 予定・未確認の枠と実績の枠が重なるときは、予定を左半分・実績を右半分に並べる（重ならなければ全幅）
-    const isAct = s.kind === "actual";
-    const side = day.some((o) => (o.kind === "actual") !== isAct && overlaps(o, s)) ? (isAct ? ";left:50%;width:50%" : ";left:0;width:50%") : "";
-    const c = KIND_CLS[sessionKind(s, ctx.now, ctx.actuals)];
-    const task = data.tasks.find((t) => t.id === s.taskId); // ToDo の枠は無し（件名だけを出し、状態・重要の印は出さない）
+  const items = allSessions(data).flatMap((s) => [
+    ...(s.date === d ? [{ s, t: s, bar: false, isAct: s.kind === "actual" }] : []),
+    ...(s.kind === "planned" && s.actual?.date === d ? [{ s, t: s.actual, bar: true, isAct: true }] : []),
+  ]);
+  return items.map(({ s, t, bar, isAct }) => {
+    const side = items.some((o) => o.isAct !== isAct && overlaps(o.t, t)) ? (isAct ? ";left:50%;width:50%" : ";left:0;width:50%") : "";
+    const c = bar ? "act" : s.actual ? "plan" : KIND_CLS[sessionKind(s, ctx.now, ctx.actuals)]; // 実績を持つ予定のブロックは「予定」（未確認にしない）
+    const task = data.tasks.find((x) => x.id === s.taskId); // ToDo の枠は無し（件名だけを出し、状態・重要の印は出さない）
     const st = full && task ? ` <span class="stt">${STATUS_JA[task.status] ?? ""}</span>` : "";
     const imp = task && isImportantMark(task) ? " imp" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
-    const short = toMin(s.end) - toMin(s.start) < SHORT_MIN ? " short" : "";
-    return `<div class="blk task ${c}${imp}${short} ${ctx.selSess === s.id ? "sel" : ""}" draggable="true" tabindex="0" data-dragsess="${esc(s.id)}" style="top:${g.tp(toMin(s.start))};height:${g.ht(toMin(s.start), toMin(s.end))}${side}" title="${esc(s.title)}(${KIND_JA[c]})"><span class="tm">${esc(s.start)}-${esc(s.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${esc(s.title)}</span>${st}<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i></div>`;
+    const short = toMin(t.end) - toMin(t.start) < SHORT_MIN ? " short" : "";
+    const attrs = bar ? `tabindex="0" data-actbar="${esc(s.id)}"` : `draggable="true" tabindex="0" data-dragsess="${esc(s.id)}"`;
+    return `<div class="blk task ${c}${imp}${short} ${ctx.selSess === s.id ? "sel" : ""}" ${attrs} style="top:${g.tp(toMin(t.start))};height:${g.ht(toMin(t.start), toMin(t.end))}${side}" title="${esc(s.title)}(${KIND_JA[c]})"><span class="tm">${esc(t.start)}-${esc(t.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${esc(s.title)}</span>${st}${bar ? "" : `<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i>`}</div>`;
   }).join("");
 }
 
@@ -239,10 +245,10 @@ export function renderSchedule(data, today, opts) {
   const step = view === "week" ? 7 : 1;
   const days = view === "week" ? [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(weekStartOf(date), i)) : [date];
   const title = view === "week" ? `${fmtMD(days[0])}〜${fmtMD(days[6])} の週` : `${fmtMD(date)}(${wdJa(date)})`;
-  const inView = allSessions(data).filter((s) => days.includes(s.date));
+  const inView = allSessions(data).filter((s) => days.includes(s.date) || days.includes(s.actual?.date)); // 予定の日付か、実績の日付が範囲内
   const actuals = actualSlots(data);
-  const kinds = inView.map((s) => sessionKind(s, now, actuals));
-  const hours = inView.filter((s, i) => kinds[i] === "actual").reduce((a, s) => a + toMin(s.end) - toMin(s.start), 0) / 60;
+  const kinds = inView.map((s) => sessionKind(s, now, actuals)); // 実績を持つ枠は actual なので、予定・未確認の件数に入らない
+  const hours = actuals.filter((a) => days.includes(a.date)).reduce((a, s) => a + toMin(s.end) - toMin(s.start), 0) / 60;
   const planned = kinds.filter((k) => k === "planned").length;
   const unconfS = kinds.filter((k) => k === "unconfirmed").length;
   const unconfM = (data.events ?? []).filter((m) => days.includes(m.date) && meetingKind(m, now) === "unconfirmed").length;

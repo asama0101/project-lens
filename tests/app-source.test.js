@@ -93,7 +93,7 @@ test("app.js: 「参加しない会議」のボタン（data-sskip）は showSki
 test("schedule.js: ブロックの時刻は esc して出す（toMin が先に検証するが、描画側でも守る）", () => {
   const sc = readFileSync(new URL("../plugins/project-lens/src/ui/views/schedule.js", import.meta.url), "utf8");
   assert.match(sc, /\$\{esc\(m\.start\)\}-\$\{esc\(m\.end\)\}/);
-  assert.match(sc, /\$\{esc\(s\.start\)\}-\$\{esc\(s\.end\)\}/);
+  assert.match(sc, /\$\{esc\(t\.start\)\}-\$\{esc\(t\.end\)\}/); // 作業枠の時刻（t は枠自身か、実績の帯の actual）
 });
 
 test("app.js: 営業日の指定の追加は、入力欄の値を先に取り出してから edit に入れる（保存の競合で当て直されても日付が空にならない）。終了日を入れたら同じ日でも期間として扱う", () => {
@@ -581,8 +581,16 @@ test("app.js: 作業枠を押して選ぶと（selectSession）、そのタス�
   assert.ok(!src.includes("data-tedit-open") && !src.includes("teditOpen"), "「タスクを編集」のボタンは持たない");
   const fn = src.slice(src.indexOf("const selectSession = "), src.indexOf("const selectSession = ") + 400);
   assert.ok(fn.includes("Object.assign(S, sessionSelection(S.data, id, S.taskEdit))"), fn); // 規則（ToDo の枠は編集欄を開かない）は views.test.js の sessionSelection
-  assert.match(src, /if \(sb && !q\("\[data-rz\]"\)\) \{ selectSession\(S\.selSess === sb\.dataset\.dragsess \? null : sb\.dataset\.dragsess\);/);
+  assert.match(src, /if \(sb && !q\("\[data-rz\]"\)\) \{ const id = sb\.dataset\.dragsess \?\? sb\.dataset\.actbar; selectSession\(S\.selSess === id \? null : id\);/);
   assert.match(src, /if \(q\("\[data-tedit-close\]"\)\) \{ clearSel\(\); render\(\); return; \}/);
+});
+
+test("app.js: 実績の帯（data-actbar）の押下は、data-dragsess と同じ選択の処理に入る（欄外のクリックで外さない）。ドラッグ・下端のサイズ変更には入れない", () => {
+  assert.ok(src.includes('const sb = q("[data-dragsess],[data-actbar]");'));
+  assert.match(src, /!q\("\[data-dragsess\],\[data-actbar\],\[data-mtg\],/);
+  const dragLine = src.split("\n").find((l) => l.includes('e.target.closest("[data-dragtask]")'));
+  assert.ok(dragLine && !dragLine.includes("actbar"), dragLine);
+  assert.ok(!src.includes('closest("[data-rz],[data-rzm],[data-actbar]'));
 });
 
 test("theme.css: スケジュールの凡例の色の見本は 18×14px（線・点線・塗りは .sw の規則のまま）。文字は 12px。現在時刻の線は高さ 0 のまま、行の中央に置く（#view の中だけ）", () => {
