@@ -8,9 +8,13 @@ const pick = (obj, keys) => Object.fromEntries(keys.filter((k) => k in obj).map(
 
 /** 共有ファイルと個人ファイルへ分ける。共有の設定は、個人の設定のキー以外すべて（未知のキーも共有） */
 export function splitData(data) {
-  const { tasks, events, inbox, settings = {}, orphanSessions, ...rest } = data;
+  const { tasks, events, inbox, settings = {}, orphanSessions, todos, reviews, ...rest } = data;
   const sessions = [];
   const sharedTasks = (tasks ?? []).map(({ sessions: ss, ...t }) => {
+    for (const s of ss ?? []) sessions.push({ ...s, taskId: t.id });
+    return t;
+  });
+  const personalTodos = (todos ?? []).map(({ sessions: ss, ...t }) => {
     for (const s of ss ?? []) sessions.push({ ...s, taskId: t.id });
     return t;
   });
@@ -18,18 +22,20 @@ export function splitData(data) {
   const personalSettings = pick(settings, PERSONAL_SETTINGS);
   const sharedSettings = Object.fromEntries(Object.entries(settings).filter(([k]) => !PERSONAL_SETTINGS.includes(k)));
   const shared = { ...rest, tasks: sharedTasks, settings: sharedSettings };
-  const personal = { version: data.version, sessions, events: events ?? [], settings: personalSettings, ...(inbox !== undefined ? { inbox } : {}) };
+  const personal = { version: data.version, sessions, events: events ?? [], settings: personalSettings, ...(inbox !== undefined ? { inbox } : {}), ...(personalTodos.length ? { todos: personalTodos } : {}), ...(reviews && Object.keys(reviews).length ? { reviews } : {}) };
   return { shared, personal };
 }
 
-/** 2 つのファイルを 1 つのデータへ戻す。共有に無い taskId の枠は orphanSessions に入れる */
+/** 2 つのファイルを 1 つのデータへ戻す。taskId が ToDo の ID の枠はその ToDo へ。どちらにも無い taskId の枠は orphanSessions に入れる */
 export function mergeData(shared, personal) {
   const ids = new Set(shared.tasks.map((t) => t.id));
+  const todos = personal.todos ?? [];
+  const todoIds = new Set(todos.map((t) => t.id));
   const byTask = new Map();
   const orphans = [];
   for (const s of personal.sessions ?? []) {
     const { taskId, ...session } = s;
-    if (!ids.has(taskId)) { orphans.push({ ...session, taskId }); continue; }
+    if (!ids.has(taskId) && !todoIds.has(taskId)) { orphans.push({ ...session, taskId }); continue; }
     if (!byTask.has(taskId)) byTask.set(taskId, []);
     byTask.get(taskId).push(session);
   }
@@ -37,6 +43,8 @@ export function mergeData(shared, personal) {
   return {
     ...shared,
     tasks: shared.tasks.map((t) => ({ ...t, sessions: byTask.get(t.id) ?? [] })),
+    todos: todos.map((t) => ({ ...t, sessions: byTask.get(t.id) ?? [] })),
+    reviews: personal.reviews ?? {},
     events: events ?? [],
     settings: { ...(shared.settings ?? {}), ...(personal.settings ?? {}) },
     ...(inbox !== undefined ? { inbox } : {}),
@@ -62,7 +70,10 @@ export const checkSharedShape = (x) => {
   checkShape(x, "data.json", ["projects", "tasks", "changeLog"]);
   if (isOldShared(x)) throw new Error("作業枠・予定を含む 1 ファイルの旧形式の data.json です。personal.json へ手で分けてください");
 };
-export const checkPersonalShape = (x) => checkShape(x, "personal.json", ["sessions", "events"]);
+export const checkPersonalShape = (x) => {
+  checkShape(x, "personal.json", ["sessions", "events"]);
+  if (x.todos !== undefined && !Array.isArray(x.todos)) throw new Error("personal.json のデータの形が違います（todos が配列ではありません）");
+};
 
 /** 直接保存できないブラウザの「JSON を書き出す」: ダウンロードする 2 つのファイル（名前は固定） */
 export function exportFiles(data) {

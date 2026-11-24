@@ -34,6 +34,13 @@
     { "id": "AC-0003", "projectId": "AC", "title": "恒久対策の適用", "due": "2026-11-13", "start": null, "status": "To Do", "memo": "", "predecessors": ["AC-0002"], "waitingOn": null, "doneAt": null, "sessions": [] },
     { "id": "ZZ-0001", "projectId": null, "title": "問い合わせ対応", "due": "2026-10-23", "start": "2026-10-19", "status": "In Progress", "memo": "", "predecessors": [], "waitingOn": null, "doneAt": null, "sessions": [{ "id": "S6", "date": "2026-10-19", "start": "16:30", "end": "17:30", "kind": "actual" }] }
   ],
+  "todos": [
+    { "id": "T-0001", "scope": "week", "title": "ベンダーX へ納期の再確認", "date": "2026-10-19", "doneAt": null, "carried": 0, "sessions": [] },
+    { "id": "T-0002", "scope": "week", "title": "検証環境の構築手順を見直す", "date": "2026-10-19", "doneAt": null, "carried": 1, "checklist": [{ "id": "c1", "text": "現行の手順を読む", "done": true }, { "id": "c2", "text": "抜けを一覧にする", "done": false }], "sessions": [] },
+    { "id": "T-0003", "scope": "day", "title": "納期の問い合わせメールを送る", "date": "2026-10-20", "parentId": "T-0001", "doneAt": "2026-10-20", "carried": 0, "sessions": [{ "id": "S7", "date": "2026-10-20", "start": "13:00", "end": "13:30", "kind": "actual" }] },
+    { "id": "T-0004", "scope": "day", "title": "経費精算", "date": "2026-10-20", "doneAt": null, "carried": 0, "sessions": [] }
+  ],
+  "reviews": { "2026-10-12": "会議が多く、手順の見直しに手が回らなかった。" },
   "events": [
     { "id": "m1", "date": "2026-10-20", "start": "09:30", "end": "10:30", "title": "NW運用定例", "source": "mcp", "skip": false, "externalId": "ext-001", "confirmed": true },
     { "id": "m2", "date": "2026-10-20", "start": "13:00", "end": "14:00", "title": "ベンダーX 打合せ", "source": "manual", "skip": false, "externalId": null, "projectId": "AA", "projectBy": "rule" },
