@@ -611,7 +611,7 @@ view.addEventListener("click", (e) => {
     S.tdDraft = tdFormDraft(tds.closest(".tdform"), id);
     const draft = S.tdDraft, title = taskTitle(id);
     let r;
-    if (apply((d) => { r = completeTask(d, id, { actual: { date: draft.date, start: draft.start, end: draft.end }, status: draft.status, checks: draft.checks }, now); return r.data; }, null, { quiet: true })) {
+    if (apply((d) => { r = completeTask(d, id, completeInput(draft), now); return r.data; }, null, { quiet: true })) {
       S.tdOpen = null; S.tdDraft = null; render();
       const sp = r.spawned ? S.data.tasks.find((x) => x.id === S.data.tasks.find((y) => y.id === id).repeat.spawned) : null;
       toast(`「${title}」を ${draft.status} にしました${r.released ? `。未来の予定の枠 ${r.released} 件を解除しました` : ""}${sp ? `。次回（期限 ${fmtMD(sp.due)}）を作りました` : ""}`);

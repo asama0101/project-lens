@@ -46,6 +46,9 @@ function row(data, r, ctx) {
   </li>`;
 }
 
+/** 完了の入力欄の下書き → completeTask の入力。開始・終了がどちらも空なら、日付が入っていても実績は送らない（日付は初期値で埋まるため）。片方だけなら送って、completeTask の検査で止める */
+export const completeInput = (dr) => ({ actual: dr.start || dr.end ? { date: dr.date, start: dr.start, end: dr.end } : undefined, status: dr.status, checks: dr.checks });
+
 /**
  * @param opts.week  表示中の週の月曜日
  * @param opts.now   {date, time} 未来の予定の枠の判定

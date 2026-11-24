@@ -4814,7 +4814,7 @@ return { snapStart, selectionKey, sessionSelection, revealSelection, weekStartOf
 })();
 
 /* src/ui/views/todo.js */
-const { renderTodo } = (() => {
+const { completeInput, renderTodo } = (() => {
 // 「ToDo」画面: 表示中の週のタスクの一覧（weekTasks。組ごと）、行の完了の入力欄、週の見返し（weekSummary）。操作の結線は app.js（data-td*・data-tf*）。
 
 
@@ -4863,6 +4863,9 @@ function row(data, r, ctx) {
   </li>`;
 }
 
+/** 完了の入力欄の下書き → completeTask の入力。開始・終了がどちらも空なら、日付が入っていても実績は送らない（日付は初期値で埋まるため）。片方だけなら送って、completeTask の検査で止める */
+const completeInput = (dr) => ({ actual: dr.start || dr.end ? { date: dr.date, start: dr.start, end: dr.end } : undefined, status: dr.status, checks: dr.checks });
+
 /**
  * @param opts.week  表示中の週の月曜日
  * @param opts.now   {date, time} 未来の予定の枠の判定
@@ -4891,7 +4894,7 @@ function renderTodo(data, today, opts) {
   </div>`;
 }
 
-return { renderTodo };
+return { completeInput, renderTodo };
 })();
 
 /* src/ui/dnd.js */
@@ -5706,7 +5709,7 @@ view.addEventListener("click", (e) => {
     S.tdDraft = tdFormDraft(tds.closest(".tdform"), id);
     const draft = S.tdDraft, title = taskTitle(id);
     let r;
-    if (apply((d) => { r = completeTask(d, id, { actual: { date: draft.date, start: draft.start, end: draft.end }, status: draft.status, checks: draft.checks }, now); return r.data; }, null, { quiet: true })) {
+    if (apply((d) => { r = completeTask(d, id, completeInput(draft), now); return r.data; }, null, { quiet: true })) {
       S.tdOpen = null; S.tdDraft = null; render();
       const sp = r.spawned ? S.data.tasks.find((x) => x.id === S.data.tasks.find((y) => y.id === id).repeat.spawned) : null;
       toast(`「${title}」を ${draft.status} にしました${r.released ? `。未来の予定の枠 ${r.released} 件を解除しました` : ""}${sp ? `。次回（期限 ${fmtMD(sp.due)}）を作りました` : ""}`);

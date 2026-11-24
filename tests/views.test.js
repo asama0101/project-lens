@@ -18,7 +18,8 @@ import { rankTasks } from "../plugins/project-lens/src/core/schedule.js";
 import { bannerHtml } from "../plugins/project-lens/src/ui/common.js";
 import { validate } from "../plugins/project-lens/src/core/schema.js";
 import { renderWorkload } from "../plugins/project-lens/src/ui/views/workload.js";
-import { renderTodo } from "../plugins/project-lens/src/ui/views/todo.js";
+import { renderTodo, completeInput } from "../plugins/project-lens/src/ui/views/todo.js";
+import { completeTask } from "../plugins/project-lens/src/ui/edit.js";
 
 
 const load = () => JSON.parse(readFileSync(new URL("../plugins/project-lens/data/sample.json", import.meta.url), "utf8"));
@@ -2236,6 +2237,33 @@ test("renderTodo: 件名・プロジェクト名・チェックの項目・気�
 test("renderTodo: 週にタスクが無ければ、一覧は案内だけ。見返しは 0 件", () => {
   const html = tdHtml({ ...tdData(), tasks: [] });
   assert.ok(!html.includes("data-tdrow=") && html.includes("この週のタスクはありません") && html.includes("完了 0 / 0 件"));
+});
+
+/** 描いた入力欄の初期値を読む（app.js の tdFormDraft と同じ形） */
+const formDraft = (f, key) => ({
+  key, ...Object.fromEntries(["date", "start", "end"].map((k) => [k, new RegExp(`data-tf="${k}" value="([^"]*)"`).exec(f)[1]])),
+  status: /<option value="([^"]+)" selected>/.exec(f)[1],
+  checks: Object.fromEntries([...f.matchAll(/data-tfck="([^"]+)"( checked)?/g)].map((m) => [m[1], !!m[2]])),
+});
+
+test("完了の保存: 予定の枠が無いタスクで、初期値のまま保存すると、実績なしで Done になる（日付だけ入っていても止めない）", () => {
+  const d = tdData();
+  const dr = formDraft(tdRow(tdHtml(d, { open: "AA-0001" }), "AA-0001"), "AA-0001");
+  assert.deepEqual([dr.date, dr.start, dr.end, dr.status], [TODAY, "", "", "Done"]);
+  assert.equal(completeInput(dr).actual, undefined);
+  const r = completeTask(d, "AA-0001", completeInput(dr), TD_NOW);
+  const t = r.data.tasks.find((x) => x.id === "AA-0001");
+  assert.equal(t.status, "Done");
+  assert.deepEqual(t.sessions, [], "実績は足さない");
+});
+
+test("完了の保存: 予定の枠があるタスクを初期値のまま保存すると、その時刻で実績が入る。開始・終了の片方だけは、completeTask の検査で止まる", () => {
+  const d = tdData({}), now = { date: TODAY, time: "16:30" };
+  const dr = formDraft(tdRow(tdHtml(d, { open: "AA-0002", now }), "AA-0002"), "AA-0002");
+  const t = completeTask(d, "AA-0002", completeInput(dr), now).data.tasks.find((x) => x.id === "AA-0002");
+  assert.deepEqual(t.sessions.find((s) => s.id === "S2").actual, { date: TODAY, start: "15:00", end: "16:00" });
+  assert.deepEqual(completeInput({ ...dr, end: "" }).actual, { date: TODAY, start: "15:00", end: "" });
+  assert.throws(() => completeTask(d, "AA-0002", completeInput({ ...dr, end: "" }), now), /すべて入れるか、すべて空に/);
 });
 
 test("撤去: prio.js は renderTodayTodos を export しない。スケジュール画面の右の列に「今日の ToDo」が出ない", () => {

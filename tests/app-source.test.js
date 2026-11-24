@@ -795,7 +795,7 @@ test("ToDo タブ: 保存（data-tdsave）は、欄の値を先に S.tdDraft へ
   assert.ok(i > 0, "ハンドラ");
   assert.ok(a.indexOf("S.tdDraft = tdFormDraft(") >= 0 && a.indexOf("S.tdDraft = tdFormDraft(") < a.indexOf("completeTask(d, id"), "下書きが先");
   assert.match(src, /function tdFormDraft\(form, key\) \{[^]*?return \{ key, date: f\("date"\), start: f\("start"\), end: f\("end"\), status: f\("status"\), checks \};/);
-  assert.match(a, /apply\(\(d\) => \{ r = completeTask\(d, id, \{ actual: \{ date: draft\.date, start: draft\.start, end: draft\.end \}, status: draft\.status, checks: draft\.checks \}, now\); return r\.data; \}, null, \{ quiet: true \}\)/);
+  assert.match(a, /apply\(\(d\) => \{ r = completeTask\(d, id, completeInput\(draft\), now\); return r\.data; \}, null, \{ quiet: true \}\)/); // 入力の変換は views.test.js の completeInput
   assert.match(a, /S\.tdOpen = null; S\.tdDraft = null; render\(\);/);
   for (const s of ["にしました", "未来の予定の枠 ${r.released} 件を解除しました", "次回（期限"]) assert.ok(a.includes(s), s);
   assert.ok(src.includes("if (el.dataset.tdnote !== undefined) {") && src.includes("setReview(d, wk, text)"), "気づきは change で setReview");
