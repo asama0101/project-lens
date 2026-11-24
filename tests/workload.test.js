@@ -79,3 +79,17 @@ test("periodRange: day はその日だけ、week は月曜〜日曜、month は 
   assert.deepEqual(periodRange("month", "2028-02-10"), { start: "2028-02-01", end: "2028-02-29" });
   assert.deepEqual(periodRange("month", "2026-12-31"), { start: "2026-12-01", end: "2026-12-31" });
 });
+
+const todo = (id, sessions = []) => ({ id, scope: "day", title: id, date: D, doneAt: null, carried: 0, sessions });
+
+test("workload: ToDo の実績の枠は「プロジェクト未設定」のタスクの列に入る（projectHours には入らない）", () => {
+  const d = { ...data([task("AA-0001", "AA", [sess("S1", D, "09:00", "10:00")])], []), todos: [todo("T-0001", [sess("S2", D, "10:00", "11:30"), sess("S3", D, "12:00", "13:00", "planned")])] };
+  const w = workload(d, periodRange("day", D));
+  assert.deepEqual([w.rows[0].task, w.unassigned.task, w.total], [1, 1.5, 2.5]);
+  assert.deepEqual(projectHours(d, "AA"), { task: 1, meeting: 0 });
+});
+
+test("workload: ToDo の過ぎた予定の枠は、未確認の件数に入る（重なる実績があれば入らない）", () => {
+  const d = { ...data([task("AA-0001", "AA", [sess("S1", D, "09:00", "10:00")])], []), todos: [todo("T-0001", [sess("S2", D, "09:00", "10:00", "planned"), sess("S3", D, "11:00", "12:00", "planned")])] };
+  assert.equal(workload(d, null, { date: D, time: "14:00" }).unconfirmedTasks, 1);
+});

@@ -73,9 +73,9 @@ function sessionBlocks(data, d, full, g, ctx) {
     const isAct = s.kind === "actual";
     const side = day.some((o) => (o.kind === "actual") !== isAct && overlaps(o, s)) ? (isAct ? ";left:50%;width:50%" : ";left:0;width:50%") : "";
     const c = KIND_CLS[sessionKind(s, ctx.now, ctx.actuals)];
-    const task = data.tasks.find((t) => t.id === s.taskId);
-    const st = full ? ` <span class="stt">${STATUS_JA[task.status] ?? ""}</span>` : "";
-    const imp = isImportantMark(task) ? " imp" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
+    const task = data.tasks.find((t) => t.id === s.taskId); // ToDo の枠は無し（件名だけを出し、状態・重要の印は出さない）
+    const st = full && task ? ` <span class="stt">${STATUS_JA[task.status] ?? ""}</span>` : "";
+    const imp = task && isImportantMark(task) ? " imp" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
     const short = toMin(s.end) - toMin(s.start) < SHORT_MIN ? " short" : "";
     return `<div class="blk task ${c}${imp}${short} ${ctx.selSess === s.id ? "sel" : ""}" draggable="true" tabindex="0" data-dragsess="${esc(s.id)}" style="top:${g.tp(toMin(s.start))};height:${g.ht(toMin(s.start), toMin(s.end))}${side}" title="${esc(s.title)}(${KIND_JA[c]})"><span class="tm">${esc(s.start)}-${esc(s.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${esc(s.title)}</span>${st}<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i></div>`;
   }).join("");

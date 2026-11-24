@@ -1264,7 +1264,7 @@ return { taskStart, ganttRows, ganttLayout, timeTicks, projectProgress, taskFlag
 })();
 
 /* src/core/sessions.js */
-const { LAST_END, allSessions, actualSlots, sessionKind, addSession, addActual, moveSession, resizeSession, removeSession, taskActual, runningPlanned, futurePlanned } = (() => {
+const { LAST_END, ownerOf, allSessions, actualSlots, sessionKind, addSession, addActual, moveSession, resizeSession, removeSession, taskActual, runningPlanned, futurePlanned } = (() => {
 // 作業枠（予定／実績）の規則。枠は「作業した時間の記録」で、タスクの状態は変えない。すべて不変更新。
 
 
@@ -1273,13 +1273,23 @@ const MIN_LEN = 15;
 /** 枠の終了の上限（分）。時刻は HH:MM（00:00〜23:59）で持つので、24:00 は書けない */
 const LAST_END = 23 * 60 + 59;
 
-/** 全タスクの枠に taskId・title を付けて平らに */
-const allSessions = (data) => data.tasks.flatMap((t) => (t.sessions ?? []).map((s) => ({ ...s, taskId: t.id, title: t.title })));
+/** 枠の持ち主（タスクか ToDo）。list は data の配列の名前。どちらにも無ければ null */
+function ownerOf(data, id) {
+  const t = data.tasks.find((x) => x.id === id);
+  if (t) return { list: "tasks", item: t };
+  const o = (data.todos ?? []).find((x) => x.id === id);
+  return o ? { list: "todos", item: o } : null;
+}
+/** タスクと ToDo の全枠に taskId（持ち主の ID）・title・projectId（ToDo は null）を付けて平らに */
+const allSessions = (data) => [
+  ...data.tasks.flatMap((t) => (t.sessions ?? []).map((s) => ({ ...s, taskId: t.id, title: t.title, projectId: t.projectId }))),
+  ...(data.todos ?? []).flatMap((t) => (t.sessions ?? []).map((s) => ({ ...s, taskId: t.id, title: t.title, projectId: null }))),
+];
 const findSession = (data, id) => allSessions(data).find((s) => s.id === id);
 const clash = (a, b) => a.date === b.date && toMin(a.start) < toMin(b.end) && toMin(b.start) < toMin(a.end);
 const isPast = (slot, now) => slot.date < now.date || (slot.date === now.date && slot.end <= now.time);
 
-/** 全タスクの実績の枠（日付・開始・終了）。予定の未確認の判定に使う */
+/** タスクと ToDo の実績の枠（日付・開始・終了）。予定の未確認の判定に使う */
 const actualSlots = (data) => allSessions(data).filter((s) => s.kind === "actual").map(({ date, start, end }) => ({ date, start, end }));
 
 /** 実績は actual。過ぎた予定は、重なる実績が無ければ unconfirmed、あれば planned。過ぎていない予定は planned */
@@ -1308,31 +1318,30 @@ function check(data, slot, ignoreId, kind = "planned") {
   return mtg ? { warning: `会議「${mtg.title}」（${mtg.start}〜${mtg.end}）と重なっています` } : {};
 }
 
-const withTask = (data, taskId, fn) => ({ ...data, tasks: data.tasks.map((t) => (t.id === taskId ? fn(t) : t)) });
-const mapSessions = (data, id, fn) => ({
-  ...data,
-  tasks: data.tasks.map((t) => ((t.sessions ?? []).some((s) => s.id === id) ? { ...t, sessions: t.sessions.map((s) => (s.id === id ? fn(s) : s)) } : t)),
-});
+/** タスクと ToDo（あるときだけ）の持ち主ごとに fn を当てる */
+const mapOwners = (data, fn) => ({ ...data, tasks: data.tasks.map(fn), ...(data.todos && { todos: data.todos.map(fn) }) });
+const withOwner = (data, id, fn) => mapOwners(data, (t) => (t.id === id ? fn(t) : t));
+const mapSessions = (data, id, fn) => mapOwners(data, (t) => ((t.sessions ?? []).some((s) => s.id === id) ? { ...t, sessions: t.sessions.map((s) => (s.id === id ? fn(s) : s)) } : t));
 
 const startsLater = (slot, now) => slot.date > now.date || (slot.date === now.date && slot.start > now.time);
 
-/** 新しい枠は、過去の時間に置いても予定（planned）。過ぎた予定は、重なる実績が無ければ未確認として出る */
+/** taskId はタスクか ToDo の ID。新しい枠は、過去の時間に置いても予定（planned）。過ぎた予定は、重なる実績が無ければ未確認として出る */
 function addSession(data, taskId, slot) {
-  if (!data.tasks.some((t) => t.id === taskId)) return { data, error: `タスク ${taskId} がありません` };
+  if (!ownerOf(data, taskId)) return { data, error: `タスク ${taskId} がありません` };
   const r = check(data, slot);
   if (r.error) return { data, error: r.error };
   const s = { id: nextId(data), date: slot.date, start: slot.start, end: slot.end, kind: "planned" };
-  return { data: withTask(data, taskId, (t) => ({ ...t, sessions: [...(t.sessions ?? []), s] })), ...(r.warning && { warning: r.warning }) };
+  return { data: withOwner(data, taskId, (t) => ({ ...t, sessions: [...(t.sessions ?? []), s] })), ...(r.warning && { warning: r.warning }) };
 }
 
 /** 実績の枠を足す。予定と重なってよい（実績どうしは不可）。休みの日にも置ける。開始が今より後は error */
 function addActual(data, taskId, slot, now) {
-  if (!data.tasks.some((t) => t.id === taskId)) return { data, error: `タスク ${taskId} がありません` };
+  if (!ownerOf(data, taskId)) return { data, error: `タスク ${taskId} がありません` };
   if (startsLater(slot, now)) return { data, error: "まだ始まっていない時間には実績を入れられません" };
   const r = check(data, slot, undefined, "actual");
   if (r.error) return { data, error: r.error };
   const s = { id: nextId(data), date: slot.date, start: slot.start, end: slot.end, kind: "actual" };
-  return { data: withTask(data, taskId, (t) => ({ ...t, sessions: [...(t.sessions ?? []), s] })), ...(r.warning && { warning: r.warning }) };
+  return { data: withOwner(data, taskId, (t) => ({ ...t, sessions: [...(t.sessions ?? []), s] })), ...(r.warning && { warning: r.warning }) };
 }
 
 /** slot は { date, start }。長さは元のまま。種別は変えない（予定を過去へ動かすと、重なる実績が無ければ未確認として出る）。実績は今より後へ動かせない */
@@ -1358,7 +1367,7 @@ function resizeSession(data, sessionId, end, now) {
 }
 
 function removeSession(data, sessionId) {
-  return { ...data, tasks: data.tasks.map((t) => ((t.sessions ?? []).some((s) => s.id === sessionId) ? { ...t, sessions: t.sessions.filter((s) => s.id !== sessionId) } : t)) };
+  return mapOwners(data, (t) => ((t.sessions ?? []).some((s) => s.id === sessionId) ? { ...t, sessions: t.sessions.filter((s) => s.id !== sessionId) } : t));
 }
 
 /** タスクの実績の時間 */
@@ -1383,7 +1392,7 @@ function futurePlanned(data, taskId, now) {
   return (t?.sessions ?? []).filter((s) => s.kind === "planned" && notStarted(s)).map((s) => s.id);
 }
 
-return { LAST_END, allSessions, actualSlots, sessionKind, addSession, addActual, moveSession, resizeSession, removeSession, taskActual, runningPlanned, futurePlanned };
+return { LAST_END, ownerOf, allSessions, actualSlots, sessionKind, addSession, addActual, moveSession, resizeSession, removeSession, taskActual, runningPlanned, futurePlanned };
 })();
 
 /* src/core/impact.js */
@@ -1737,8 +1746,8 @@ const hours = (x) => (toMin(x.end) - toMin(x.start)) / 60;
 const inRange = (d, r) => !r || (d >= r.start && d <= r.end);
 const sumBy = (list, f) => list.reduce((a, x) => a + f(x), 0);
 
-const actualSessions = (data, range) =>
-  data.tasks.flatMap((t) => (t.sessions ?? []).filter((s) => s.kind === "actual" && inRange(s.date, range)).map((s) => ({ ...s, projectId: t.projectId })));
+/** 実績の作業枠（タスクと ToDo）。ToDo の枠は projectId が null（プロジェクト未設定） */
+const actualSessions = (data, range) => allSessions(data).filter((s) => s.kind === "actual" && inRange(s.date, range));
 const meetingHours = (m) => hours(meetingActualSpan(m));
 const countedMeetings = (data, range) => data.events.filter((m) => m.confirmed === true && !m.skip && inRange(m.date, range));
 
@@ -1767,7 +1776,7 @@ function workload(data, range, now) {
   let unconfirmedTasks = 0, unconfirmedMeetings = 0;
   if (now) {
     const actuals = actualSlots(data);
-    unconfirmedTasks = data.tasks.flatMap((t) => t.sessions ?? []).filter((s) => inRange(s.date, range) && sessionKind(s, now, actuals) === "unconfirmed").length;
+    unconfirmedTasks = allSessions(data).filter((s) => inRange(s.date, range) && sessionKind(s, now, actuals) === "unconfirmed").length;
     unconfirmedMeetings = data.events.filter((m) => inRange(m.date, range) && meetingKind(m, now) === "unconfirmed").length;
   }
   return { rows, unassigned, total: sumBy(rows, (r) => r.total) + unassigned.task + unassigned.meeting, unconfirmed: unconfirmedTasks + unconfirmedMeetings, unconfirmedTasks, unconfirmedMeetings };
@@ -2981,12 +2990,13 @@ function addUrgentTask(data, { title, projectId, date, start, minutes }) {
 
 /**
  * 実績の枠を保存する（addActual。ほかの実績の枠と重なる・開始が今より後・タスクが無いは Error）。
- * タスクが To Do・Waiting なら In Progress にする（updateTask の規則で、Waiting の待ち先は外れる。Done・Cancelled は変えない）。statusChanged・from（元の状態）を返す
+ * タスクが To Do・Waiting なら In Progress にする（updateTask の規則で、Waiting の待ち先は外れる。Done・Cancelled は変えない）。statusChanged・from（元の状態）を返す。
+ * 持ち主が ToDo のときは、状態を持たないので変えない（statusChanged は false、from は ""）
  */
 function recordActual(data, taskId, slot, now) {
   const r = addActual(data, taskId, slot, now);
   if (r.error) throw new Error(r.error);
-  const from = data.tasks.find((x) => x.id === taskId).status;
+  const from = data.tasks.find((x) => x.id === taskId)?.status ?? "";
   const statusChanged = from === "To Do" || from === "Waiting";
   return { data: statusChanged ? updateTask(r.data, taskId, { status: "In Progress" }, now.date) : r.data, taskId, statusChanged, from };
 }
@@ -4291,9 +4301,9 @@ function sessionBlocks(data, d, full, g, ctx) {
     const isAct = s.kind === "actual";
     const side = day.some((o) => (o.kind === "actual") !== isAct && overlaps(o, s)) ? (isAct ? ";left:50%;width:50%" : ";left:0;width:50%") : "";
     const c = KIND_CLS[sessionKind(s, ctx.now, ctx.actuals)];
-    const task = data.tasks.find((t) => t.id === s.taskId);
-    const st = full ? ` <span class="stt">${STATUS_JA[task.status] ?? ""}</span>` : "";
-    const imp = isImportantMark(task) ? " imp" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
+    const task = data.tasks.find((t) => t.id === s.taskId); // ToDo の枠は無し（件名だけを出し、状態・重要の印は出さない）
+    const st = full && task ? ` <span class="stt">${STATUS_JA[task.status] ?? ""}</span>` : "";
+    const imp = task && isImportantMark(task) ? " imp" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
     const short = toMin(s.end) - toMin(s.start) < SHORT_MIN ? " short" : "";
     return `<div class="blk task ${c}${imp}${short} ${ctx.selSess === s.id ? "sel" : ""}" draggable="true" tabindex="0" data-dragsess="${esc(s.id)}" style="top:${g.tp(toMin(s.start))};height:${g.ht(toMin(s.start), toMin(s.end))}${side}" title="${esc(s.title)}(${KIND_JA[c]})"><span class="tm">${esc(s.start)}-${esc(s.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${esc(s.title)}</span>${st}<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i></div>`;
   }).join("");
@@ -4492,19 +4502,19 @@ const asEdit = (fn) => (d) => { const r = fn(d); if (r.error) throw new Error(r.
 function planDropAt(data, drag, { date, at }, now) {
   if (drag.kind === "mtg") {
     const m = data.events.find((o) => o.id === drag.id), dur = toMin(m.end) - toMin(m.start), st = snapStart(at, dur);
-    const clash = data.tasks.some((t) => (t.sessions ?? []).some((s) => s.date === date && toMin(s.start) < st + dur && toMin(s.end) > st));
+    const clash = allSessions(data).some((s) => s.date === date && toMin(s.start) < st + dur && toMin(s.end) > st);
     return { st, end: st + dur, warning: clash ? "配置済みの枠と重なっています" : "", next: (d) => updateMeeting(d, m.id, { date, start: toHHMM(st), end: toHHMM(st + dur) }), msg: `会議「${m.title}」を ${fmtMD(date)} ${hm(st)} に移動しました` };
   }
   if (drag.kind === "sess") {
     const s = allSessions(data).find((x) => x.id === drag.id), dur = toMin(s.end) - toMin(s.start), st = snapStart(at, dur);
     const to = { date, start: toHHMM(st) };
     const r = moveSession(data, s.id, to, now);
-    return { st, end: st + dur, error: r.error, warning: r.warning, next: asEdit((d) => moveSession(d, s.id, to, now)), msg: `${data.tasks.find((t) => t.id === s.taskId).title} を ${fmtMD(date)} ${hm(st)} に移動しました` };
+    return { st, end: st + dur, error: r.error, warning: r.warning, next: asEdit((d) => moveSession(d, s.id, to, now)), msg: `${s.title} を ${fmtMD(date)} ${hm(st)} に移動しました` };
   }
   const st = snapStart(at, 60);
   const did = drag.id, put = { date, start: toHHMM(st), end: toHHMM(st + 60) };
   const r = addSession(data, did, put);
-  return { st, end: st + 60, error: r.error, warning: r.warning, next: asEdit((d) => addSession(d, did, put)), msg: `${data.tasks.find((t) => t.id === did).title} を ${fmtMD(date)} ${hm(st)} に予定として配置しました` };
+  return { st, end: st + 60, error: r.error, warning: r.warning, next: asEdit((d) => addSession(d, did, put)), msg: `${ownerOf(data, did).item.title} を ${fmtMD(date)} ${hm(st)} に予定として配置しました` };
 }
 
 /**
@@ -4690,8 +4700,8 @@ const S = {
 const $ = (id) => document.getElementById(id);
 const view = $("view");
 
-/** 通知で言うタスクの名前（件名）。スケジュールでも出る通知は、ID でなく件名で言う */
-const taskTitle = (id) => S.data.tasks.find((t) => t.id === id)?.title ?? id;
+/** 通知で言うタスク（作業枠の持ち主の ToDo も）の名前（件名）。スケジュールでも出る通知は、ID でなく件名で言う */
+const taskTitle = (id) => ownerOf(S.data, id)?.item.title ?? id;
 
 function toast(msg) {
   const t = $("toast");
@@ -5074,10 +5084,10 @@ function deleteSelected() {
     if (m && m.source === "mcp") { toast("予定表から取得した会議は削除できません。出席しない会議は「参加しない」にしてください"); return; }
     if (m) { const id = m.id; S.selMtg = null; apply((d) => deleteMeeting(d, id), `会議「${m.title}」を削除しました`); return; }
   }
-  const s = S.data.tasks.flatMap((t) => (t.sessions ?? []).map((x) => ({ ...x, task: t }))).find((x) => x.id === S.selSess);
+  const s = allSessions(S.data).find((x) => x.id === S.selSess);
   if (!s) { toast("削除する枠を選んでください"); return; }
   S.selSess = null; S.taskEdit = null;
-  apply((d) => removeSession(d, s.id), `${s.task.title} の${s.kind === "actual" ? "実績" : "予定"}の枠を削除しました`);
+  apply((d) => removeSession(d, s.id), `${s.title} の${s.kind === "actual" ? "実績" : "予定"}の枠を削除しました`);
 }
 
 /** 表示の好み（今日の優先・ガント実績）を反転して保存する。今日の優先を閉じると、パネル内にしか出ない確認待ちは出す場所がなくなるので捨てる */
@@ -5307,7 +5317,7 @@ view.addEventListener("click", (e) => {
   }
   if (q("[data-mtgsave]")) {
     const m = S.mtgDraft; let id;
-    const clash = S.data.tasks.some((t) => (t.sessions ?? []).some((s) => s.date === m.date && toMin(s.start) < toMin(m.end) && toMin(s.end) > toMin(m.start)));
+    const clash = allSessions(S.data).some((s) => s.date === m.date && toMin(s.start) < toMin(m.end) && toMin(s.end) > toMin(m.start));
     if (apply((d) => { const r = addMeeting(d, m); id = r.id; return r.data; }, clash ? "会議を追加しました。配置済みの枠と重なっています" : "会議を追加しました")) { S.mtgDraft = null; S.selMtg = id; S.sdate = m.date; render(); }
     return;
   }

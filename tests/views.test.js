@@ -233,7 +233,7 @@ test("renderSchedule(day): 優先タスクと理由・枠の種別クラス・�
   const w = renderSchedule(load(), TODAY, { view: "week", date: "2026-10-19", now: NOW });
   assert.ok(w.includes("class=\"blk task act"), "実績");
   assert.ok(w.includes("class=\"blk task plan"), "予定");
-  assert.ok(w.includes(`${(3.5).toFixed(1)}時間`), "週の実績(10/19 の 1.5h + 1h + ZZ-0001 の 1h)");
+  assert.ok(w.includes(`${(4).toFixed(1)}時間`), "週の実績(10/19 の 1.5h + 1h + ZZ-0001 の 1h + ToDo T-0003 の 0.5h)");
   assert.equal(taskActual(load(), "AA-0005").hours + taskActual(load(), "AB-0002").hours, 4.5);
 });
 
@@ -1984,4 +1984,17 @@ test("renderSchedule: 予定の枠と時間が重なる実績の枠は、予定�
     assert.ok(!/left:|width:/.test(blk(html, "S23")), `${view} 重ならない予定は全幅`);
     assert.ok(!/left:|width:/.test(blk(html, "S24")), `${view} 重ならない実績は全幅`);
   }
+});
+
+test("ToDo の枠のブロックは、件名だけを出し、状態の文字・重要の印を出さない。選んだ ToDo の始まった予定の枠に、実績の入力欄が出る", () => {
+  const d = load();
+  d.todos.find((t) => t.id === "T-0004").sessions = [{ id: "S30", date: TODAY, start: "08:00", end: "09:00", kind: "planned" }];
+  const html = sched(d);
+  const blk = (id) => html.match(new RegExp(`<div class="blk task [^"]*"[^>]*data-dragsess="${id}"[^]*?</div>`))?.[0] ?? "";
+  assert.ok(blk("S7").includes('<span class="ttl">納期の問い合わせメールを送る</span>'), html);
+  assert.ok(!blk("S7").includes('class="stt"') && !/class="blk task [^"]* imp/.test(blk("S7")));
+  assert.ok(/class="blk task unconf[^"]*"[^>]*data-dragsess="S30"/.test(html));
+  const sel = sched(d, { selSess: "S30", taskEdit: { id: "T-0004", full: false, askDel: false } });
+  assert.ok(sel.includes('data-actsave="S30"') && sel.includes("「経費精算」の実績を入れます"));
+  assert.ok(sel.includes("「経費精算」の枠を削除"));
 });

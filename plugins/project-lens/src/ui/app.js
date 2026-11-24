@@ -17,8 +17,8 @@ const S = {
 const $ = (id) => document.getElementById(id);
 const view = $("view");
 
-/** 通知で言うタスクの名前（件名）。スケジュールでも出る通知は、ID でなく件名で言う */
-const taskTitle = (id) => S.data.tasks.find((t) => t.id === id)?.title ?? id;
+/** 通知で言うタスク（作業枠の持ち主の ToDo も）の名前（件名）。スケジュールでも出る通知は、ID でなく件名で言う */
+const taskTitle = (id) => ownerOf(S.data, id)?.item.title ?? id;
 
 function toast(msg) {
   const t = $("toast");
@@ -401,10 +401,10 @@ function deleteSelected() {
     if (m && m.source === "mcp") { toast("予定表から取得した会議は削除できません。出席しない会議は「参加しない」にしてください"); return; }
     if (m) { const id = m.id; S.selMtg = null; apply((d) => deleteMeeting(d, id), `会議「${m.title}」を削除しました`); return; }
   }
-  const s = S.data.tasks.flatMap((t) => (t.sessions ?? []).map((x) => ({ ...x, task: t }))).find((x) => x.id === S.selSess);
+  const s = allSessions(S.data).find((x) => x.id === S.selSess);
   if (!s) { toast("削除する枠を選んでください"); return; }
   S.selSess = null; S.taskEdit = null;
-  apply((d) => removeSession(d, s.id), `${s.task.title} の${s.kind === "actual" ? "実績" : "予定"}の枠を削除しました`);
+  apply((d) => removeSession(d, s.id), `${s.title} の${s.kind === "actual" ? "実績" : "予定"}の枠を削除しました`);
 }
 
 /** 表示の好み（今日の優先・ガント実績）を反転して保存する。今日の優先を閉じると、パネル内にしか出ない確認待ちは出す場所がなくなるので捨てる */
@@ -634,7 +634,7 @@ view.addEventListener("click", (e) => {
   }
   if (q("[data-mtgsave]")) {
     const m = S.mtgDraft; let id;
-    const clash = S.data.tasks.some((t) => (t.sessions ?? []).some((s) => s.date === m.date && toMin(s.start) < toMin(m.end) && toMin(s.end) > toMin(m.start)));
+    const clash = allSessions(S.data).some((s) => s.date === m.date && toMin(s.start) < toMin(m.end) && toMin(s.end) > toMin(m.start));
     if (apply((d) => { const r = addMeeting(d, m); id = r.id; return r.data; }, clash ? "会議を追加しました。配置済みの枠と重なっています" : "会議を追加しました")) { S.mtgDraft = null; S.selMtg = id; S.sdate = m.date; render(); }
     return;
   }

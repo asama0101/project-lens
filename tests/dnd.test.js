@@ -84,3 +84,16 @@ test("planCkOrderAt: 動かない落とし先（自分の前後）は null", () 
   assert.equal(planCkOrderAt(d, "AA-0005", "c1", ck, 0, false), null, "自分の下半分（次の項目の前 = いまの位置）");
   assert.equal(planCkOrderAt(d, "AA-0005", "c2", ck, 0, false), null, "すぐ上の項目の下半分 = いまの位置");
 });
+
+test("planDropAt: ToDo のドラッグ（kind \"task\"）で予定の枠を置け、msg に ToDo の件名が入る。ToDo の枠の移動も件名で知らせる", () => {
+  const d = withSession();
+  const p = planDropAt(d, { kind: "task", id: "T-0004" }, { date: "2026-11-24", at: 11 * 60 }, NOW);
+  assert.equal(p.error, undefined);
+  assert.match(p.msg, /経費精算 を 11\/24 11:00 に予定として配置しました/);
+  const next = p.next(d);
+  assert.deepEqual(next.todos.find((t) => t.id === "T-0004").sessions.map((s) => [s.start, s.end, s.kind]), [["11:00", "12:00", "planned"]]);
+  const m = planDropAt(next, { kind: "sess", id: "S7" }, { date: "2026-11-24", at: 15 * 60 }, NOW);
+  assert.match(m.msg, /納期の問い合わせメールを送る を 11\/24 15:00 に移動しました/);
+  const mtg = planDropAt(next, { kind: "mtg", id: "m1" }, { date: "2026-11-24", at: 11 * 60 }, NOW);
+  assert.equal(mtg.warning, "配置済みの枠と重なっています", "ToDo の枠とも重なりを知らせる");
+});
