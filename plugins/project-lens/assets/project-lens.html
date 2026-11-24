@@ -340,13 +340,13 @@ tr.hl td{transition:background .3s}
 .sw.mtg{background:var(--meeting);border-left:4px solid var(--meeting-edge)}
 .blk.mtg[draggable=true]{cursor:grab}
 .blk.task,.blk.mtg{min-height:16px}
-/* 実績とずれた予定の影: 薄い点線の枠（予定の色）。背景は透明。実績のブロックより先に描き、うしろに出す。ドラッグ・伸縮なし */
-.blk.task.ghost,.blk.mtg.ghost{background:transparent;border:1px dashed var(--accent);color:var(--muted);opacity:.7;z-index:0;cursor:pointer}
-.blk.mtg.ghost{border-color:var(--meeting-edge)}
+/* 実績とずれた予定の影（class pghost。ドラッグの見本の .ghost とは別。押して選べる）: 薄い点線の枠（予定の色）。背景は透明。実績のブロックより先に描き、うしろに出す。ドラッグ・伸縮なし */
+.blk.task.pghost,.blk.mtg.pghost{background:transparent;border:1px dashed var(--accent);color:var(--muted);opacity:.7;z-index:0;cursor:pointer}
+.blk.mtg.pghost{border-color:var(--meeting-edge)}
 /* 会議の実績後: 会議の色の濃いもの。左の実線の縁と ✓ */
 .blk.mtg.act{background:color-mix(in srgb,var(--meeting-edge) 32%,var(--surface));border:1px solid var(--meeting-edge);border-left:4px solid var(--meeting-edge)}
 .sw.mtgact{background:color-mix(in srgb,var(--meeting-edge) 32%,var(--surface));border:1px solid var(--meeting-edge);border-left:4px solid var(--meeting-edge)}
-.sw.ghost{background:transparent;border:1px dashed var(--accent);opacity:.7}
+.sw.pghost{background:transparent;border:1px dashed var(--accent);opacity:.7}
 /* 実績のブロックに添える予定の時刻 */
 .blk .pl{display:block;font-family:var(--f-mono);font-size:10px;opacity:.75}
 .hour{height:0}
@@ -4447,7 +4447,7 @@ const hoursHtml = (g) => {
 const differs = (p, a) => a.start !== p.start || a.end !== p.end || (a.date ?? p.date) !== p.date;
 /** 実績とずれた予定の影（薄い点線の枠。ドラッグ・伸縮なし。押すと同じ枠・会議を選ぶ）。attr は data-ghost / data-mghost */
 const ghostHtml = (kind, attr, id, span, title, g) =>
-  `<div class="blk ${kind} ghost" ${attr}="${esc(id)}" style="top:${g.tp(toMin(span.start))};height:${g.ht(toMin(span.start), toMin(span.end))}" title="${esc(title)}(予定)"><span class="tm">予定 ${esc(span.start)}-${esc(span.end)}</span></div>`;
+  `<div class="blk ${kind} pghost" ${attr}="${esc(id)}" style="top:${g.tp(toMin(span.start))};height:${g.ht(toMin(span.start), toMin(span.end))}" title="${esc(title)}(予定)"><span class="tm">予定 ${esc(span.start)}-${esc(span.end)}</span></div>`;
 
 /** 会議のブロック。actual を持つ会議（参加しない会議を除く）は、実績の時刻に 1 つ（data-mact）と、時刻が違うときだけ予定の時刻の影。ghosts は影、html はブロック */
 function meetingBlocks(data, d, full, g, ctx) {
@@ -4642,7 +4642,7 @@ function actualForm(data, ctx) {
 }
 
 /** 色の凡例（上の操作の行に置く）。枠・会議それぞれの 3 つの状態（予定・未確認・実績）と、実績とずれた予定の影。日表示は現在時刻の線、参加しない会議を出すときはその印も */
-const legendHtml = (day, showSkipped) => `<div class="slegend" aria-label="色の凡例"><span><i class="sw plan"></i>予定</span><span><i class="sw unconf"></i>未確認(過ぎた予定)</span><span><i class="sw act"></i>実績(✓)</span><span><i class="sw mtg"></i>会議</span><span><i class="sw mtgun"></i>未確認の会議</span><span><i class="sw mtgact"></i>会議の実績(✓)</span>${showSkipped ? '<span><i class="sw skipsw"></i>参加しない会議</span>' : ""}<span><i class="sw ghost"></i>実績とずれた予定</span>${day ? '<span><i class="sw now"></i>現在時刻</span>' : ""}<span><i class="sw sel"></i>選択中</span></div>`;
+const legendHtml = (day, showSkipped) => `<div class="slegend" aria-label="色の凡例"><span><i class="sw plan"></i>予定</span><span><i class="sw unconf"></i>未確認(過ぎた予定)</span><span><i class="sw act"></i>実績(✓)</span><span><i class="sw mtg"></i>会議</span><span><i class="sw mtgun"></i>未確認の会議</span><span><i class="sw mtgact"></i>会議の実績(✓)</span>${showSkipped ? '<span><i class="sw skipsw"></i>参加しない会議</span>' : ""}<span><i class="sw pghost"></i>実績とずれた予定</span>${day ? '<span><i class="sw now"></i>現在時刻</span>' : ""}<span><i class="sw sel"></i>選択中</span></div>`;
 
 /** カレンダー部分（週または日）。会議の編集中はここだけを描き直す */
 function renderCalendar(data, today, opts) {

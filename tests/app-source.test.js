@@ -594,10 +594,20 @@ test("app.js: 実績のブロック（data-actbar）・枠の影（data-ghost）
   assert.ok(rzLine && !/actbar|ghost|mact/.test(rzLine), rzLine);
 });
 
-test("theme.css: 影（.ghost）は、透明の背景と点線の枠で、ブロックより下（z-index 0）。会議の実績後（.blk.mtg.act）は、会議の縁の色を混ぜた濃い背景と、実線の縁。凡例の見本も同じ。色は変数だけ（ダーク配色でも読める）", () => {
-  assert.ok(css.includes(".blk.task.ghost,.blk.mtg.ghost{background:transparent;border:1px dashed var(--accent);color:var(--muted);opacity:.7;z-index:0;cursor:pointer}"));
+test("theme.css: 予定の影（.pghost）は、透明の背景と点線の枠で、ブロックより下（z-index 0）。会議の実績後（.blk.mtg.act）は、会議の縁の色を混ぜた濃い背景と、実線の縁。凡例の見本も同じ。色は変数だけ（ダーク配色でも読める）", () => {
+  assert.ok(css.includes(".blk.task.pghost,.blk.mtg.pghost{background:transparent;border:1px dashed var(--accent);color:var(--muted);opacity:.7;z-index:0;cursor:pointer}"));
   assert.ok(css.includes(".blk.mtg.act{background:color-mix(in srgb,var(--meeting-edge) 32%,var(--surface));border:1px solid var(--meeting-edge);border-left:4px solid var(--meeting-edge)}"));
-  assert.ok(css.includes(".sw.mtgact{") && css.includes(".sw.ghost{"));
+  assert.ok(css.includes(".sw.mtgact{") && css.includes(".sw.pghost{"));
+});
+
+test("theme.css・schedule.js: 予定の影の class は、ドラッグの見本（.ghost。pointer-events:none）と別の名前（pghost）。影の規則は pointer-events:none を持たない（押して選べる）。ドラッグの見本の .ghost の規則はそのまま", () => {
+  const sc = readFileSync(new URL("../plugins/project-lens/src/ui/views/schedule.js", import.meta.url), "utf8");
+  assert.ok(!/class="[^"]*\bghost\b/.test(sc) && !/\bsw ghost\b/.test(sc) && !/\$\{kind\} ghost"/.test(sc), "schedule.js の class に ghost を使わない");
+  const rules = css.match(/[^{}]*\bpghost\b[^{}]*\{[^}]*\}/g) ?? [];
+  assert.ok(rules.length >= 2, rules.join("\n"));
+  for (const r of rules) assert.ok(!/pointer-events\s*:\s*none/.test(r), r);
+  assert.ok(!/(^|[}\s,])\.blk[^{]*\.ghost\b|\.sw\.ghost\b/.test(css), "影・凡例の規則に .ghost を使わない");
+  assert.ok(css.includes(".ghost{position:absolute;left:2px;right:2px;border:2px dashed var(--accent);background:var(--accent-soft);border-radius:5px;font-size:12px;padding:2px 6px;color:var(--accent);pointer-events:none;z-index:5}"), "ドラッグの見本の規則はそのまま");
 });
 
 test("app.js: 会議の実績のブロック（data-mact）・会議の影（data-mghost）の押下は、data-mtg と同じ会議の選択（selMtg）に入る", () => {

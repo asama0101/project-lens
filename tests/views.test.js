@@ -429,7 +429,7 @@ test("meetingBlocks: actual を持つ会議は、実績の時刻に data-mact �
     assert.match(tag(h, 'data-mact="m1"'), /title="NW運用定例\(予定 09:30-10:30\)/);
     assert.ok(/data-mact="m1"[^>]*><span class="tm">実績 09:35-10:20 ✓<\/span>/.test(h), `${view}: 文字`);
     const gh = tag(h, 'data-mghost="m1"');
-    assert.ok(/class="blk mtg ghost[ "]/.test(gh), `${view}: 影 ${gh}`);
+    assert.ok(/class="blk mtg pghost[ "]/.test(gh), `${view}: 影 ${gh}`);
     assert.ok(gh.includes(`style="top:${g.tp(9 * 60 + 30)};height:${g.ht(9 * 60 + 30, 10 * 60 + 30)}"`), `${view}: 影は予定の時刻`);
     assert.ok(!gh.includes("draggable") && !gh.includes("data-dragmtg") && !gh.includes("data-mtg="), `${view}: 影はドラッグなし`);
     assert.ok(!h.includes('data-mghost="m2"'), `${view}: 予定と同じ時刻なら影なし`);
@@ -463,7 +463,7 @@ test("renderSchedule: 凡例（会議・予定・実績・未確認、日は現�
 test("renderSchedule: 凡例は、予定・未確認・実績の 3 つの状態を、枠・会議ともに示し、実績とずれた予定の影（点線）も示す", () => {
   for (const view of ["week", "day"]) {
     const lg = /<div class="slegend"[^]*?<\/div>/.exec(renderSchedule(load(), TODAY, { view, date: TODAY, now: NOW }))[0];
-    for (const w of ['<i class="sw plan"></i>予定', '<i class="sw unconf"></i>未確認', '<i class="sw act"></i>実績', '<i class="sw mtgun"></i>未確認の会議', '<i class="sw mtgact"></i>会議の実績', '<i class="sw ghost"></i>']) assert.ok(lg.includes(w), `${view}: ${w}`);
+    for (const w of ['<i class="sw plan"></i>予定', '<i class="sw unconf"></i>未確認', '<i class="sw act"></i>実績', '<i class="sw mtgun"></i>未確認の会議', '<i class="sw mtgact"></i>会議の実績', '<i class="sw pghost"></i>']) assert.ok(lg.includes(w), `${view}: ${w}`);
   }
 });
 
@@ -2076,7 +2076,7 @@ test("renderCalendar: 実績を持つ予定の枠は、実績のブロック（d
     assert.ok(!html.includes('data-dragsess="S8"'), `${view}: 予定のブロックは出ない`);
     assert.equal(countOf(html, 'data-ghost="S8"'), 1, `${view}: 時刻が違うので影が 1 つ`);
     const gh = tagOf(html, 'data-ghost="S8"');
-    assert.ok(/class="blk task ghost[ "]/.test(gh), gh);
+    assert.ok(/class="blk task pghost[ "]/.test(gh), gh);
     assert.equal(styleOf(gh), `top:${g.tp(9 * 60)};height:${g.ht(9 * 60, 10 * 60)}`, `${view}: 影は予定の時刻・全幅`);
     assert.equal(styleOf(tagOf(html, 'data-actbar="S8"')), `top:${g.tp(9 * 60 + 10)};height:${g.ht(9 * 60 + 10, 10 * 60 + 10)}`, `${view}: 実績のブロックは、自分の影と重なっても全幅`);
     assert.ok(html.indexOf('data-ghost="S8"') < html.indexOf('data-actbar="S8"'), `${view}: 影は実績のブロックのうしろ（先に描く）`);

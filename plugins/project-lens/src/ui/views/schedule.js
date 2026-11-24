@@ -53,7 +53,7 @@ const hoursHtml = (g) => {
 const differs = (p, a) => a.start !== p.start || a.end !== p.end || (a.date ?? p.date) !== p.date;
 /** 実績とずれた予定の影（薄い点線の枠。ドラッグ・伸縮なし。押すと同じ枠・会議を選ぶ）。attr は data-ghost / data-mghost */
 const ghostHtml = (kind, attr, id, span, title, g) =>
-  `<div class="blk ${kind} ghost" ${attr}="${esc(id)}" style="top:${g.tp(toMin(span.start))};height:${g.ht(toMin(span.start), toMin(span.end))}" title="${esc(title)}(予定)"><span class="tm">予定 ${esc(span.start)}-${esc(span.end)}</span></div>`;
+  `<div class="blk ${kind} pghost" ${attr}="${esc(id)}" style="top:${g.tp(toMin(span.start))};height:${g.ht(toMin(span.start), toMin(span.end))}" title="${esc(title)}(予定)"><span class="tm">予定 ${esc(span.start)}-${esc(span.end)}</span></div>`;
 
 /** 会議のブロック。actual を持つ会議（参加しない会議を除く）は、実績の時刻に 1 つ（data-mact）と、時刻が違うときだけ予定の時刻の影。ghosts は影、html はブロック */
 function meetingBlocks(data, d, full, g, ctx) {
@@ -248,7 +248,7 @@ export function actualForm(data, ctx) {
 }
 
 /** 色の凡例（上の操作の行に置く）。枠・会議それぞれの 3 つの状態（予定・未確認・実績）と、実績とずれた予定の影。日表示は現在時刻の線、参加しない会議を出すときはその印も */
-const legendHtml = (day, showSkipped) => `<div class="slegend" aria-label="色の凡例"><span><i class="sw plan"></i>予定</span><span><i class="sw unconf"></i>未確認(過ぎた予定)</span><span><i class="sw act"></i>実績(✓)</span><span><i class="sw mtg"></i>会議</span><span><i class="sw mtgun"></i>未確認の会議</span><span><i class="sw mtgact"></i>会議の実績(✓)</span>${showSkipped ? '<span><i class="sw skipsw"></i>参加しない会議</span>' : ""}<span><i class="sw ghost"></i>実績とずれた予定</span>${day ? '<span><i class="sw now"></i>現在時刻</span>' : ""}<span><i class="sw sel"></i>選択中</span></div>`;
+const legendHtml = (day, showSkipped) => `<div class="slegend" aria-label="色の凡例"><span><i class="sw plan"></i>予定</span><span><i class="sw unconf"></i>未確認(過ぎた予定)</span><span><i class="sw act"></i>実績(✓)</span><span><i class="sw mtg"></i>会議</span><span><i class="sw mtgun"></i>未確認の会議</span><span><i class="sw mtgact"></i>会議の実績(✓)</span>${showSkipped ? '<span><i class="sw skipsw"></i>参加しない会議</span>' : ""}<span><i class="sw pghost"></i>実績とずれた予定</span>${day ? '<span><i class="sw now"></i>現在時刻</span>' : ""}<span><i class="sw sel"></i>選択中</span></div>`;
 
 /** カレンダー部分（週または日）。会議の編集中はここだけを描き直す */
 export function renderCalendar(data, today, opts) {
