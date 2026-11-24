@@ -17,6 +17,7 @@ export const MODULES = [
   "src/core/metrics.js",
   "src/core/sessions.js",
   "src/core/todos.js",
+  "src/core/week.js",
   "src/core/impact.js",
   "src/core/rules.js",
   "src/core/schedule.js",
