@@ -351,6 +351,31 @@ test("actualForm: 「実績を追加」の開始・終了の既定。今日は�
   assert.deepEqual(f("2026-10-19", "08:20"), ["09:00", "10:00"]);
 });
 
+test("actualForm: 下書き（actDraft）の key が同じ欄は、下書きのタスク（selected）・日付・時刻で描く。違う key の下書きは使わない", () => {
+  const d = load();
+  d.tasks.find((t) => t.id === "AA-0005").sessions.push({ id: "S9", date: TODAY, start: "08:00", end: "09:00", kind: "planned" });
+  const dr = { key: "add", task: "AA-0005", date: "2026-10-19", start: "11:15", end: "12:00" };
+  const html = sched(d, { actAdd: { date: TODAY }, actDraft: dr });
+  const sel = /<select[^>]*data-ac="task"[^>]*>([\s\S]*?)<\/select>/.exec(html)[1];
+  assert.match(sel, /<option value="AA-0005" selected>/);
+  assert.equal((sel.match(/ selected/g) ?? []).length, 1);
+  assert.match(html, /data-ac="date"[^>]*value="2026-10-19"/);
+  assert.match(html, /<input[^>]*data-ac="start"[^>]*value="11:15"/);
+  assert.match(html, /<input[^>]*data-ac="end"[^>]*value="12:00"/);
+  assert.match(sched(d, { selSess: "S9", actDraft: { key: "S9", start: "08:15", end: "08:45" } }), /<input[^>]*data-ac="start"[^>]*value="08:15"/);
+  assert.match(sched(d, { selSess: "S9", actDraft: { key: "add", start: "11:15", end: "12:00" } }), /<input[^>]*data-ac="start"[^>]*value="08:00"/);
+  const other = sched(d, { actAdd: { date: TODAY }, actDraft: { key: "S9", task: "AA-0005", start: "11:30", end: "12:00" } });
+  assert.ok(!other.includes(" selected") && !other.includes('value="11:30"'), "別の欄の下書きは使わない");
+});
+
+test("会議フォーム: 下書き（key が m:<会議 ID>）の実績の開始・終了で描く。別の会議の下書きは使わない", () => {
+  const d = noSessions();
+  const html = renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15, selMtg: "m1", actDraft: { key: "m:m1", start: "09:45", end: "10:15" } });
+  assert.match(html, /<input[^>]*data-ma="start"[^>]*value="09:45"/);
+  assert.match(html, /<input[^>]*data-ma="end"[^>]*value="10:15"/);
+  assert.match(renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15, selMtg: "m1", actDraft: { key: "m:m2", start: "09:45", end: "10:15" } }), /<input[^>]*data-ma="start"[^>]*value="09:30"/);
+});
+
 test("meetingBlocks: 実績が予定とずれた会議のブロックだけ、時刻と title に「実績 開始-終了」を足す", () => {
   const d = noSessions();
   d.events.find((e) => e.id === "m1").actual = { start: "09:35", end: "10:20" };

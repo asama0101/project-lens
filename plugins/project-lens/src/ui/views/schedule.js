@@ -111,7 +111,8 @@ function meetingForm(data, ctx) {
   const autoName = projects.find((p) => p.id === autoId)?.name ?? "未設定";
   const cur = isNew ? (m.projectId ?? "") : m.projectBy === "manual" ? m.projectId : "";
   const projOpts = [`<option value=""${cur === "" ? " selected" : ""}>自動（規則）→ ${esc(autoName)}</option>`, ...projects.map((p) => `<option value="${esc(p.id)}"${cur === p.id ? " selected" : ""}>${esc(p.name)}</option>`)].join("");
-  const act = !isNew && !m.skip && started(m, ctx.now) ? meetingActualSpan(m) : null; // 参加しない会議・始まっていない会議には、実績を入れない
+  const span = !isNew && !m.skip && started(m, ctx.now) ? meetingActualSpan(m) : null; // 参加しない会議・始まっていない会議には、実績を入れない
+  const act = span && (ctx.actDraft?.key === `m:${m.id}` ? { start: ctx.actDraft.start, end: ctx.actDraft.end } : span); // 入力中の下書きがあれば、その値で描く
   const actHtml = act ? `<label>実績の開始<input class="in" type="time" step="900" data-ma="start" value="${esc(act.start)}"></label>
     <label>実績の終了<input class="in" type="time" step="900" data-ma="end" value="${esc(act.end)}"></label>
     <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-mtgact="${esc(m.id)}">実績を保存</button></div>` : "";
@@ -152,14 +153,15 @@ function actAddSpan(date, now) {
 /**
  * 実績の入力欄。始まった予定の枠を選んでいるときは、その枠の時刻を初期値に（タスクは枠のタスク）。
  * 「＋ 実績を追加」（ctx.add = { date }）のときは、タスク（Done・Cancelled 以外）・日付も選ぶ。どちらでもなければ出さない。
- * 入力の値は、保存を押したときに画面から読む（app.js）
- * @param ctx { selSess: 選択中の枠 ID, add: S.actAdd, today, now }
+ * 入力の値は、保存を押したときに画面から読む（app.js）。入力中の値は下書き（ctx.draft = { key, task, date, start, end }。key は枠の ID・"add"）に残り、key が同じ欄は下書きの値で描く
+ * @param ctx { selSess: 選択中の枠 ID, add: S.actAdd, draft: S.actDraft, today, now }
  */
 export function actualForm(data, ctx) {
   const s = allSessions(data).find((x) => x.id === ctx.selSess);
   const fromPlan = s && s.kind === "planned" && started(s, ctx.now);
   if (!fromPlan && !ctx.add) return "";
-  const time = (k, v) => `<label>${k === "start" ? "開始" : "終了"}<input class="in" type="time" step="900" data-ac="${k}" value="${esc(v)}"></label>`;
+  const dr = ctx.draft?.key === (fromPlan ? s.id : "add") ? ctx.draft : null;
+  const time = (k, v) => `<label>${k === "start" ? "開始" : "終了"}<input class="in" type="time" step="900" data-ac="${k}" value="${esc(dr?.[k] ?? v)}"></label>`;
   if (fromPlan) {
     return `<div class="actform" role="group" aria-label="実績の入力">
     <span class="note" style="flex-basis:100%;margin:0">「${esc(s.title)}」の実績を入れます（予定の枠は残ります）</span>
@@ -168,8 +170,8 @@ export function actualForm(data, ctx) {
   </div>`;
   }
   const pn = (t) => (data.projects ?? []).find((p) => p.id === t.projectId)?.name;
-  const taskOpts = data.tasks.filter((t) => !isClosed(t)).map((t) => `<option value="${esc(t.id)}">${esc(pn(t) ? `${t.title}（${pn(t)}）` : t.title)}</option>`).join("");
-  const date = ctx.add.date ?? ctx.today;
+  const taskOpts = data.tasks.filter((t) => !isClosed(t)).map((t) => `<option value="${esc(t.id)}"${dr?.task === t.id ? " selected" : ""}>${esc(pn(t) ? `${t.title}（${pn(t)}）` : t.title)}</option>`).join("");
+  const date = dr?.date || (ctx.add.date ?? ctx.today);
   const [start, end] = actAddSpan(date, ctx.now);
   return `<div class="actform" role="group" aria-label="実績の入力">
     <label>タスク<select class="in" data-ac="task" aria-label="実績のタスク">${taskOpts}</select></label>
@@ -215,7 +217,7 @@ export function renderCalendar(data, today, opts) {
  * @param opts.view      "week" | "day"
  * @param opts.date      表示する日（週表示ではその日を含む週）
  * @param opts.now       {date, time}  現在時刻（過ぎた予定の判定に使う）
- * @param opts.selSess   選択中の枠 ID / opts.selMtg 選択中の会議 ID / opts.mtgDraft 追加中の会議の下書き / opts.urgentDraft 追加中の突発タスクの下書き / opts.taskEdit 編集欄を開いているタスク { id, full, askDel } / opts.actAdd 「実績を追加」の入力欄 { date }
+ * @param opts.selSess   選択中の枠 ID / opts.selMtg 選択中の会議 ID / opts.mtgDraft 追加中の会議の下書き / opts.urgentDraft 追加中の突発タスクの下書き / opts.taskEdit 編集欄を開いているタスク { id, full, askDel } / opts.actAdd 「実績を追加」の入力欄 { date } / opts.actDraft 実績の入力欄の下書き { key, task, date, start, end }
  * @param opts.showPrio  false なら今日の優先を出さない
  * @param opts.showSkipped  true なら「参加しない」の会議も出す（既定は出さない。選択中の会議だけは、隠さない）
  * @param opts.showDue   false なら週表示の期限の行を閉じる（既定は開く）
@@ -245,6 +247,6 @@ export function renderSchedule(data, today, opts) {
     <div class="summary"><span>実績 <b class="mono">${hours.toFixed(1)}時間</b></span><span>予定 <b class="mono">${planned}件</b></span>${unconf ? `<span class="pill wait">未確認 ${unconf}件（作業枠 ${unconfS}・会議 ${unconfM}）</span>` : ""}<button class="btn danger" data-delsel ${delOk ? "" : "disabled"}>${delLabel}</button></div>`;
   const et = selSess && opts.taskEdit ? data.tasks.find((t) => t.id === opts.taskEdit.id) : null; // 編集欄は、表示中の枠を選んでいる間だけ出す（枠を選ぶと、そのタスクの編集欄になる）
   const editPanel = et ? renderTaskEditPanel(data, opts.taskEdit, statusCellHtml(et, { ...opts, todayIds: opts.showPrio === false ? new Set() : new Set(todayTaskIds(data, today)) }, taskFlags(et, today, data.settings).includes("overdue"))) : "";
-  return `<div class="cols${opts.showPrio === false ? " one" : ""}"><section class="panel"><div class="stop">${nav}</div><div id="mtgslot">${meetingForm(data, { mtgDraft: opts.mtgDraft, selMtg: selMtg?.id, now })}${urgentForm(data, opts.urgentDraft)}${actualForm(data, { selSess: selSess?.id ?? null, add: opts.actAdd, today, now })}${editPanel}</div><div id="calslot">${renderCalendar(data, today, calOpts)}</div></section>${renderSideToggle(opts.showPrio !== false)}${opts.showPrio === false ? "" : renderSide(data, today, { sched: true, pendingDone: opts.pendingDone, now })}</div>`;
+  return `<div class="cols${opts.showPrio === false ? " one" : ""}"><section class="panel"><div class="stop">${nav}</div><div id="mtgslot">${meetingForm(data, { mtgDraft: opts.mtgDraft, selMtg: selMtg?.id, actDraft: opts.actDraft, now })}${urgentForm(data, opts.urgentDraft)}${actualForm(data, { selSess: selSess?.id ?? null, add: opts.actAdd, draft: opts.actDraft, today, now })}${editPanel}</div><div id="calslot">${renderCalendar(data, today, calOpts)}</div></section>${renderSideToggle(opts.showPrio !== false)}${opts.showPrio === false ? "" : renderSide(data, today, { sched: true, pendingDone: opts.pendingDone, now })}</div>`;
 }
 

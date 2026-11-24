@@ -116,13 +116,14 @@ export function meetingKind(m, now) {
 /** 会議の実際の時間。実績が無ければ予定の時間（confirmed のみ = 予定どおり） */
 export const meetingActualSpan = (m) => m.actual ?? { start: m.start, end: m.end };
 
-/** 会議の実績の時間を書く（confirmed も true になる）。参加しない会議と、始まっていない会議は書けない */
+/** 会議の実績の時間を書く（confirmed も true になる）。参加しない会議と、始まっていない会議は書けない。実績の開始が今より後でも書けない */
 export function setMeetingActual(data, id, { start, end }, now) {
   const cur = data.events.find((e) => e.id === id);
   if (!cur) throw new Error(`会議 ${id} がありません`);
   if (cur.skip) throw new Error("参加しない会議は実績にできません");
   if (cur.date > now.date || (cur.date === now.date && cur.start > now.time)) throw new Error("未来の会議は実績にできません");
   assertTimes({ date: cur.date, start, end });
+  if (cur.date === now.date && start > now.time) throw new Error("まだ始まっていない時間には実績を入れられません");
   return { ...data, events: data.events.map((e) => (e.id === id ? { ...e, confirmed: true, actual: { start, end } } : e)) };
 }
 

@@ -9,7 +9,7 @@ const S = {
   screen: "gantt",
   filter: "all", gwin: "m6", hideDone: false,
   askDel: null, askDelProject: null, pendingWait: null, pendingDone: null, checkOpen: new Set(),
-  sview: "week", sdate: clock().date, selSess: null, selMtg: null, mtgDraft: null, urgentDraft: null, actAdd: null, taskEdit: null,
+  sview: "week", sdate: clock().date, selSess: null, selMtg: null, mtgDraft: null, urgentDraft: null, actAdd: null, actDraft: null, taskEdit: null,
   prefs: loadPrefs(), settingsClosed: loadSettingsClosed(), tpop: null, addAt: null, last: null, ruleError: "",
   ib: { open: false, text: loadInboxDraft(), projectId: "", replies: {}, reasons: {}, causes: {} },
   wperiod: "day", wdate: clock().date,
@@ -46,7 +46,7 @@ function startScreen() {
     ${S.openError ? `<p class="ask" style="max-width:none" role="alert">${esc(S.openError)}</p>` : ""}</section>`;
 }
 
-const scheduleOpts = () => ({ view: S.sview, date: S.sdate, now: clock(), selSess: S.selSess, selMtg: S.selMtg, mtgDraft: S.mtgDraft, urgentDraft: S.urgentDraft, actAdd: S.actAdd, taskEdit: S.taskEdit, pendingWait: S.pendingWait, showPrio: S.prefs.showPrio, showSkipped: S.prefs.showSkipped, showDue: S.prefs.showDue, pendingDone: S.pendingDone });
+const scheduleOpts = () => ({ view: S.sview, date: S.sdate, now: clock(), selSess: S.selSess, selMtg: S.selMtg, mtgDraft: S.mtgDraft, urgentDraft: S.urgentDraft, actAdd: S.actAdd, actDraft: S.actDraft, taskEdit: S.taskEdit, pendingWait: S.pendingWait, showPrio: S.prefs.showPrio, showSkipped: S.prefs.showSkipped, showDue: S.prefs.showDue, pendingDone: S.pendingDone });
 
 function renderBody() {
   const { date: today } = clock();
@@ -387,7 +387,7 @@ function submitGAdd(input) {
 }
 
 /* ---------- 選択と削除 ---------- */
-const clearSel = () => { S.selSess = null; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.taskEdit = null; };
+const clearSel = () => { S.selSess = null; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.actDraft = null; S.taskEdit = null; };
 /** 作業枠を選ぶ（id が null なら外す）。選んだ枠のタスクの編集欄を開き（外すと閉じる）、詳細を開いているか（full）は引き継ぐ */
 const selectSession = (id) => {
   const s = id ? allSessions(S.data).find((x) => x.id === id) : null;
@@ -618,14 +618,14 @@ view.addEventListener("click", (e) => {
     }
     return;
   }
-  if (q("[data-actcancel]")) { S.actAdd = null; render(); return; }
+  if (q("[data-actcancel]")) { S.actAdd = null; S.actDraft = null; render(); return; }
   const mact = q("[data-mtgact]"); // 会議の実績の保存（confirmed と actual を書く）
-  if (mact) { const id = mact.dataset.mtgact, f = (k) => view.querySelector(`[data-ma="${k}"]`)?.value ?? "", span = { start: f("start"), end: f("end") }; apply((d) => setMeetingActual(d, id, span, now), "会議の実績を入れました"); return; }
+  if (mact) { const id = mact.dataset.mtgact, f = (k) => view.querySelector(`[data-ma="${k}"]`)?.value ?? "", span = { start: f("start"), end: f("end") }; if (apply((d) => setMeetingActual(d, id, span, now), "会議の実績を入れました")) S.actDraft = null; return; }
   if (q("[data-delsel]")) { deleteSelected(); return; }
   const sb = q("[data-dragsess]");
-  if (sb && !q("[data-rz]")) { selectSession(S.selSess === sb.dataset.dragsess ? null : sb.dataset.dragsess); S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; render(); return; }
+  if (sb && !q("[data-rz]")) { selectSession(S.selSess === sb.dataset.dragsess ? null : sb.dataset.dragsess); S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.actDraft = null; render(); return; }
   const mb = q("[data-mtg]");
-  if (mb && !q("[data-rzm]")) { S.selMtg = S.selMtg === mb.dataset.mtg ? null : mb.dataset.mtg; S.selSess = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.taskEdit = null; render(); return; }
+  if (mb && !q("[data-rzm]")) { S.selMtg = S.selMtg === mb.dataset.mtg ? null : mb.dataset.mtg; S.selSess = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.actDraft = null; S.taskEdit = null; render(); return; }
   if (q("[data-mtgadd]")) {
     const base = S.sdate === today ? Math.ceil((toMin(time) + 1) / 60) * 60 : 10 * 60;
     const st = Math.min(base, 22 * 60); // 1 時間の会議が 23:59 までに収まる、最後の正時
@@ -805,6 +805,13 @@ function onChange(el) {
   }
   // 突発タスクの欄は、確定した値を下書きに残す（読み直しの描き直しで、打った内容を消さない）
   if (el.dataset.ug !== undefined) { if (S.urgentDraft) S.urgentDraft = { ...S.urgentDraft, [el.dataset.ug]: el.dataset.ug === "minutes" ? +el.value : el.value }; return; }
+  // 実績の欄も同じ。どの欄の下書きかを key で持ち、描き直しても入力を残す（保存の成功・キャンセル・選択の変更で消す）
+  if (el.dataset.ac !== undefined || el.dataset.ma !== undefined) {
+    const form = el.closest(".actform, .mtgform"), g = (a, k) => form?.querySelector(`[data-${a}="${k}"]`)?.value ?? "";
+    const mid = form?.querySelector("[data-mtgact]")?.dataset.mtgact, sid = form?.querySelector("[data-actsave]")?.dataset.actsave;
+    if (mid !== undefined || sid !== undefined) S.actDraft = { key: mid !== undefined ? `m:${mid}` : sid || "add", task: g("ac", "task"), date: g("ac", "date"), start: g(mid !== undefined ? "ma" : "ac", "start"), end: g(mid !== undefined ? "ma" : "ac", "end") };
+    return;
+  }
   if (el.dataset.mt) {
     const f = el.dataset.mt, v = f === "skip" ? el.checked : el.value;
     const m = S.mtgDraft ?? S.data.events.find((o) => o.id === S.selMtg);

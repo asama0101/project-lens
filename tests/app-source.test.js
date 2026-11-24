@@ -665,7 +665,7 @@ test("app.js: 実績の入力欄（.actform）・実績の追加（data-actadd�
   assert.match(src, /S\.actAdd = \{ date \}/);
   assert.ok(src.includes("actAdd: S.actAdd"), "scheduleOpts に渡す");
   assert.ok(src.includes("data-actadd") && src.includes("＋ 実績を追加"));
-  assert.ok(src.includes('if (q("[data-actcancel]")) { S.actAdd = null; render(); return; }'));
+  assert.ok(src.includes('if (q("[data-actcancel]")) { S.actAdd = null; S.actDraft = null; render(); return; }'));
 });
 
 test("app.js: 会議の実績の保存（data-mtgact）は、入力欄（data-ma）を押した時に読み、setMeetingActual で保存する", () => {
@@ -716,4 +716,16 @@ test("theme.css: スケジュールも、ガント・リストと同じく、ペ
 test("app.js: render は、画面を描けない例外（不正な日付など）で固まらず、理由とバナーを出す", () => {
   const body = src.slice(src.indexOf("function render()"), src.indexOf("function focusSelector"));
   assert.match(body, /try \{\s*view\.innerHTML = renderBody\(\);\s*\} catch \(e\) \{[\s\S]*?画面を描けません[\s\S]*?refreshBanner\(\)/);
+});
+
+test("app.js: 実績の入力欄（data-ac・data-ma）は、change で S.actDraft（key 付き）へ写し、保存の成功・キャンセル・選択の変更（clearSel）で消す。保存の失敗では消さない", () => {
+  const onChange = src.slice(src.indexOf("function onChange(el) {"), src.indexOf("function onChange(el) {") + 2500);
+  assert.match(onChange, /el\.dataset\.ac !== undefined \|\| el\.dataset\.ma !== undefined[\s\S]*S\.actDraft = \{ key:/, "change で下書きへ");
+  assert.ok(src.includes("actDraft: S.actDraft"), "描画へ渡す");
+  assert.match(src, /const clearSel = \(\) => \{[^\n]*S\.actDraft = null/, "選択を外すと消す");
+  const i = src.indexOf('q("[data-actsave]")');
+  const a = src.slice(i, src.indexOf('q("[data-actcancel]")'));
+  assert.ok(a.includes("clearSel(); render();"), "枠・追加の保存の成功は clearSel で消す");
+  assert.ok(!a.slice(0, a.indexOf("if (apply(")).includes("actDraft"), "失敗の経路では消さない");
+  assert.ok(src.includes('if (apply((d) => setMeetingActual(d, id, span, now), "会議の実績を入れました")) S.actDraft = null;'), "会議は成功したときだけ消す");
 });

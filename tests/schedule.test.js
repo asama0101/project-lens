@@ -265,6 +265,13 @@ test("setMeetingActual: 予定と違う時刻の実績を書き、confirmed を 
   assert.equal(e.confirmed, true);
 });
 
+test("setMeetingActual: 実績の開始が今より後なら例外。開始がちょうど今は通る", () => {
+  const now = { date: "2026-10-20", time: "10:15" };
+  const d = base([ev("10:00", "11:00", { id: "a" })]);
+  assert.throws(() => setMeetingActual(d, "a", { start: "10:30", end: "11:00" }, now), /まだ始まっていない時間には実績を入れられません/);
+  assert.deepEqual(setMeetingActual(d, "a", { start: "10:15", end: "10:50" }, now).events[0].actual, { start: "10:15", end: "10:50" });
+});
+
 test("setMeetingActual: skip・未来・時刻の不正は例外", () => {
   const now = { date: "2026-10-20", time: "12:00" };
   const d = base([ev("09:00", "10:00", { id: "a" }), ev("13:00", "14:00", { id: "f" }), ev("10:00", "11:00", { id: "s", skip: true })]);
