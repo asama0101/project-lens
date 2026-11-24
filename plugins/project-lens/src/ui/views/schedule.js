@@ -165,6 +165,10 @@ export function actAddSpan(date, now) {
   return [toHHMM(s), toHHMM(Math.min(s + 60, 24 * 60 - 1))];
 }
 
+/** 実績つきの予定の枠の削除の確認（opts.askDelSess が選択中の枠の id のとき）。N は、その枠の actual の分数 */
+const delAsk = (s, askId) => s && s.actual && askId === s.id
+  ? `<div class="ask" role="alert"><span class="note">実績 ${toMin(s.actual.end) - toMin(s.actual.start)} 分も消えます</span><button class="btn danger" data-delsessok="${esc(s.id)}">削除する</button><button class="btn" data-delsessno>やめる</button></div>` : "";
+
 /**
  * 実績の入力欄。始まった予定の枠か、実績（actual）を持つ予定の枠を選んでいるときは、その枠の actual を書く欄（日付・開始・終了。持ち主は枠の持ち主。タスクか ToDo）。actual があれば「実績を更新」と「実績を消す」。
  * 「＋ 実績を追加」（ctx.add = { date }）のときは、タスク（Done・Cancelled 以外）・日付も選ぶ。どちらでもなければ出さない。
@@ -264,6 +268,6 @@ export function renderSchedule(data, today, opts) {
     <div class="summary"><span>実績 <b class="mono">${hours.toFixed(1)}時間</b></span><span>予定 <b class="mono">${planned}件</b></span>${unconf ? `<span class="pill wait">未確認 ${unconf}件（作業枠 ${unconfS}・会議 ${unconfM}）</span>` : ""}<button class="btn danger" data-delsel ${delOk ? "" : "disabled"}>${delLabel}</button></div>`;
   const et = selSess && opts.taskEdit ? data.tasks.find((t) => t.id === opts.taskEdit.id) : null; // 編集欄は、表示中の枠を選んでいる間だけ出す（枠を選ぶと、そのタスクの編集欄になる）
   const editPanel = et ? renderTaskEditPanel(data, opts.taskEdit, statusCellHtml(et, { ...opts, todayIds: opts.showPrio === false ? new Set() : new Set(todayTaskIds(data, today)) }, taskFlags(et, today, data.settings).includes("overdue"))) : "";
-  return `<div class="cols${opts.showPrio === false ? " one" : ""}"><section class="panel"><div class="stop">${nav}</div><div id="mtgslot">${meetingForm(data, { mtgDraft: opts.mtgDraft, selMtg: selMtg?.id, actDraft: opts.actDraft, now })}${urgentForm(data, opts.urgentDraft)}${actualForm(data, { selSess: selSess?.id ?? null, add: opts.actAdd, draft: opts.actDraft, today, now })}${editPanel}</div><div id="calslot">${renderCalendar(data, today, calOpts)}</div></section>${renderSideToggle(opts.showPrio !== false)}${opts.showPrio === false ? "" : renderSide(data, today, { sched: true, pendingDone: opts.pendingDone, now })}</div>`;
+  return `<div class="cols${opts.showPrio === false ? " one" : ""}"><section class="panel"><div class="stop">${nav}</div><div id="mtgslot">${meetingForm(data, { mtgDraft: opts.mtgDraft, selMtg: selMtg?.id, actDraft: opts.actDraft, now })}${urgentForm(data, opts.urgentDraft)}${actualForm(data, { selSess: selSess?.id ?? null, add: opts.actAdd, draft: opts.actDraft, today, now })}${delAsk(selSess, opts.askDelSess)}${editPanel}</div><div id="calslot">${renderCalendar(data, today, calOpts)}</div></section>${renderSideToggle(opts.showPrio !== false)}${opts.showPrio === false ? "" : renderSide(data, today, { sched: true, pendingDone: opts.pendingDone, now })}</div>`;
 }
 

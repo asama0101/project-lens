@@ -13,7 +13,7 @@ const S = {
   prefs: loadPrefs(), settingsClosed: loadSettingsClosed(), tpop: null, addAt: null, last: null, ruleError: "",
   ib: { open: false, text: loadInboxDraft(), projectId: "", replies: {}, reasons: {}, causes: {} },
   wperiod: "day", wdate: clock().date,
-  todoWeek: mondayOf(clock().date), todoDay: clock().date, tdAct: null, tdDraft: null, tdAskDel: null, // ToDo 画面の週（月曜日）・右の列の日・実績の入力欄を開いている ToDo と、その下書き・削除の確認を出している ToDo
+  todoWeek: mondayOf(clock().date), todoDay: clock().date, tdAct: null, tdDraft: null, tdAskDel: null, askDelSess: null, // 実績つきの枠の削除の確認を出している枠の id（メモリのみ）。ToDo 画面の週（月曜日）・右の列の日・実績の入力欄を開いている ToDo と、その下書き・削除の確認を出している ToDo
 };
 const $ = (id) => document.getElementById(id);
 const view = $("view");
@@ -47,7 +47,7 @@ function startScreen() {
     ${S.openError ? `<p class="ask" style="max-width:none" role="alert">${esc(S.openError)}</p>` : ""}</section>`;
 }
 
-const scheduleOpts = () => ({ view: S.sview, date: S.sdate, now: clock(), selSess: S.selSess, selMtg: S.selMtg, mtgDraft: S.mtgDraft, urgentDraft: S.urgentDraft, actAdd: S.actAdd, actDraft: S.actDraft, taskEdit: S.taskEdit, pendingWait: S.pendingWait, showPrio: S.prefs.showPrio, showSkipped: S.prefs.showSkipped, showDue: S.prefs.showDue, pendingDone: S.pendingDone });
+const scheduleOpts = () => ({ view: S.sview, date: S.sdate, now: clock(), selSess: S.selSess, selMtg: S.selMtg, mtgDraft: S.mtgDraft, urgentDraft: S.urgentDraft, actAdd: S.actAdd, actDraft: S.actDraft, taskEdit: S.taskEdit, pendingWait: S.pendingWait, showPrio: S.prefs.showPrio, showSkipped: S.prefs.showSkipped, showDue: S.prefs.showDue, pendingDone: S.pendingDone, askDelSess: S.askDelSess });
 
 function renderBody() {
   const { date: today } = clock();
@@ -89,6 +89,7 @@ function render() {
   if (S.tpop && !S.data.tasks.some((t) => t.id === S.tpop.id)) S.tpop = null; // 読み直しで対象のタスクが消えたら、窓も閉じる
   if (S.selSess && !allSessions(S.data).some((s) => s.id === S.selSess)) { S.selSess = null; S.taskEdit = null; } // 読み直しなどで選択中の枠が無くなったら、選択と編集欄を外す
   if (S.taskEdit && (S.screen !== "schedule" || !S.data.tasks.some((t) => t.id === S.taskEdit.id))) { S.taskEdit = null; S.selSess = null; } // スケジュールの編集欄も同じ（編集欄は枠の選択と一緒なので、選択も外す）
+  if (S.askDelSess && (S.screen !== "schedule" || S.askDelSess !== S.selSess)) S.askDelSess = null; // 削除の確認は、その枠を選んでいる間だけ（枠の id は S.data.tasks で検証しない）
   if (S.tdAct && !S.data?.todos?.some((t) => t.id === S.tdAct)) { S.tdAct = null; S.tdDraft = null; } // 読み直しなどで ToDo が無くなったら、実績の入力欄を閉じる
   if (S.tdAskDel && !S.data?.todos?.some((t) => t.id === S.tdAskDel)) S.tdAskDel = null; // 削除の確認も同じ（ToDo の id は S.data.tasks で検証しない）
   const c = clock();
@@ -392,7 +393,7 @@ function submitGAdd(input) {
 }
 
 /* ---------- 選択と削除 ---------- */
-const clearSel = () => { S.selSess = null; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.actDraft = null; S.taskEdit = null; S.tdAct = null; S.tdDraft = null; S.tdAskDel = null; };
+const clearSel = () => { S.selSess = null; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.actDraft = null; S.taskEdit = null; S.tdAct = null; S.tdDraft = null; S.tdAskDel = null; S.askDelSess = null; };
 /** 作業枠を選ぶ（id が null なら外す）。規則は sessionSelection（タスクの枠は編集欄も開く。ToDo の枠は選択だけ） */
 const selectSession = (id) => { Object.assign(S, sessionSelection(S.data, id, S.taskEdit)); };
 
@@ -404,8 +405,12 @@ function deleteSelected() {
   }
   const s = allSessions(S.data).find((x) => x.id === S.selSess);
   if (!s) { toast("削除する枠を選んでください"); return; }
-  S.selSess = null; S.taskEdit = null;
-  apply((d) => removeSession(d, s.id), `${s.title} の${s.kind === "actual" ? "実績" : "予定"}の枠を削除しました`);
+  if (s.kind === "planned" && s.actual) { S.askDelSess = s.id; render(); return; } // 実績つきの予定の枠は、消す前に確認を出す（消すのは data-delsessok）
+  removeSelectedSession(s);
+}
+function removeSelectedSession(s) {
+  S.selSess = null; S.taskEdit = null; S.askDelSess = null;
+  apply((d) => removeSession(d, s.id), `${s.title} の${s.kind === "actual" ? "実績の枠" : s.actual ? "枠（実績つき）" : "予定の枠"}を削除しました`);
 }
 
 /** 表示の好み（今日の優先・ガント実績）を反転して保存する。今日の優先を閉じると、パネル内にしか出ない確認待ちは出す場所がなくなるので捨てる */
@@ -509,7 +514,7 @@ view.addEventListener("click", (e) => {
   if (S.tpop && !q(".tpop,[data-gt],[data-gh]")) { S.tpop = null; render(); } // 閉じたあと、押したものの操作もそのまま行う
   let cleared = false;
   // 欄外のクリックで、枠・会議の選択と追加中の下書きを外す
-  if ((S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.actAdd || S.taskEdit) && !q("[data-dragsess],[data-actbar],[data-mtg],[data-delsel],.mtgform,.actform,[data-mtgadd],[data-actadd],[data-actsave],[data-actclear],[data-mtgact]")) { clearSel(); cleared = true; }
+  if ((S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.actAdd || S.taskEdit) && !q("[data-dragsess],[data-actbar],[data-mtg],[data-delsel],[data-delsessok],[data-delsessno],.mtgform,.actform,[data-mtgadd],[data-actadd],[data-actsave],[data-actclear],[data-mtgact]")) { clearSel(); cleared = true; }
   const { date: today, time } = clock();
   const now = clock();
 
@@ -613,7 +618,8 @@ view.addEventListener("click", (e) => {
   const tdel = q("[data-tddel]"); // 実績の枠がある ToDo は、消す前に確認を出す（その行に。メモリ上の S.tdAskDel）
   if (tdel) {
     const id = tdel.dataset.tddel;
-    if (S.data.todos?.find((t) => t.id === id)?.sessions?.some((s) => s.kind === "actual")) { S.tdAskDel = id; render(); return; }
+    const own = S.data.todos?.find((t) => t.id === id);
+    if (own && actualSpans({ tasks: [], todos: [own] }).length) { S.tdAskDel = id; render(); return; }
     deleteTodoNow(id); return;
   }
   const tdok = q("[data-tddelok]");
@@ -685,6 +691,9 @@ view.addEventListener("click", (e) => {
   const mact = q("[data-mtgact]"); // 会議の実績の保存（confirmed と actual を書く）
   if (mact) { const id = mact.dataset.mtgact, f = (k) => view.querySelector(`[data-ma="${k}"]`)?.value ?? "", span = { start: f("start"), end: f("end") }; if (apply((d) => setMeetingActual(d, id, span, now), "会議の実績を入れました")) S.actDraft = null; return; }
   if (q("[data-delsel]")) { deleteSelected(); return; }
+  const dsok = q("[data-delsessok]");
+  if (dsok) { const s = allSessions(S.data).find((x) => x.id === dsok.dataset.delsessok); if (s && S.askDelSess === s.id) removeSelectedSession(s); else { S.askDelSess = null; render(); } return; }
+  if (q("[data-delsessno]")) { S.askDelSess = null; render(); return; }
   const sb = q("[data-dragsess],[data-actbar]"); // 予定のブロックと実績の帯は、同じ枠を選ぶ
   if (sb && !q("[data-rz]")) { const id = sb.dataset.dragsess ?? sb.dataset.actbar; selectSession(S.selSess === id ? null : id); S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.actDraft = null; render(); return; }
   const mb = q("[data-mtg]");

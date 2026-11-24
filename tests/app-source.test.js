@@ -796,7 +796,7 @@ test("ToDo タブ: 各 data-td* に、対応するハンドラ（todos.js の関
 test("ToDo タブ: 削除は、実績の枠があるときだけ確認（S.tdAskDel）を出す。確認は render に渡し、再描画で消さず、clearSel・やめる・削除で外す", () => {
   const i = src.indexOf('const tdel = q("[data-tddel]")');
   const a = src.slice(i, i + 900);
-  assert.match(a, /kind === "actual"\)\) \{ S\.tdAskDel = id; render\(\); return; \}/);
+  assert.match(a, /actualSpans\(\{ tasks: \[\], todos: \[own\] \}\)\.length\) \{ S\.tdAskDel = id; render\(\); return; \}/);
   assert.match(a, /q\("\[data-tddelok\]"\)/);
   assert.match(a, /q\("\[data-tddelno\]"\)\) \{ S\.tdAskDel = null; render\(\)/);
   assert.match(src, /function deleteTodoNow\(id\) \{[^]*?S\.tdAskDel = null;[^]*?deleteTodo\(d, id\)/);
@@ -804,4 +804,20 @@ test("ToDo タブ: 削除は、実績の枠があるときだけ確認（S.tdAsk
   assert.match(src, /const clearSel = \(\) => \{[^\n]*S\.tdAskDel = null;/);
   assert.match(src, /S\.tdAskDel && !S\.data\?\.todos\?\.some\(\(t\) => t\.id === S\.tdAskDel\)/);
   assert.ok(!/S\.(taskEdit|selSess) = [^;]*tdAskDel/.test(src), "確認の状態を S.data.tasks で検証する状態に入れない");
+});
+
+test("枠の削除: actual を持つ予定の枠は S.askDelSess に入れて描き直し、すぐ消さない。data-delsessok で removeSession、data-delsessno で外す。ほかの枠は 1 回で削除", () => {
+  const i = src.indexOf("function deleteSelected()");
+  const f = src.slice(i, src.indexOf("/** 表示の好み", i));
+  assert.match(f, /s\.kind === "planned" && s\.actual\) \{ S\.askDelSess = s\.id; render\(\); return; \}[^\n]*\n  removeSelectedSession\(s\);/);
+  assert.match(f, /function removeSelectedSession\(s\) \{[^]*?S\.askDelSess = null;[^]*?apply\(\(d\) => removeSession\(d, s\.id\)/);
+  assert.match(f, /枠（実績つき）/);
+  const ok = src.slice(src.indexOf("const dsok"), src.indexOf("const dsok") + 420);
+  assert.match(ok, /S\.askDelSess === s\.id\) removeSelectedSession\(s\)/);
+  assert.match(ok, /q\("\[data-delsessno\]"\)\) \{ S\.askDelSess = null; render\(\)/);
+  assert.match(src, /askDelSess: S\.askDelSess/);
+  assert.match(src, /const clearSel = \(\) => \{[^\n]*S\.askDelSess = null;/);
+  assert.match(src, /\[data-delsel\],\[data-delsessok\],\[data-delsessno\]/, "確認のボタンは、欄外のクリックにならない");
+  assert.match(src, /S\.askDelSess && \(S\.screen !== "schedule" \|\| S\.askDelSess !== S\.selSess\)\) S\.askDelSess = null/);
+  assert.ok(!/S\.askDelSess[^;]*tasks\.some/.test(src), "S.data.tasks で検証しない");
 });

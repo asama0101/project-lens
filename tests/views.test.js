@@ -2271,6 +2271,11 @@ test("renderTodo: 削除の確認（askDel）。その ToDo 自身の実績の�
   assert.ok(tdRow(tdHtml(d), "T-0001").includes('data-tddel="T-0001"'));
 });
 
+test("renderTodo: 削除の確認の分数に、予定の枠の actual も入る（実績だけの枠と足す）", () => {
+  const d = tdData([tdItem({ id: "T-0001", title: "確認", sessions: [{ id: "S91", date: TODAY, start: "09:00", end: "09:45", kind: "actual" }, { id: "S93", date: TODAY, start: "13:00", end: "14:00", kind: "planned", actual: { date: TODAY, start: "13:10", end: "13:40" } }] })]);
+  assert.ok(tdRow(tdHtml(d, { askDel: "T-0001" }), "T-0001").includes("実績 75 分も消えます"));
+});
+
 test("renderTodo: 見返しで、別の週の ToDo（inWeek: false の行）に「（別の週の ToDo）」が出る。その週の行には出ない", () => {
   const d = tdData([
     tdItem({ id: "T-0001", title: "回した", date: "2026-10-26", carried: 1, sessions: [{ id: "S91", date: "2026-10-23", start: "09:00", end: "10:00", kind: "actual" }] }),
@@ -2281,4 +2286,18 @@ test("renderTodo: 見返しで、別の週の ToDo（inWeek: false の行）に�
   assert.ok(tr("回した").includes("（別の週の ToDo）") && tr("回した").includes("60 分"), tr("回した"));
   assert.ok(!tr("今週").includes("別の週"));
   assert.ok(rv.includes("完了 0 / 1 件") && rv.includes("実績 60 分"), rv);
+});
+
+test("削除の確認（askDelSess）: 確認待ちの枠（actual あり）の欄に「実績 75 分も消えます」と 2 つのボタンが出る。確認待ちでなければ出ない。ID は属性だけ", () => {
+  const d = load();
+  s8(d).actual = { date: S8_DAY, start: "09:00", end: "10:15" };
+  const o = { view: "day", date: S8_DAY, selSess: "S8" };
+  const html = sched(d, { ...o, askDelSess: "S8" });
+  assert.ok(html.includes("実績 75 分も消えます"), html);
+  assert.ok(html.includes('<div class="ask"') && html.includes('data-delsessok="S8"') && html.includes("data-delsessno") && html.includes("削除する") && html.includes("やめる"));
+  assert.ok(!html.replace(/<[^>]*>/g, "").includes("S8"), "ID は画面の文字に出ない");
+  assert.ok(!sched(d, o).includes("data-delsessok"), "確認待ちでない");
+  assert.ok(!sched(d, { ...o, askDelSess: "S9" }).includes("data-delsessok"), "別の枠の確認");
+  delete s8(d).actual;
+  assert.ok(!sched(d, { ...o, askDelSess: "S8" }).includes("data-delsessok"), "actual のない枠");
 });
