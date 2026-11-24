@@ -580,7 +580,7 @@ test("theme.css: カレンダーの高さは固定（日・週とも 1 時間 88
 test("app.js: 作業枠を押して選ぶと（selectSession）、そのタスクの編集欄を開く。選び直すと切り替わり（詳細の開閉は引き継ぐ）、外すと閉じる。「閉じる」は選択も外す", () => {
   assert.ok(!src.includes("data-tedit-open") && !src.includes("teditOpen"), "「タスクを編集」のボタンは持たない");
   const fn = src.slice(src.indexOf("const selectSession = "), src.indexOf("const selectSession = ") + 400);
-  assert.ok(fn.includes("S.taskEdit = s ? { id: s.taskId, full: S.taskEdit?.full ?? false, askDel: false } : null"), fn);
+  assert.ok(fn.includes("Object.assign(S, sessionSelection(S.data, id, S.taskEdit))"), fn); // 規則（ToDo の枠は編集欄を開かない）は views.test.js の sessionSelection
   assert.match(src, /if \(sb && !q\("\[data-rz\]"\)\) \{ selectSession\(S\.selSess === sb\.dataset\.dragsess \? null : sb\.dataset\.dragsess\);/);
   assert.match(src, /if \(q\("\[data-tedit-close\]"\)\) \{ clearSel\(\); render\(\); return; \}/);
 });

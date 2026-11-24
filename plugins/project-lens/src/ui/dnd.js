@@ -28,7 +28,7 @@ export function planDropAt(data, drag, { date, at }, now) {
   const st = snapStart(at, 60);
   const did = drag.id, put = { date, start: toHHMM(st), end: toHHMM(st + 60) };
   const r = addSession(data, did, put);
-  return { st, end: st + 60, error: r.error, warning: r.warning, next: asEdit((d) => addSession(d, did, put)), msg: `${ownerOf(data, did).item.title} を ${fmtMD(date)} ${hm(st)} に予定として配置しました` };
+  return { st, end: st + 60, error: r.error, warning: r.warning, next: asEdit((d) => addSession(d, did, put)), msg: `${ownerOf(data, did)?.item.title ?? did} を ${fmtMD(date)} ${hm(st)} に予定として配置しました` };
 }
 
 /**

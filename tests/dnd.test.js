@@ -97,3 +97,8 @@ test("planDropAt: ToDo のドラッグ（kind \"task\"）で予定の枠を置�
   const mtg = planDropAt(next, { kind: "mtg", id: "m1" }, { date: "2026-11-24", at: 11 * 60 }, NOW);
   assert.equal(mtg.warning, "配置済みの枠と重なっています", "ToDo の枠とも重なりを知らせる");
 });
+
+test("planDropAt(task): 持ち主の無い ID は、例外でなく error（タスク XX がありません）", () => {
+  const p = planDropAt(withSession(), { kind: "task", id: "XX" }, { date: "2026-11-24", at: 11 * 60 }, NOW);
+  assert.match(p.error, /タスク XX がありません/);
+});

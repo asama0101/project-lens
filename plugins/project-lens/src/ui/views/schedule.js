@@ -3,7 +3,7 @@ import { addDays, toMin, toHHMM, weekday } from "../../core/dates.js";
 import { meetingKind, meetingActualSpan } from "../../core/schedule.js";
 import { matchProject } from "../../core/rules.js";
 import { offDayChecker } from "../../core/holidays.js";
-import { sessionKind, allSessions, actualSlots, LAST_END } from "../../core/sessions.js";
+import { sessionKind, allSessions, ownerOf, actualSlots, LAST_END } from "../../core/sessions.js";
 import { isImportantMark, isClosed } from "../../core/schema.js";
 import { esc, fmtMD, wdJa, STATUS_UI, dateInputHtml } from "../common.js";
 import { renderSide, renderSideToggle, todayTaskIds } from "./prio.js";
@@ -23,6 +23,15 @@ export function snapStart(minutes, durationMin) {
 
 /** 選んだ枠と編集欄（タスク・詳細の開閉・削除の確認）の状態の鍵。選んでいなければ null */
 export const selectionKey = (selSess, taskEdit) => (selSess ? `${selSess}|${taskEdit?.id ?? ""}|${taskEdit?.full ? 1 : 0}|${taskEdit?.askDel ? 1 : 0}` : null);
+/**
+ * 作業枠を選んだときの選択と編集欄（id が null・無い枠なら両方外す）。編集欄（タスクの編集）は、持ち主がタスクの枠だけ開き、詳細を開いているか（full）は prev から引き継ぐ。
+ * ToDo の枠は選択だけ（編集欄の id がタスクでないと、描き直しで選択ごと外れるため）
+ */
+export function sessionSelection(data, id, prev) {
+  const s = id ? allSessions(data).find((x) => x.id === id) : null;
+  if (!s) return { selSess: null, taskEdit: null };
+  return { selSess: id, taskEdit: ownerOf(data, s.taskId)?.list === "tasks" ? { id: s.taskId, full: prev?.full ?? false, askDel: false } : null };
+}
 /** 選んだ枠を見える位置へ出すか: 選択か編集欄が、この描き直しで開いた・変わったときだけ（同じ選択のままの描き直しでは、ページを動かさない） */
 export const revealSelection = (prevKey, key) => key != null && key !== prevKey;
 
@@ -151,7 +160,7 @@ function actAddSpan(date, now) {
 }
 
 /**
- * 実績の入力欄。始まった予定の枠を選んでいるときは、その枠の時刻を初期値に（タスクは枠のタスク）。
+ * 実績の入力欄。始まった予定の枠を選んでいるときは、その枠の時刻を初期値に（持ち主は枠の持ち主。タスクか ToDo）。
  * 「＋ 実績を追加」（ctx.add = { date }）のときは、タスク（Done・Cancelled 以外）・日付も選ぶ。どちらでもなければ出さない。
  * 入力の値は、保存を押したときに画面から読む（app.js）。入力中の値は下書き（ctx.draft = { key, task, date, start, end }。key は枠の ID・"add"）に残り、key が同じ欄は下書きの値で描く
  * @param ctx { selSess: 選択中の枠 ID, add: S.actAdd, draft: S.actDraft, today, now }

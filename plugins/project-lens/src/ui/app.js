@@ -388,12 +388,8 @@ function submitGAdd(input) {
 
 /* ---------- 選択と削除 ---------- */
 const clearSel = () => { S.selSess = null; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.actDraft = null; S.taskEdit = null; };
-/** 作業枠を選ぶ（id が null なら外す）。選んだ枠のタスクの編集欄を開き（外すと閉じる）、詳細を開いているか（full）は引き継ぐ */
-const selectSession = (id) => {
-  const s = id ? allSessions(S.data).find((x) => x.id === id) : null;
-  S.selSess = s ? id : null;
-  S.taskEdit = s ? { id: s.taskId, full: S.taskEdit?.full ?? false, askDel: false } : null;
-};
+/** 作業枠を選ぶ（id が null なら外す）。規則は sessionSelection（タスクの枠は編集欄も開く。ToDo の枠は選択だけ） */
+const selectSession = (id) => { Object.assign(S, sessionSelection(S.data, id, S.taskEdit)); };
 
 function deleteSelected() {
   if (S.selMtg) {

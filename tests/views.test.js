@@ -11,7 +11,7 @@ import { checklistEditorHtml } from "../plugins/project-lens/src/ui/views/checkl
 import { renderTaskPop, renderTaskEditPanel } from "../plugins/project-lens/src/ui/views/taskpop.js";
 import { renderInboxBar, ibExamples } from "../plugins/project-lens/src/ui/views/inboxpanel.js";
 import { ruleMeetingCounts } from "../plugins/project-lens/src/core/rules.js";
-import { renderSchedule, renderCalendar, selectionKey, revealSelection, snapStart, calendarGeometry, urgentDefaultStart, urgentInput } from "../plugins/project-lens/src/ui/views/schedule.js";
+import { renderSchedule, renderCalendar, selectionKey, sessionSelection, revealSelection, snapStart, calendarGeometry, urgentDefaultStart, urgentInput } from "../plugins/project-lens/src/ui/views/schedule.js";
 import { taskActual } from "../plugins/project-lens/src/core/sessions.js";
 import { rankTasks } from "../plugins/project-lens/src/core/schedule.js";
 import { bannerHtml } from "../plugins/project-lens/src/ui/common.js";
@@ -1997,4 +1997,12 @@ test("ToDo の枠のブロックは、件名だけを出し、状態の文字・
   const sel = sched(d, { selSess: "S30", taskEdit: { id: "T-0004", full: false, askDel: false } });
   assert.ok(sel.includes('data-actsave="S30"') && sel.includes("「経費精算」の実績を入れます"));
   assert.ok(sel.includes("「経費精算」の枠を削除"));
+});
+
+test("sessionSelection: タスクの枠は選択と編集欄（full を引き継ぐ）。ToDo の枠は選択だけ（編集欄は開かない。描き直しで外れない）。無い枠・null は両方外す", () => {
+  const d = load();
+  assert.deepEqual(sessionSelection(d, "S2", { id: "X", full: true, askDel: true }), { selSess: "S2", taskEdit: { id: "AA-0005", full: true, askDel: false } });
+  assert.deepEqual(sessionSelection(d, "S7", { id: "AA-0005", full: true, askDel: false }), { selSess: "S7", taskEdit: null });
+  assert.deepEqual(sessionSelection(d, "S999", null), { selSess: null, taskEdit: null });
+  assert.deepEqual(sessionSelection(d, null, null), { selSess: null, taskEdit: null });
 });
