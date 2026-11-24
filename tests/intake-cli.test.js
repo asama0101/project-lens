@@ -132,7 +132,7 @@ test("calendar-apply: 確認した削除の一覧（planKey）と同じときだ
   const ok = run("calendar-apply", w.data, two, ...R, "--plan-key", keyTwo);
   assert.equal(ok.status, 0, ok.err);
   assert.equal(ok.out.summary.removed, 3); // cm3〜cm5（sample の m1・m3 は今日より前なので、範囲の外）
-  assert.deepEqual(w.json().events.filter((e) => e.source === "mcp").map((e) => e.id).sort(), ["cm1", "cm2", "m1", "m3"]); // 今日より前の m1・m3 は残る
+  assert.deepEqual(w.json().events.filter((e) => e.source === "mcp").map((e) => e.id).sort(), ["cm1", "cm2", "m1", "m3", "m4"]); // 今日より前の m1・m3・m4 は残る
 });
 
 test("fetched-remove: 一時フォルダの下（深さは問わない）の project-lens-fetched-*.json だけを消す。名前が違う・一時フォルダの外・.. で外へ出る形は、消さず非 0。無ければ成功", () => {
