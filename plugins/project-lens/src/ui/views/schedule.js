@@ -153,7 +153,7 @@ export function urgentForm(data, draft) {
 }
 
 /** 「実績を追加」の開始・終了の初期値: 今日は現在時刻を 15 分刻みに切り捨てた時刻から 60 分（23:59 まで。開始が今より後だと保存できない）、ほかの日は 09:00-10:00 */
-function actAddSpan(date, now) {
+export function actAddSpan(date, now) {
   if (date !== now.date) return ["09:00", "10:00"];
   const s = Math.floor(toMin(now.time) / SLOT_STEP) * SLOT_STEP;
   return [toHHMM(s), toHHMM(Math.min(s + 60, 24 * 60 - 1))];

@@ -436,6 +436,31 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .tpop .tp-r{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
 .tpop .tp-a{display:flex;gap:8px;justify-content:space-between}
 
+/* ToDo 画面: 左に週・右に日の 2 列（狭い画面では縦に並ぶ）、下に週の見返し */
+.tdpage .toolbar{margin-bottom:12px}
+.tdcols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin-bottom:16px;align-items:start}
+@media(max-width:860px){.tdcols{grid-template-columns:minmax(0,1fr)}}
+.td-dayhead{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.td-dayhead h2{margin:0}
+.tdlist{list-style:none;margin:0 0 10px;padding:0;display:flex;flex-direction:column;gap:8px}
+.tdlist>li{border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:6px}
+.tdlist>li.closed{opacity:.55}
+.tdlist>li.closed .td-title{text-decoration:line-through}
+.td-main{display:flex;align-items:center;gap:8px}
+.td-main input[type=checkbox],.td-ck input[type=checkbox]{width:18px;height:18px;margin:0;accent-color:var(--accent);flex:none}
+.td-meta{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.td-ops{display:flex;gap:6px;flex-wrap:wrap}
+.td-ops .btn,.td-ck .btn{font-size:12px;padding:3px 9px}
+.td-ck{display:flex;flex-direction:column;gap:4px}
+.td-ck .ck-row{display:flex;align-items:center;gap:6px}
+.td-ck .td-cktext{flex:1;min-width:0;font-size:13px}
+.td-ck .td-cktext.done{text-decoration:line-through;color:var(--muted)}
+.tdlist .actform{margin:0}
+.tdreview .td-sum{margin:0 0 10px}
+.tdreview tr.hot td{background:var(--warn-soft)}
+.tdreview .td-note{display:flex;flex-direction:column;gap:4px;margin-top:12px;font-size:12px;color:var(--muted)}
+.tdreview .td-note textarea{resize:vertical;font-size:13px}
+
 /* 固定表示（ガント・リスト）: 画面のスクロールに対して、CSS の sticky で付ける */
 #view{overflow-anchor:none} /* 描き直しのたびに、ブラウザのスクロール位置の補正(スクロールアンカー)で縦の位置が数 px ずれるのを防ぐ。位置は render が戻す */
 #view .gprojects{display:block}
