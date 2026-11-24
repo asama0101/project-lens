@@ -1868,7 +1868,7 @@ function openDownstream(tasks, id) {
 }
 
 /**
- * 今日の優先。対象は Done/Cancelled 以外で、前のタスクがすべて完了しているもの。
+ * 今日の優先。対象は Done/Cancelled 以外。前のタスクが未完了（data.tasks にあって完了していない）のものも含め、理由の先頭に「前のタスク待ち」を入れる（点数は変えない）。
  * 点数 = 期限超過 100 + 期限点 × 倍率 + 重要(important: true で 12)
  *   期限点 = 残り 30 日以内なら (30−残り日数)×1.5（超過した分も加算）、それより先は 0
  *   倍率   = 1 + min(未チェックの項目数, 10)/10（Waiting は 1）
@@ -1879,7 +1879,6 @@ function rankTasks(data, today) {
   const out = [];
   for (const t of data.tasks) {
     if (isClosed(t)) continue;
-    if ((t.predecessors ?? []).some((p) => byId.has(p) && !isClosed(byId.get(p)))) continue;
     const left = diffDays(t.due, today);
     const reasons = [];
     let score = 0;
@@ -1899,6 +1898,7 @@ function rankTasks(data, today) {
       reasons.unshift(w ? `${w.party} への${left < 0 || lapsed ? "催促" : "確認"}${isDate(w.since) ? `（回答待ち ${diffDays(today, w.since)}日）` : ""}` : "待ち先が未設定");
       if (lapsed) { score += 40; reasons.push(`回答予定日を過ぎています（${diffDays(today, w.expected)}日）`); }
     }
+    if ((t.predecessors ?? []).some((p) => byId.has(p) && !isClosed(byId.get(p)))) reasons.unshift("前のタスク待ち");
     out.push({ taskId: t.id, score, reasons, action, due: t.due });
   }
   return out.sort((a, b) => b.score - a.score || (a.due < b.due ? -1 : a.due > b.due ? 1 : a.taskId < b.taskId ? -1 : 1));

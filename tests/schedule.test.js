@@ -69,7 +69,8 @@ function rankData() {
 
 test("rankTasks: 手計算の点数と順序", () => {
   const r = rankTasks(rankData(), "2026-10-20");
-  assert.deepEqual(r.map((x) => [x.taskId, x.score]), [["AA-0001", 151], ["AA-0003", 55.5], ["AA-0002", 52.5], ["AA-0004", 42]]);
+  assert.deepEqual(r.slice(0, 4).map((x) => [x.taskId, x.score]), [["AA-0001", 151], ["AA-0003", 55.5], ["AA-0002", 52.5], ["AA-0004", 42]]);
+  assert.ok(r.slice(4).every((x) => x.score === 0 && x.reasons[0] === "前のタスク待ち"), "残りは前のタスク待ちの 0 点");
 });
 
 test("rankTasks: Waiting は chase で待ち先名を含み、理由は日本語", () => {
@@ -82,9 +83,31 @@ test("rankTasks: Waiting は chase で待ち先名を含み、理由は日本語
   assert.ok(rankTasks(rankData(), "2026-10-20")[1].reasons.includes("重要"));
 });
 
-test("rankTasks: Done／Cancelled と、前のタスクが未完了のタスクは含まれない。前のタスクが完了なら含まれる", () => {
+test("rankTasks: Done／Cancelled は含まれない。前のタスクが未完了のタスクも含まれ、理由の先頭に「前のタスク待ち」が入る", () => {
   const d = { ...base(), tasks: [T("AA-0001", "2026-10-25", { status: "Done" }), T("AA-0002", "2026-10-25", { predecessors: ["AA-0001"] }), T("AA-0003", "2026-10-25", { predecessors: ["AA-0002"] }), T("AA-0004", "2026-10-25", { status: "Cancelled" })] };
-  assert.deepEqual(rankTasks(d, "2026-10-20").map((x) => x.taskId), ["AA-0002"]);
+  const r = rankTasks(d, "2026-10-20");
+  assert.deepEqual(r.map((x) => x.taskId), ["AA-0002", "AA-0003"]);
+  assert.ok(!r[0].reasons.includes("前のタスク待ち"), "前のタスクが完了なら出ない");
+  assert.equal(r[1].reasons[0], "前のタスク待ち");
+});
+
+test("rankTasks: 前のタスク待ちかどうかで点数は変わらない", () => {
+  const d = { ...base(), tasks: [T("AA-0001", "2026-10-25"), T("AA-0002", "2026-10-25", { predecessors: ["AA-0001"] }), T("AA-0003", "2026-10-25")] };
+  const r = Object.fromEntries(rankTasks(d, "2026-10-20").map((x) => [x.taskId, x]));
+  assert.equal(r["AA-0002"].score, r["AA-0003"].score);
+  assert.ok(r["AA-0002"].reasons.includes("前のタスク待ち") && !r["AA-0003"].reasons.includes("前のタスク待ち"));
+});
+
+test("rankTasks: 存在しない ID だけの前のタスクは、前のタスク待ちにならない", () => {
+  const d = { ...base(), tasks: [T("AA-0001", "2026-10-25", { predecessors: ["ZZ-9999"] })] };
+  assert.ok(!rankTasks(d, "2026-10-20")[0].reasons.includes("前のタスク待ち"));
+});
+
+test("rankTasks: Waiting で前のタスク待ちなら、「前のタスク待ち」が催促の理由より先頭", () => {
+  const d = { ...base(), tasks: [T("AA-0001", "2026-10-25"), T("AA-0002", "2026-10-25", { status: "Waiting", waitingOn: { party: "ベンダーA", since: "2026-10-11" }, predecessors: ["AA-0001"] })] };
+  const r = rankTasks(d, "2026-10-20").find((x) => x.taskId === "AA-0002");
+  assert.equal(r.reasons[0], "前のタスク待ち");
+  assert.ok(r.reasons[1].includes("ベンダーA"));
 });
 
 test("rankTasks: 同点は期限の昇順→ID 昇順。タスク 0 件は空", () => {
@@ -95,7 +118,7 @@ test("rankTasks: 同点は期限の昇順→ID 昇順。タスク 0 件は空", 
 
 test("rankTasks: 循環があっても終了する", () => {
   const d = { ...base(), tasks: [T("AA-0001", "2026-10-25", { predecessors: ["AA-0002"] }), T("AA-0002", "2026-10-25", { predecessors: ["AA-0001"] }), T("AA-0003", "2026-10-25")] };
-  assert.deepEqual(rankTasks(d, "2026-10-20").map((x) => x.taskId), ["AA-0003"]);
+  assert.deepEqual(rankTasks(d, "2026-10-20").map((x) => x.taskId).sort(), ["AA-0001", "AA-0002", "AA-0003"]);
 });
 
 // ---- チェックリストの量を加えた点数（今日は 2026-10-20） ----
