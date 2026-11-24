@@ -77,10 +77,11 @@ export function renderTodo(data, today, opts) {
   const rv = weekSummary(data, week, today);
   const trs = rv.rows.map((r) => `<tr><td>${esc(r.task.title)}</td><td class="num mono">${progress(r)}</td><td class="num mono">${r.planned} 分</td><td class="num mono">${r.actual} 分</td></tr>`).join("");
   return `<div class="tdpage">
-    <div class="toolbar"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn" data-tdweek="-1" aria-label="前の週">←</button><button class="btn" data-tdweek="1" aria-label="次の週">→</button><button class="btn" data-tdweek-today>今週</button><strong style="margin-left:6px">${fmtMD(week)}〜${fmtMD(weekEnd)} の週</strong></div></div>
     <div class="tdcols">
       <section class="panel tdtoday" aria-label="今日の ToDo"><h2>今日の ToDo（${fmtMD(today)}）</h2>${tlist}</section>
-      <section class="panel tdweek" aria-label="この週のタスク候補"><h2>この週のタスク候補</h2>${list}</section>
+      <section class="panel tdweek" aria-label="この週のタスク候補"><h2>この週のタスク候補</h2>
+        <div class="toolbar"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn" data-tdweek="-1" aria-label="前の週">←</button><button class="btn" data-tdweek="1" aria-label="次の週">→</button><button class="btn" data-tdweek-today>今週</button><strong style="margin-left:6px">${fmtMD(week)}〜${fmtMD(weekEnd)} の週</strong></div></div>
+        ${list}</section>
     </div>
     <section class="tdreview panel" aria-label="週の見返し"><h2>週の見返し（${fmtMD(week)}〜${fmtMD(weekEnd)}）</h2>
       <p class="td-sum"><b>完了 ${rv.done} / ${rv.total} 件</b>　予定 ${rv.planned} 分に対して実績 ${rv.actual} 分</p>

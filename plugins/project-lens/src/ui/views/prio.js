@@ -2,7 +2,7 @@
 import { rankTasks } from "../../core/schedule.js";
 import { taskActual, sessionKind, actualSlots } from "../../core/sessions.js";
 import { isClosed, isImportantMark } from "../../core/schema.js";
-import { esc, checkMeterHtml } from "../common.js";
+import { esc, checkMeterHtml, fmtMD } from "../common.js";
 
 const PILL = { "To Do": "off", "In Progress": "ok", Waiting: "wait", Done: "done", Cancelled: "off" };
 const IMP_BADGE = `<span class="impbadge">重要</span>`;
@@ -11,9 +11,9 @@ export const statusPill = (t) => `<span class="pill ${PILL[t.status] ?? "off"}">
 /** 枠の種類の札（カレンダーの凡例と同じ色の class。文字でも出す） */
 const KIND_TAG = { planned: ["plan", "予定"], actual: ["act", "実績"], unconfirmed: ["unconf", "未確認"] };
 
-/** 今日のタスクの枠の時間（ToDo 画面の今日の ToDo も使う）。前に予定・実績・未確認の札を付ける（actuals は全タスクの実績の区間。過ぎた予定に重なる実績があれば、未確認にしない）。実績（actual）を持つ予定の枠は、実績の時刻に、予定の時刻を小さく添える */
+/** 今日のタスクの枠の時間（ToDo 画面の今日の ToDo も使う）。前に予定・実績・未確認の札を付ける（actuals は全タスクの実績の区間。過ぎた予定に重なる実績があれば、未確認にしない）。実績（actual）を持つ予定の枠は、実績の時刻に、予定の時刻を小さく添える（実績が枠と別の日なら、実績の日付も出す） */
 export function slotHtml(s, now, actuals) {
-  if (s.actual) return `<span class="ts"><span class="ktag act">実績</span>${esc(`${s.actual.start}–${s.actual.end}`)}<small class="muted">${esc(`予定 ${s.start}–${s.end}`)}</small></span>`;
+  if (s.actual) return `<span class="ts"><span class="ktag act">実績</span>${esc(`${s.actual.date && s.actual.date !== s.date ? `${fmtMD(s.actual.date)} ` : ""}${s.actual.start}–${s.actual.end}`)}<small class="muted">${esc(`予定 ${s.start}–${s.end}`)}</small></span>`;
   const [cls, label] = KIND_TAG[sessionKind(s, now, actuals)];
   return `<span class="ts"><span class="ktag ${cls}">${label}</span>${esc(`${s.start}–${s.end}`)}</span>`;
 }

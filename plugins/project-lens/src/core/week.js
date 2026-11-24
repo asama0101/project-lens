@@ -59,11 +59,15 @@ export function weekTasks(data, weekStart, today) {
   return rows.sort((a, b) => ORDER.indexOf(a.group) - ORDER.indexOf(b.group) || dueKey(a).localeCompare(dueKey(b)) || a.task.id.localeCompare(b.task.id));
 }
 
+/** 今日の枠の、今日に見せる開始の時刻 */
+const shownStart = (s, today) => (s.actual?.date === today ? s.actual.start : s.start);
+
 /**
  * 今日の ToDo の行（task・slots・waiting・planned・actual・checked）。today の日付に、予定の枠か実績の区間があるタスク（Cancelled を除く）。
- * slots は今日の枠（開始の昇順）: 今日の予定の枠は予定の時刻で、actual は今日の日付のときだけ付ける（別の日の実績は付けない）。
+ * slots は今日の枠: 今日の予定の枠は予定の時刻と actual（別の日の実績でも付ける）。
  * 実績だけの枠と、予定の枠が別の日にあって actual だけが今日のものは、kind "actual" で実績の時刻。
- * planned・actual は今日の日付の分。並びは、未完了を今日の最初の枠の開始の昇順（同じなら ID）、Done を末尾に
+ * slots の並びと、タスクの並びの鍵は、今日に見せる時刻（actual が今日なら actual の開始、ほかは枠の開始）の昇順。
+ * planned・actual は今日の日付の分。並びは、未完了を今日の最初の枠の昇順（同じなら ID）、Done を末尾に
  */
 export function todayTasks(data, today) {
   const byId = new Map(data.tasks.map((t) => [t.id, t]));
@@ -73,12 +77,12 @@ export function todayTasks(data, today) {
     if (task.status === "Cancelled") continue;
     const slots = [];
     for (const s of task.sessions ?? []) {
-      if (s.kind === "planned" && s.date === today) slots.push({ id: s.id, date: today, start: s.start, end: s.end, kind: "planned", actual: s.actual?.date === today ? s.actual : undefined });
+      if (s.kind === "planned" && s.date === today) slots.push({ id: s.id, date: today, start: s.start, end: s.end, kind: "planned", actual: s.actual });
       else if (s.kind === "actual" && s.date === today) slots.push({ id: s.id, date: today, start: s.start, end: s.end, kind: "actual", actual: undefined });
       else if (s.kind === "planned" && s.actual?.date === today) slots.push({ id: s.id, date: today, start: s.actual.start, end: s.actual.end, kind: "actual", actual: undefined });
     }
     if (!slots.length) continue;
-    slots.sort((a, b) => a.start.localeCompare(b.start));
+    slots.sort((a, b) => shownStart(a, today).localeCompare(shownStart(b, today)));
     const { total, done } = checklistCount(task);
     rows.push({
       task,
@@ -90,7 +94,7 @@ export function todayTasks(data, today) {
     });
   }
   const isDone = (r) => (r.task.status === "Done" ? 1 : 0);
-  return rows.sort((a, b) => isDone(a) - isDone(b) || a.slots[0].start.localeCompare(b.slots[0].start) || a.task.id.localeCompare(b.task.id));
+  return rows.sort((a, b) => isDone(a) - isDone(b) || shownStart(a.slots[0], today).localeCompare(shownStart(b.slots[0], today)) || a.task.id.localeCompare(b.task.id));
 }
 
 /** 週の見返し。done はそのうち Done の数、planned・actual は行の合計、note は reviews の気づき */

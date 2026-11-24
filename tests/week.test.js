@@ -180,7 +180,7 @@ test("todayTasks: planned・actual は今日の分だけ。waiting・checked は
   assert.equal(r.waiting, true);
   assert.deepEqual(r.checked, { done: 1, total: 2 });
 });
-test("todayTasks: 予定の枠が別の日にあって、実績だけが今日にあるタスクも出る（今日の枠は、実績の時刻の actual）。予定の枠が今日で、実績が別の日なら、今日の予定の枠", () => {
+test("todayTasks: 予定の枠が別の日にあって、実績だけが今日にあるタスクも出る（今日の枠は、実績の時刻の actual）。予定の枠が今日で、実績が別の日なら、今日の予定の枠で、その actual が付く", () => {
   const d = mk([
     task("A", { sessions: [plan("S1", "2026-11-24", "10:00", "11:00", { date: TODAY, start: "14:00", end: "15:00" })] }),
     task("B", { sessions: [plan("S2", TODAY, "09:00", "10:00", { date: "2026-11-24", start: "09:00", end: "10:00" })] }),
@@ -189,8 +189,18 @@ test("todayTasks: 予定の枠が別の日にあって、実績だけが今日�
   const a = rows.find((r) => r.task.id === "A"), b = rows.find((r) => r.task.id === "B");
   assert.deepEqual(a.slots.map((s) => [s.id, s.start, s.end, s.kind]), [["S1", "14:00", "15:00", "actual"]]);
   assert.deepEqual([a.planned, a.actual], [0, 60]);
-  assert.deepEqual(b.slots.map((s) => [s.id, s.start, s.end, s.kind, s.actual]), [["S2", "09:00", "10:00", "planned", undefined]]);
+  assert.deepEqual(b.slots.map((s) => [s.id, s.start, s.end, s.kind, s.actual]), [["S2", "09:00", "10:00", "planned", { date: "2026-11-24", start: "09:00", end: "10:00" }]]);
   assert.deepEqual([b.planned, b.actual], [60, 0]);
+});
+test("todayTasks: slots とタスクの並びは、今日に見せる時刻（actual が今日なら actual の開始）の順", () => {
+  const d = mk([
+    task("A", { sessions: [plan("S1", TODAY, "08:00", "09:00", { date: TODAY, start: "14:00", end: "15:00" }), plan("S2", TODAY, "10:00", "11:00")] }),
+    task("B", { sessions: [plan("S3", TODAY, "12:00", "13:00")] }),
+    task("C", { sessions: [plan("S4", TODAY, "07:00", "08:00", { date: "2026-11-24", start: "13:00", end: "14:00" })] }),
+  ]);
+  const rows = todayTasks(d, TODAY);
+  assert.deepEqual(rows.map((r) => r.task.id), ["C", "A", "B"], "A の最初は 10:00（S1 は今日 14:00 に見せる）。C の実績は別の日なので予定の 07:00");
+  assert.deepEqual(rows[1].slots.map((s) => s.id), ["S2", "S1"]);
 });
 test("todayTasks: projectId が null のタスクで例外にならない", () => {
   const d = mk([task("A", { projectId: null, sessions: [plan("S1", TODAY, "10:00", "11:00")] })]);

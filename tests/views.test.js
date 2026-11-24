@@ -2345,6 +2345,26 @@ test("renderTodo: 左の行に、今日の枠の時刻と札（予定・未確�
   assert.ok(!TASK_ID.test(visibleText(col)), visibleText(col).match(TASK_ID)?.[0]);
 });
 
+test("renderTodo: 今日の予定の枠で、実績が別の日にあるものは、未確認にせず、実績の日付つきで出す。同じ日の実績は日付なし", () => {
+  const d = tdData();
+  d.tasks.push(tdTask("AA-0006", { title: "前倒しのタスク", sessions: [
+    { id: "S6", date: TODAY, start: "08:00", end: "09:00", kind: "planned", actual: { date: "2026-10-19", start: "09:00", end: "10:00" } },
+    { id: "S7", date: TODAY, start: "09:00", end: "09:30", kind: "planned", actual: { date: TODAY, start: "09:05", end: "09:30" } },
+  ] }));
+  const a = tdTodayRow(tdHtml(d), "AA-0006");
+  assert.ok(!a.includes("未確認"), a);
+  assert.ok(a.includes('<span class="ktag act">実績</span>10/19 09:00–10:00<small class="muted">予定 08:00–09:00</small>'), a);
+  assert.ok(a.includes('<span class="ktag act">実績</span>09:05–09:30<small class="muted">予定 09:00–09:30</small>'), a);
+});
+
+test("renderTodo: 週の移動（data-tdweek・data-tdweek-today・M/D〜M/D の週）は右の列（この週のタスク候補）の中にあり、左の列には無い", () => {
+  const html = tdHtml(tdData());
+  const right = tdList(html), left = tdTodayCol(html);
+  for (const a of ['data-tdweek="-1"', 'data-tdweek="1"', "data-tdweek-today", "10/19〜10/25 の週"]) assert.ok(right.includes(a) && !left.includes(a), a);
+  assert.ok(right.indexOf("<h2>この週のタスク候補</h2>") < right.indexOf("data-tdweek="), "見出しの下");
+  assert.ok(html.indexOf('class="panel tdtoday') < html.indexOf("data-tdweek="), "左の列より前（上）に置かない");
+});
+
 test("renderTodo: 今日の枠のあるタスクが無いとき、左に空の文が出る", () => {
   const d = tdData();
   d.tasks = d.tasks.filter((t) => t.id !== "AA-0002");
