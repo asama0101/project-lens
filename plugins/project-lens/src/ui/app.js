@@ -513,7 +513,7 @@ view.addEventListener("click", (e) => {
   if (S.tpop && !q(".tpop,[data-gt],[data-gh]")) { S.tpop = null; render(); } // 閉じたあと、押したものの操作もそのまま行う
   let cleared = false;
   // 欄外のクリックで、枠・会議の選択と追加中の下書きを外す
-  if ((S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.actAdd || S.taskEdit) && !q("[data-dragsess],[data-actbar],[data-mtg],[data-delsel],[data-delsessok],[data-delsessno],.mtgform,.actform,[data-mtgadd],[data-actadd],[data-actsave],[data-actclear],[data-mtgact],[data-mtgactclear]")) { clearSel(); cleared = true; }
+  if ((S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.actAdd || S.taskEdit) && !q("[data-dragsess],[data-actbar],[data-ghost],[data-mtg],[data-mact],[data-mghost],[data-delsel],[data-delsessok],[data-delsessno],.mtgform,.actform,[data-mtgadd],[data-actadd],[data-actsave],[data-actclear],[data-mtgact],[data-mtgactclear]")) { clearSel(); cleared = true; }
   const { date: today, time } = clock();
   const now = clock();
 
@@ -678,10 +678,10 @@ view.addEventListener("click", (e) => {
   const dsok = q("[data-delsessok]");
   if (dsok) { const s = allSessions(S.data).find((x) => x.id === dsok.dataset.delsessok); if (s && S.askDelSess === s.id) removeSelectedSession(s); else { S.askDelSess = null; render(); } return; }
   if (q("[data-delsessno]")) { S.askDelSess = null; render(); return; }
-  const sb = q("[data-dragsess],[data-actbar]"); // 予定のブロックと実績の帯は、同じ枠を選ぶ
-  if (sb && !q("[data-rz]")) { const id = sb.dataset.dragsess ?? sb.dataset.actbar; selectSession(S.selSess === id ? null : id); S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.actDraft = null; render(); return; }
-  const mb = q("[data-mtg]");
-  if (mb && !q("[data-rzm]")) { S.selMtg = S.selMtg === mb.dataset.mtg ? null : mb.dataset.mtg; S.selSess = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.actDraft = null; S.taskEdit = null; render(); return; }
+  const sb = q("[data-dragsess],[data-actbar],[data-ghost]"); // 予定のブロック・実績のブロック・影は、同じ枠を選ぶ
+  if (sb && !q("[data-rz]")) { const id = sb.dataset.dragsess ?? sb.dataset.actbar ?? sb.dataset.ghost; selectSession(S.selSess === id ? null : id); S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.actDraft = null; render(); return; }
+  const mb = q("[data-mtg],[data-mact],[data-mghost]"); // 予定の会議・実績の会議・影は、同じ会議を選ぶ
+  if (mb && !q("[data-rzm]")) { const id = mb.dataset.mtg ?? mb.dataset.mact ?? mb.dataset.mghost; S.selMtg = S.selMtg === id ? null : id; S.selSess = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.actDraft = null; S.taskEdit = null; render(); return; }
   if (q("[data-mtgadd]")) {
     const base = S.sdate === today ? Math.ceil((toMin(time) + 1) / 60) * 60 : 10 * 60;
     const st = Math.min(base, 22 * 60); // 1 時間の会議が 23:59 までに収まる、最後の正時

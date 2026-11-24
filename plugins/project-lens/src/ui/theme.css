@@ -333,6 +333,15 @@ tr.hl td{transition:background .3s}
 .sw.mtg{background:var(--meeting);border-left:4px solid var(--meeting-edge)}
 .blk.mtg[draggable=true]{cursor:grab}
 .blk.task,.blk.mtg{min-height:16px}
+/* 実績とずれた予定の影: 薄い点線の枠（予定の色）。背景は透明。実績のブロックより先に描き、うしろに出す。ドラッグ・伸縮なし */
+.blk.task.ghost,.blk.mtg.ghost{background:transparent;border:1px dashed var(--accent);color:var(--muted);opacity:.7;z-index:0;cursor:pointer}
+.blk.mtg.ghost{border-color:var(--meeting-edge)}
+/* 会議の実績後: 会議の色の濃いもの。左の実線の縁と ✓ */
+.blk.mtg.act{background:color-mix(in srgb,var(--meeting-edge) 32%,var(--surface));border:1px solid var(--meeting-edge);border-left:4px solid var(--meeting-edge)}
+.sw.mtgact{background:color-mix(in srgb,var(--meeting-edge) 32%,var(--surface));border:1px solid var(--meeting-edge);border-left:4px solid var(--meeting-edge)}
+.sw.ghost{background:transparent;border:1px dashed var(--accent);opacity:.7}
+/* 実績のブロックに添える予定の時刻 */
+.blk .pl{display:block;font-family:var(--f-mono);font-size:10px;opacity:.75}
 .hour{height:0}
 
 /* ガントの罫線・今日の線は、プロジェクトごとに 1 枚の重ね板で描く(行ごとに描くと要素数が膨らむため) */

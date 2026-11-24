@@ -93,7 +93,7 @@ test("app.js: 「参加しない会議」のボタン（data-sskip）は showSki
 test("schedule.js: ブロックの時刻は esc して出す（toMin が先に検証するが、描画側でも守る）", () => {
   const sc = readFileSync(new URL("../plugins/project-lens/src/ui/views/schedule.js", import.meta.url), "utf8");
   assert.match(sc, /\$\{esc\(m\.start\)\}-\$\{esc\(m\.end\)\}/);
-  assert.match(sc, /\$\{esc\(t\.start\)\}-\$\{esc\(t\.end\)\}/); // 作業枠の時刻（t は枠自身か、実績の帯の actual）
+  assert.match(sc, /\$\{esc\(t\.start\)\}-\$\{esc\(t\.end\)\}/); // 作業枠の時刻（t は枠自身か、実績のブロックの actual）
 });
 
 test("app.js: 営業日の指定の追加は、入力欄の値を先に取り出してから edit に入れる（保存の競合で当て直されても日付が空にならない）。終了日を入れたら同じ日でも期間として扱う", () => {
@@ -581,16 +581,28 @@ test("app.js: 作業枠を押して選ぶと（selectSession）、そのタス�
   assert.ok(!src.includes("data-tedit-open") && !src.includes("teditOpen"), "「タスクを編集」のボタンは持たない");
   const fn = src.slice(src.indexOf("const selectSession = "), src.indexOf("const selectSession = ") + 400);
   assert.ok(fn.includes("Object.assign(S, sessionSelection(S.data, id, S.taskEdit))"), fn); // 規則は views.test.js の sessionSelection
-  assert.match(src, /if \(sb && !q\("\[data-rz\]"\)\) \{ const id = sb\.dataset\.dragsess \?\? sb\.dataset\.actbar; selectSession\(S\.selSess === id \? null : id\);/);
+  assert.match(src, /if \(sb && !q\("\[data-rz\]"\)\) \{ const id = sb\.dataset\.dragsess \?\? sb\.dataset\.actbar \?\? sb\.dataset\.ghost; selectSession\(S\.selSess === id \? null : id\);/);
   assert.match(src, /if \(q\("\[data-tedit-close\]"\)\) \{ clearSel\(\); render\(\); return; \}/);
 });
 
-test("app.js: 実績の帯（data-actbar）の押下は、data-dragsess と同じ選択の処理に入る（欄外のクリックで外さない）。ドラッグ・下端のサイズ変更には入れない", () => {
-  assert.ok(src.includes('const sb = q("[data-dragsess],[data-actbar]");'));
-  assert.match(src, /!q\("\[data-dragsess\],\[data-actbar\],\[data-mtg\],/);
+test("app.js: 実績のブロック（data-actbar）・枠の影（data-ghost）の押下は、data-dragsess と同じ選択の処理に入る（欄外のクリックで外さない）。ドラッグ・下端のサイズ変更には入れない", () => {
+  assert.ok(src.includes('const sb = q("[data-dragsess],[data-actbar],[data-ghost]");'));
+  assert.match(src, /!q\("\[data-dragsess\],\[data-actbar\],\[data-ghost\],\[data-mtg\],\[data-mact\],\[data-mghost\],/);
   const dragLine = src.split("\n").find((l) => l.includes('e.target.closest("[data-dragtask]")'));
-  assert.ok(dragLine && !dragLine.includes("actbar"), dragLine);
-  assert.ok(!src.includes('closest("[data-rz],[data-rzm],[data-actbar]'));
+  assert.ok(dragLine && !/actbar|ghost|mact/.test(dragLine), dragLine);
+  const rzLine = src.split("\n").find((l) => l.includes('e.target.closest("[data-rz],[data-rzm]")'));
+  assert.ok(rzLine && !/actbar|ghost|mact/.test(rzLine), rzLine);
+});
+
+test("theme.css: 影（.ghost）は、透明の背景と点線の枠で、ブロックより下（z-index 0）。会議の実績後（.blk.mtg.act）は、会議の縁の色を混ぜた濃い背景と、実線の縁。凡例の見本も同じ。色は変数だけ（ダーク配色でも読める）", () => {
+  assert.ok(css.includes(".blk.task.ghost,.blk.mtg.ghost{background:transparent;border:1px dashed var(--accent);color:var(--muted);opacity:.7;z-index:0;cursor:pointer}"));
+  assert.ok(css.includes(".blk.mtg.act{background:color-mix(in srgb,var(--meeting-edge) 32%,var(--surface));border:1px solid var(--meeting-edge);border-left:4px solid var(--meeting-edge)}"));
+  assert.ok(css.includes(".sw.mtgact{") && css.includes(".sw.ghost{"));
+});
+
+test("app.js: 会議の実績のブロック（data-mact）・会議の影（data-mghost）の押下は、data-mtg と同じ会議の選択（selMtg）に入る", () => {
+  assert.ok(src.includes('const mb = q("[data-mtg],[data-mact],[data-mghost]");'));
+  assert.match(src, /if \(mb && !q\("\[data-rzm\]"\)\) \{ const id = mb\.dataset\.mtg \?\? mb\.dataset\.mact \?\? mb\.dataset\.mghost; S\.selMtg = S\.selMtg === id \? null : id;/);
 });
 
 test("theme.css: スケジュールの凡例の色の見本は 18×14px（線・点線・塗りは .sw の規則のまま）。文字は 12px。現在時刻の線は高さ 0 のまま、行の中央に置く（#view の中だけ）", () => {

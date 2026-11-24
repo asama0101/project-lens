@@ -409,16 +409,46 @@ test("会議フォーム: 下書き（key が m:<会議 ID>）の実績の開始
   assert.match(renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15, selMtg: "m1", actDraft: { key: "m:m2", start: "09:45", end: "10:15" } }), /<input[^>]*data-ma="start"[^>]*value="09:30"/);
 });
 
-test("meetingBlocks: 実績が予定とずれた会議のブロックだけ、時刻と title に「実績 開始-終了」を足す", () => {
+test("meetingBlocks: actual を持つ会議は、実績の時刻に data-mact の 1 つだけ（文字は「実績 開始-終了 ✓」、title に予定の時刻）。ドラッグ・伸縮の属性なし。時刻が予定と違うときだけ、予定の時刻に影（data-mghost）", () => {
   const d = noSessions();
-  d.events.find((e) => e.id === "m1").actual = { start: "09:35", end: "10:20" };
-  d.events.find((e) => e.id === "m2").actual = { start: "13:00", end: "14:00" };
-  const blk = (h, id) => new RegExp(`<div class="blk mtg[^>]*data-mtg="${id}"[^>]*>`).exec(h)[0];
-  const h = renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15 });
-  assert.ok(blk(h, "m1").includes("実績 09:35-10:20") && h.includes("09:30-10:30 ✓ 実績 09:35-10:20"));
-  assert.ok(!blk(h, "m2").includes("実績 ") && !h.includes("13:00-14:00 ✓ 実績"), "同じ時刻");
-  delete d.events.find((e) => e.id === "m1").actual;
-  assert.ok(!renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15 }).includes("実績 09"), "actual なし");
+  Object.assign(d.events.find((e) => e.id === "m1"), { confirmed: true, actual: { start: "09:35", end: "10:20" } });
+  Object.assign(d.events.find((e) => e.id === "m2"), { confirmed: true, actual: { start: "13:00", end: "14:00" } }); // 手動の会議・予定と同じ時刻
+  const g = calendarGeometry();
+  const tag = (h, a) => new RegExp(`<div class="blk mtg[^>]*${a}[^>]*>`).exec(h)?.[0] ?? "";
+  for (const view of ["week", "day"]) {
+    const h = renderSchedule(d, TODAY, { view, date: TODAY, now: NOW15 });
+    for (const id of ["m1", "m2"]) {
+      assert.equal((h.match(new RegExp(`data-mact="${id}"`, "g")) ?? []).length, 1, `${view} ${id}: 実績のブロックは 1 つ`);
+      assert.ok(!h.includes(`data-mtg="${id}"`), `${view} ${id}: 予定のブロックは無い`);
+      const b = tag(h, `data-mact="${id}"`);
+      assert.ok(/class="blk mtg act[ "]/.test(b), `${view} ${id}: 実績後の見た目 ${b}`);
+      assert.ok(!b.includes("draggable") && !b.includes("data-dragmtg"), `${view} ${id}: ドラッグなし ${b}`);
+      assert.ok(!new RegExp(`data-rzm="${id}"`).test(h), `${view} ${id}: 伸縮の取っ手なし`);
+    }
+    assert.ok(tag(h, 'data-mact="m1"').includes(`style="top:${g.tp(9 * 60 + 35)};height:${g.ht(9 * 60 + 35, 10 * 60 + 20)}"`), `${view}: 実績の時刻の位置`);
+    assert.match(tag(h, 'data-mact="m1"'), /title="NW運用定例\(予定 09:30-10:30\)/);
+    assert.ok(/data-mact="m1"[^>]*><span class="tm">実績 09:35-10:20 ✓<\/span>/.test(h), `${view}: 文字`);
+    const gh = tag(h, 'data-mghost="m1"');
+    assert.ok(/class="blk mtg ghost[ "]/.test(gh), `${view}: 影 ${gh}`);
+    assert.ok(gh.includes(`style="top:${g.tp(9 * 60 + 30)};height:${g.ht(9 * 60 + 30, 10 * 60 + 30)}"`), `${view}: 影は予定の時刻`);
+    assert.ok(!gh.includes("draggable") && !gh.includes("data-dragmtg") && !gh.includes("data-mtg="), `${view}: 影はドラッグなし`);
+    assert.ok(!h.includes('data-mghost="m2"'), `${view}: 予定と同じ時刻なら影なし`);
+    assert.ok(h.indexOf('data-mghost="m1"') < h.indexOf('data-mact="m1"'), `${view}: 影は実績のブロックのうしろ（先に描く）`);
+  }
+  const sel = renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15, selMtg: "m1" });
+  assert.ok(/class="blk mtg act[^"]*\bsel\b[^"]*"[^>]*data-mact="m1"/.test(sel), "選択中");
+});
+
+test("meetingBlocks: confirmed: true で actual の無い会議は、予定の時刻に act の class で出る（data-mact ではない）。手動の会議は今までどおりドラッグ・伸縮できる", () => {
+  const d = noSessions();
+  d.events.find((e) => e.id === "m2").confirmed = true;
+  for (const view of ["week", "day"]) {
+    const h = renderSchedule(d, TODAY, { view, date: TODAY, now: NOW15 });
+    const b = /<div class="blk mtg[^>]*data-mtg="m2"[^>]*>/.exec(h)?.[0] ?? "";
+    assert.ok(/class="blk mtg\s+act[ "]/.test(b) && b.includes('draggable="true" data-dragmtg="m2"'), `${view}: ${b}`);
+    assert.ok(h.includes('data-rzm="m2"') && !h.includes('data-mact="m2"') && !h.includes('data-mghost="m2"'), view);
+    assert.ok(h.includes("13:00-14:00 ✓"), view);
+  }
 });
 
 test("renderSchedule: 凡例（会議・予定・実績・未確認、日は現在時刻）。空き時間の凡例は出さない", () => {
@@ -428,6 +458,13 @@ test("renderSchedule: 凡例（会議・予定・実績・未確認、日は現�
   const wk = renderSchedule(load(), TODAY, { view: "week", date: TODAY, now: NOW });
   assert.ok(!wk.includes("現在時刻") && wk.includes("未確認"));
   assert.ok(day.includes('class="nowline"'));
+});
+
+test("renderSchedule: 凡例は、予定・未確認・実績の 3 つの状態を、枠・会議ともに示し、実績とずれた予定の影（点線）も示す", () => {
+  for (const view of ["week", "day"]) {
+    const lg = /<div class="slegend"[^]*?<\/div>/.exec(renderSchedule(load(), TODAY, { view, date: TODAY, now: NOW }))[0];
+    for (const w of ['<i class="sw plan"></i>予定', '<i class="sw unconf"></i>未確認', '<i class="sw act"></i>実績', '<i class="sw mtgun"></i>未確認の会議', '<i class="sw mtgact"></i>会議の実績', '<i class="sw ghost"></i>']) assert.ok(lg.includes(w), `${view}: ${w}`);
+  }
 });
 
 test("renderSchedule: 凡例は上の操作の行（週・日の見出しの横）に置き、カレンダーの下（renderCalendar）には出さない", () => {
@@ -2019,68 +2056,113 @@ test("renderSchedule: 予定の枠と時間が重なる実績の枠は、予定�
   }
 });
 
-// 予定の枠の実績（actual）の帯。sample の S8（AC-0001、2026-10-15 の予定 09:00–10:00、実績 09:10–10:10）
+// 予定の枠の実績（actual）。sample の S8（AC-0001、2026-10-15 の予定 09:00–10:00、実績 09:10–10:10）
 const S8_DAY = "2026-10-15";
 const s8 = (d) => d.tasks.find((t) => t.id === "AC-0001").sessions.find((s) => s.id === "S8");
 const tagOf = (html, attr) => html.match(new RegExp(`<div class="blk task[^"]*"[^>]*${attr}[^>]*>`))?.[0] ?? "";
 const styleOf = (tag) => /style="([^"]*)"/.exec(tag)?.[1] ?? "";
+const countOf = (html, attr) => (html.match(new RegExp(attr, "g")) ?? []).length;
+/** 週表示の 1 日の列の中身 */
+const colOf = (html, day) => html.match(new RegExp(`<div class="col dz[^"]*" data-date="${day}">[^]*?(?=<div class="col dz|$)`))?.[0] ?? "";
+/** 属性 attr を持つブロック 1 つ（閉じタグまで） */
+const blkOf = (html, attr) => new RegExp(`<div class="blk[^>]*${attr}[^]*?</div>`).exec(html)?.[0] ?? "";
 
-test("renderCalendar: 予定の枠の actual が、実績の帯として actual.date の列に出る（data-actbar、位置は時刻どおり、draggable でない）", () => {
+test("renderCalendar: 実績を持つ予定の枠は、実績のブロック（data-actbar）が 1 つだけ出て、予定の枠を示す data-dragsess は出ない。影（data-ghost）は、予定と実績の時刻（または日付）が違うときだけ出る", () => {
+  const d = load(); // S8 はそのまま（予定 09:00–10:00、実績 09:10–10:10 で同じ日）
+  const g = calendarGeometry();
+  for (const view of ["week", "day"]) {
+    const html = renderCalendar(d, TODAY, { view, date: S8_DAY, now: NOW });
+    assert.equal(countOf(html, 'data-actbar="S8"'), 1, `${view}: 実績のブロックは 1 つ`);
+    assert.ok(!html.includes('data-dragsess="S8"'), `${view}: 予定のブロックは出ない`);
+    assert.equal(countOf(html, 'data-ghost="S8"'), 1, `${view}: 時刻が違うので影が 1 つ`);
+    const gh = tagOf(html, 'data-ghost="S8"');
+    assert.ok(/class="blk task ghost[ "]/.test(gh), gh);
+    assert.equal(styleOf(gh), `top:${g.tp(9 * 60)};height:${g.ht(9 * 60, 10 * 60)}`, `${view}: 影は予定の時刻・全幅`);
+    assert.equal(styleOf(tagOf(html, 'data-actbar="S8"')), `top:${g.tp(9 * 60 + 10)};height:${g.ht(9 * 60 + 10, 10 * 60 + 10)}`, `${view}: 実績のブロックは、自分の影と重なっても全幅`);
+    assert.ok(html.indexOf('data-ghost="S8"') < html.indexOf('data-actbar="S8"'), `${view}: 影は実績のブロックのうしろ（先に描く）`);
+  }
+  s8(d).actual = { date: S8_DAY, start: "09:00", end: "10:00" }; // 予定と同じ日・同じ時刻
+  for (const view of ["week", "day"]) {
+    const html = renderCalendar(d, TODAY, { view, date: S8_DAY, now: NOW });
+    assert.ok(html.includes('data-actbar="S8"') && !html.includes('data-ghost="S8"') && !html.includes('data-dragsess="S8"') && !html.includes('class="pl"'), `${view}: 同じなら影も、予定の時刻の文字も出ない`);
+  }
+  s8(d).actual = { date: "2026-10-16", start: "09:00", end: "10:00" }; // 時刻は同じで、日付が違う
+  assert.ok(renderCalendar(d, TODAY, { view: "week", date: S8_DAY, now: NOW }).includes('data-ghost="S8"'), "日付が違えば影が出る");
+});
+
+test("renderCalendar: 影は draggable でなく、data-rz を持たない。実績のブロックも、draggable・data-rz が無い。文字は「実績 HH:MM-HH:MM ✓」で、予定の時刻は title に添える", () => {
   const d = load();
   s8(d).actual = { date: S8_DAY, start: "13:00", end: "14:00" };
   const g = calendarGeometry();
   for (const view of ["week", "day"]) {
     const html = renderCalendar(d, TODAY, { view, date: S8_DAY, now: NOW });
-    const bar = tagOf(html, 'data-actbar="S8"');
-    assert.ok(bar, `${view}: 実績の帯がある`);
+    const bar = tagOf(html, 'data-actbar="S8"'), gh = blkOf(html, 'data-ghost="S8"');
     assert.ok(/class="blk task act[ "]/.test(bar), bar);
-    assert.ok(!bar.includes("draggable") && !bar.includes("data-dragsess"), `${view}: ドラッグできない ${bar}`);
+    assert.ok(!bar.includes("draggable") && !bar.includes("data-dragsess"), `${view}: 実績のブロックはドラッグできない ${bar}`);
+    assert.ok(!blkOf(html, 'data-actbar="S8"').includes("data-rz"), `${view}: 実績のブロックに取っ手は無い`);
+    assert.ok(gh && !gh.includes("draggable") && !gh.includes("data-rz") && !gh.includes("data-dragsess"), `${view}: 影はドラッグ・伸縮できない ${gh}`);
     assert.equal(styleOf(bar), `top:${g.tp(13 * 60)};height:${g.ht(13 * 60, 14 * 60)}`, `${view}: 実績の時刻の位置・重ならないので全幅`);
-    assert.ok(html.includes('data-actbar="S8"') && /data-actbar="S8"[^>]*><span class="tm">13:00-14:00 ✓<\/span>/.test(html), `${view}: 文字は実績の時刻と ✓`);
-    assert.ok(!/data-actbar="S8"[^]*?<\/div>/.exec(html)[0].includes('data-rz="S8"'), `${view}: 下端のサイズ変更の取っ手は無い`);
-    const plan = tagOf(html, 'data-dragsess="S8"');
-    assert.ok(/class="blk task plan[ "]/.test(plan) && plan.includes('draggable="true"'), `${view}: 予定のブロック ${plan}`);
-    assert.ok(/data-dragsess="S8"[^>]*><span class="tm">09:00-10:00<\/span>/.test(html), `${view}: 予定のブロックの文字は予定の時刻（✓・未確認なし）`);
+    assert.ok(/data-actbar="S8"[^>]*><span class="tm">実績 13:00-14:00 ✓<\/span>/.test(html), `${view}: 文字は実績の時刻と ✓`);
+    assert.match(bar, /title="ログの収集\(実績\) 予定 10\/15 09:00-10:00"/, `${view}: title に予定の時刻`);
+    assert.ok(blkOf(html, 'data-actbar="S8"').includes('<span class="pl">予定 10/15 09:00-10:00</span>'), `${view}: 1 時間以上のブロックには、予定の時刻を小さな文字で添える`);
+    assert.ok(!/\bunconf\b/.test(bar) && !/\bunconf\b/.test(gh), `${view}: 過ぎていても未確認にしない`);
   }
-  { // 週表示では actual.date の列に入る
-    s8(d).actual = { date: "2026-10-16", start: "13:00", end: "14:00" };
-    const html = renderCalendar(d, TODAY, { view: "week", date: S8_DAY, now: NOW });
-    const col = (day) => html.match(new RegExp(`<div class="col dz[^"]*" data-date="${day}">[^]*?(?=<div class="col dz|$)`))?.[0] ?? "";
-    assert.ok(col("2026-10-16").includes('data-actbar="S8"') && !col(S8_DAY).includes('data-actbar="S8"'));
-    assert.ok(col(S8_DAY).includes('data-dragsess="S8"') && !col("2026-10-16").includes('data-dragsess="S8"'));
-  }
+  delete s8(d).actual;
+  assert.ok(/\bunconf\b/.test(tagOf(renderCalendar(d, TODAY, { view: "day", date: S8_DAY, now: NOW }), 'data-dragsess="S8"')), "actual が無ければ未確認");
 });
 
-test("renderCalendar: 予定が表示範囲外で actual.date だけが範囲内でも、実績の帯が出て、予定のブロックは出ない", () => {
+test("renderCalendar: 実績が予定と別の日: 実績のブロックは actual.date の列、影は予定の日付の列", () => {
+  const d = load();
+  s8(d).actual = { date: "2026-10-16", start: "13:00", end: "14:00" };
+  const html = renderCalendar(d, TODAY, { view: "week", date: S8_DAY, now: NOW });
+  assert.ok(colOf(html, "2026-10-16").includes('data-actbar="S8"') && !colOf(html, S8_DAY).includes('data-actbar="S8"'));
+  assert.ok(colOf(html, S8_DAY).includes('data-ghost="S8"') && !colOf(html, "2026-10-16").includes('data-ghost="S8"'));
+  assert.ok(!html.includes('data-dragsess="S8"'));
+  assert.ok(renderCalendar(d, TODAY, { view: "day", date: S8_DAY, now: NOW }).includes('data-ghost="S8"') && !renderCalendar(d, TODAY, { view: "day", date: S8_DAY, now: NOW }).includes('data-actbar="S8"'), "日表示: 予定の日は影だけ");
+  assert.ok(!renderCalendar(d, TODAY, { view: "day", date: "2026-10-16", now: NOW }).includes('data-ghost="S8"'), "日表示: 実績の日は実績のブロックだけ");
+});
+
+test("renderCalendar: 表示範囲に実績の日だけが入る週・予定の日だけが入る週で、例外にならず、描ける方だけ描く", () => {
   const d = load();
   s8(d).actual = { date: TODAY, start: "08:00", end: "09:00" }; // 予定は 10/15（前の週）
   for (const view of ["week", "day"]) {
     const html = renderCalendar(d, TODAY, { view, date: TODAY, now: NOW });
-    assert.ok(html.includes('data-actbar="S8"') && !html.includes('data-dragsess="S8"'), view);
+    assert.ok(html.includes('data-actbar="S8"') && !html.includes('data-dragsess="S8"') && !html.includes('data-ghost="S8"'), `${view}: 実績の日だけ`);
+    const pl = renderCalendar(d, TODAY, { view, date: S8_DAY, now: NOW });
+    assert.ok(pl.includes('data-ghost="S8"') && !pl.includes('data-actbar="S8"') && !pl.includes('data-dragsess="S8"'), `${view}: 予定の日だけ`);
   }
   // 選んだ枠の入力欄は、予定の枠が表示範囲外でも出る（初期値は実績の値）
   const sel = renderSchedule(d, TODAY, { view: "week", date: TODAY, now: NOW, selSess: "S8", taskEdit: { id: "AC-0001", full: false, askDel: false } });
   assert.ok(sel.includes('data-actsave="S8"') && sel.includes('data-actclear="S8"'), "実績の入力欄");
   assert.ok(sel.includes('data-ac="start" value="08:00"') && sel.includes('data-ac="end" value="09:00"'));
-  assert.ok(/class="blk task act[^"]*sel[^"]*"[^>]*data-actbar="S8"/.test(sel), "実績の帯が選択中");
+  assert.ok(/class="blk task act[^"]*sel[^"]*"[^>]*data-actbar="S8"/.test(sel), "実績のブロックが選択中");
   assert.ok(sel.includes("「ログの収集」の枠を削除"));
 });
 
-test("renderCalendar: 予定と実績が重なる列では、予定が左半分・実績が右半分", () => {
-  const d = load(); // S8 はそのまま（予定 09:00–10:00、実績 09:10–10:10）
+test("renderCalendar: 実績を持たない予定の枠が、実績のブロックと重なると、今までどおり左右に割る。実績を持つ枠の影は、割りに影響しない", () => {
+  const d = load(); // S8: 予定 09:00–10:00（影）、実績 09:10–10:10
+  d.tasks.find((t) => t.id === "AA-0005").sessions.push(
+    { id: "S31", date: S8_DAY, start: "08:00", end: "09:05", kind: "planned" }, // 影とだけ重なる
+    { id: "S32", date: S8_DAY, start: "10:00", end: "11:00", kind: "planned" }, // 実績のブロックと重なる
+  );
   for (const view of ["week", "day"]) {
     const html = renderCalendar(d, TODAY, { view, date: S8_DAY, now: NOW });
-    assert.match(styleOf(tagOf(html, 'data-dragsess="S8"')), /;left:0;width:50%$/, `${view} 予定は左半分`);
-    assert.match(styleOf(tagOf(html, 'data-actbar="S8"')), /;left:50%;width:50%$/, `${view} 実績は右半分`);
+    assert.ok(!/left:|width:/.test(styleOf(tagOf(html, 'data-dragsess="S31"'))), `${view}: 影とだけ重なる予定は全幅`);
+    assert.match(styleOf(tagOf(html, 'data-dragsess="S32"')), /;left:0;width:50%$/, `${view}: 予定は左半分`);
+    assert.match(styleOf(tagOf(html, 'data-actbar="S8"')), /;left:50%;width:50%$/, `${view}: 実績は右半分`);
+    assert.ok(!/left:|width:/.test(styleOf(tagOf(html, 'data-ghost="S8"'))), `${view}: 影は割らない`);
   }
 });
 
-test("renderCalendar: actual を持つ予定の枠は、過ぎていても class unconf を持たない", () => {
+test("renderCalendar: 実績を持たない予定の枠・実績だけの枠・実績を持たない会議は、変更前と同じ属性（data-dragsess・draggable・data-dragmtg・取っ手）で出る", () => {
   const d = load();
-  const html = renderCalendar(d, TODAY, { view: "day", date: S8_DAY, now: NOW });
-  assert.ok(!/\bunconf\b/.test(tagOf(html, 'data-dragsess="S8"')), html);
-  delete s8(d).actual;
-  assert.ok(/\bunconf\b/.test(tagOf(renderCalendar(d, TODAY, { view: "day", date: S8_DAY, now: NOW }), 'data-dragsess="S8"')), "actual が無ければ未確認");
+  const same = {
+    S3: ["2026-10-21", '<div class="blk task plan " draggable="true" tabindex="0" data-dragsess="S3" style="top:58.333%;height:calc(8.333% - 2px)" title="切替手順書の作成(予定)"><span class="tm">14:00-16:00</span><span class="ttl">切替手順書の作成</span><i class="rz" data-rz="S3" aria-label="終了時刻を変更"></i></div>', 'data-dragsess="S3"'],
+    S2: ["2026-10-19", '<div class="blk task act " draggable="true" tabindex="0" data-dragsess="S2" style="top:41.667%;height:calc(6.250% - 2px)" title="切替手順書の作成(実績)"><span class="tm">10:00-11:30 ✓</span><span class="ttl">切替手順書の作成</span><i class="rz" data-rz="S2" aria-label="終了時刻を変更"></i></div>', 'data-dragsess="S2"'],
+    m2: [TODAY, '<div class="blk mtg   " data-mtg="m2" tabindex="0" draggable="true" data-dragmtg="m2" style="top:54.167%;height:calc(4.167% - 2px)" title="ベンダーX 打合せ"><span class="tm">13:00-14:00</span>ベンダーX 打合せ<i class="rz" data-rzm="m2" aria-label="終了時刻を変更"></i></div>', 'data-mtg="m2"'],
+    m3: ["2026-10-21", '<div class="blk mtg   " data-mtg="m3" tabindex="0"  style="top:41.667%;height:calc(4.167% - 2px)" title="部内会議(予定表から取得)"><span class="tm">10:00-11:00</span>部内会議</div>', 'data-mtg="m3"'],
+  };
+  for (const [id, [date, want, attr]] of Object.entries(same)) assert.equal(blkOf(renderCalendar(d, TODAY, { view: "week", date, now: NOW }), attr), want, id);
 });
 
 test("renderSchedule: サマリーの実績の時間が、actual.date の日で数えられる", () => {
@@ -2104,7 +2186,7 @@ test("今日のタスクの札: actual を持つ枠は「実績」の札と実�
   assert.ok(row.includes('<span class="ktag act">実績</span>09:10–10:10<small class="muted">予定 09:00–10:00</small>'), row);
 });
 
-test("sessionSelection: 実績の帯の枠 ID（予定の枠の ID）でも、その枠が選ばれる", () => {
+test("sessionSelection: 実績のブロックの枠 ID（予定の枠の ID）でも、その枠が選ばれる", () => {
   assert.deepEqual(sessionSelection(load(), "S8", null), { selSess: "S8", taskEdit: { id: "AC-0001", full: false, askDel: false } });
 });
 
