@@ -3592,7 +3592,7 @@ function renderTodayTasks(data, today, opts = {}) {
 }
 
 /** 今日の ToDo（スケジュール画面の右の列）。今日の日の ToDo を、件名とその日の枠の時間つきで出す。未完了を先に（枠の開始順）、完了は薄く末尾。0 件なら空文字
- *  @param opts.sched  true なら、未完了の行をカレンダーへドラッグできる（予定の枠を置く）。省略なら、パネルごと出さない
+ *  @param opts.sched  true なら、未完了の行をカレンダーへドラッグできる（予定の枠を置く）。省略なら、ドラッグの属性を付けない（スケジュール画面だけに出すのは、`renderSide` が決める）
  *  @param opts.now    {date, time} 現在時刻（過ぎた予定を未確認にする。省略は today の 00:00） */
 function renderTodayTodos(data, today, opts = {}) {
   const now = opts.now ?? { date: today, time: "00:00" };
