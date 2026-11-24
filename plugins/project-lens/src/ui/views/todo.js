@@ -1,9 +1,9 @@
-// 「ToDo」画面: 表示中の週のタスクの一覧（weekTasks。組ごと）、行の完了の入力欄、週の見返し（weekSummary）。操作の結線は app.js（data-td*・data-tf*）。
+// 「ToDo」画面: 左に今日の ToDo（todayTasks。今日の枠の時刻と札）、右に表示中の週のタスク候補（weekTasks。組ごと）、行の完了の入力欄、週の見返し（weekSummary）。操作の結線は app.js（data-td*・data-tf*）。
 import { addDays } from "../../core/dates.js";
-import { weekTasks, weekSummary } from "../../core/week.js";
-import { futurePlanned } from "../../core/sessions.js";
+import { weekTasks, weekSummary, todayTasks } from "../../core/week.js";
+import { futurePlanned, actualSlots } from "../../core/sessions.js";
 import { esc, fmtMD, dateInputHtml } from "../common.js";
-import { statusPill } from "./prio.js";
+import { statusPill, slotHtml } from "./prio.js";
 
 const GROUP_JA = { overdue: "期限超過", scheduled: "今週に予定あり", due: "今週の期限", done: "完了" };
 /** 完了の入力欄で選べる状態（completeTask と同じ。Waiting は選べない） */
@@ -35,15 +35,17 @@ function completeForm(data, t, day, now, draft) {
   </div>`;
 }
 
-/** 一覧の 1 行 */
+/** 一覧の 1 行（左右の列で共通）。r.slots があれば（今日の ToDo）、今日の枠の時刻と札を足す。入力欄は、開いた列（ctx.col）の行にだけ出す */
 function row(data, r, ctx) {
   const t = r.task, id = esc(t.id);
   const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? "プロジェクトなし");
-  const done = r.group === "done";
+  const done = t.status === "Done";
+  const open = ctx.open === t.id && ctx.openCol === ctx.col;
   return `<li class="td-row${done ? " closed" : ""}" data-tdrow="${id}">
-    <div class="td-main"><span class="pj">${proj}</span><span class="td-title">${esc(t.title)}</span>${statusPill(t)}${r.waiting ? `<span class="pill wait">前のタスク待ち</span>` : ""}${done ? "" : `<button class="btn" data-tdopen="${id}" aria-expanded="${ctx.open === t.id}">完了</button>`}</div>
+    <div class="td-main"><span class="pj">${proj}</span><span class="td-title">${esc(t.title)}</span>${statusPill(t)}${r.waiting ? `<span class="pill wait">前のタスク待ち</span>` : ""}${done ? "" : `<button class="btn" data-tdopen="${id}" data-tdcol="${ctx.col}" aria-expanded="${open}">完了</button>`}</div>
+    ${r.slots ? `<div class="td-slots mono">${r.slots.map((s) => slotHtml(s, ctx.now, ctx.actuals)).join("")}</div>` : ""}
     <div class="td-meta">${t.due ? `<span>期限 <b class="mono">${fmtMD(t.due)}</b></span>` : ""}${r.checked ? `<span>チェック <b class="mono">${progress(r)}</b></span>` : ""}<span>予定 <b class="mono">${r.planned}</b> 分</span><span>実績 <b class="mono">${r.actual}</b> 分</span></div>
-    ${ctx.open === t.id ? completeForm(data, t, ctx.day, ctx.now, ctx.draft) : ""}
+    ${open ? completeForm(data, t, ctx.day, ctx.now, ctx.draft) : ""}
   </li>`;
 }
 
@@ -54,22 +56,32 @@ export const completeInput = (dr) => ({ actual: dr.start || dr.end ? { date: dr.
  * @param opts.week  表示中の週の月曜日
  * @param opts.now   {date, time} 未来の予定の枠の判定
  * @param opts.open  完了の入力欄を開いているタスクの ID か null
+ * @param opts.col   入力欄を開いた列（"today" か "week"。省略は "week"）。同じタスクが左右にあっても、この列の行にだけ出す
  * @param opts.draft 完了の入力欄の下書き（{ key: タスクの ID, date, start, end, status, checks: { 項目 ID: 済みか } }）か null
  */
 export function renderTodo(data, today, opts) {
-  const { week, now, open = null, draft = null } = opts;
+  const { week, now, open = null, col = "week", draft = null } = opts;
   const weekEnd = addDays(week, 6);
-  const ctx = { open, draft, now, day: today >= week && today <= weekEnd ? today : week };
+  const base = { open, openCol: col, draft, now, actuals: actualSlots(data) };
+  const ctx = { ...base, col: "week", day: today >= week && today <= weekEnd ? today : week };
+  const todayCtx = { ...base, col: "today", day: today };
   const rows = weekTasks(data, week, today);
   const groups = Object.keys(GROUP_JA).map((g) => [g, rows.filter((r) => r.group === g)]).filter(([, rs]) => rs.length);
   const list = groups.length
     ? groups.map(([g, rs]) => `<h3>${GROUP_JA[g]}</h3><ul class="tdlist">${rs.map((r) => row(data, r, ctx)).join("")}</ul>`).join("")
     : `<p class="muted">この週のタスクはありません。</p>`;
+  const trows = todayTasks(data, today);
+  const tlist = trows.length
+    ? `<ul class="tdlist">${trows.map((r) => row(data, r, todayCtx)).join("")}</ul>`
+    : `<p class="muted">今日の枠のあるタスクはありません。</p>`;
   const rv = weekSummary(data, week, today);
   const trs = rv.rows.map((r) => `<tr><td>${esc(r.task.title)}</td><td class="num mono">${progress(r)}</td><td class="num mono">${r.planned} 分</td><td class="num mono">${r.actual} 分</td></tr>`).join("");
   return `<div class="tdpage">
     <div class="toolbar"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn" data-tdweek="-1" aria-label="前の週">←</button><button class="btn" data-tdweek="1" aria-label="次の週">→</button><button class="btn" data-tdweek-today>今週</button><strong style="margin-left:6px">${fmtMD(week)}〜${fmtMD(weekEnd)} の週</strong></div></div>
-    <section class="panel tdweek" aria-label="この週のタスク"><h2>この週のタスク</h2>${list}</section>
+    <div class="tdcols">
+      <section class="panel tdtoday" aria-label="今日の ToDo"><h2>今日の ToDo（${fmtMD(today)}）</h2>${tlist}</section>
+      <section class="panel tdweek" aria-label="この週のタスク候補"><h2>この週のタスク候補</h2>${list}</section>
+    </div>
     <section class="tdreview panel" aria-label="週の見返し"><h2>週の見返し（${fmtMD(week)}〜${fmtMD(weekEnd)}）</h2>
       <p class="td-sum"><b>完了 ${rv.done} / ${rv.total} 件</b>　予定 ${rv.planned} 分に対して実績 ${rv.actual} 分</p>
       <div class="tscroll"><table class="tbl"><thead><tr><th>タスク</th><th class="num">進捗</th><th class="num">予定</th><th class="num">実績</th></tr></thead><tbody>${trs}</tbody></table></div>

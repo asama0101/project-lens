@@ -447,10 +447,12 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .tpop .tp-r{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
 .tpop .tp-a{display:flex;gap:8px;justify-content:space-between}
 
-/* ToDo 画面: 上に週のタスクの一覧（組ごと）、下に週の見返し */
+/* ToDo 画面: 上に 2 列（左に今日の ToDo、右に週のタスク候補（組ごと）。狭い幅では縦に並べる）、下に週の見返し */
 .tdpage .toolbar{margin-bottom:12px}
-.tdweek{margin-bottom:16px}
-.tdweek h3{margin:14px 0 6px;font-size:13px;color:var(--muted)}
+.tdcols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start;margin-bottom:16px}
+@media(max-width:700px){.tdcols{grid-template-columns:minmax(0,1fr)}}
+.td-slots{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px}
+.td-slots .ts{display:inline-flex;align-items:center;gap:6px}.tdweek h3{margin:14px 0 6px;font-size:13px;color:var(--muted)}
 .tdweek h3:first-of-type{margin-top:0}
 .tdlist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
 .tdlist>li{border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:6px}

@@ -788,7 +788,7 @@ test("ToDo タブ: index.html のタブ（スケジュールと稼働の間）�
   assert.ok(html.indexOf('id="tab-schedule"') < html.indexOf('id="tab-todo"') && html.indexOf('id="tab-todo"') < html.indexOf('id="tab-workload"'));
   assert.ok(src.includes("S.screen = b.id.slice(4)"), "tab-todo のクリックで S.screen が todo になる");
   const body = src.slice(src.indexOf("function renderBody()"), src.indexOf("function placeTaskPop"));
-  assert.ok(body.includes('S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, draft: S.tdDraft });'), body);
+  assert.ok(body.includes('S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, col: S.tdCol, draft: S.tdDraft });'), body);
   const build = readFileSync(new URL("../plugins/project-lens/tools/build.js", import.meta.url), "utf8");
   assert.ok(build.indexOf('"src/ui/views/schedule.js"') < build.indexOf('"src/ui/views/todo.js"'));
 });
@@ -799,18 +799,18 @@ test("ToDo タブ: 古い ToDo の状態・ハンドラ・関数は無い", () =
 });
 
 test("ToDo タブ: 状態（S.todoWeek・S.tdOpen・S.tdDraft）。描き直しで、無いタスクの入力欄を閉じる。画面の移動・週の移動・clearSel で閉じる", () => {
-  assert.match(src, /todoWeek: mondayOf\(clock\(\)\.date\), tdOpen: null, tdDraft: null/);
-  assert.ok(src.includes("if (S.tdOpen && !S.data?.tasks.some((t) => t.id === S.tdOpen)) { S.tdOpen = null; S.tdDraft = null; }"));
-  assert.match(src, /const clearSel = \(\) => \{[^\n]*S\.tdOpen = null; S\.tdDraft = null;/);
-  assert.match(src, /function moveTodoWeek\(week\) \{[^}]*S\.tdOpen = null; S\.tdDraft = null;/);
+  assert.match(src, /todoWeek: mondayOf\(clock\(\)\.date\), tdOpen: null, tdCol: null, tdDraft: null/);
+  assert.ok(src.includes('if (S.tdOpen && (!S.data?.tasks.some((t) => t.id === S.tdOpen) || !["today", "week"].includes(S.tdCol))) { S.tdOpen = null; S.tdCol = null; S.tdDraft = null; }'), "無いタスク・列の値が無い／不正なら閉じる");
+  assert.match(src, /const clearSel = \(\) => \{[^\n]*S\.tdOpen = null; S\.tdCol = null; S\.tdDraft = null;/);
+  assert.match(src, /function moveTodoWeek\(week\) \{[^}]*S\.tdOpen = null; S\.tdCol = null; S\.tdDraft = null;/);
 });
 
 test("ToDo タブ: 完了（data-tdopen）は開閉。残りをすべてチェック（data-tdckall）は描き直さずに欄を変える。キャンセル（data-tdcancel）は閉じる", () => {
-  assert.match(src, /const tdo = q\("\[data-tdopen\]"\);\s*if \(tdo\) \{ const id = tdo\.dataset\.tdopen; S\.tdOpen = S\.tdOpen === id \? null : id; S\.tdDraft = null;/);
+  assert.match(src, /const tdo = q\("\[data-tdopen\]"\);\s*if \(tdo\) \{ const id = tdo\.dataset\.tdopen, col = tdo\.dataset\.tdcol, same = S\.tdOpen === id && S\.tdCol === col; S\.tdOpen = same \? null : id; S\.tdCol = same \? null : col; S\.tdDraft = null;/); // 押した列（S.tdCol）の行にだけ開く。同じ列の同じ行で閉じる
   const i = src.indexOf('q("[data-tdckall]")'), a = src.slice(i, i + 600);
   assert.ok(i > 0 && a.includes("[data-tfck]") && a.includes(".checked = true") && !a.includes("render()"), a);
   assert.ok(a.indexOf(".checked = true") < a.indexOf("if (key && key === S.tdOpen) S.tdDraft = tdFormDraft(form, key);"), "change が起きないので、チェックを付けたあとで下書きへ写す（読み直しの描き直しで戻らない）");
-  assert.match(src, /q\("\[data-tdcancel\]"\)\) \{ S\.tdOpen = null; S\.tdDraft = null; render\(\); return; \}/);
+  assert.match(src, /q\("\[data-tdcancel\]"\)\) \{ S\.tdOpen = null; S\.tdCol = null; S\.tdDraft = null; render\(\); return; \}/);
 });
 
 test("ToDo タブ: 保存（data-tdsave）は、欄の値を先に S.tdDraft へ写してから completeTask を apply に通す。成功で閉じて、状態・解除・次回を通知する", () => {
@@ -819,7 +819,7 @@ test("ToDo タブ: 保存（data-tdsave）は、欄の値を先に S.tdDraft へ
   assert.ok(a.indexOf("S.tdDraft = tdFormDraft(") >= 0 && a.indexOf("S.tdDraft = tdFormDraft(") < a.indexOf("completeTask(d, id"), "下書きが先");
   assert.match(src, /function tdFormDraft\(form, key\) \{[^]*?return \{ key, date: f\("date"\), start: f\("start"\), end: f\("end"\), status: f\("status"\), checks \};/);
   assert.match(a, /apply\(\(d\) => \{ r = completeTask\(d, id, completeInput\(draft\), now\); return r\.data; \}, null, \{ quiet: true \}\)/); // 入力の変換は views.test.js の completeInput
-  assert.match(a, /S\.tdOpen = null; S\.tdDraft = null; render\(\);/);
+  assert.match(a, /S\.tdOpen = null; S\.tdCol = null; S\.tdDraft = null; render\(\);/);
   for (const s of ["にしました", "未来の予定の枠 ${r.released} 件を解除しました", "次回（期限"]) assert.ok(a.includes(s), s);
   assert.ok(src.includes("if (el.dataset.tdnote !== undefined) {") && src.includes("setReview(d, wk, text)"), "気づきは change で setReview");
 });

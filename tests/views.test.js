@@ -2217,8 +2217,12 @@ const tdData = (reviews) => ({
   ],
 });
 const tdHtml = (d, o = {}) => renderTodo(d, TODAY, { week: TD_WEEK, now: TD_NOW, open: null, draft: null, ...o });
-const tdRow = (html, id) => html.match(new RegExp(`<li[^>]*data-tdrow="${id}"[^]*?</li>`))?.[0] ?? "";
-const tdList = (html) => html.slice(0, html.indexOf('class="tdreview'));
+const rowIn = (html, id) => html.match(new RegExp(`<li[^>]*data-tdrow="${id}"[^]*?</li>`))?.[0] ?? "";
+/** 右の列（この週のタスク候補）と、左の列（今日の ToDo） */
+const tdList = (html) => html.slice(html.indexOf('class="panel tdweek'), html.indexOf('class="tdreview'));
+const tdTodayCol = (html) => html.slice(html.indexOf('class="panel tdtoday'), html.indexOf('class="panel tdweek'));
+const tdRow = (html, id) => rowIn(tdList(html), id);
+const tdTodayRow = (html, id) => rowIn(tdTodayCol(html), id);
 
 test("renderTodo: 一覧に、組の見出し（期限超過・今週に予定あり・今週の期限・完了）の順で、件名・プロジェクト名・状態・期限・進捗・予定と実績の分が出る。Cancelled と ID は出ない", () => {
   const html = tdHtml(tdData()), list = tdList(html);
@@ -2310,6 +2314,62 @@ test("renderTodo: 件名・プロジェクト名・チェックの項目・気�
 test("renderTodo: 週にタスクが無ければ、一覧は案内だけ。見返しは 0 件", () => {
   const html = tdHtml({ ...tdData(), tasks: [] });
   assert.ok(!html.includes("data-tdrow=") && html.includes("この週のタスクはありません") && html.includes("完了 0 / 0 件"));
+});
+
+test("renderTodo: 左に『今日の ToDo（M/D）』、右に『この週のタスク候補』の見出しが、この順に出る。古い見出し「この週のタスク」だけの見出しは無い", () => {
+  const html = tdHtml(tdData());
+  const l = html.indexOf("<h2>今日の ToDo（10/20）</h2>"), r = html.indexOf("<h2>この週のタスク候補</h2>");
+  assert.ok(l >= 0 && r > l, `${l},${r}`);
+  assert.ok(!html.includes("<h2>この週のタスク</h2>"));
+  assert.ok(html.includes('class="tdcols"'), "2 列の入れ物");
+});
+
+test("renderTodo: 左の行に、今日の枠の時刻と札（予定・未確認・実績）と、右と同じ部品が出る。ID は出ない。未完了は最初の枠の開始順、Done は末尾", () => {
+  const d = tdData();
+  d.tasks.push(tdTask("AA-0006", { title: "朝のタスク", sessions: [
+    { id: "S6", date: TODAY, start: "08:00", end: "09:00", kind: "planned" },
+    { id: "S7", date: TODAY, start: "09:00", end: "09:30", kind: "actual" },
+  ] }));
+  d.tasks.push(tdTask("AA-0007", { title: "済んだ今日のタスク", status: "Done", sessions: [{ id: "S8", date: TODAY, start: "07:00", end: "07:30", kind: "planned" }] }));
+  const html = tdHtml(d), col = tdTodayCol(html);
+  const order = ["AA-0006", "AA-0002", "AA-0007"].map((id) => col.indexOf(`data-tdrow="${id}"`));
+  assert.ok(order.every((i) => i >= 0) && order[0] < order[1] && order[1] < order[2], order.join(","));
+  assert.ok(!col.includes('data-tdrow="AA-0001"') && !col.includes("中止のタスク"), "今日の枠が無いタスク・Cancelled は出ない");
+  const a = tdTodayRow(html, "AA-0006"), b = tdTodayRow(html, "AA-0002");
+  assert.ok(a.includes('<span class="ktag unconf">未確認</span>08:00–09:00'), a);
+  assert.ok(a.includes('<span class="ktag act">実績</span>09:00–09:30'), a);
+  assert.ok(b.includes('<span class="ktag plan">予定</span>15:00–16:00'), b);
+  for (const s of ["予定のタスク", "案件X", "In Progress", "11/10", "予定 <b class=\"mono\">60</b> 分", "実績 <b class=\"mono\">0</b> 分", 'data-tdopen="AA-0002"']) assert.ok(b.includes(s), `${s}: ${b}`);
+  const c = tdTodayRow(html, "AA-0007");
+  assert.ok(c.includes("closed") && !c.includes("data-tdopen"), "Done の行は閉じた見た目で、完了ボタンが無い");
+  assert.ok(!TASK_ID.test(visibleText(col)), visibleText(col).match(TASK_ID)?.[0]);
+});
+
+test("renderTodo: 今日の枠のあるタスクが無いとき、左に空の文が出る", () => {
+  const d = tdData();
+  d.tasks = d.tasks.filter((t) => t.id !== "AA-0002");
+  const col = tdTodayCol(tdHtml(d));
+  assert.ok(col.includes("今日の枠のあるタスクはありません") && !col.includes("data-tdrow="), col);
+});
+
+test("renderTodo: 表示中の週が今日の週でなくても、左は今日のタスクを出す", () => {
+  const html = tdHtml(tdData(), { week: "2026-11-02" });
+  assert.ok(html.includes("<h2>今日の ToDo（10/20）</h2>"));
+  assert.ok(tdTodayRow(html, "AA-0002").includes("15:00–16:00"));
+  assert.equal(tdRow(html, "AA-0002"), "", "右は表示中の週のまま");
+});
+
+test("renderTodo: 『完了』を左の行で押したとき（col: today）、入力欄は左の行にだけ出る。col: week なら右の行にだけ。左の入力欄の日付は今日", () => {
+  const l = tdHtml(tdData(), { open: "AA-0002", col: "today" });
+  assert.ok(tdTodayRow(l, "AA-0002").includes("data-tf="), "左に出る");
+  assert.ok(!tdRow(l, "AA-0002").includes("data-tf="), "右には出ない");
+  assert.equal(l.split('data-tdsave="AA-0002"').length, 2, "入力欄は 1 つだけ");
+  assert.ok(tdTodayRow(l, "AA-0002").includes('data-tdopen="AA-0002" data-tdcol="today" aria-expanded="true"'), "左のボタンだけ開いた印");
+  assert.ok(tdRow(l, "AA-0002").includes('data-tdcol="week" aria-expanded="false"'));
+  const w = tdHtml(tdData(), { open: "AA-0002", col: "week" });
+  assert.ok(!tdTodayRow(w, "AA-0002").includes("data-tf=") && tdRow(w, "AA-0002").includes("data-tf="));
+  const other = tdTodayRow(tdHtml(tdData(), { week: "2026-11-02", open: "AA-0002", col: "today" }), "AA-0002");
+  assert.match(other, /data-tf="date" value="2026-10-20"/, "表示中の週の外でも、左は今日");
 });
 
 /** 描いた入力欄の初期値を読む（app.js の tdFormDraft と同じ形） */

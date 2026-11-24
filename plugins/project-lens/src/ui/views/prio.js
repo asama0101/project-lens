@@ -11,8 +11,8 @@ export const statusPill = (t) => `<span class="pill ${PILL[t.status] ?? "off"}">
 /** 枠の種類の札（カレンダーの凡例と同じ色の class。文字でも出す） */
 const KIND_TAG = { planned: ["plan", "予定"], actual: ["act", "実績"], unconfirmed: ["unconf", "未確認"] };
 
-/** 今日のタスクの枠の時間。前に予定・実績・未確認の札を付ける（actuals は全タスクの実績の区間。過ぎた予定に重なる実績があれば、未確認にしない）。実績（actual）を持つ予定の枠は、実績の時刻に、予定の時刻を小さく添える */
-function slotHtml(s, now, actuals) {
+/** 今日のタスクの枠の時間（ToDo 画面の今日の ToDo も使う）。前に予定・実績・未確認の札を付ける（actuals は全タスクの実績の区間。過ぎた予定に重なる実績があれば、未確認にしない）。実績（actual）を持つ予定の枠は、実績の時刻に、予定の時刻を小さく添える */
+export function slotHtml(s, now, actuals) {
   if (s.actual) return `<span class="ts"><span class="ktag act">実績</span>${esc(`${s.actual.start}–${s.actual.end}`)}<small class="muted">${esc(`予定 ${s.start}–${s.end}`)}</small></span>`;
   const [cls, label] = KIND_TAG[sessionKind(s, now, actuals)];
   return `<span class="ts"><span class="ktag ${cls}">${label}</span>${esc(`${s.start}–${s.end}`)}</span>`;
