@@ -61,11 +61,11 @@ const differs = (p, a) => a.start !== p.start || a.end !== p.end || (a.date ?? p
 const ghostHtml = (kind, attr, id, span, title, g) =>
   `<div class="blk ${kind} pghost" ${attr}="${esc(id)}" style="top:${g.tp(toMin(span.start))};height:${g.ht(toMin(span.start), toMin(span.end))}" title="${esc(title)}(予定)"><span class="tm">予定 ${esc(span.start)}-${esc(span.end)}</span></div>`;
 
-/** 会議のブロック。actual を持つ会議（参加しない会議を除く）は、実績の時刻に 1 つ（data-mact）と、時刻が違うときだけ予定の時刻の影。ghosts は影、html はブロック */
+/** 会議のブロック。確認済み（confirmed: true）で actual を持つ会議（参加しない会議を除く）は、実績の時刻に 1 つ（data-mact）と、時刻が違うときだけ予定の時刻の影。ghosts は影、html はブロック */
 function meetingBlocks(data, d, full, g, ctx) {
   const out = { ghosts: "", html: "" };
   for (const m of (data.events ?? []).filter((m) => m.date === d && (ctx.showSkipped || !m.skip || ctx.selMtg === m.id))) {
-    if (!m.skip && m.actual) {
+    if (!m.skip && m.confirmed === true && m.actual) {
       if (differs(m, m.actual)) out.ghosts += ghostHtml("mtg", "data-mghost", m.id, m, m.title, g);
       out.html += meetingActualBlock(data, m, full, g, ctx);
     } else out.html += meetingBlock(data, m, full, g, ctx);

@@ -451,6 +451,25 @@ test("meetingBlocks: confirmed: true で actual の無い会議は、予定の�
   }
 });
 
+test("meetingBlocks: actual があっても confirmed: true でない会議（手で書き換えたデータ）は、data-mact・影を描かず、予定の時刻のふつうの会議のブロックで出る（手動はドラッグ・伸縮できる）", () => {
+  const d = noSessions();
+  Object.assign(d.events.find((e) => e.id === "m1"), { confirmed: false, actual: { start: "09:35", end: "10:20" } });
+  Object.assign(d.events.find((e) => e.id === "m2"), { confirmed: false, actual: { start: "13:15", end: "14:00" } });
+  const g = calendarGeometry();
+  for (const view of ["week", "day"]) {
+    const h = renderSchedule(d, TODAY, { view, date: TODAY, now: NOW15 });
+    for (const id of ["m1", "m2"]) {
+      assert.ok(!h.includes(`data-mact="${id}"`) && !h.includes(`data-mghost="${id}"`), `${view} ${id}: 実績のブロック・影なし`);
+      assert.equal((h.match(new RegExp(`data-mtg="${id}"`, "g")) ?? []).length, 1, `${view} ${id}: ふつうのブロックが 1 つ`);
+    }
+    const b1 = /<div class="blk mtg[^>]*data-mtg="m1"[^>]*>/.exec(h)?.[0] ?? "";
+    assert.ok(b1.includes(`style="top:${g.tp(9 * 60 + 30)};height:${g.ht(9 * 60 + 30, 10 * 60 + 30)}"`), `${view}: 予定の時刻 ${b1}`);
+    assert.ok(!/class="blk mtg\s+act[ "]/.test(b1), `${view}: 実績後の見た目ではない ${b1}`);
+    const b2 = /<div class="blk mtg[^>]*data-mtg="m2"[^>]*>/.exec(h)?.[0] ?? "";
+    assert.ok(b2.includes('draggable="true" data-dragmtg="m2"') && h.includes('data-rzm="m2"'), `${view}: 手動はドラッグ・伸縮できる ${b2}`);
+  }
+});
+
 test("renderSchedule: 凡例（会議・予定・実績・未確認・現在時刻（週・日とも））。空き時間の凡例は出さない", () => {
   const day = sched(load());
   for (const w of ["会議", "予定", "実績", "未確認", "現在時刻"]) assert.ok(day.includes(w), w);
