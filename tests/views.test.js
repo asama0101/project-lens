@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { addDays, diffDays } from "../plugins/project-lens/src/core/dates.js";
 import { renderProjects } from "../plugins/project-lens/src/ui/views/project.js";
 import { renderGantt, assignLevels, layoutMilestones } from "../plugins/project-lens/src/ui/views/gantt.js";
-import { renderPrio, renderTodayTasks, todayTaskIds, doneAskHtml } from "../plugins/project-lens/src/ui/views/prio.js";
+import { renderPrio, renderSide, renderTodayTasks, renderTodayTodos, todayTaskIds, doneAskHtml } from "../plugins/project-lens/src/ui/views/prio.js";
 import { renderSettings } from "../plugins/project-lens/src/ui/views/settings.js";
 import { checkMeterHtml, dateInputHtml } from "../plugins/project-lens/src/ui/common.js";
 import { checklistEditorHtml } from "../plugins/project-lens/src/ui/views/checklist.js";
@@ -2116,4 +2116,24 @@ test("renderTodo: ToDo が 1 件もなくても、空の列と追加の入力が
   const html = tdHtml(tdData([]));
   for (const a of ['data-tdcol="week"', 'data-tdcol="day"', 'data-tdnew="week"', 'data-tdnew="day"', 'class="tdreview', "完了 0 / 0 件"]) assert.ok(html.includes(a), a);
   assert.ok(!html.includes("data-todo="));
+});
+
+test("renderSide（sched: true）: 今日の ToDo の行が、今日のタスクの前に出て、完了していない行だけ data-dragtask を持つ", () => {
+  const d = load();
+  d.todos.find((t) => t.id === "T-0004").sessions = [{ id: "S8", date: TODAY, start: "11:00", end: "12:00", kind: "planned" }];
+  d.tasks.find((t) => t.id === "AA-0005").sessions = [{ id: "s5", date: TODAY, start: "14:00", end: "15:00", kind: "planned" }];
+  const html = renderSide(d, TODAY, { sched: true, now: NOW });
+  assert.ok(html.indexOf("今日の ToDo") >= 0 && html.indexOf("今日の ToDo") < html.indexOf("今日のタスク"), "今日のタスクの前");
+  const lis = [...html.slice(0, html.indexOf("今日のタスク")).matchAll(/<li[^>]*>[\s\S]*?<\/li>/g)].map((m) => m[0]);
+  assert.equal(lis.length, 2);
+  const [open, done] = lis;
+  assert.ok(open.includes("経費精算") && open.includes('draggable="true"') && open.includes('data-dragtask="T-0004"') && open.includes("11:00–12:00") && open.includes("ktag plan"), "未完了");
+  assert.ok(done.includes("納期の問い合わせメールを送る") && done.includes('class="closed"') && !done.includes("draggable") && !done.includes("data-dragtask") && done.includes("13:00–13:30") && done.includes("ktag act"), "完了は薄く末尾・ドラッグ不可");
+  assert.ok(!html.slice(html.indexOf("今日のタスク")).includes("T-0004"), "今日のタスクに ToDo は出ない");
+  assert.ok(!html.includes("T-0001") && !html.includes("ベンダーX へ納期の再確認"), "週の ToDo は出ない");
+  assert.ok(!renderSide(d, TODAY, { sched: false, now: NOW }).includes("今日の ToDo"), "ガント・リストでは出ない");
+  assert.ok(!renderSide(d, TODAY, { now: NOW }).includes("今日の ToDo"));
+  d.todos = [];
+  assert.equal(renderTodayTodos(d, TODAY, { sched: true }), "");
+  assert.ok(!renderSide(d, TODAY, { sched: true, now: NOW }).includes("今日の ToDo"), "0 件なら出ない");
 });

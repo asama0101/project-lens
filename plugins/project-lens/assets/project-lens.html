@@ -3531,7 +3531,7 @@ return { summarizeSections, planOps, applyProposal, approveEdit };
 })();
 
 /* src/ui/views/prio.js */
-const { doneAskHtml, todayTaskIds, renderTodayTasks, renderPrio, renderSide, renderSideToggle } = (() => {
+const { doneAskHtml, todayTaskIds, renderTodayTasks, renderTodayTodos, renderPrio, renderSide, renderSideToggle } = (() => {
 // 「今日のタスク」「今日の優先」パネル（プロジェクト画面・スケジュール画面で共通。右の列に並ぶ）
 
 
@@ -3591,6 +3591,23 @@ function renderTodayTasks(data, today, opts = {}) {
   return `<section class="panel todaytasks" aria-labelledby="h-td"><h2 id="h-td">今日のタスク</h2><ul class="rank tl">${items}</ul></section>`;
 }
 
+/** 今日の ToDo（スケジュール画面の右の列）。今日の日の ToDo を、件名とその日の枠の時間つきで出す。未完了を先に（枠の開始順）、完了は薄く末尾。0 件なら空文字
+ *  @param opts.sched  true なら、未完了の行をカレンダーへドラッグできる（予定の枠を置く）。省略なら、パネルごと出さない
+ *  @param opts.now    {date, time} 現在時刻（過ぎた予定を未確認にする。省略は today の 00:00） */
+function renderTodayTodos(data, today, opts = {}) {
+  const now = opts.now ?? { date: today, time: "00:00" };
+  const rows = (data.todos ?? []).filter((t) => t.scope === "day" && t.date === today)
+    .map((t) => ({ t, slots: (t.sessions ?? []).filter((s) => s.date === today).sort((a, b) => a.start.localeCompare(b.start)) }))
+    .sort((a, b) => !!a.t.doneAt - !!b.t.doneAt || (a.slots[0]?.start ?? "").localeCompare(b.slots[0]?.start ?? ""));
+  if (!rows.length) return "";
+  const actuals = actualSlots(data);
+  const items = rows.map(({ t, slots }) => {
+    const closed = !!t.doneAt, drag = opts.sched && !closed ? ` draggable="true" data-dragtask="${esc(t.id)}"` : "";
+    return `<li${closed ? ' class="closed"' : ""}${drag}><span class="t">${esc(t.title)}</span><span class="why mono tss">${slots.map((s) => slotHtml(s, now, actuals)).join("")}</span></li>`;
+  }).join("");
+  return `<section class="panel todaytodos" aria-labelledby="h-tt"><h2 id="h-tt">今日の ToDo</h2><ul class="rank tl">${items}</ul></section>`;
+}
+
 /**
  * @param opts.sched   true ならスケジュール画面用（全件・ドラッグ可）。false なら上位 4 件
  * 今日のタスクに入っているタスクは出さない（順位の計算は変えず、表示で除く）
@@ -3614,16 +3631,16 @@ function renderPrio(data, today, opts = {}) {
   return `<section class="panel prio" aria-labelledby="h-rk"><h2 id="h-rk">今日の優先</h2>${shown.length ? `<ol class="rank">${items}</ol>` : `<p class="muted">優先するタスクはありません。</p>`}<p class="note" style="margin:10px 0 0">${note}</p></section>`;
 }
 
-/** 右の列: 今日のタスク（あれば）＋今日の優先。列の直下の要素として固定表示（sticky）にするため、1 つの箱にまとめる */
+/** 右の列: 今日の ToDo（スケジュール画面だけ。あれば）＋今日のタスク（あれば）＋今日の優先。列の直下の要素として固定表示（sticky）にするため、1 つの箱にまとめる */
 function renderSide(data, today, opts = {}) {
-  return `<div class="side">${renderTodayTasks(data, today, opts)}${renderPrio(data, today, opts)}</div>`;
+  return `<div class="side">${opts.sched ? renderTodayTodos(data, today, opts) : ""}${renderTodayTasks(data, today, opts)}${renderPrio(data, today, opts)}</div>`;
 }
 
 /** 本体と右の列の境界線の取っ手。押すと右の列（今日のタスク・今日の優先）を開け閉めする。閉じても、この取っ手は残る */
 const renderSideToggle = (open) =>
   `<button class="side-toggle" data-pref="prio" aria-expanded="${open}" aria-label="${open ? "今日の優先を閉じる" : "今日の優先を開く"}" title="${open ? "右の「今日のタスク」「今日の優先」を閉じます" : "右の「今日のタスク」「今日の優先」を開きます"}">${open ? "›" : "‹"}</button>`;
 
-return { doneAskHtml, todayTaskIds, renderTodayTasks, renderPrio, renderSide, renderSideToggle };
+return { doneAskHtml, todayTaskIds, renderTodayTasks, renderTodayTodos, renderPrio, renderSide, renderSideToggle };
 })();
 
 /* src/ui/views/gantt.js */

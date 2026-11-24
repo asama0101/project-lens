@@ -102,3 +102,11 @@ test("planDropAt(task): 持ち主の無い ID は、例外でなく error（タ�
   const p = planDropAt(withSession(), { kind: "task", id: "XX" }, { date: "2026-11-24", at: 11 * 60 }, NOW);
   assert.match(p.error, /タスク XX がありません/);
 });
+
+test("planDropAt: ToDo の data-dragtask を、ToDo の date と違う日へ落としても、予定の枠が置ける", () => {
+  const d = withSession();
+  const p = planDropAt(d, { kind: "task", id: "T-0004" }, { date: "2026-11-26", at: 10 * 60 }, NOW);
+  assert.equal(p.error, undefined);
+  const s = p.next(d).todos.find((t) => t.id === "T-0004").sessions;
+  assert.deepEqual(s.map((x) => [x.date, x.start, x.kind]), [["2026-11-26", "10:00", "planned"]]);
+});
