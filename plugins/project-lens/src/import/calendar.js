@@ -2,7 +2,7 @@
 // 取得範囲内の MCP 由来の会議だけを追加・更新・削除し、手入力の会議と「参加しない」は保つ。続けてプロジェクトの規則を適用する。
 import { syncMcpEvents, meetingPast } from "../core/schedule.js";
 import { assignMeetingProjects } from "../core/rules.js";
-import { isDate, isTime, toMin } from "../core/dates.js";
+import { isDate, isTime, toMin, nowLocal } from "../core/dates.js";
 
 const DEFAULT_ROOM_KEYWORDS = ["会議室"];
 /** 取得に無い会議が、これ以上かつ範囲内の取り込み済みの半数を超えたら、自動では削除しない */
@@ -52,9 +52,12 @@ function checkFetched(fetched) {
   return { ok, keepIds, warnings };
 }
 
-/** fetched = {externalId, title, date, start, end, attendees?}[]、range = {start, end}、cfg = {selfEmails, selfNames, roomKeywords}（excludeSolo を参照）。data は変えない。valid は、取り込める予定の件数 */
-export function planCalendarSync(data, fetchedRaw, range, cfg) {
-  const { ok: fetched, keepIds, warnings: fetchWarnings } = checkFetched(fetchedRaw);
+/** fetched = {externalId, title, date, start, end, attendees?}[]、range = {start, end}、cfg = {selfEmails, selfNames, roomKeywords}（excludeSolo を参照）。data は変えない。valid は、取り込める予定の件数。
+ * today より前の会議は取り込まない（実績は、取り込みでなく利用者の入力で決まるため）。範囲の開始も today に切り上げるので、過去の取り込み済みの会議は、取得に無くても消えない */
+export function planCalendarSync(data, fetchedRaw, rangeRaw, cfg, today = nowLocal().date) {
+  const range = { ...rangeRaw, start: rangeRaw.start > today ? rangeRaw.start : today };
+  const { ok: okAll, keepIds, warnings: fetchWarnings } = checkFetched(fetchedRaw);
+  const fetched = okAll.filter((f) => f.date >= today);
   const { kept, excluded, warnings: soloWarnings } = excludeSolo(fetched, cfg);
   const warnings = [...fetchWarnings, ...soloWarnings];
   const next = assignMeetingProjects(syncMcpEvents(data, kept, range, new Set(excluded.map((f) => f.externalId)), keepIds));
@@ -79,7 +82,7 @@ export function planCalendarSync(data, fetchedRaw, range, cfg) {
  * 戻り値は planCalendarSync と同じ形に、held（[{id, title, date, change: "updated"|"removed"}]）と blocked（null か {reason, count}）を足したもの。data は変えない
  */
 export function planAutoSync(data, fetched, range, cfg, now) {
-  const plan = planCalendarSync(data, fetched, range, cfg);
+  const plan = planCalendarSync(data, fetched, range, cfg, now.date);
   const fixed = (e) => e.confirmed === true || meetingPast(e, now); // 終わった会議・確認済みの会議
   const held = [
     ...plan.updated.filter((u) => fixed(u.before) && ["title", "date", "start", "end"].some((k) => u.before[k] !== u.after[k])).map((u) => ({ e: u.before, change: "updated" })), // 予定表の内容が変わったものだけ。規則でプロジェクトが付いただけの変更は、そのまま反映する
