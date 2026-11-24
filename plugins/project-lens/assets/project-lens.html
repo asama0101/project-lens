@@ -1310,7 +1310,7 @@ function addActual(data, taskId, slot, now) {
   return { data: withTask(data, taskId, (t) => ({ ...t, sessions: [...(t.sessions ?? []), s] })), ...(r.warning && { warning: r.warning }) };
 }
 
-/** slot は { date, start }。長さは元のまま。種別は変えない（予定を過去へ動かしても未確認のまま）。実績は今より後へ動かせない */
+/** slot は { date, start }。長さは元のまま。種別は変えない（予定を過去へ動かすと、重なる実績が無ければ未確認として出る）。実績は今より後へ動かせない */
 function moveSession(data, sessionId, slot, now) {
   const cur = findSession(data, sessionId);
   if (!cur) return { data, error: `枠 ${sessionId} がありません` };
