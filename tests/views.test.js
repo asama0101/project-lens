@@ -2120,7 +2120,7 @@ test("renderTodo: ToDo が 1 件もなくても、空の列と追加の入力が
 
 test("renderSide（sched: true）: 今日の ToDo の行が、今日のタスクの前に出て、完了していない行だけ data-dragtask を持つ", () => {
   const d = load();
-  d.todos.find((t) => t.id === "T-0004").sessions = [{ id: "S8", date: TODAY, start: "11:00", end: "12:00", kind: "planned" }];
+  d.todos.find((t) => t.id === "T-0004").sessions = [{ id: "S90", date: TODAY, start: "11:00", end: "12:00", kind: "planned" }];
   d.tasks.find((t) => t.id === "AA-0005").sessions = [{ id: "s5", date: TODAY, start: "14:00", end: "15:00", kind: "planned" }];
   const html = renderSide(d, TODAY, { sched: true, now: NOW });
   assert.ok(html.indexOf("今日の ToDo") >= 0 && html.indexOf("今日の ToDo") < html.indexOf("今日のタスク"), "今日のタスクの前");
