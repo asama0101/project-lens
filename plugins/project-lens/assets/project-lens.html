@@ -1395,6 +1395,130 @@ function futurePlanned(data, taskId, now) {
 return { LAST_END, ownerOf, allSessions, actualSlots, sessionKind, addSession, addActual, moveSession, resizeSession, removeSession, taskActual, runningPlanned, futurePlanned };
 })();
 
+/* src/core/todos.js */
+const { mondayOf, addTodo, renameTodo, setTodoDone, deleteTodo, assignToDay, carryTodo, addTodoCheck, toggleTodoCheck, removeTodoCheck, setReview, todoMinutes, weekReview } = (() => {
+// ToDo（日・週）の規則。個人ファイルの data.todos / data.reviews を扱う。すべて純関数（入力を変えず、新しいデータを返す）。不正なときは例外
+
+
+
+
+
+const todosOf = (data) => data.todos ?? [];
+const find = (data, id) => {
+  const t = todosOf(data).find((x) => x.id === id);
+  if (!t) throw new Error(`ToDo ${id} がありません`);
+  return t;
+};
+const mapTodo = (data, id, fn) => ({ ...data, todos: todosOf(data).map((t) => (t.id === id ? fn(t) : t)) });
+const cleanTitle = (title) => {
+  const s = String(title ?? "").trim();
+  if (!s) throw new Error("件名を入れてください");
+  return s;
+};
+const checkDate = (date) => {
+  if (!isDate(date)) throw new Error("日付は YYYY-MM-DD の形で入れてください");
+  return date;
+};
+
+/** その日を含む週の月曜日 */
+const mondayOf = (date) => addDays(date, -((weekday(date) + 6) % 7));
+
+/** 新しい ToDo を足す。週は date を月曜日にそろえる。parentId は週の ToDo だけを指せる（日の ToDo だけが持てる） */
+function addTodo(data, { scope, title, date, parentId }) {
+  if (scope !== "week" && scope !== "day") throw new Error("種類は週か日にしてください");
+  const t = cleanTitle(title);
+  checkDate(date);
+  if (parentId !== undefined && (scope !== "day" || todosOf(data).find((x) => x.id === parentId)?.scope !== "week")) throw new Error("割り当て元は週の ToDo にしてください");
+  const max = todosOf(data).reduce((m, x) => Math.max(m, +(/^T-(\d+)$/.exec(x.id)?.[1] ?? 0)), 0);
+  const id = `T-${String(max + 1).padStart(4, "0")}`;
+  const todo = { id, scope, title: t, date: scope === "week" ? mondayOf(date) : date, ...(parentId !== undefined && { parentId }), doneAt: null, carried: 0, sessions: [] };
+  return { data: { ...data, todos: [...todosOf(data), todo] }, id };
+}
+
+/** 週の ToDo の件名を直すと、直す前と同じ件名の子（日の ToDo）も新しい件名にする */
+function renameTodo(data, id, title) {
+  const cur = find(data, id), t = cleanTitle(title);
+  const follows = (x) => x.id === id || (cur.scope === "week" && x.parentId === id && x.title === cur.title);
+  return { ...data, todos: todosOf(data).map((x) => (follows(x) ? { ...x, title: t } : x)) };
+}
+
+const setTodoDone = (data, id, done, today) => (find(data, id), mapTodo(data, id, (t) => ({ ...t, doneAt: done ? today : null })));
+
+/** ToDo を、その枠ごと消す。週の ToDo なら、子の parentId を外す（子とその枠は残る） */
+function deleteTodo(data, id) {
+  find(data, id);
+  return { ...data, todos: todosOf(data).filter((t) => t.id !== id).map(({ parentId, ...t }) => (parentId === id ? t : { ...t, ...(parentId !== undefined && { parentId }) })) };
+}
+
+/** 週の ToDo を日に割り当てる（同じ件名の日の ToDo を作る）。同じ週の ToDo の同じ日の分があれば何もしない */
+function assignToDay(data, weekTodoId, date) {
+  const w = find(data, weekTodoId);
+  if (w.scope !== "week") throw new Error("日へ割り当てられるのは週の ToDo だけです");
+  checkDate(date);
+  if (todosOf(data).some((t) => t.parentId === weekTodoId && t.date === date)) return { data, created: false };
+  return { data: addTodo(data, { scope: "day", title: w.title, date, parentId: weekTodoId }).data, created: true };
+}
+
+const clash = (a, b) => a.date === b.date && toMin(a.start) < toMin(b.end) && toMin(b.start) < toMin(a.end);
+
+/** 日は次の営業日へ、週は 7 日後へ動かし、carried を 1 増やす。回す前の日の予定の枠のうち、重なる実績が無いものは消す */
+function carryTodo(data, id) {
+  const cur = find(data, id);
+  if (cur.doneAt) throw new Error("完了した ToDo は回せません");
+  let date = cur.date;
+  if (cur.scope === "week") date = addDays(date, 7);
+  else {
+    const off = offDayChecker(data.settings);
+    do date = addDays(date, 1); while (off(date));
+  }
+  const actuals = actualSlots(data);
+  const stale = (cur.sessions ?? []).filter((s) => s.kind === "planned" && s.date === cur.date && !actuals.some((a) => clash(a, s)));
+  const moved = mapTodo(data, id, (t) => ({ ...t, date, carried: t.carried + 1 }));
+  return stale.reduce((d, s) => removeSession(d, s.id), moved);
+}
+
+function addTodoCheck(data, id, text) {
+  const s = String(text ?? "").trim();
+  if (!s) throw new Error("項目の文言を入れてください");
+  return mapTodo(data, id, (t) => ({ ...t, checklist: [...(t.checklist ?? []), { id: nextChecklistId(t.checklist ?? []), text: s, done: false }] }));
+}
+const toggleTodoCheck = (data, id, itemId) => mapTodo(data, id, (t) => ({ ...t, checklist: (t.checklist ?? []).map((x) => (x.id === itemId ? { ...x, done: !x.done } : x)) }));
+const removeTodoCheck = (data, id, itemId) => mapTodo(data, id, (t) => ({ ...t, checklist: (t.checklist ?? []).filter((x) => x.id !== itemId) }));
+
+/** 週（月曜日のキー）の気づき。空文字ならキーを消す */
+function setReview(data, weekStart, text) {
+  const { [weekStart]: _, ...rest } = data.reviews ?? {};
+  return { ...data, reviews: text ? { ...rest, [weekStart]: text } : rest };
+}
+
+/** その ToDo と、parentId がその ToDo の日の ToDo の枠の、range（start〜end の日付。省略は全期間）内の分の合計 */
+function todoMinutes(data, id, range) {
+  const mine = todosOf(data).filter((t) => t.id === id || t.parentId === id);
+  const inRange = (s) => !range || (s.date >= range.start && s.date <= range.end);
+  const sum = (kind) => mine.flatMap((t) => t.sessions ?? []).filter((s) => s.kind === kind && inRange(s)).reduce((m, s) => m + toMin(s.end) - toMin(s.start), 0);
+  return { planned: sum("planned"), actual: sum("actual") };
+}
+
+/** 週の見返し。対象は、date がその週に入る週の ToDo と、parentId を持たない日の ToDo（割り当てた日の分は数えない） */
+function weekReview(data, weekStart) {
+  const range = { start: weekStart, end: addDays(weekStart, 6) };
+  const items = todosOf(data)
+    .filter((t) => t.date >= range.start && t.date <= range.end && (t.scope === "week" || t.parentId === undefined))
+    .sort((a, b) => (a.scope === b.scope ? 0 : a.scope === "week" ? -1 : 1) || a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+  const rows = items.map((todo) => ({ todo, checked: todo.checklist?.length ? { done: todo.checklist.filter((x) => x.done).length, total: todo.checklist.length } : null, ...todoMinutes(data, todo.id, range) }));
+  return {
+    done: items.filter((t) => t.doneAt).length,
+    total: items.length,
+    planned: rows.reduce((m, r) => m + r.planned, 0),
+    actual: rows.reduce((m, r) => m + r.actual, 0),
+    note: data.reviews?.[weekStart] ?? "",
+    rows,
+  };
+}
+
+return { mondayOf, addTodo, renameTodo, setTodoDone, deleteTodo, assignToDay, carryTodo, addTodoCheck, toggleTodoCheck, removeTodoCheck, setReview, todoMinutes, weekReview };
+})();
+
 /* src/core/impact.js */
 const { computeImpact } = (() => {
 // タスクの期限が動いたときの影響範囲。次のタスクは「最小限だけ」動かす（前のタスクの新しい期限を超えないようにする）。
