@@ -29,7 +29,9 @@
         { "id": "S5", "date": "2026-10-22", "start": "10:00", "end": "12:00", "kind": "planned" } ] },
     { "id": "AB-0003", "projectId": "AB", "title": "現地工事の立会い調整", "due": "2026-11-20", "start": null, "status": "Waiting", "memo": "", "predecessors": ["AB-0001"], "waitingOn": { "party": "通信事業者", "since": "2026-10-15" }, "doneAt": null, "sessions": [] },
     { "id": "AB-0004", "projectId": "AB", "title": "開通試験", "due": "2026-12-01", "start": null, "status": "To Do", "memo": "", "predecessors": ["AB-0002", "AB-0003"], "waitingOn": null, "important": true, "doneAt": null, "sessions": [] },
-    { "id": "AC-0001", "projectId": "AC", "title": "ログの収集", "due": "2026-10-22", "start": "2026-10-19", "status": "In Progress", "memo": "", "predecessors": [], "waitingOn": null, "doneAt": null, "sessions": [] },
+    { "id": "AC-0001", "projectId": "AC", "title": "ログの収集", "due": "2026-10-22", "start": "2026-10-19", "status": "In Progress", "memo": "", "predecessors": [], "waitingOn": null, "doneAt": null,
+      "sessions": [
+        { "id": "S8", "date": "2026-10-15", "start": "09:00", "end": "10:00", "kind": "planned", "actual": { "date": "2026-10-15", "start": "09:10", "end": "10:10" } } ] },
     { "id": "AC-0002", "projectId": "AC", "title": "ベンダーへ問い合わせ", "due": "2026-10-28", "start": null, "status": "Waiting", "memo": "", "predecessors": ["AC-0001"], "waitingOn": { "party": "ベンダーY", "since": "2026-10-20" }, "doneAt": null, "sessions": [] },
     { "id": "AC-0003", "projectId": "AC", "title": "恒久対策の適用", "due": "2026-11-13", "start": null, "status": "To Do", "memo": "", "predecessors": ["AC-0002"], "waitingOn": null, "doneAt": null, "sessions": [] },
     { "id": "ZZ-0001", "projectId": null, "title": "問い合わせ対応", "due": "2026-10-23", "start": "2026-10-19", "status": "In Progress", "memo": "", "predecessors": [], "waitingOn": null, "doneAt": null, "sessions": [{ "id": "S6", "date": "2026-10-19", "start": "16:30", "end": "17:30", "kind": "actual" }] }
