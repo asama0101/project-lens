@@ -580,7 +580,7 @@ test("theme.css: カレンダーの高さは固定（日・週とも 1 時間 88
 test("app.js: 作業枠を押して選ぶと（selectSession）、そのタスクの編集欄を開く。選び直すと切り替わり（詳細の開閉は引き継ぐ）、外すと閉じる。「閉じる」は選択も外す", () => {
   assert.ok(!src.includes("data-tedit-open") && !src.includes("teditOpen"), "「タスクを編集」のボタンは持たない");
   const fn = src.slice(src.indexOf("const selectSession = "), src.indexOf("const selectSession = ") + 400);
-  assert.ok(fn.includes("Object.assign(S, sessionSelection(S.data, id, S.taskEdit))"), fn); // 規則（ToDo の枠は編集欄を開かない）は views.test.js の sessionSelection
+  assert.ok(fn.includes("Object.assign(S, sessionSelection(S.data, id, S.taskEdit))"), fn); // 規則は views.test.js の sessionSelection
   assert.match(src, /if \(sb && !q\("\[data-rz\]"\)\) \{ const id = sb\.dataset\.dragsess \?\? sb\.dataset\.actbar; selectSession\(S\.selSess === id \? null : id\);/);
   assert.match(src, /if \(q\("\[data-tedit-close\]"\)\) \{ clearSel\(\); render\(\); return; \}/);
 });
@@ -761,49 +761,44 @@ test("app.js: 実績を消す（data-actclear）は clearActual を apply に通
   assert.ok(g.includes("[data-actclear]"), g);
 });
 
-test("ToDo タブ: index.html のタブ（スケジュールと稼働の間）、renderBody の renderTodo、build の MODULES（schedule.js の後）", () => {
+test("ToDo タブ: index.html のタブ（スケジュールと稼働の間）、renderBody の renderTodo（週・入力欄の行・下書き）、build の MODULES（schedule.js の後）", () => {
   const html = readFileSync(new URL("../plugins/project-lens/src/ui/index.html", import.meta.url), "utf8");
   assert.ok(html.indexOf('id="tab-schedule"') < html.indexOf('id="tab-todo"') && html.indexOf('id="tab-todo"') < html.indexOf('id="tab-workload"'));
   assert.ok(src.includes("S.screen = b.id.slice(4)"), "tab-todo のクリックで S.screen が todo になる");
   const body = src.slice(src.indexOf("function renderBody()"), src.indexOf("function placeTaskPop"));
-  assert.match(body, /S\.screen === "todo"\) return renderTodo\(S\.data, today, \{ week: S\.todoWeek, day: S\.todoDay, now: clock\(\), actFor: S\.tdAct/);
+  assert.ok(body.includes('S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, draft: S.tdDraft });'), body);
   const build = readFileSync(new URL("../plugins/project-lens/tools/build.js", import.meta.url), "utf8");
   assert.ok(build.indexOf('"src/ui/views/schedule.js"') < build.indexOf('"src/ui/views/todo.js"'));
 });
 
-test("ToDo タブ: 追加・チェックリストの Enter は、日本語入力の変換確定（isComposing）では確定しない", () => {
-  assert.ok(src.includes('e.key === "Enter" && !e.isComposing && e.target.matches("[data-tdnew]")'));
-  assert.ok(src.includes('e.key === "Enter" && !e.isComposing && e.target.matches("[data-tdck]")'));
+test("ToDo タブ: 古い ToDo の状態・ハンドラ・関数は無い", () => {
+  for (const s of ["todoDay", "tdAct", "tdAskDel", "renderTodayTodos", "setTodoDay", "submitTodoInput", "deleteTodoNow", "data-tdnew", "data-tdday", "data-tdassign", "data-tdcarry", "data-tddel", "data-tdactsave", "dataset.tdone", "dataset.tdtitle", "dataset.tdcktoggle", "dataset.ta ", "addTodo(", "assignToDay(", "carryTodo(", "deleteTodo(", "ToDo）"]) assert.ok(!src.includes(s), s);
+  assert.ok(src.includes('for (const k of ["tdnote", "tf"])'), "入力中の欄（読み直しで描き直さない・フォーカスを保つ）");
 });
 
-test("ToDo タブ: 実績の保存（data-tdactsave）は recordActual を apply に通す。下書き（S.tdDraft）は保存の前に残し、成功・キャンセル・clearSel で消す", () => {
-  const i = src.indexOf('q("[data-tdactsave]")');
-  const a = src.slice(i, i + 900);
-  assert.match(a, /S\.tdDraft = \{ key: id/);
-  assert.match(a, /apply\(\(d\) => recordActual\(d, id, slot, now\)\.data/);
-  assert.match(a, /S\.tdAct = null; S\.tdDraft = null;/);
-  assert.match(src, /const clearSel = \(\) => \{[^\n]*S\.tdAct = null; S\.tdDraft = null;/);
-  assert.ok(src.includes('q("[data-tdactcancel]")'));
+test("ToDo タブ: 状態（S.todoWeek・S.tdOpen・S.tdDraft）。描き直しで、無いタスクの入力欄を閉じる。画面の移動・週の移動・clearSel で閉じる", () => {
+  assert.match(src, /todoWeek: mondayOf\(clock\(\)\.date\), tdOpen: null, tdDraft: null/);
+  assert.ok(src.includes("if (S.tdOpen && !S.data?.tasks.some((t) => t.id === S.tdOpen)) { S.tdOpen = null; S.tdDraft = null; }"));
+  assert.match(src, /const clearSel = \(\) => \{[^\n]*S\.tdOpen = null; S\.tdDraft = null;/);
+  assert.match(src, /function moveTodoWeek\(week\) \{[^}]*S\.tdOpen = null; S\.tdDraft = null;/);
 });
 
-test("ToDo タブ: 各 data-td* に、対応するハンドラ（todos.js の関数）がある", () => {
-  for (const a of ["tdweek", "tdweek-today", "tdday", "tdday-today", "tdassign", "tdcarry", "tddel", "tdact", "tdckdel"]) assert.ok(src.includes(`q("[data-${a}]")`), a);
-  for (const k of ["tdone", "tdtitle", "tdcktoggle", "tdnote", "ta"]) assert.ok(src.includes(`el.dataset.${k} !== undefined`), k);
-  for (const f of ["addTodo(", "renameTodo(", "setTodoDone(", "deleteTodo(", "assignToDay(", "carryTodo(", "addTodoCheck(", "toggleTodoCheck(", "removeTodoCheck(", "setReview(", "mondayOf("]) assert.ok(src.includes(f), f);
-  assert.ok(src.includes("すでにこの日に割り当てています"));
+test("ToDo タブ: 完了（data-tdopen）は開閉。残りをすべてチェック（data-tdckall）は描き直さずに欄を変える。キャンセル（data-tdcancel）は閉じる", () => {
+  assert.match(src, /const tdo = q\("\[data-tdopen\]"\);\s*if \(tdo\) \{ const id = tdo\.dataset\.tdopen; S\.tdOpen = S\.tdOpen === id \? null : id; S\.tdDraft = null;/);
+  const i = src.indexOf('q("[data-tdckall]")'), a = src.slice(i, i + 300);
+  assert.ok(i > 0 && a.includes("[data-tfck]") && a.includes(".checked = true") && !a.includes("render()"), a);
+  assert.match(src, /q\("\[data-tdcancel\]"\)\) \{ S\.tdOpen = null; S\.tdDraft = null; render\(\); return; \}/);
 });
 
-test("ToDo タブ: 削除は、実績の枠があるときだけ確認（S.tdAskDel）を出す。確認は render に渡し、再描画で消さず、clearSel・やめる・削除で外す", () => {
-  const i = src.indexOf('const tdel = q("[data-tddel]")');
-  const a = src.slice(i, i + 900);
-  assert.match(a, /actualSpans\(\{ tasks: \[\], todos: \[own\] \}\)\.length\) \{ S\.tdAskDel = id; render\(\); return; \}/);
-  assert.match(a, /q\("\[data-tddelok\]"\)/);
-  assert.match(a, /q\("\[data-tddelno\]"\)\) \{ S\.tdAskDel = null; render\(\)/);
-  assert.match(src, /function deleteTodoNow\(id\) \{[^]*?S\.tdAskDel = null;[^]*?deleteTodo\(d, id\)/);
-  assert.match(src, /askDel: S\.tdAskDel/);
-  assert.match(src, /const clearSel = \(\) => \{[^\n]*S\.tdAskDel = null;/);
-  assert.match(src, /S\.tdAskDel && !S\.data\?\.todos\?\.some\(\(t\) => t\.id === S\.tdAskDel\)/);
-  assert.ok(!/S\.(taskEdit|selSess) = [^;]*tdAskDel/.test(src), "確認の状態を S.data.tasks で検証する状態に入れない");
+test("ToDo タブ: 保存（data-tdsave）は、欄の値を先に S.tdDraft へ写してから completeTask を apply に通す。成功で閉じて、状態・解除・次回を通知する", () => {
+  const i = src.indexOf('const tds = q("[data-tdsave]")'), a = src.slice(i, i + 1600);
+  assert.ok(i > 0, "ハンドラ");
+  assert.ok(a.indexOf("S.tdDraft = tdFormDraft(") >= 0 && a.indexOf("S.tdDraft = tdFormDraft(") < a.indexOf("completeTask(d, id"), "下書きが先");
+  assert.match(src, /function tdFormDraft\(form, key\) \{[^]*?return \{ key, date: f\("date"\), start: f\("start"\), end: f\("end"\), status: f\("status"\), checks \};/);
+  assert.match(a, /apply\(\(d\) => \{ r = completeTask\(d, id, \{ actual: \{ date: draft\.date, start: draft\.start, end: draft\.end \}, status: draft\.status, checks: draft\.checks \}, now\); return r\.data; \}, null, \{ quiet: true \}\)/);
+  assert.match(a, /S\.tdOpen = null; S\.tdDraft = null; render\(\);/);
+  for (const s of ["にしました", "未来の予定の枠 ${r.released} 件を解除しました", "次回（期限"]) assert.ok(a.includes(s), s);
+  assert.ok(src.includes("if (el.dataset.tdnote !== undefined) {") && src.includes("setReview(d, wk, text)"), "気づきは change で setReview");
 });
 
 test("枠の削除: actual を持つ予定の枠は S.askDelSess に入れて描き直し、すぐ消さない。data-delsessok で removeSession、data-delsessno で外す。ほかの枠は 1 回で削除", () => {
