@@ -17,9 +17,9 @@ export function taskStart(data, taskId) {
   return preds.length ? maxDate(preds.map((p) => p.due)) : t.due;
 }
 
-/** 実績の線: 最初の実績枠の日 → 完了日（未完了なら today） */
+/** 実績の線: 最初の実績の日（実績だけの枠の日と、予定の枠の actual の日）→ 完了日（未完了なら today） */
 function actualSpan(t, today) {
-  const days = (t.sessions ?? []).filter((s) => s.kind === "actual").map((s) => s.date).sort();
+  const days = (t.sessions ?? []).flatMap((s) => (s.kind === "actual" ? [s.date] : s.actual ? [s.actual.date] : [])).sort();
   if (!days.length) return null;
   const finished = isClosed(t);
   let end = finished ? (t.doneAt ?? days[days.length - 1]) : today;

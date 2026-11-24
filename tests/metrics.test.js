@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { setActual } from "../plugins/project-lens/src/core/sessions.js";
 import { addDays, weekday } from "../plugins/project-lens/src/core/dates.js";
 import { taskStart, ganttRows, ganttLayout, timeTicks, projectProgress, taskFlags, projectFlags } from "../plugins/project-lens/src/core/metrics.js";
 
@@ -128,4 +129,14 @@ test("プロジェクトなしのタスク（ZZ-0001）は、プロジェクト�
   const g = ganttRows(d, null, TODAY);
   assert.deepEqual(g.rows.map((r) => r.taskId), ["ZZ-0001"]);
   assert.deepEqual(g.milestones, []);
+});
+
+test("ganttRows: 実績の線の開始は、予定の枠の actual.date（実績だけの枠と合わせた最小の日付）", () => {
+  const d = load();
+  const line = (x) => ganttRows(x, "AC", TODAY).rows.find((r) => r.taskId === "AC-0001").actual;
+  assert.deepEqual(line(d), { start: "2026-10-15", end: TODAY });
+  const moved = setActual(d, "S8", { date: "2026-10-16", start: "09:00", end: "10:00" }, { date: TODAY, time: "12:00" }).data;
+  assert.equal(line(moved).start, "2026-10-16");
+  const both = mk([{ id: "AA-0001", sessions: [{ id: "S1", date: "2026-10-12", start: "09:00", end: "10:00", kind: "actual" }, { id: "S2", date: "2026-10-14", start: "09:00", end: "10:00", kind: "planned", actual: { date: "2026-10-10", start: "09:00", end: "10:00" } }] }]);
+  assert.equal(ganttRows(both, "AA", TODAY).rows[0].actual.start, "2026-10-10");
 });

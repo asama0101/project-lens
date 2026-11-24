@@ -2,7 +2,7 @@
 import { addDays, isDate, weekday, toMin } from "./dates.js";
 import { offDayChecker } from "./holidays.js";
 import { nextChecklistId } from "./checklist.js";
-import { actualSlots, removeSession } from "./sessions.js";
+import { actualSlots, actualSpans, removeSession } from "./sessions.js";
 
 const todosOf = (data) => data.todos ?? [];
 const find = (data, id) => {
@@ -73,7 +73,7 @@ export function carryTodo(data, id) {
     do date = addDays(date, 1); while (off(date));
   }
   const actuals = actualSlots(data);
-  const stale = (cur.sessions ?? []).filter((s) => s.kind === "planned" && s.date === cur.date && !actuals.some((a) => clash(a, s)));
+  const stale = (cur.sessions ?? []).filter((s) => s.kind === "planned" && !s.actual && s.date === cur.date && !actuals.some((a) => clash(a, s)));
   const moved = mapTodo(data, id, (t) => ({ ...t, date, carried: t.carried + 1 }));
   return stale.reduce((d, s) => removeSession(d, s.id), moved);
 }
@@ -93,12 +93,18 @@ export function setReview(data, weekStart, text) {
   return { ...data, reviews: text ? { ...rest, [weekStart]: text } : rest };
 }
 
+/** 範囲内の分数。予定は kind が planned の枠の自身の時間（actual を持っていても数える。枠の日付で絞る）、実績は実績の区間（区間の日付で絞る） */
+const minutesIn = (data, ids, range) => {
+  const inRange = (d) => !range || (d >= range.start && d <= range.end);
+  const len = (s) => toMin(s.end) - toMin(s.start);
+  const planned = todosOf(data).filter((t) => ids.has(t.id)).flatMap((t) => t.sessions ?? []).filter((s) => s.kind === "planned" && inRange(s.date)).reduce((m, s) => m + len(s), 0);
+  const actual = actualSpans({ tasks: [], todos: todosOf(data).filter((t) => ids.has(t.id)) }).filter((s) => inRange(s.date)).reduce((m, s) => m + len(s), 0);
+  return { planned, actual };
+};
+
 /** その ToDo と、parentId がその ToDo の日の ToDo の枠の、range（start〜end の日付。省略は全期間）内の分の合計 */
 export function todoMinutes(data, id, range) {
-  const mine = todosOf(data).filter((t) => t.id === id || t.parentId === id);
-  const inRange = (s) => !range || (s.date >= range.start && s.date <= range.end);
-  const sum = (kind) => mine.flatMap((t) => t.sessions ?? []).filter((s) => s.kind === kind && inRange(s)).reduce((m, s) => m + toMin(s.end) - toMin(s.start), 0);
-  return { planned: sum("planned"), actual: sum("actual") };
+  return minutesIn(data, new Set(todosOf(data).filter((t) => t.id === id || t.parentId === id).map((t) => t.id)), range);
 }
 
 /** 週の見返し。見出しの分数は、その週の日付にある全 ToDo の枠の合計。行は、date がその週に入る週の ToDo と、parentId を持たない日の ToDo（inWeek: true。割り当てた日の分は親の行に含む）に、
@@ -111,13 +117,11 @@ export function weekReview(data, weekStart) {
   const items = roots.filter(inWeek).sort(order);
   const row = (todo, w) => ({ todo, inWeek: w, checked: todo.checklist?.length ? { done: todo.checklist.filter((x) => x.done).length, total: todo.checklist.length } : null, ...todoMinutes(data, todo.id, range) });
   const rows = [...items.map((t) => row(t, true)), ...roots.filter((t) => !inWeek(t)).sort(order).map((t) => row(t, false)).filter((r) => r.planned + r.actual > 0)];
-  const slots = todosOf(data).flatMap((t) => t.sessions ?? []).filter((s) => s.date >= range.start && s.date <= range.end);
-  const sum = (kind) => slots.filter((s) => s.kind === kind).reduce((m, s) => m + toMin(s.end) - toMin(s.start), 0);
+  const all = minutesIn(data, new Set(todosOf(data).map((t) => t.id)), range);
   return {
     done: items.filter((t) => t.doneAt).length,
     total: items.length,
-    planned: sum("planned"),
-    actual: sum("actual"),
+    ...all,
     note: data.reviews?.[weekStart] ?? "",
     rows,
   };

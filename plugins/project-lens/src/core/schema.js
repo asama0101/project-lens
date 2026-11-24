@@ -130,6 +130,12 @@ export function validate(data, now = nowLocal()) {
     if (!isDate(s.date) || !isTime(s.start) || !isTime(s.end)) { err(`${label}: 日付または時刻の形式が不正です`); return false; }
     if (toMin(s.end) <= toMin(s.start)) err(`${label}: 終了が開始以前です`);
     if (!["planned", "actual"].includes(s.kind)) err(`${label}: 不明な kind "${s.kind}"`);
+    const a = s.actual;
+    if (a != null) {
+      if (s.kind === "actual") err(`${label}: 実績だけの枠 (kind: "actual") は actual を持てません`);
+      else if (!isObj(a) || !isDate(a.date) || !isTime(a.start) || !isTime(a.end)) err(`${label}: actual の日付または時刻の形式が不正です`);
+      else if (toMin(a.end) <= toMin(a.start)) err(`${label}: actual の終了が開始以前です`);
+    }
     return s.date > now.date || (s.date === now.date && s.start > now.time); // 進行中の枠は、完了にしても残す（futurePlanned）
   };
 
@@ -157,7 +163,7 @@ export function validate(data, now = nowLocal()) {
 
     for (const s of t.sessions ?? []) {
       const notStarted = checkSession(s, `タスク ${t.id} の枠 ${s.id}`);
-      if (notStarted && isClosed(t) && s.kind === "planned") warn(`タスク ${t.id}: ${t.status} なのに未来の予定枠 ${s.id} が残っています`);
+      if (notStarted && isClosed(t) && s.kind === "planned" && !s.actual) warn(`タスク ${t.id}: ${t.status} なのに未来の予定枠 ${s.id} が残っています`);
     }
   }
 
@@ -183,13 +189,15 @@ export function validate(data, now = nowLocal()) {
   const cycle = findCycle(data.tasks);
   if (cycle) err(`前のタスクが循環しています: ${cycle.join(" → ")}`);
 
-  // 同じ日の同じ種別の枠どうしの重なり（予定と実績は重なってよい。タスクをまたいで判定）。日付で束ねて、同じ日の中だけ総当たりにする（全枠の総当たりは、数年分で秒単位になる）
+  // 同じ日の同じ種別の枠どうしの重なり（予定と実績は重なってよい。タスクと ToDo をまたいで判定）。実績は、実績だけの枠と予定の枠の actual（実績の区間）を合わせて比べる
+  // 日付で束ねて、同じ日の中だけ総当たりにする（全枠の総当たりは、数年分で秒単位になる）
   const byDay = new Map();
+  const put = (date, x) => { if (!byDay.has(date)) byDay.set(date, []); byDay.get(date).push(x); };
   for (const t of [...data.tasks, ...todos]) {
     for (const s of t.sessions ?? []) {
-      if (!isDate(s.date) || !isTime(s.start) || !isTime(s.end)) continue;
-      if (!byDay.has(s.date)) byDay.set(s.date, []);
-      byDay.get(s.date).push(s);
+      if (isDate(s.date) && isTime(s.start) && isTime(s.end)) put(s.date, s);
+      const a = s.actual;
+      if (s.kind === "planned" && isObj(a) && isDate(a.date) && isTime(a.start) && isTime(a.end)) put(a.date, { id: `${s.id} の実績`, kind: "actual", start: a.start, end: a.end });
     }
   }
   for (const [date, list] of byDay) {

@@ -192,3 +192,26 @@ test("チェックリスト: 存在しない ToDo の id は例外", () => {
   assert.throws(() => toggleTodoCheck(d, "T-9", "c1"), /ToDo T-9 がありません/);
   assert.throws(() => removeTodoCheck(d, "T-9", "c1"), /ToDo T-9 がありません/);
 });
+
+const withActual = (id, date, start, end, a) => ({ ...slot(id, date, start, end), actual: a });
+
+test("todoMinutes: planned は予定の枠の自身の時間（actual を持っていても数える）、actual は実績の区間（actual.date で範囲を絞る）", () => {
+  const d = base([todo({ id: "T-0001", date: "2026-10-20", sessions: [withActual("S1", "2026-10-20", "09:00", "10:00", { date: "2026-10-27", start: "09:00", end: "10:30" }), slot("S2", "2026-10-21", "09:00", "09:30", "actual")] })]);
+  assert.deepEqual(todoMinutes(d, "T-0001"), { planned: 60, actual: 120 });
+  assert.deepEqual(todoMinutes(d, "T-0001", { start: "2026-10-19", end: "2026-10-25" }), { planned: 60, actual: 30 });
+  assert.deepEqual(todoMinutes(d, "T-0001", { start: "2026-10-26", end: "2026-11-01" }), { planned: 0, actual: 90 });
+});
+
+test("weekReview: 見出しと行の分数が同じ規則", () => {
+  const d = base([todo({ id: "T-0001", date: "2026-10-20", sessions: [withActual("S1", "2026-10-20", "09:00", "10:00", { date: "2026-10-21", start: "09:00", end: "10:30" })] })]);
+  const r = weekReview(d, "2026-10-19");
+  assert.deepEqual([r.planned, r.actual], [60, 90]);
+  assert.deepEqual([r.rows[0].planned, r.rows[0].actual], [60, 90]);
+  const next = weekReview(base([todo({ id: "T-0001", date: "2026-10-20", sessions: [withActual("S1", "2026-10-20", "09:00", "10:00", { date: "2026-10-27", start: "09:00", end: "10:30" })] })]), "2026-10-26");
+  assert.deepEqual([next.planned, next.actual], [0, 90]);
+});
+
+test("carryTodo: actual を持つ予定の枠は、回す前の日にあっても消さない", () => {
+  const d = base([todo({ id: "T-0001", date: "2026-10-23", sessions: [withActual("S1", "2026-10-23", "09:00", "10:00", { date: "2026-10-23", start: "15:00", end: "16:00" }), slot("S2", "2026-10-23", "11:00", "12:00")] })]);
+  assert.deepEqual(carryTodo(d, "T-0001").todos[0].sessions.map((s) => s.id), ["S1"]);
+});

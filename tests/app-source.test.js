@@ -93,7 +93,7 @@ test("app.js: 「参加しない会議」のボタン（data-sskip）は showSki
 test("schedule.js: ブロックの時刻は esc して出す（toMin が先に検証するが、描画側でも守る）", () => {
   const sc = readFileSync(new URL("../plugins/project-lens/src/ui/views/schedule.js", import.meta.url), "utf8");
   assert.match(sc, /\$\{esc\(m\.start\)\}-\$\{esc\(m\.end\)\}/);
-  assert.match(sc, /\$\{esc\(s\.start\)\}-\$\{esc\(s\.end\)\}/);
+  assert.match(sc, /\$\{esc\(t\.start\)\}-\$\{esc\(t\.end\)\}/); // 作業枠の時刻（t は枠自身か、実績の帯の actual）
 });
 
 test("app.js: 営業日の指定の追加は、入力欄の値を先に取り出してから edit に入れる（保存の競合で当て直されても日付が空にならない）。終了日を入れたら同じ日でも期間として扱う", () => {
@@ -581,8 +581,16 @@ test("app.js: 作業枠を押して選ぶと（selectSession）、そのタス�
   assert.ok(!src.includes("data-tedit-open") && !src.includes("teditOpen"), "「タスクを編集」のボタンは持たない");
   const fn = src.slice(src.indexOf("const selectSession = "), src.indexOf("const selectSession = ") + 400);
   assert.ok(fn.includes("Object.assign(S, sessionSelection(S.data, id, S.taskEdit))"), fn); // 規則（ToDo の枠は編集欄を開かない）は views.test.js の sessionSelection
-  assert.match(src, /if \(sb && !q\("\[data-rz\]"\)\) \{ selectSession\(S\.selSess === sb\.dataset\.dragsess \? null : sb\.dataset\.dragsess\);/);
+  assert.match(src, /if \(sb && !q\("\[data-rz\]"\)\) \{ const id = sb\.dataset\.dragsess \?\? sb\.dataset\.actbar; selectSession\(S\.selSess === id \? null : id\);/);
   assert.match(src, /if \(q\("\[data-tedit-close\]"\)\) \{ clearSel\(\); render\(\); return; \}/);
+});
+
+test("app.js: 実績の帯（data-actbar）の押下は、data-dragsess と同じ選択の処理に入る（欄外のクリックで外さない）。ドラッグ・下端のサイズ変更には入れない", () => {
+  assert.ok(src.includes('const sb = q("[data-dragsess],[data-actbar]");'));
+  assert.match(src, /!q\("\[data-dragsess\],\[data-actbar\],\[data-mtg\],/);
+  const dragLine = src.split("\n").find((l) => l.includes('e.target.closest("[data-dragtask]")'));
+  assert.ok(dragLine && !dragLine.includes("actbar"), dragLine);
+  assert.ok(!src.includes('closest("[data-rz],[data-rzm],[data-actbar]'));
 });
 
 test("theme.css: スケジュールの凡例の色の見本は 18×14px（線・点線・塗りは .sw の規則のまま）。文字は 12px。現在時刻の線は高さ 0 のまま、行の中央に置く（#view の中だけ）", () => {
@@ -599,9 +607,9 @@ test("theme.css: カレンダーの上の入力欄（#mtgslot）は、中身が�
 test("app.js: 実績の保存（data-actsave）は、入力欄（data-ac）を押した時に読み、recordActual を 1 回の apply で保存し（枠と状態を一緒に）、件名と時刻と、状態を変えたことを通知で言う。プロジェクト画面にも now を渡す", () => {
   const i = src.indexOf('q("[data-actsave]")');
   assert.ok(i > 0, "data-actsave のハンドラ");
-  const a = src.slice(i, i + 1200);
+  const a = src.slice(i, src.indexOf('q("[data-actclear]")'));
   assert.ok(a.includes('view.querySelector(`[data-ac="${k}"]`)') && a.includes("recordActual(d, taskId, slot, now)") && a.includes("apply("), a);
-  assert.equal(a.slice(0, a.indexOf('q("[data-actcancel]")')).match(/apply\(/g).length, 1, "apply は 1 回");
+  assert.equal(a.match(/apply\(/g).length, 2, "apply は、予定の枠（recordSlotActual）と「＋ 実績を追加」（recordActual）の経路で 1 回ずつ");
   assert.ok(a.includes("taskTitle(taskId)") && a.includes("の実績を入れました") && a.includes("状態を In Progress にしました") && a.includes("待ち先の記録は外しました"), a);
   assert.ok(a.includes("clearSel()"), "保存したら、選択と入力欄を閉じる");
   for (const old of ["data-session-actual", "data-confirm", "confirmTodaySession", "confirmSession", "confirmMeeting"]) assert.ok(!src.includes(old), old);
@@ -726,8 +734,31 @@ test("app.js: 実績の入力欄（data-ac・data-ma）は、change で S.actDra
   const i = src.indexOf('q("[data-actsave]")');
   const a = src.slice(i, src.indexOf('q("[data-actcancel]")'));
   assert.ok(a.includes("clearSel(); render();"), "枠・追加の保存の成功は clearSel で消す");
-  assert.ok(!a.slice(0, a.indexOf("if (apply(")).includes("actDraft"), "失敗の経路では消さない");
+  assert.ok(!a.slice(0, a.indexOf("if (apply(")).includes("S.actDraft = null"), "失敗の経路では消さない");
   assert.ok(src.includes('if (apply((d) => setMeetingActual(d, id, span, now), "会議の実績を入れました")) S.actDraft = null;'), "会議は成功したときだけ消す");
+});
+
+test("app.js: 予定の枠の実績の保存（data-actsave に枠の ID）は、日付・開始・終了を下書きへ先に写し、空・不正なら通知して下書きを残し、recordSlotActual を apply に通す。初回と更新で通知を分ける", () => {
+  const i = src.indexOf('q("[data-actsave]")');
+  const a = src.slice(i, src.indexOf('q("[data-actcancel]")'));
+  const slotPath = a.slice(0, a.indexOf("recordActual(d, taskId"));
+  assert.match(slotPath, /S\.actDraft = \{ key: sid, task: "", \.\.\.slot \};[\s\S]*isDate\(slot\.date\)[^\n]*toast\("日付・時刻を入力してください"\); return; \}/, slotPath);
+  assert.ok(slotPath.indexOf("S.actDraft = { key: sid") < slotPath.indexOf("isDate(slot.date)"), "検査の前に下書きへ写す");
+  assert.match(slotPath, /apply\(\(d\) => \{ r = recordSlotActual\(d, sid, slot, now\); return r\.data; \}, null, \{ quiet: true \}\)/);
+  assert.ok(!slotPath.slice(0, slotPath.indexOf("if (apply(")).includes("S.actDraft = null"), "失敗の経路では下書きを消さない");
+  assert.ok(slotPath.includes("clearSel(); render();"), "成功で選択と下書きを外す");
+  assert.ok(slotPath.includes("の実績を ${slot.start}–${slot.end} に更新しました") && slotPath.includes("の ${slot.start}–${slot.end} の実績を入れました"), slotPath);
+  assert.ok(slotPath.includes("taskTitle(r.taskId)"));
+});
+
+test("app.js: 実績を消す（data-actclear）は clearActual を apply に通し、成功で下書きを消し、件名で通知する。欄外のクリックでも選択を外さない", () => {
+  const i = src.indexOf('q("[data-actclear]")');
+  assert.ok(i > 0, "data-actclear のハンドラ");
+  const a = src.slice(i, i + 600);
+  assert.match(a, /apply\(\(d\) => \{ const r = clearActual\(d, s\.id\); if \(r\.error\) throw new Error\(r\.error\); return r\.data; \}, null, \{ quiet: true \}\)/, a);
+  assert.ok(a.includes("S.actDraft = null") && a.includes("の実績を消しました") && a.includes("taskTitle(s.taskId)"), a);
+  const g = src.slice(src.indexOf("// 欄外のクリックで"), src.indexOf("// 欄外のクリックで") + 400);
+  assert.ok(g.includes("[data-actclear]"), g);
 });
 
 test("ToDo タブ: index.html のタブ（スケジュールと稼働の間）、renderBody の renderTodo、build の MODULES（schedule.js の後）", () => {
@@ -765,7 +796,7 @@ test("ToDo タブ: 各 data-td* に、対応するハンドラ（todos.js の関
 test("ToDo タブ: 削除は、実績の枠があるときだけ確認（S.tdAskDel）を出す。確認は render に渡し、再描画で消さず、clearSel・やめる・削除で外す", () => {
   const i = src.indexOf('const tdel = q("[data-tddel]")');
   const a = src.slice(i, i + 900);
-  assert.match(a, /kind === "actual"\)\) \{ S\.tdAskDel = id; render\(\); return; \}/);
+  assert.match(a, /actualSpans\(\{ tasks: \[\], todos: \[own\] \}\)\.length\) \{ S\.tdAskDel = id; render\(\); return; \}/);
   assert.match(a, /q\("\[data-tddelok\]"\)/);
   assert.match(a, /q\("\[data-tddelno\]"\)\) \{ S\.tdAskDel = null; render\(\)/);
   assert.match(src, /function deleteTodoNow\(id\) \{[^]*?S\.tdAskDel = null;[^]*?deleteTodo\(d, id\)/);
@@ -773,4 +804,30 @@ test("ToDo タブ: 削除は、実績の枠があるときだけ確認（S.tdAsk
   assert.match(src, /const clearSel = \(\) => \{[^\n]*S\.tdAskDel = null;/);
   assert.match(src, /S\.tdAskDel && !S\.data\?\.todos\?\.some\(\(t\) => t\.id === S\.tdAskDel\)/);
   assert.ok(!/S\.(taskEdit|selSess) = [^;]*tdAskDel/.test(src), "確認の状態を S.data.tasks で検証する状態に入れない");
+});
+
+test("枠の削除: actual を持つ予定の枠は S.askDelSess に入れて描き直し、すぐ消さない。data-delsessok で removeSession、data-delsessno で外す。ほかの枠は 1 回で削除", () => {
+  const i = src.indexOf("function deleteSelected()");
+  const f = src.slice(i, src.indexOf("/** 表示の好み", i));
+  assert.match(f, /s\.kind === "planned" && s\.actual\) \{ S\.askDelSess = s\.id; render\(\); return; \}[^\n]*\n  removeSelectedSession\(s\);/);
+  assert.match(f, /function removeSelectedSession\(s\) \{[^]*?S\.askDelSess = null;[^]*?apply\(\(d\) => removeSession\(d, s\.id\)/);
+  assert.match(f, /枠（実績つき）/);
+  const ok = src.slice(src.indexOf("const dsok"), src.indexOf("const dsok") + 420);
+  assert.match(ok, /S\.askDelSess === s\.id\) removeSelectedSession\(s\)/);
+  assert.match(ok, /q\("\[data-delsessno\]"\)\) \{ S\.askDelSess = null; render\(\)/);
+  assert.match(src, /askDelSess: S\.askDelSess/);
+  assert.match(src, /const clearSel = \(\) => \{[^\n]*S\.askDelSess = null;/);
+  assert.match(src, /\[data-delsel\],\[data-delsessok\],\[data-delsessno\]/, "確認のボタンは、欄外のクリックにならない");
+  assert.match(src, /S\.askDelSess && \(S\.screen !== "schedule" \|\| S\.askDelSess !== S\.selSess\)\) S\.askDelSess = null/);
+  assert.ok(!/S\.askDelSess[^;]*tasks\.some/.test(src), "S.data.tasks で検証しない");
+});
+
+test("app.js: 実績の保存（枠モード）と実績を消すは、成功のあと確認待ち（S.askDelSess）を外す", () => {
+  const i = src.indexOf('q("[data-actsave]")');
+  const save = src.slice(i, src.indexOf('q("[data-actclear]")'));
+  assert.ok(save.includes("clearSel(); render();"), "保存の成功時は clearSel()");
+  assert.ok(/const clearSel = [^\n]*S\.askDelSess = null/.test(src), "clearSel が askDelSess を外す");
+  const j = src.indexOf('q("[data-actclear]")');
+  const clr = src.slice(j, j + 600);
+  assert.ok(clr.includes("S.askDelSess = null"), clr);
 });

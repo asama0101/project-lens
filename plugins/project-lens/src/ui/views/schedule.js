@@ -75,18 +75,24 @@ const STATUS_JA = { "To Do": "未着手", "In Progress": "着手中", Waiting: "
 /** 2 つの枠（同じ日）の時間が重なるか */
 const overlaps = (a, b) => toMin(a.start) < toMin(b.end) && toMin(b.start) < toMin(a.end);
 
+/**
+ * その日の描く要素: 枠のブロック（予定の日付がその日）と、予定の枠の実績の帯（actual.date がその日。ドラッグ・サイズ変更なし）。
+ * 実績の側（実績だけの枠・実績の帯）と予定の側の要素が重なるときは、予定を左半分・実績を右半分に並べる（重ならなければ全幅）
+ */
 function sessionBlocks(data, d, full, g, ctx) {
-  const day = allSessions(data).filter((s) => s.date === d);
-  return day.map((s) => {
-    // 予定・未確認の枠と実績の枠が重なるときは、予定を左半分・実績を右半分に並べる（重ならなければ全幅）
-    const isAct = s.kind === "actual";
-    const side = day.some((o) => (o.kind === "actual") !== isAct && overlaps(o, s)) ? (isAct ? ";left:50%;width:50%" : ";left:0;width:50%") : "";
-    const c = KIND_CLS[sessionKind(s, ctx.now, ctx.actuals)];
-    const task = data.tasks.find((t) => t.id === s.taskId); // ToDo の枠は無し（件名だけを出し、状態・重要の印は出さない）
+  const items = allSessions(data).flatMap((s) => [
+    ...(s.date === d ? [{ s, t: s, bar: false, isAct: s.kind === "actual" }] : []),
+    ...(s.kind === "planned" && s.actual?.date === d ? [{ s, t: s.actual, bar: true, isAct: true }] : []),
+  ]);
+  return items.map(({ s, t, bar, isAct }) => {
+    const side = items.some((o) => o.isAct !== isAct && overlaps(o.t, t)) ? (isAct ? ";left:50%;width:50%" : ";left:0;width:50%") : "";
+    const c = bar ? "act" : s.actual ? "plan" : KIND_CLS[sessionKind(s, ctx.now, ctx.actuals)]; // 実績を持つ予定のブロックは「予定」（未確認にしない）
+    const task = data.tasks.find((x) => x.id === s.taskId); // ToDo の枠は無し（件名だけを出し、状態・重要の印は出さない）
     const st = full && task ? ` <span class="stt">${STATUS_JA[task.status] ?? ""}</span>` : "";
     const imp = task && isImportantMark(task) ? " imp" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
-    const short = toMin(s.end) - toMin(s.start) < SHORT_MIN ? " short" : "";
-    return `<div class="blk task ${c}${imp}${short} ${ctx.selSess === s.id ? "sel" : ""}" draggable="true" tabindex="0" data-dragsess="${esc(s.id)}" style="top:${g.tp(toMin(s.start))};height:${g.ht(toMin(s.start), toMin(s.end))}${side}" title="${esc(s.title)}(${KIND_JA[c]})"><span class="tm">${esc(s.start)}-${esc(s.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${esc(s.title)}</span>${st}<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i></div>`;
+    const short = toMin(t.end) - toMin(t.start) < SHORT_MIN ? " short" : "";
+    const attrs = bar ? `tabindex="0" data-actbar="${esc(s.id)}"` : `draggable="true" tabindex="0" data-dragsess="${esc(s.id)}"`;
+    return `<div class="blk task ${c}${imp}${short} ${ctx.selSess === s.id ? "sel" : ""}" ${attrs} style="top:${g.tp(toMin(t.start))};height:${g.ht(toMin(t.start), toMin(t.end))}${side}" title="${esc(s.title)}(${KIND_JA[c]})"><span class="tm">${esc(t.start)}-${esc(t.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${esc(s.title)}</span>${st}${bar ? "" : `<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i>`}</div>`;
   }).join("");
 }
 
@@ -159,23 +165,29 @@ export function actAddSpan(date, now) {
   return [toHHMM(s), toHHMM(Math.min(s + 60, 24 * 60 - 1))];
 }
 
+/** 実績つきの予定の枠の削除の確認（opts.askDelSess が選択中の枠の id のとき）。N は、その枠の actual の分数 */
+const delAsk = (s, askId) => s && s.actual && askId === s.id
+  ? `<div class="ask" role="alert"><span class="note">実績 ${toMin(s.actual.end) - toMin(s.actual.start)} 分も消えます</span><button class="btn danger" data-delsessok="${esc(s.id)}">削除する</button><button class="btn" data-delsessno>やめる</button></div>` : "";
+
 /**
- * 実績の入力欄。始まった予定の枠を選んでいるときは、その枠の時刻を初期値に（持ち主は枠の持ち主。タスクか ToDo）。
+ * 実績の入力欄。始まった予定の枠か、実績（actual）を持つ予定の枠を選んでいるときは、その枠の actual を書く欄（日付・開始・終了。持ち主は枠の持ち主。タスクか ToDo）。actual があれば「実績を更新」と「実績を消す」。
  * 「＋ 実績を追加」（ctx.add = { date }）のときは、タスク（Done・Cancelled 以外）・日付も選ぶ。どちらでもなければ出さない。
  * 入力の値は、保存を押したときに画面から読む（app.js）。入力中の値は下書き（ctx.draft = { key, task, date, start, end }。key は枠の ID・"add"）に残り、key が同じ欄は下書きの値で描く
  * @param ctx { selSess: 選択中の枠 ID, add: S.actAdd, draft: S.actDraft, today, now }
  */
 export function actualForm(data, ctx) {
   const s = allSessions(data).find((x) => x.id === ctx.selSess);
-  const fromPlan = s && s.kind === "planned" && started(s, ctx.now);
+  const fromPlan = s && s.kind === "planned" && (started(s, ctx.now) || !!s.actual);
   if (!fromPlan && !ctx.add) return "";
   const dr = ctx.draft?.key === (fromPlan ? s.id : "add") ? ctx.draft : null;
   const time = (k, v) => `<label>${k === "start" ? "開始" : "終了"}<input class="in" type="time" step="900" data-ac="${k}" value="${esc(dr?.[k] ?? v)}"></label>`;
-  if (fromPlan) {
+  if (fromPlan) { // 初期値は、実績（actual）があればその値、なければ枠の日付と予定の時刻
+    const a = s.actual ?? s;
     return `<div class="actform" role="group" aria-label="実績の入力">
-    <span class="note" style="flex-basis:100%;margin:0">「${esc(s.title)}」の実績を入れます（予定の枠は残ります）</span>
-    ${time("start", s.start)}${time("end", s.end)}
-    <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-actsave="${esc(s.id)}">実績を保存</button></div>
+    <span class="note" style="flex-basis:100%;margin:0">「${esc(s.title)}」の実績を${s.actual ? "更新します" : "入れます"}（予定の枠は残ります）</span>
+    <label>日付${dateInputHtml({ value: dr?.date || a.date, attrs: 'data-ac="date"', label: "実績の日付" })}</label>
+    ${time("start", a.start)}${time("end", a.end)}
+    <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-actsave="${esc(s.id)}">${s.actual ? "実績を更新" : "実績を保存"}</button>${s.actual ? `<button class="btn" data-actclear="${esc(s.id)}">実績を消す</button>` : ""}</div>
   </div>`;
   }
   const pn = (t) => (data.projects ?? []).find((p) => p.id === t.projectId)?.name;
@@ -237,10 +249,10 @@ export function renderSchedule(data, today, opts) {
   const step = view === "week" ? 7 : 1;
   const days = view === "week" ? [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(weekStartOf(date), i)) : [date];
   const title = view === "week" ? `${fmtMD(days[0])}〜${fmtMD(days[6])} の週` : `${fmtMD(date)}(${wdJa(date)})`;
-  const inView = allSessions(data).filter((s) => days.includes(s.date));
+  const inView = allSessions(data).filter((s) => days.includes(s.date) || days.includes(s.actual?.date)); // 予定の日付か、実績の日付が範囲内
   const actuals = actualSlots(data);
-  const kinds = inView.map((s) => sessionKind(s, now, actuals));
-  const hours = inView.filter((s, i) => kinds[i] === "actual").reduce((a, s) => a + toMin(s.end) - toMin(s.start), 0) / 60;
+  const kinds = inView.map((s) => sessionKind(s, now, actuals)); // 実績を持つ枠は actual なので、予定・未確認の件数に入らない
+  const hours = actuals.filter((a) => days.includes(a.date)).reduce((a, s) => a + toMin(s.end) - toMin(s.start), 0) / 60;
   const planned = kinds.filter((k) => k === "planned").length;
   const unconfS = kinds.filter((k) => k === "unconfirmed").length;
   const unconfM = (data.events ?? []).filter((m) => days.includes(m.date) && meetingKind(m, now) === "unconfirmed").length;
@@ -256,6 +268,6 @@ export function renderSchedule(data, today, opts) {
     <div class="summary"><span>実績 <b class="mono">${hours.toFixed(1)}時間</b></span><span>予定 <b class="mono">${planned}件</b></span>${unconf ? `<span class="pill wait">未確認 ${unconf}件（作業枠 ${unconfS}・会議 ${unconfM}）</span>` : ""}<button class="btn danger" data-delsel ${delOk ? "" : "disabled"}>${delLabel}</button></div>`;
   const et = selSess && opts.taskEdit ? data.tasks.find((t) => t.id === opts.taskEdit.id) : null; // 編集欄は、表示中の枠を選んでいる間だけ出す（枠を選ぶと、そのタスクの編集欄になる）
   const editPanel = et ? renderTaskEditPanel(data, opts.taskEdit, statusCellHtml(et, { ...opts, todayIds: opts.showPrio === false ? new Set() : new Set(todayTaskIds(data, today)) }, taskFlags(et, today, data.settings).includes("overdue"))) : "";
-  return `<div class="cols${opts.showPrio === false ? " one" : ""}"><section class="panel"><div class="stop">${nav}</div><div id="mtgslot">${meetingForm(data, { mtgDraft: opts.mtgDraft, selMtg: selMtg?.id, actDraft: opts.actDraft, now })}${urgentForm(data, opts.urgentDraft)}${actualForm(data, { selSess: selSess?.id ?? null, add: opts.actAdd, draft: opts.actDraft, today, now })}${editPanel}</div><div id="calslot">${renderCalendar(data, today, calOpts)}</div></section>${renderSideToggle(opts.showPrio !== false)}${opts.showPrio === false ? "" : renderSide(data, today, { sched: true, pendingDone: opts.pendingDone, now })}</div>`;
+  return `<div class="cols${opts.showPrio === false ? " one" : ""}"><section class="panel"><div class="stop">${nav}</div><div id="mtgslot">${meetingForm(data, { mtgDraft: opts.mtgDraft, selMtg: selMtg?.id, actDraft: opts.actDraft, now })}${urgentForm(data, opts.urgentDraft)}${actualForm(data, { selSess: selSess?.id ?? null, add: opts.actAdd, draft: opts.actDraft, today, now })}${delAsk(selSess, opts.askDelSess)}${editPanel}</div><div id="calslot">${renderCalendar(data, today, calOpts)}</div></section>${renderSideToggle(opts.showPrio !== false)}${opts.showPrio === false ? "" : renderSide(data, today, { sched: true, pendingDone: opts.pendingDone, now })}</div>`;
 }
 

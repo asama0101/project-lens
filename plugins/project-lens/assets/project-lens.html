@@ -309,6 +309,7 @@ tr.hl td{transition:background .3s}
 .blk.task.sel{outline:2px solid var(--ink);outline-offset:1px;z-index:4}
 .blk.task:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .blk.task{cursor:grab}
+.blk.task[data-actbar]{cursor:pointer}
 .slegend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12px;color:var(--muted);margin-top:12px}
 .slegend span{display:inline-flex;align-items:center}
 .sw{display:inline-block;width:20px;height:12px;border-radius:3px;margin-right:6px}
@@ -985,6 +986,12 @@ function validate(data, now = nowLocal()) {
     if (!isDate(s.date) || !isTime(s.start) || !isTime(s.end)) { err(`${label}: 日付または時刻の形式が不正です`); return false; }
     if (toMin(s.end) <= toMin(s.start)) err(`${label}: 終了が開始以前です`);
     if (!["planned", "actual"].includes(s.kind)) err(`${label}: 不明な kind "${s.kind}"`);
+    const a = s.actual;
+    if (a != null) {
+      if (s.kind === "actual") err(`${label}: 実績だけの枠 (kind: "actual") は actual を持てません`);
+      else if (!isObj(a) || !isDate(a.date) || !isTime(a.start) || !isTime(a.end)) err(`${label}: actual の日付または時刻の形式が不正です`);
+      else if (toMin(a.end) <= toMin(a.start)) err(`${label}: actual の終了が開始以前です`);
+    }
     return s.date > now.date || (s.date === now.date && s.start > now.time); // 進行中の枠は、完了にしても残す（futurePlanned）
   };
 
@@ -1012,7 +1019,7 @@ function validate(data, now = nowLocal()) {
 
     for (const s of t.sessions ?? []) {
       const notStarted = checkSession(s, `タスク ${t.id} の枠 ${s.id}`);
-      if (notStarted && isClosed(t) && s.kind === "planned") warn(`タスク ${t.id}: ${t.status} なのに未来の予定枠 ${s.id} が残っています`);
+      if (notStarted && isClosed(t) && s.kind === "planned" && !s.actual) warn(`タスク ${t.id}: ${t.status} なのに未来の予定枠 ${s.id} が残っています`);
     }
   }
 
@@ -1038,13 +1045,15 @@ function validate(data, now = nowLocal()) {
   const cycle = findCycle(data.tasks);
   if (cycle) err(`前のタスクが循環しています: ${cycle.join(" → ")}`);
 
-  // 同じ日の同じ種別の枠どうしの重なり（予定と実績は重なってよい。タスクをまたいで判定）。日付で束ねて、同じ日の中だけ総当たりにする（全枠の総当たりは、数年分で秒単位になる）
+  // 同じ日の同じ種別の枠どうしの重なり（予定と実績は重なってよい。タスクと ToDo をまたいで判定）。実績は、実績だけの枠と予定の枠の actual（実績の区間）を合わせて比べる
+  // 日付で束ねて、同じ日の中だけ総当たりにする（全枠の総当たりは、数年分で秒単位になる）
   const byDay = new Map();
+  const put = (date, x) => { if (!byDay.has(date)) byDay.set(date, []); byDay.get(date).push(x); };
   for (const t of [...data.tasks, ...todos]) {
     for (const s of t.sessions ?? []) {
-      if (!isDate(s.date) || !isTime(s.start) || !isTime(s.end)) continue;
-      if (!byDay.has(s.date)) byDay.set(s.date, []);
-      byDay.get(s.date).push(s);
+      if (isDate(s.date) && isTime(s.start) && isTime(s.end)) put(s.date, s);
+      const a = s.actual;
+      if (s.kind === "planned" && isObj(a) && isDate(a.date) && isTime(a.start) && isTime(a.end)) put(a.date, { id: `${s.id} の実績`, kind: "actual", start: a.start, end: a.end });
     }
   }
   for (const [date, list] of byDay) {
@@ -1187,9 +1196,9 @@ function taskStart(data, taskId) {
   return preds.length ? maxDate(preds.map((p) => p.due)) : t.due;
 }
 
-/** 実績の線: 最初の実績枠の日 → 完了日（未完了なら today） */
+/** 実績の線: 最初の実績の日（実績だけの枠の日と、予定の枠の actual の日）→ 完了日（未完了なら today） */
 function actualSpan(t, today) {
-  const days = (t.sessions ?? []).filter((s) => s.kind === "actual").map((s) => s.date).sort();
+  const days = (t.sessions ?? []).flatMap((s) => (s.kind === "actual" ? [s.date] : s.actual ? [s.actual.date] : [])).sort();
   if (!days.length) return null;
   const finished = isClosed(t);
   let end = finished ? (t.doneAt ?? days[days.length - 1]) : today;
@@ -1291,7 +1300,7 @@ return { taskStart, ganttRows, ganttLayout, timeTicks, projectProgress, taskFlag
 })();
 
 /* src/core/sessions.js */
-const { LAST_END, ownerOf, allSessions, actualSlots, sessionKind, addSession, addActual, moveSession, resizeSession, removeSession, taskActual, runningPlanned, futurePlanned } = (() => {
+const { LAST_END, ownerOf, allSessions, actualSpans, actualSlots, sessionKind, addSession, addActual, setActual, clearActual, moveSession, resizeSession, removeSession, taskActual, runningPlanned, futurePlanned } = (() => {
 // 作業枠（予定／実績）の規則。枠は「作業した時間の記録」で、タスクの状態は変えない。すべて不変更新。
 
 
@@ -1316,12 +1325,19 @@ const findSession = (data, id) => allSessions(data).find((s) => s.id === id);
 const clash = (a, b) => a.date === b.date && toMin(a.start) < toMin(b.end) && toMin(b.start) < toMin(a.end);
 const isPast = (slot, now) => slot.date < now.date || (slot.date === now.date && slot.end <= now.time);
 
-/** タスクと ToDo の実績の枠（日付・開始・終了）。予定の未確認の判定に使う */
-const actualSlots = (data) => allSessions(data).filter((s) => s.kind === "actual").map(({ date, start, end }) => ({ date, start, end }));
+/** 枠の実績の区間。実績だけの枠は自身の時間、予定の枠は actual（無ければ undefined） */
+const spanOf = (s) => (s.kind === "actual" ? s : s.kind === "planned" ? s.actual : undefined);
+/** タスクと ToDo の実績の区間（実績だけの枠と、予定の枠の actual）。実績の時間は、すべてこれで数える */
+const actualSpans = (data) => allSessions(data).flatMap((s) => {
+  const a = spanOf(s);
+  return a ? [{ sessionId: s.id, taskId: s.taskId, title: s.title, projectId: s.projectId, date: a.date, start: a.start, end: a.end }] : [];
+});
+/** 実績の区間の日付・開始・終了だけ。予定の未確認の判定に使う */
+const actualSlots = (data) => actualSpans(data).map(({ date, start, end }) => ({ date, start, end }));
 
-/** 実績は actual。過ぎた予定は、重なる実績が無ければ unconfirmed、あれば planned。過ぎていない予定は planned */
+/** 実績だけの枠と、actual を持つ予定の枠は actual。過ぎた予定は、重なる実績が無ければ unconfirmed、あれば planned。過ぎていない予定は planned */
 function sessionKind(session, now, actuals = []) {
-  if (session.kind === "actual") return "actual";
+  if (session.kind === "actual" || session.actual) return "actual";
   return isPast(session, now) && !actuals.some((a) => clash(a, session)) ? "unconfirmed" : "planned";
 }
 
@@ -1330,8 +1346,8 @@ const nextId = (data) => {
   return `S${max + 1}`;
 };
 
-/** 枠の置き場所の検証。同じ種別（予定／実績）の枠との重なりは error、会議との重なりは warning。休みの日の error は予定だけ */
-function check(data, slot, ignoreId, kind = "planned") {
+/** 枠の置き場所の検証。予定は予定の枠と、実績は実績の区間（ignoreId の枠の分は除く）と重なると error。会議との重なりは warning。休みの日の error は予定だけ。word は重なりの文言 */
+function check(data, slot, ignoreId, kind = "planned", word = kind === "actual" ? "実績の枠" : "枠") {
   if (!isTime(slot.end)) return { error: `終了は ${toHHMM(LAST_END)} までにしてください` }; // 24:00 以降（開始 + 長さが日をまたぐ）
   const [s, e] = [toMin(slot.start), toMin(slot.end)];
   if (e <= s) return { error: "終了は開始より後にしてください" };
@@ -1339,8 +1355,10 @@ function check(data, slot, ignoreId, kind = "planned") {
   // 休みの日に置けないのは、新しく置く・別の日から動かすとき。休みの日にすでにある枠は、同じ日の中なら直せる
   const stays = ignoreId && allSessions(data).some((x) => x.id === ignoreId && x.date === slot.date);
   if (kind === "planned" && !stays && offDayChecker(data.settings)(slot.date)) return { error: `${isWeekend(slot.date) && data.settings?.countWeekendsAndHolidays !== true ? "土日" : "休みの日"}には置けません（設定タブの「営業日として扱う日」に指定すると置けます）` };
-  const other = allSessions(data).find((x) => x.id !== ignoreId && x.kind === kind && clash(x, slot));
-  if (other) return { error: `他の${kind === "actual" ? "実績の" : ""}枠（${other.start}〜${other.end}）と重なっています` };
+  const other = kind === "actual"
+    ? actualSpans(data).find((x) => x.sessionId !== ignoreId && clash(x, slot))
+    : allSessions(data).find((x) => x.id !== ignoreId && x.kind === "planned" && clash(x, slot));
+  if (other) return { error: `他の${word}（${other.start}〜${other.end}）と重なっています` };
   const mtg = data.events.find((m) => !m.skip && clash(m, slot));
   return mtg ? { warning: `会議「${mtg.title}」（${mtg.start}〜${mtg.end}）と重なっています` } : {};
 }
@@ -1371,6 +1389,27 @@ function addActual(data, taskId, slot, now) {
   return { data: withOwner(data, taskId, (t) => ({ ...t, sessions: [...(t.sessions ?? []), s] })), ...(r.warning && { warning: r.warning }) };
 }
 
+/** 予定の枠の実績（actual）を書く（あれば上書き）。ほかの実績の区間とは重ねられない。休みの日にも書ける。開始が今より後は error */
+function setActual(data, sessionId, slot, now) {
+  const cur = findSession(data, sessionId);
+  if (!cur) return { data, error: `枠 ${sessionId} がありません` };
+  if (cur.kind === "actual") return { data, error: "この枠は実績だけの枠です" };
+  if (startsLater(slot, now)) return { data, error: "まだ始まっていない時間には実績を入れられません" };
+  const r = check(data, slot, sessionId, "actual", "実績");
+  if (r.error) return { data, error: r.error };
+  const actual = { date: slot.date, start: slot.start, end: slot.end };
+  return { data: mapSessions(data, sessionId, (s) => ({ ...s, actual })), ...(r.warning && { warning: r.warning }) };
+}
+
+/** 予定の枠の actual だけを外す（予定の枠は残る） */
+function clearActual(data, sessionId) {
+  const cur = findSession(data, sessionId);
+  if (!cur) return { data, error: `枠 ${sessionId} がありません` };
+  if (cur.kind === "actual") return { data, error: "この枠は実績だけの枠です" };
+  if (!cur.actual) return { data, error: "この枠には実績がありません" };
+  return { data: mapSessions(data, sessionId, ({ actual, ...s }) => s) };
+}
+
 /** slot は { date, start }。長さは元のまま。種別は変えない（予定を過去へ動かすと、重なる実績が無ければ未確認として出る）。実績は今より後へ動かせない */
 function moveSession(data, sessionId, slot, now) {
   const cur = findSession(data, sessionId);
@@ -1397,10 +1436,10 @@ function removeSession(data, sessionId) {
   return mapOwners(data, (t) => ((t.sessions ?? []).some((s) => s.id === sessionId) ? { ...t, sessions: t.sessions.filter((s) => s.id !== sessionId) } : t));
 }
 
-/** タスクの実績の時間 */
+/** タスクの実績の時間（実績の区間から）。count は枠の数 */
 function taskActual(data, taskId) {
   const ss = data.tasks.find((x) => x.id === taskId).sessions ?? [];
-  const actual = ss.filter((s) => s.kind === "actual");
+  const actual = ss.map(spanOf).filter(Boolean);
   const minutes = actual.reduce((sum, s) => sum + toMin(s.end) - toMin(s.start), 0);
   return { hours: minutes / 60, firstDate: actual.length ? actual.map((s) => s.date).sort()[0] : null, count: ss.length };
 }
@@ -1412,14 +1451,14 @@ function runningPlanned(data, taskId, now) {
   return (t?.sessions ?? []).filter((s) => s.kind === "planned" && started(s) && !isPast(s, now)).map((s) => s.id);
 }
 
-/** まだ開始していない予定枠の ID（進行中の枠・終了した枠・実績は含まない。完了にするとき解除する対象。進行中の枠は残り、終わったあとに実績にできる） */
+/** まだ開始していない予定枠の ID（進行中の枠・終了した枠・実績・actual を持つ枠は含まない。完了にするとき解除する対象。進行中の枠は残り、終わったあとに実績にできる） */
 function futurePlanned(data, taskId, now) {
   const t = data.tasks.find((x) => x.id === taskId);
   const notStarted = (s) => s.date > now.date || (s.date === now.date && s.start > now.time);
-  return (t?.sessions ?? []).filter((s) => s.kind === "planned" && notStarted(s)).map((s) => s.id);
+  return (t?.sessions ?? []).filter((s) => s.kind === "planned" && !s.actual && notStarted(s)).map((s) => s.id);
 }
 
-return { LAST_END, ownerOf, allSessions, actualSlots, sessionKind, addSession, addActual, moveSession, resizeSession, removeSession, taskActual, runningPlanned, futurePlanned };
+return { LAST_END, ownerOf, allSessions, actualSpans, actualSlots, sessionKind, addSession, addActual, setActual, clearActual, moveSession, resizeSession, removeSession, taskActual, runningPlanned, futurePlanned };
 })();
 
 /* src/core/todos.js */
@@ -1499,7 +1538,7 @@ function carryTodo(data, id) {
     do date = addDays(date, 1); while (off(date));
   }
   const actuals = actualSlots(data);
-  const stale = (cur.sessions ?? []).filter((s) => s.kind === "planned" && s.date === cur.date && !actuals.some((a) => clash(a, s)));
+  const stale = (cur.sessions ?? []).filter((s) => s.kind === "planned" && !s.actual && s.date === cur.date && !actuals.some((a) => clash(a, s)));
   const moved = mapTodo(data, id, (t) => ({ ...t, date, carried: t.carried + 1 }));
   return stale.reduce((d, s) => removeSession(d, s.id), moved);
 }
@@ -1519,12 +1558,18 @@ function setReview(data, weekStart, text) {
   return { ...data, reviews: text ? { ...rest, [weekStart]: text } : rest };
 }
 
+/** 範囲内の分数。予定は kind が planned の枠の自身の時間（actual を持っていても数える。枠の日付で絞る）、実績は実績の区間（区間の日付で絞る） */
+const minutesIn = (data, ids, range) => {
+  const inRange = (d) => !range || (d >= range.start && d <= range.end);
+  const len = (s) => toMin(s.end) - toMin(s.start);
+  const planned = todosOf(data).filter((t) => ids.has(t.id)).flatMap((t) => t.sessions ?? []).filter((s) => s.kind === "planned" && inRange(s.date)).reduce((m, s) => m + len(s), 0);
+  const actual = actualSpans({ tasks: [], todos: todosOf(data).filter((t) => ids.has(t.id)) }).filter((s) => inRange(s.date)).reduce((m, s) => m + len(s), 0);
+  return { planned, actual };
+};
+
 /** その ToDo と、parentId がその ToDo の日の ToDo の枠の、range（start〜end の日付。省略は全期間）内の分の合計 */
 function todoMinutes(data, id, range) {
-  const mine = todosOf(data).filter((t) => t.id === id || t.parentId === id);
-  const inRange = (s) => !range || (s.date >= range.start && s.date <= range.end);
-  const sum = (kind) => mine.flatMap((t) => t.sessions ?? []).filter((s) => s.kind === kind && inRange(s)).reduce((m, s) => m + toMin(s.end) - toMin(s.start), 0);
-  return { planned: sum("planned"), actual: sum("actual") };
+  return minutesIn(data, new Set(todosOf(data).filter((t) => t.id === id || t.parentId === id).map((t) => t.id)), range);
 }
 
 /** 週の見返し。見出しの分数は、その週の日付にある全 ToDo の枠の合計。行は、date がその週に入る週の ToDo と、parentId を持たない日の ToDo（inWeek: true。割り当てた日の分は親の行に含む）に、
@@ -1537,13 +1582,11 @@ function weekReview(data, weekStart) {
   const items = roots.filter(inWeek).sort(order);
   const row = (todo, w) => ({ todo, inWeek: w, checked: todo.checklist?.length ? { done: todo.checklist.filter((x) => x.done).length, total: todo.checklist.length } : null, ...todoMinutes(data, todo.id, range) });
   const rows = [...items.map((t) => row(t, true)), ...roots.filter((t) => !inWeek(t)).sort(order).map((t) => row(t, false)).filter((r) => r.planned + r.actual > 0)];
-  const slots = todosOf(data).flatMap((t) => t.sessions ?? []).filter((s) => s.date >= range.start && s.date <= range.end);
-  const sum = (kind) => slots.filter((s) => s.kind === kind).reduce((m, s) => m + toMin(s.end) - toMin(s.start), 0);
+  const all = minutesIn(data, new Set(todosOf(data).map((t) => t.id)), range);
   return {
     done: items.filter((t) => t.doneAt).length,
     total: items.length,
-    planned: sum("planned"),
-    actual: sum("actual"),
+    ...all,
     note: data.reviews?.[weekStart] ?? "",
     rows,
   };
@@ -1903,8 +1946,8 @@ const hours = (x) => (toMin(x.end) - toMin(x.start)) / 60;
 const inRange = (d, r) => !r || (d >= r.start && d <= r.end);
 const sumBy = (list, f) => list.reduce((a, x) => a + f(x), 0);
 
-/** 実績の作業枠（タスクと ToDo）。ToDo の枠は projectId が null（プロジェクト未設定） */
-const actualSessions = (data, range) => allSessions(data).filter((s) => s.kind === "actual" && inRange(s.date, range));
+/** 実績の区間（タスクと ToDo）。範囲は区間の日付で絞る。ToDo の区間は projectId が null（プロジェクト未設定） */
+const actualSessions = (data, range) => actualSpans(data).filter((s) => inRange(s.date, range));
 const meetingHours = (m) => hours(meetingActualSpan(m));
 const countedMeetings = (data, range) => data.events.filter((m) => m.confirmed === true && !m.skip && inRange(m.date, range));
 
@@ -2767,7 +2810,7 @@ return { depPath, depMarkup, drawDeps, focusDeps };
 })();
 
 /* src/ui/edit.js */
-const { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, recordActual, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject } = (() => {
+const { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, recordActual, recordSlotActual, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject } = (() => {
 // 画面からの編集（追加・削除・更新）。すべて不変更新で、不正な入力は例外にする（呼び出し側が理由を表示する）。
 
 
@@ -3158,6 +3201,15 @@ function recordActual(data, taskId, slot, now) {
   return { data: statusChanged ? updateTask(r.data, taskId, { status: "In Progress" }, now.date) : r.data, taskId, statusChanged, from };
 }
 
+/** 予定の枠の実績（actual）を書く（setActual。あれば上書き。失敗は Error）。状態の規則は recordActual と同じ。taskId は枠の持ち主（タスクか ToDo） */
+function recordSlotActual(data, sessionId, slot, now) {
+  const r = setActual(data, sessionId, slot, now);
+  if (r.error) throw new Error(r.error);
+  const taskId = allSessions(data).find((s) => s.id === sessionId).taskId, from = data.tasks.find((x) => x.id === taskId)?.status ?? "";
+  const statusChanged = from === "To Do" || from === "Waiting";
+  return { data: statusChanged ? updateTask(r.data, taskId, { status: "In Progress" }, now.date) : r.data, taskId, statusChanged, from };
+}
+
 function addTask(data, task) {
   if (!data.projects.some((p) => p.id === task.projectId)) throw new Error(`プロジェクト ${task.projectId} がありません`);
   const title = String(task.title ?? "").trim();
@@ -3283,7 +3335,7 @@ function deleteProject(data, projectId) {
   return { ...data, settings, events, ...(inbox ? { inbox } : {}), projects: data.projects.filter((p) => p.id !== projectId), tasks: data.tasks.filter((t) => t.projectId !== projectId) };
 }
 
-return { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, recordActual, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject };
+return { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, recordActual, recordSlotActual, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject };
 })();
 
 /* src/ui/donecheck.js */
@@ -3552,8 +3604,9 @@ const statusPill = (t) => `<span class="pill ${PILL[t.status] ?? "off"}">${esc(t
 /** 枠の種類の札（カレンダーの凡例と同じ色の class。文字でも出す） */
 const KIND_TAG = { planned: ["plan", "予定"], actual: ["act", "実績"], unconfirmed: ["unconf", "未確認"] };
 
-/** 今日のタスクの枠の時間。前に予定・実績・未確認の札を付ける（actuals は全タスクの実績の枠。過ぎた予定に重なる実績があれば、未確認にしない） */
+/** 今日のタスクの枠の時間。前に予定・実績・未確認の札を付ける（actuals は全タスクの実績の区間。過ぎた予定に重なる実績があれば、未確認にしない）。実績（actual）を持つ予定の枠は、実績の時刻に、予定の時刻を小さく添える */
 function slotHtml(s, now, actuals) {
+  if (s.actual) return `<span class="ts"><span class="ktag act">実績</span>${esc(`${s.actual.start}–${s.actual.end}`)}<small class="muted">${esc(`予定 ${s.start}–${s.end}`)}</small></span>`;
   const [cls, label] = KIND_TAG[sessionKind(s, now, actuals)];
   return `<span class="ts"><span class="ktag ${cls}">${label}</span>${esc(`${s.start}–${s.end}`)}</span>`;
 }
@@ -4477,18 +4530,24 @@ const STATUS_JA = { "To Do": "未着手", "In Progress": "着手中", Waiting: "
 /** 2 つの枠（同じ日）の時間が重なるか */
 const overlaps = (a, b) => toMin(a.start) < toMin(b.end) && toMin(b.start) < toMin(a.end);
 
+/**
+ * その日の描く要素: 枠のブロック（予定の日付がその日）と、予定の枠の実績の帯（actual.date がその日。ドラッグ・サイズ変更なし）。
+ * 実績の側（実績だけの枠・実績の帯）と予定の側の要素が重なるときは、予定を左半分・実績を右半分に並べる（重ならなければ全幅）
+ */
 function sessionBlocks(data, d, full, g, ctx) {
-  const day = allSessions(data).filter((s) => s.date === d);
-  return day.map((s) => {
-    // 予定・未確認の枠と実績の枠が重なるときは、予定を左半分・実績を右半分に並べる（重ならなければ全幅）
-    const isAct = s.kind === "actual";
-    const side = day.some((o) => (o.kind === "actual") !== isAct && overlaps(o, s)) ? (isAct ? ";left:50%;width:50%" : ";left:0;width:50%") : "";
-    const c = KIND_CLS[sessionKind(s, ctx.now, ctx.actuals)];
-    const task = data.tasks.find((t) => t.id === s.taskId); // ToDo の枠は無し（件名だけを出し、状態・重要の印は出さない）
+  const items = allSessions(data).flatMap((s) => [
+    ...(s.date === d ? [{ s, t: s, bar: false, isAct: s.kind === "actual" }] : []),
+    ...(s.kind === "planned" && s.actual?.date === d ? [{ s, t: s.actual, bar: true, isAct: true }] : []),
+  ]);
+  return items.map(({ s, t, bar, isAct }) => {
+    const side = items.some((o) => o.isAct !== isAct && overlaps(o.t, t)) ? (isAct ? ";left:50%;width:50%" : ";left:0;width:50%") : "";
+    const c = bar ? "act" : s.actual ? "plan" : KIND_CLS[sessionKind(s, ctx.now, ctx.actuals)]; // 実績を持つ予定のブロックは「予定」（未確認にしない）
+    const task = data.tasks.find((x) => x.id === s.taskId); // ToDo の枠は無し（件名だけを出し、状態・重要の印は出さない）
     const st = full && task ? ` <span class="stt">${STATUS_JA[task.status] ?? ""}</span>` : "";
     const imp = task && isImportantMark(task) ? " imp" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
-    const short = toMin(s.end) - toMin(s.start) < SHORT_MIN ? " short" : "";
-    return `<div class="blk task ${c}${imp}${short} ${ctx.selSess === s.id ? "sel" : ""}" draggable="true" tabindex="0" data-dragsess="${esc(s.id)}" style="top:${g.tp(toMin(s.start))};height:${g.ht(toMin(s.start), toMin(s.end))}${side}" title="${esc(s.title)}(${KIND_JA[c]})"><span class="tm">${esc(s.start)}-${esc(s.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${esc(s.title)}</span>${st}<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i></div>`;
+    const short = toMin(t.end) - toMin(t.start) < SHORT_MIN ? " short" : "";
+    const attrs = bar ? `tabindex="0" data-actbar="${esc(s.id)}"` : `draggable="true" tabindex="0" data-dragsess="${esc(s.id)}"`;
+    return `<div class="blk task ${c}${imp}${short} ${ctx.selSess === s.id ? "sel" : ""}" ${attrs} style="top:${g.tp(toMin(t.start))};height:${g.ht(toMin(t.start), toMin(t.end))}${side}" title="${esc(s.title)}(${KIND_JA[c]})"><span class="tm">${esc(t.start)}-${esc(t.end)}${c === "act" ? " ✓" : c === "unconf" ? " 未確認" : ""}</span><span class="ttl">${esc(s.title)}</span>${st}${bar ? "" : `<i class="rz" data-rz="${esc(s.id)}" aria-label="終了時刻を変更"></i>`}</div>`;
   }).join("");
 }
 
@@ -4561,23 +4620,29 @@ function actAddSpan(date, now) {
   return [toHHMM(s), toHHMM(Math.min(s + 60, 24 * 60 - 1))];
 }
 
+/** 実績つきの予定の枠の削除の確認（opts.askDelSess が選択中の枠の id のとき）。N は、その枠の actual の分数 */
+const delAsk = (s, askId) => s && s.actual && askId === s.id
+  ? `<div class="ask" role="alert"><span class="note">実績 ${toMin(s.actual.end) - toMin(s.actual.start)} 分も消えます</span><button class="btn danger" data-delsessok="${esc(s.id)}">削除する</button><button class="btn" data-delsessno>やめる</button></div>` : "";
+
 /**
- * 実績の入力欄。始まった予定の枠を選んでいるときは、その枠の時刻を初期値に（持ち主は枠の持ち主。タスクか ToDo）。
+ * 実績の入力欄。始まった予定の枠か、実績（actual）を持つ予定の枠を選んでいるときは、その枠の actual を書く欄（日付・開始・終了。持ち主は枠の持ち主。タスクか ToDo）。actual があれば「実績を更新」と「実績を消す」。
  * 「＋ 実績を追加」（ctx.add = { date }）のときは、タスク（Done・Cancelled 以外）・日付も選ぶ。どちらでもなければ出さない。
  * 入力の値は、保存を押したときに画面から読む（app.js）。入力中の値は下書き（ctx.draft = { key, task, date, start, end }。key は枠の ID・"add"）に残り、key が同じ欄は下書きの値で描く
  * @param ctx { selSess: 選択中の枠 ID, add: S.actAdd, draft: S.actDraft, today, now }
  */
 function actualForm(data, ctx) {
   const s = allSessions(data).find((x) => x.id === ctx.selSess);
-  const fromPlan = s && s.kind === "planned" && started(s, ctx.now);
+  const fromPlan = s && s.kind === "planned" && (started(s, ctx.now) || !!s.actual);
   if (!fromPlan && !ctx.add) return "";
   const dr = ctx.draft?.key === (fromPlan ? s.id : "add") ? ctx.draft : null;
   const time = (k, v) => `<label>${k === "start" ? "開始" : "終了"}<input class="in" type="time" step="900" data-ac="${k}" value="${esc(dr?.[k] ?? v)}"></label>`;
-  if (fromPlan) {
+  if (fromPlan) { // 初期値は、実績（actual）があればその値、なければ枠の日付と予定の時刻
+    const a = s.actual ?? s;
     return `<div class="actform" role="group" aria-label="実績の入力">
-    <span class="note" style="flex-basis:100%;margin:0">「${esc(s.title)}」の実績を入れます（予定の枠は残ります）</span>
-    ${time("start", s.start)}${time("end", s.end)}
-    <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-actsave="${esc(s.id)}">実績を保存</button></div>
+    <span class="note" style="flex-basis:100%;margin:0">「${esc(s.title)}」の実績を${s.actual ? "更新します" : "入れます"}（予定の枠は残ります）</span>
+    <label>日付${dateInputHtml({ value: dr?.date || a.date, attrs: 'data-ac="date"', label: "実績の日付" })}</label>
+    ${time("start", a.start)}${time("end", a.end)}
+    <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-actsave="${esc(s.id)}">${s.actual ? "実績を更新" : "実績を保存"}</button>${s.actual ? `<button class="btn" data-actclear="${esc(s.id)}">実績を消す</button>` : ""}</div>
   </div>`;
   }
   const pn = (t) => (data.projects ?? []).find((p) => p.id === t.projectId)?.name;
@@ -4639,10 +4704,10 @@ function renderSchedule(data, today, opts) {
   const step = view === "week" ? 7 : 1;
   const days = view === "week" ? [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(weekStartOf(date), i)) : [date];
   const title = view === "week" ? `${fmtMD(days[0])}〜${fmtMD(days[6])} の週` : `${fmtMD(date)}(${wdJa(date)})`;
-  const inView = allSessions(data).filter((s) => days.includes(s.date));
+  const inView = allSessions(data).filter((s) => days.includes(s.date) || days.includes(s.actual?.date)); // 予定の日付か、実績の日付が範囲内
   const actuals = actualSlots(data);
-  const kinds = inView.map((s) => sessionKind(s, now, actuals));
-  const hours = inView.filter((s, i) => kinds[i] === "actual").reduce((a, s) => a + toMin(s.end) - toMin(s.start), 0) / 60;
+  const kinds = inView.map((s) => sessionKind(s, now, actuals)); // 実績を持つ枠は actual なので、予定・未確認の件数に入らない
+  const hours = actuals.filter((a) => days.includes(a.date)).reduce((a, s) => a + toMin(s.end) - toMin(s.start), 0) / 60;
   const planned = kinds.filter((k) => k === "planned").length;
   const unconfS = kinds.filter((k) => k === "unconfirmed").length;
   const unconfM = (data.events ?? []).filter((m) => days.includes(m.date) && meetingKind(m, now) === "unconfirmed").length;
@@ -4658,7 +4723,7 @@ function renderSchedule(data, today, opts) {
     <div class="summary"><span>実績 <b class="mono">${hours.toFixed(1)}時間</b></span><span>予定 <b class="mono">${planned}件</b></span>${unconf ? `<span class="pill wait">未確認 ${unconf}件（作業枠 ${unconfS}・会議 ${unconfM}）</span>` : ""}<button class="btn danger" data-delsel ${delOk ? "" : "disabled"}>${delLabel}</button></div>`;
   const et = selSess && opts.taskEdit ? data.tasks.find((t) => t.id === opts.taskEdit.id) : null; // 編集欄は、表示中の枠を選んでいる間だけ出す（枠を選ぶと、そのタスクの編集欄になる）
   const editPanel = et ? renderTaskEditPanel(data, opts.taskEdit, statusCellHtml(et, { ...opts, todayIds: opts.showPrio === false ? new Set() : new Set(todayTaskIds(data, today)) }, taskFlags(et, today, data.settings).includes("overdue"))) : "";
-  return `<div class="cols${opts.showPrio === false ? " one" : ""}"><section class="panel"><div class="stop">${nav}</div><div id="mtgslot">${meetingForm(data, { mtgDraft: opts.mtgDraft, selMtg: selMtg?.id, actDraft: opts.actDraft, now })}${urgentForm(data, opts.urgentDraft)}${actualForm(data, { selSess: selSess?.id ?? null, add: opts.actAdd, draft: opts.actDraft, today, now })}${editPanel}</div><div id="calslot">${renderCalendar(data, today, calOpts)}</div></section>${renderSideToggle(opts.showPrio !== false)}${opts.showPrio === false ? "" : renderSide(data, today, { sched: true, pendingDone: opts.pendingDone, now })}</div>`;
+  return `<div class="cols${opts.showPrio === false ? " one" : ""}"><section class="panel"><div class="stop">${nav}</div><div id="mtgslot">${meetingForm(data, { mtgDraft: opts.mtgDraft, selMtg: selMtg?.id, actDraft: opts.actDraft, now })}${urgentForm(data, opts.urgentDraft)}${actualForm(data, { selSess: selSess?.id ?? null, add: opts.actAdd, draft: opts.actDraft, today, now })}${delAsk(selSess, opts.askDelSess)}${editPanel}</div><div id="calslot">${renderCalendar(data, today, calOpts)}</div></section>${renderSideToggle(opts.showPrio !== false)}${opts.showPrio === false ? "" : renderSide(data, today, { sched: true, pendingDone: opts.pendingDone, now })}</div>`;
 }
 
 
@@ -4668,6 +4733,7 @@ return { snapStart, selectionKey, sessionSelection, revealSelection, weekStartOf
 /* src/ui/views/todo.js */
 const { renderTodo } = (() => {
 // 「ToDo」画面: 左に表示中の週の ToDo、右に表示中の日の ToDo（2 列）、下に週の見返し。操作の結線は app.js（data-td*）。
+
 
 
 
@@ -4695,7 +4761,7 @@ function row(data, t, ctx, range) {
   return `<li class="td-row${t.doneAt ? " closed" : ""}" data-todo="${id}">
     <div class="td-main"><input type="checkbox" data-tdone="${id}"${t.doneAt ? " checked" : ""} aria-label="「${title}」を完了にする"><input class="in td-title" data-tdtitle="${id}" value="${title}" aria-label="件名"></div>
     <div class="td-meta">${ck.length ? `<span class="mono">${ck.filter((c) => c.done).length}/${ck.length}</span>` : ""}<span>予定 <b class="mono">${planned}</b> 分</span><span>実績 <b class="mono">${actual}</b> 分</span>${t.carried ? `<span class="pill wait">${t.carried} 回回しています</span>` : ""}</div>
-    <div class="td-ops">${t.scope === "week" ? `<button class="btn" data-tdassign="${id}">${ctx.dayIsToday ? "今日へ" : "この日へ"}</button>` : ""}${t.doneAt ? "" : `<button class="btn" data-tdcarry="${id}">${t.scope === "week" ? "来週へ回す" : "明日へ回す"}</button>`}<button class="btn" data-tdact="${id}">実績を入れる</button>${ctx.askDel === t.id ? `<span class="note" role="alert">実績 ${(t.sessions ?? []).filter((s) => s.kind === "actual").reduce((m, s) => m + toMin(s.end) - toMin(s.start), 0)} 分も消えます</span><button class="btn danger" data-tddelok="${id}">削除する</button><button class="btn" data-tddelno>やめる</button>` : `<button class="btn danger" data-tddel="${id}">削除</button>`}</div>
+    <div class="td-ops">${t.scope === "week" ? `<button class="btn" data-tdassign="${id}">${ctx.dayIsToday ? "今日へ" : "この日へ"}</button>` : ""}${t.doneAt ? "" : `<button class="btn" data-tdcarry="${id}">${t.scope === "week" ? "来週へ回す" : "明日へ回す"}</button>`}<button class="btn" data-tdact="${id}">実績を入れる</button>${ctx.askDel === t.id ? `<span class="note" role="alert">実績 ${actualSpans({ tasks: [], todos: [t] }).reduce((m, s) => m + toMin(s.end) - toMin(s.start), 0)} 分も消えます</span><button class="btn danger" data-tddelok="${id}">削除する</button><button class="btn" data-tddelno>やめる</button>` : `<button class="btn danger" data-tddel="${id}">削除</button>`}</div>
     <div class="td-ck">${items}<input class="in" data-tdck="${id}" placeholder="＋ 項目を追加（Enter）" aria-label="「${title}」のチェックリストに項目を追加"></div>
     ${ctx.actFor === t.id ? actForm(t, ctx.day, ctx.now, ctx.draft) : ""}
   </li>`;
@@ -4953,7 +5019,7 @@ const S = {
   prefs: loadPrefs(), settingsClosed: loadSettingsClosed(), tpop: null, addAt: null, last: null, ruleError: "",
   ib: { open: false, text: loadInboxDraft(), projectId: "", replies: {}, reasons: {}, causes: {} },
   wperiod: "day", wdate: clock().date,
-  todoWeek: mondayOf(clock().date), todoDay: clock().date, tdAct: null, tdDraft: null, tdAskDel: null, // ToDo 画面の週（月曜日）・右の列の日・実績の入力欄を開いている ToDo と、その下書き・削除の確認を出している ToDo
+  todoWeek: mondayOf(clock().date), todoDay: clock().date, tdAct: null, tdDraft: null, tdAskDel: null, askDelSess: null, // 実績つきの枠の削除の確認を出している枠の id（メモリのみ）。ToDo 画面の週（月曜日）・右の列の日・実績の入力欄を開いている ToDo と、その下書き・削除の確認を出している ToDo
 };
 const $ = (id) => document.getElementById(id);
 const view = $("view");
@@ -4987,7 +5053,7 @@ function startScreen() {
     ${S.openError ? `<p class="ask" style="max-width:none" role="alert">${esc(S.openError)}</p>` : ""}</section>`;
 }
 
-const scheduleOpts = () => ({ view: S.sview, date: S.sdate, now: clock(), selSess: S.selSess, selMtg: S.selMtg, mtgDraft: S.mtgDraft, urgentDraft: S.urgentDraft, actAdd: S.actAdd, actDraft: S.actDraft, taskEdit: S.taskEdit, pendingWait: S.pendingWait, showPrio: S.prefs.showPrio, showSkipped: S.prefs.showSkipped, showDue: S.prefs.showDue, pendingDone: S.pendingDone });
+const scheduleOpts = () => ({ view: S.sview, date: S.sdate, now: clock(), selSess: S.selSess, selMtg: S.selMtg, mtgDraft: S.mtgDraft, urgentDraft: S.urgentDraft, actAdd: S.actAdd, actDraft: S.actDraft, taskEdit: S.taskEdit, pendingWait: S.pendingWait, showPrio: S.prefs.showPrio, showSkipped: S.prefs.showSkipped, showDue: S.prefs.showDue, pendingDone: S.pendingDone, askDelSess: S.askDelSess });
 
 function renderBody() {
   const { date: today } = clock();
@@ -5029,6 +5095,7 @@ function render() {
   if (S.tpop && !S.data.tasks.some((t) => t.id === S.tpop.id)) S.tpop = null; // 読み直しで対象のタスクが消えたら、窓も閉じる
   if (S.selSess && !allSessions(S.data).some((s) => s.id === S.selSess)) { S.selSess = null; S.taskEdit = null; } // 読み直しなどで選択中の枠が無くなったら、選択と編集欄を外す
   if (S.taskEdit && (S.screen !== "schedule" || !S.data.tasks.some((t) => t.id === S.taskEdit.id))) { S.taskEdit = null; S.selSess = null; } // スケジュールの編集欄も同じ（編集欄は枠の選択と一緒なので、選択も外す）
+  if (S.askDelSess && (S.screen !== "schedule" || S.askDelSess !== S.selSess)) S.askDelSess = null; // 削除の確認は、その枠を選んでいる間だけ（枠の id は S.data.tasks で検証しない）
   if (S.tdAct && !S.data?.todos?.some((t) => t.id === S.tdAct)) { S.tdAct = null; S.tdDraft = null; } // 読み直しなどで ToDo が無くなったら、実績の入力欄を閉じる
   if (S.tdAskDel && !S.data?.todos?.some((t) => t.id === S.tdAskDel)) S.tdAskDel = null; // 削除の確認も同じ（ToDo の id は S.data.tasks で検証しない）
   const c = clock();
@@ -5332,7 +5399,7 @@ function submitGAdd(input) {
 }
 
 /* ---------- 選択と削除 ---------- */
-const clearSel = () => { S.selSess = null; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.actDraft = null; S.taskEdit = null; S.tdAct = null; S.tdDraft = null; S.tdAskDel = null; };
+const clearSel = () => { S.selSess = null; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.actDraft = null; S.taskEdit = null; S.tdAct = null; S.tdDraft = null; S.tdAskDel = null; S.askDelSess = null; };
 /** 作業枠を選ぶ（id が null なら外す）。規則は sessionSelection（タスクの枠は編集欄も開く。ToDo の枠は選択だけ） */
 const selectSession = (id) => { Object.assign(S, sessionSelection(S.data, id, S.taskEdit)); };
 
@@ -5344,8 +5411,12 @@ function deleteSelected() {
   }
   const s = allSessions(S.data).find((x) => x.id === S.selSess);
   if (!s) { toast("削除する枠を選んでください"); return; }
-  S.selSess = null; S.taskEdit = null;
-  apply((d) => removeSession(d, s.id), `${s.title} の${s.kind === "actual" ? "実績" : "予定"}の枠を削除しました`);
+  if (s.kind === "planned" && s.actual) { S.askDelSess = s.id; render(); return; } // 実績つきの予定の枠は、消す前に確認を出す（消すのは data-delsessok）
+  removeSelectedSession(s);
+}
+function removeSelectedSession(s) {
+  S.selSess = null; S.taskEdit = null; S.askDelSess = null;
+  apply((d) => removeSession(d, s.id), `${s.title} の${s.kind === "actual" ? "実績の枠" : s.actual ? "枠（実績つき）" : "予定の枠"}を削除しました`);
 }
 
 /** 表示の好み（今日の優先・ガント実績）を反転して保存する。今日の優先を閉じると、パネル内にしか出ない確認待ちは出す場所がなくなるので捨てる */
@@ -5449,7 +5520,7 @@ view.addEventListener("click", (e) => {
   if (S.tpop && !q(".tpop,[data-gt],[data-gh]")) { S.tpop = null; render(); } // 閉じたあと、押したものの操作もそのまま行う
   let cleared = false;
   // 欄外のクリックで、枠・会議の選択と追加中の下書きを外す
-  if ((S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.actAdd || S.taskEdit) && !q("[data-dragsess],[data-mtg],[data-delsel],.mtgform,.actform,[data-mtgadd],[data-actadd],[data-actsave],[data-mtgact]")) { clearSel(); cleared = true; }
+  if ((S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.actAdd || S.taskEdit) && !q("[data-dragsess],[data-actbar],[data-mtg],[data-delsel],[data-delsessok],[data-delsessno],.mtgform,.actform,[data-mtgadd],[data-actadd],[data-actsave],[data-actclear],[data-mtgact]")) { clearSel(); cleared = true; }
   const { date: today, time } = clock();
   const now = clock();
 
@@ -5553,7 +5624,8 @@ view.addEventListener("click", (e) => {
   const tdel = q("[data-tddel]"); // 実績の枠がある ToDo は、消す前に確認を出す（その行に。メモリ上の S.tdAskDel）
   if (tdel) {
     const id = tdel.dataset.tddel;
-    if (S.data.todos?.find((t) => t.id === id)?.sessions?.some((s) => s.kind === "actual")) { S.tdAskDel = id; render(); return; }
+    const own = S.data.todos?.find((t) => t.id === id);
+    if (own && actualSpans({ tasks: [], todos: [own] }).length) { S.tdAskDel = id; render(); return; }
     deleteTodoNow(id); return;
   }
   const tdok = q("[data-tddelok]");
@@ -5589,16 +5661,35 @@ view.addEventListener("click", (e) => {
   if (q("[data-sskip]")) { togglePref("showSkipped"); return; }
   if (q("[data-sdue]")) { togglePref("showDue"); return; }
   const dy0 = q("[data-day]"); if (dy0) { S.sdate = dy0.dataset.day; S.sview = "day"; render(); return; }
-  const acs = q("[data-actsave]"); // 実績の保存。入力欄の値は、押したときに読む。予定の枠から入れるときは、枠のタスク・日付
+  const acs = q("[data-actsave]"); // 実績の保存。入力欄の値は、押したときに読む。data-actsave に枠の ID があれば、その予定の枠の actual を書く（なければ「＋ 実績を追加」）
   if (acs) {
-    const f = (k) => view.querySelector(`[data-ac="${k}"]`)?.value ?? "";
-    const s = acs.dataset.actsave ? allSessions(S.data).find((x) => x.id === acs.dataset.actsave) : null;
-    const taskId = s ? s.taskId : f("task"), slot = { date: s ? s.date : f("date"), start: f("start"), end: f("end") };
-    if (!taskId || !slot.date || !slot.start || !slot.end) { toast("タスク・日付・時刻を入力してください"); return; }
+    const f = (k) => view.querySelector(`[data-ac="${k}"]`)?.value ?? "", sid = acs.dataset.actsave;
+    const note = (r) => (r.statusChanged ? `（状態を In Progress にしました${r.from === "Waiting" ? "。待ち先の記録は外しました" : ""}）` : "");
     let r;
+    if (sid) { // 失敗しても打った値が消えないよう、検査の前に下書きへ写す
+      const slot = { date: f("date"), start: f("start"), end: f("end") }, had = !!allSessions(S.data).find((x) => x.id === sid)?.actual;
+      S.actDraft = { key: sid, task: "", ...slot };
+      if (!isDate(slot.date) || !isTime(slot.start) || !isTime(slot.end)) { toast("日付・時刻を入力してください"); return; }
+      if (apply((d) => { r = recordSlotActual(d, sid, slot, now); return r.data; }, null, { quiet: true })) {
+        clearSel(); render();
+        toast(had ? `${taskTitle(r.taskId)} の実績を ${slot.start}–${slot.end} に更新しました` : `${taskTitle(r.taskId)} の ${slot.start}–${slot.end} の実績を入れました${note(r)}`);
+      }
+      return;
+    }
+    const taskId = f("task"), slot = { date: f("date"), start: f("start"), end: f("end") };
+    if (!taskId || !slot.date || !slot.start || !slot.end) { toast("タスク・日付・時刻を入力してください"); return; }
     if (apply((d) => { r = recordActual(d, taskId, slot, now); return r.data; }, null, { quiet: true })) {
       clearSel(); render();
-      toast(`${taskTitle(taskId)} の ${slot.start}–${slot.end} の実績を入れました${r.statusChanged ? `（状態を In Progress にしました${r.from === "Waiting" ? "。待ち先の記録は外しました" : ""}）` : ""}`);
+      toast(`${taskTitle(taskId)} の ${slot.start}–${slot.end} の実績を入れました${note(r)}`);
+    }
+    return;
+  }
+  const acl = q("[data-actclear]"); // 予定の枠の実績（actual）だけを外す（予定の枠と選択は残る）
+  if (acl) {
+    const s = allSessions(S.data).find((x) => x.id === acl.dataset.actclear);
+    if (s && apply((d) => { const r = clearActual(d, s.id); if (r.error) throw new Error(r.error); return r.data; }, null, { quiet: true })) {
+      S.actDraft = null; S.askDelSess = null; render();
+      toast(`${taskTitle(s.taskId)} の実績を消しました`);
     }
     return;
   }
@@ -5606,8 +5697,11 @@ view.addEventListener("click", (e) => {
   const mact = q("[data-mtgact]"); // 会議の実績の保存（confirmed と actual を書く）
   if (mact) { const id = mact.dataset.mtgact, f = (k) => view.querySelector(`[data-ma="${k}"]`)?.value ?? "", span = { start: f("start"), end: f("end") }; if (apply((d) => setMeetingActual(d, id, span, now), "会議の実績を入れました")) S.actDraft = null; return; }
   if (q("[data-delsel]")) { deleteSelected(); return; }
-  const sb = q("[data-dragsess]");
-  if (sb && !q("[data-rz]")) { selectSession(S.selSess === sb.dataset.dragsess ? null : sb.dataset.dragsess); S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.actDraft = null; render(); return; }
+  const dsok = q("[data-delsessok]");
+  if (dsok) { const s = allSessions(S.data).find((x) => x.id === dsok.dataset.delsessok); if (s && S.askDelSess === s.id) removeSelectedSession(s); else { S.askDelSess = null; render(); } return; }
+  if (q("[data-delsessno]")) { S.askDelSess = null; render(); return; }
+  const sb = q("[data-dragsess],[data-actbar]"); // 予定のブロックと実績の帯は、同じ枠を選ぶ
+  if (sb && !q("[data-rz]")) { const id = sb.dataset.dragsess ?? sb.dataset.actbar; selectSession(S.selSess === id ? null : id); S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.actDraft = null; render(); return; }
   const mb = q("[data-mtg]");
   if (mb && !q("[data-rzm]")) { S.selMtg = S.selMtg === mb.dataset.mtg ? null : mb.dataset.mtg; S.selSess = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.actDraft = null; S.taskEdit = null; render(); return; }
   if (q("[data-mtgadd]")) {

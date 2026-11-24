@@ -495,3 +495,39 @@ test("validate: ToDo の ID が、タスクの ID と同じなら error", () => 
   d.tasks[0] = { ...d.tasks[0], id: "T-0001" };
   assert.ok(hit(v(d).errors, "タスクと ID が重なっています"), JSON.stringify(v(d).errors));
 });
+
+// ---- 予定の枠の実績（actual） ----
+test("validate: 予定の枠の actual。正しいものは通り、kind: actual の枠の actual・日付や時刻の不正・終了が開始以前・実績の区間どうしの重なりは error。今の形（予定の枠と、別の実績の枠が重なる）は error にならない", () => {
+  const P = (o = {}) => ({ id: "S60", date: "2026-10-20", start: "08:00", end: "09:00", kind: "planned", ...o });
+  const withSess = (...ss) => { const d = load(); task(d, "AA-0004").sessions = ss; return d; };
+  const ok = withSess(P({ actual: { date: "2026-10-20", start: "08:10", end: "09:10" } }));
+  assert.deepEqual(v(ok).errors, []);
+  assert.deepEqual(v(withSess(P({ actual: { date: "2026-10-18", start: "08:00", end: "09:00" } }))).errors, [], "予定と別の日の実績でもよい");
+  const bad = (d, word) => assert.ok(hit(v(d).errors, word), `${word}: ${JSON.stringify(v(d).errors)}`);
+  bad(withSess({ id: "S60", date: "2026-10-20", start: "08:00", end: "09:00", kind: "actual", actual: { date: "2026-10-20", start: "08:00", end: "09:00" } }), "actual を持てません");
+  bad(withSess(P({ actual: { date: "2026/10/20", start: "08:00", end: "09:00" } })), "actual の日付または時刻");
+  bad(withSess(P({ actual: { date: "2026-10-20", start: "8:00", end: "09:00" } })), "actual の日付または時刻");
+  bad(withSess(P({ actual: "x" })), "actual の日付または時刻");
+  bad(withSess(P({ actual: { date: "2026-10-20", start: "09:00", end: "09:00" } })), "actual の終了が開始以前");
+  // S2（実績だけの枠 10-19 10:00〜11:30）と、予定の枠の actual の重なり
+  bad(withSess(P({ actual: { date: "2026-10-19", start: "11:00", end: "12:00" } })), "S60 の実績");
+  // 予定の枠の actual 2 つの重なり（ToDo との間も判定する）
+  const two = withSess(P({ actual: { date: "2026-10-20", start: "08:00", end: "09:00" } }));
+  two.todos.find((t) => t.id === "T-0004").sessions = [P({ id: "S61", date: "2026-10-21", actual: { date: "2026-10-20", start: "08:30", end: "09:30" } })];
+  assert.ok(v(two).errors.some((e) => e.includes("S60") && e.includes("S61")), JSON.stringify(v(two).errors));
+  // 今の形: 予定の枠（actual なし）と、同じ時間の別の実績の枠
+  assert.deepEqual(v(withSess(P(), { id: "S61", date: "2026-10-20", start: "08:00", end: "09:00", kind: "actual" })).errors, []);
+  // 自分の予定の時間と自分の actual は重なってよい
+  assert.deepEqual(v(withSess(P({ actual: { date: "2026-10-20", start: "08:00", end: "09:00" } }))).errors, []);
+});
+
+test("警告: Done のタスクの、実績を持つ未来の予定の枠は警告しない（実績の無い未来の枠は、今までどおり警告）", () => {
+  const d = load();
+  d.tasks.find((t) => t.id === "AA-0001").sessions = [
+    { id: "S90", date: "2026-10-27", start: "10:00", end: "11:00", kind: "planned", actual: { date: "2026-10-20", start: "09:00", end: "10:00" } },
+    { id: "S91", date: "2026-10-27", start: "13:00", end: "14:00", kind: "planned" },
+  ];
+  const w = validate(d, NOW).warnings.filter((m) => m.includes("未来の予定枠"));
+  assert.equal(w.length, 1, w.join(" / "));
+  assert.ok(w[0].includes("S91") && !w[0].includes("S90"));
+});

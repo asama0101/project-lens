@@ -1,6 +1,7 @@
 // 「ToDo」画面: 左に表示中の週の ToDo、右に表示中の日の ToDo（2 列）、下に週の見返し。操作の結線は app.js（data-td*）。
 import { addDays, toMin } from "../../core/dates.js";
 import { todoMinutes, weekReview } from "../../core/todos.js";
+import { actualSpans } from "../../core/sessions.js";
 import { esc, fmtMD, wdJa, dateInputHtml } from "../common.js";
 import { actAddSpan } from "./schedule.js";
 
@@ -26,7 +27,7 @@ function row(data, t, ctx, range) {
   return `<li class="td-row${t.doneAt ? " closed" : ""}" data-todo="${id}">
     <div class="td-main"><input type="checkbox" data-tdone="${id}"${t.doneAt ? " checked" : ""} aria-label="「${title}」を完了にする"><input class="in td-title" data-tdtitle="${id}" value="${title}" aria-label="件名"></div>
     <div class="td-meta">${ck.length ? `<span class="mono">${ck.filter((c) => c.done).length}/${ck.length}</span>` : ""}<span>予定 <b class="mono">${planned}</b> 分</span><span>実績 <b class="mono">${actual}</b> 分</span>${t.carried ? `<span class="pill wait">${t.carried} 回回しています</span>` : ""}</div>
-    <div class="td-ops">${t.scope === "week" ? `<button class="btn" data-tdassign="${id}">${ctx.dayIsToday ? "今日へ" : "この日へ"}</button>` : ""}${t.doneAt ? "" : `<button class="btn" data-tdcarry="${id}">${t.scope === "week" ? "来週へ回す" : "明日へ回す"}</button>`}<button class="btn" data-tdact="${id}">実績を入れる</button>${ctx.askDel === t.id ? `<span class="note" role="alert">実績 ${(t.sessions ?? []).filter((s) => s.kind === "actual").reduce((m, s) => m + toMin(s.end) - toMin(s.start), 0)} 分も消えます</span><button class="btn danger" data-tddelok="${id}">削除する</button><button class="btn" data-tddelno>やめる</button>` : `<button class="btn danger" data-tddel="${id}">削除</button>`}</div>
+    <div class="td-ops">${t.scope === "week" ? `<button class="btn" data-tdassign="${id}">${ctx.dayIsToday ? "今日へ" : "この日へ"}</button>` : ""}${t.doneAt ? "" : `<button class="btn" data-tdcarry="${id}">${t.scope === "week" ? "来週へ回す" : "明日へ回す"}</button>`}<button class="btn" data-tdact="${id}">実績を入れる</button>${ctx.askDel === t.id ? `<span class="note" role="alert">実績 ${actualSpans({ tasks: [], todos: [t] }).reduce((m, s) => m + toMin(s.end) - toMin(s.start), 0)} 分も消えます</span><button class="btn danger" data-tddelok="${id}">削除する</button><button class="btn" data-tddelno>やめる</button>` : `<button class="btn danger" data-tddel="${id}">削除</button>`}</div>
     <div class="td-ck">${items}<input class="in" data-tdck="${id}" placeholder="＋ 項目を追加（Enter）" aria-label="「${title}」のチェックリストに項目を追加"></div>
     ${ctx.actFor === t.id ? actForm(t, ctx.day, ctx.now, ctx.draft) : ""}
   </li>`;
