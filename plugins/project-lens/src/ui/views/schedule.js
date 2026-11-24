@@ -256,8 +256,8 @@ export function actualForm(data, ctx) {
   </div>`;
 }
 
-/** 色の凡例（上の操作の行に置く）。枠・会議それぞれの 3 つの状態（予定・未確認・実績）と、実績とずれた予定の影。日表示は現在時刻の線、参加しない会議を出すときはその印も */
-const legendHtml = (day, showSkipped) => `<div class="slegend" aria-label="色の凡例"><span><i class="sw plan"></i>予定</span><span><i class="sw unconf"></i>未確認(過ぎた予定)</span><span><i class="sw act"></i>実績(✓)</span><span><i class="sw mtg"></i>会議</span><span><i class="sw mtgun"></i>未確認の会議</span><span><i class="sw mtgact"></i>会議の実績(✓)</span>${showSkipped ? '<span><i class="sw skipsw"></i>参加しない会議</span>' : ""}<span><i class="sw pghost"></i>実績とずれた予定</span>${day ? '<span><i class="sw now"></i>現在時刻</span>' : ""}<span><i class="sw sel"></i>選択中</span></div>`;
+/** 色の凡例（上の操作の行に置く）。枠・会議それぞれの 3 つの状態（予定・未確認・実績）と、実績とずれた予定の影。現在時刻の線、参加しない会議を出すときはその印も */
+const legendHtml = (showSkipped) => `<div class="slegend" aria-label="色の凡例"><span><i class="sw plan"></i>予定</span><span><i class="sw unconf"></i>未確認(過ぎた予定)</span><span><i class="sw act"></i>実績(✓)</span><span><i class="sw mtg"></i>会議</span><span><i class="sw mtgun"></i>未確認の会議</span><span><i class="sw mtgact"></i>会議の実績(✓)</span>${showSkipped ? '<span><i class="sw skipsw"></i>参加しない会議</span>' : ""}<span><i class="sw pghost"></i>実績とずれた予定</span><span><i class="sw now"></i>現在時刻</span><span><i class="sw sel"></i>選択中</span></div>`;
 
 /** 現在時刻の赤い線。その日が今日のときだけ（日表示・週表示の今日の列で共通） */
 const nowLineHtml = (d, g, ctx) => d === ctx.now.date && toMin(ctx.now.time) >= g.h0 && toMin(ctx.now.time) <= g.h0 + g.span ? `<span class="nowline" style="top:${g.tp(toMin(ctx.now.time))}" title="現在 ${ctx.now.time}"></span>` : "";
@@ -320,7 +320,7 @@ export function renderSchedule(data, today, opts) {
   const delOk = !!selSess || (selMtg && selMtg.source === "manual");
   const calOpts = { ...opts, view, date, now, selSess: selSess?.id ?? null, selMtg: selMtg?.id ?? null };
 
-  const nav = `<div class="toolbar"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn" data-nav="${-step}" aria-label="前へ">←</button><button class="btn" data-nav="${step}" aria-label="次へ">→</button><button class="btn" data-sgoto>今日</button><strong class="${view === "day" && date === today ? "dtt" : ""}" style="margin-left:6px">${title}</strong>${legendHtml(view === "day", opts.showSkipped === true)}</div>
+  const nav = `<div class="toolbar"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn" data-nav="${-step}" aria-label="前へ">←</button><button class="btn" data-nav="${step}" aria-label="次へ">→</button><button class="btn" data-sgoto>今日</button><strong class="${view === "day" && date === today ? "dtt" : ""}" style="margin-left:6px">${title}</strong>${legendHtml(opts.showSkipped === true)}</div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="chip-btn pref" data-sskip aria-pressed="${opts.showSkipped === true}" title="「参加しない」にした会議を、カレンダーに出したり隠したりします">参加しない会議</button><button class="btn" data-mtgadd>＋ 会議を追加</button><div class="seg" role="group" aria-label="表示"><button data-sview="week" aria-pressed="${view === "week"}">週</button><button data-sview="day" aria-pressed="${view === "day"}">日</button></div></div></div>
     <div class="summary"><span>実績 <b class="mono">${hours.toFixed(1)}時間</b></span><span>予定 <b class="mono">${planned}件</b></span>${unconf ? `<span class="pill wait">未確認 ${unconf}件（作業枠 ${unconfS}・会議 ${unconfM}）</span>` : ""}<button class="btn danger" data-delsel ${delOk ? "" : "disabled"}>${delLabel}</button></div>`;
   const et = selSess && opts.taskEdit ? data.tasks.find((t) => t.id === opts.taskEdit.id) : null; // 編集欄は、表示中の枠を選んでいる間だけ出す（枠を選ぶと、そのタスクの編集欄になる）

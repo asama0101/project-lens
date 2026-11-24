@@ -451,12 +451,12 @@ test("meetingBlocks: confirmed: true で actual の無い会議は、予定の�
   }
 });
 
-test("renderSchedule: 凡例（会議・予定・実績・未確認、日は現在時刻）。空き時間の凡例は出さない", () => {
+test("renderSchedule: 凡例（会議・予定・実績・未確認・現在時刻（週・日とも））。空き時間の凡例は出さない", () => {
   const day = sched(load());
   for (const w of ["会議", "予定", "実績", "未確認", "現在時刻"]) assert.ok(day.includes(w), w);
   assert.ok(!day.includes("sw free") && !day.includes("空き時間"));
   const wk = renderSchedule(load(), TODAY, { view: "week", date: TODAY, now: NOW });
-  assert.ok(!wk.includes("現在時刻") && wk.includes("未確認"));
+  assert.ok(wk.includes("現在時刻") && wk.includes("未確認"));
   assert.ok(day.includes('class="nowline"'));
 });
 
@@ -2436,7 +2436,7 @@ test("いまのブロック: skip の会議・影・今日以外の日・今日�
   assert.ok(!/class="blk[^"]*\bnow\b/.test(h) && !h.includes("いま"), "描いたブロック（実績 12:00-13:00）に今は入らない");
   const e = noSessions();
   mtgAt(e, "m1", "10:00", "11:00"); e.events = e.events.filter((x) => x.id === "m1");
-  assert.doesNotMatch(wk(e, nowD("10:15", "2026-10-21")), /\bnow\b/, "今日でない now");
+  assert.doesNotMatch(wk(e, nowD("10:15", "2026-10-21")), /class="blk[^"]*\bnow\b/,"今日でない now");
   const o = noSessions();
   Object.assign(o.events.find((x) => x.id === "m1"), { date: "2026-10-21", start: "10:00", end: "11:00" });
   assert.doesNotMatch(blkTag(wk(o, nowD("10:15")), 'data-mtg="m1"'), /\bnow\b/, "今日以外の日のブロック");

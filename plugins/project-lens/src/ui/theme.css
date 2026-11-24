@@ -500,6 +500,7 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 #view .thstrip .thc{flex:none;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;font-size:13px;color:var(--muted);text-align:left}
 /* 今日の強調: 見出しは塗りつぶし（背景色は列に付けない）。いま進行中のブロックは赤の外枠と「いま」 */
 .week .dh.t,.week .dh.t:hover{background:var(--accent);color:var(--on-accent);font-weight:700}
+.week .dh.t small{color:inherit}
 .dtt{background:var(--accent);color:var(--on-accent);border-radius:999px;padding:2px 10px}
 .blk.now{box-shadow:0 0 0 2px var(--bad);z-index:3}
 .blk .nw{color:var(--bad);font-weight:700;margin-right:2px}
