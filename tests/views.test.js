@@ -2301,3 +2301,13 @@ test("削除の確認（askDelSess）: 確認待ちの枠（actual あり）の�
   delete s8(d).actual;
   assert.ok(!sched(d, { ...o, askDelSess: "S8" }).includes("data-delsessok"), "actual のない枠");
 });
+
+test("実績の入力欄の説明: actual を持つ枠は「更新します」、持たない枠は「入れます」", () => {
+  const d = load();
+  d.todos.find((t) => t.id === "T-0004").sessions = [{ id: "S30", date: TODAY, start: "08:00", end: "09:00", kind: "planned" }];
+  const o = { selSess: "S30", taskEdit: { id: "T-0004", full: false, askDel: false } };
+  assert.ok(sched(d, o).includes("「経費精算」の実績を入れます（予定の枠は残ります）"));
+  d.todos.find((t) => t.id === "T-0004").sessions[0].actual = { date: TODAY, start: "08:10", end: "09:10" };
+  const h = sched(d, o);
+  assert.ok(h.includes("「経費精算」の実績を更新します（予定の枠は残ります）") && !h.includes("の実績を入れます"));
+});

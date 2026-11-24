@@ -417,3 +417,14 @@ test("taskActual: 予定の枠の actual を含めた時間と、最初の日付
   task(d, "AA-0005").sessions.push(P({ actual: { date: "2026-10-13", start: "08:00", end: "09:30" } }));
   assert.deepEqual(taskActual(d, "AA-0005"), { hours: 5, firstDate: "2026-10-13", count: 4 });
 });
+
+test("futurePlanned: actual を持つ未来の予定の枠は含まない（actual の無い未来の枠は含む）", () => {
+  const d = load();
+  const t = d.tasks.find((x) => x.sessions?.some((s) => s.id === "S8"));
+  const s8 = t.sessions.find((s) => s.id === "S8");
+  s8.date = "2026-10-27"; // 実績を持つ枠を未来の予定へ動かす（actual は残る）
+  assert.ok(s8.actual);
+  assert.ok(!futurePlanned(d, t.id, NOW).includes("S8"));
+  delete s8.actual;
+  assert.ok(futurePlanned(d, t.id, NOW).includes("S8"));
+});

@@ -520,3 +520,14 @@ test("validate: 予定の枠の actual。正しいものは通り、kind: actual
   // 自分の予定の時間と自分の actual は重なってよい
   assert.deepEqual(v(withSess(P({ actual: { date: "2026-10-20", start: "08:00", end: "09:00" } }))).errors, []);
 });
+
+test("警告: Done のタスクの、実績を持つ未来の予定の枠は警告しない（実績の無い未来の枠は、今までどおり警告）", () => {
+  const d = load();
+  d.tasks.find((t) => t.id === "AA-0001").sessions = [
+    { id: "S90", date: "2026-10-27", start: "10:00", end: "11:00", kind: "planned", actual: { date: "2026-10-20", start: "09:00", end: "10:00" } },
+    { id: "S91", date: "2026-10-27", start: "13:00", end: "14:00", kind: "planned" },
+  ];
+  const w = validate(d, NOW).warnings.filter((m) => m.includes("未来の予定枠"));
+  assert.equal(w.length, 1, w.join(" / "));
+  assert.ok(w[0].includes("S91") && !w[0].includes("S90"));
+});

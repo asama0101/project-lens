@@ -682,7 +682,7 @@ view.addEventListener("click", (e) => {
   if (acl) {
     const s = allSessions(S.data).find((x) => x.id === acl.dataset.actclear);
     if (s && apply((d) => { const r = clearActual(d, s.id); if (r.error) throw new Error(r.error); return r.data; }, null, { quiet: true })) {
-      S.actDraft = null; render();
+      S.actDraft = null; S.askDelSess = null; render();
       toast(`${taskTitle(s.taskId)} の実績を消しました`);
     }
     return;

@@ -163,7 +163,7 @@ export function validate(data, now = nowLocal()) {
 
     for (const s of t.sessions ?? []) {
       const notStarted = checkSession(s, `タスク ${t.id} の枠 ${s.id}`);
-      if (notStarted && isClosed(t) && s.kind === "planned") warn(`タスク ${t.id}: ${t.status} なのに未来の予定枠 ${s.id} が残っています`);
+      if (notStarted && isClosed(t) && s.kind === "planned" && !s.actual) warn(`タスク ${t.id}: ${t.status} なのに未来の予定枠 ${s.id} が残っています`);
     }
   }
 

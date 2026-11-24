@@ -184,7 +184,7 @@ export function actualForm(data, ctx) {
   if (fromPlan) { // 初期値は、実績（actual）があればその値、なければ枠の日付と予定の時刻
     const a = s.actual ?? s;
     return `<div class="actform" role="group" aria-label="実績の入力">
-    <span class="note" style="flex-basis:100%;margin:0">「${esc(s.title)}」の実績を入れます（予定の枠は残ります）</span>
+    <span class="note" style="flex-basis:100%;margin:0">「${esc(s.title)}」の実績を${s.actual ? "更新します" : "入れます"}（予定の枠は残ります）</span>
     <label>日付${dateInputHtml({ value: dr?.date || a.date, attrs: 'data-ac="date"', label: "実績の日付" })}</label>
     ${time("start", a.start)}${time("end", a.end)}
     <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-actsave="${esc(s.id)}">${s.actual ? "実績を更新" : "実績を保存"}</button>${s.actual ? `<button class="btn" data-actclear="${esc(s.id)}">実績を消す</button>` : ""}</div>

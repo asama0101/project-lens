@@ -821,3 +821,13 @@ test("枠の削除: actual を持つ予定の枠は S.askDelSess に入れて描
   assert.match(src, /S\.askDelSess && \(S\.screen !== "schedule" \|\| S\.askDelSess !== S\.selSess\)\) S\.askDelSess = null/);
   assert.ok(!/S\.askDelSess[^;]*tasks\.some/.test(src), "S.data.tasks で検証しない");
 });
+
+test("app.js: 実績の保存（枠モード）と実績を消すは、成功のあと確認待ち（S.askDelSess）を外す", () => {
+  const i = src.indexOf('q("[data-actsave]")');
+  const save = src.slice(i, src.indexOf('q("[data-actclear]")'));
+  assert.ok(save.includes("clearSel(); render();"), "保存の成功時は clearSel()");
+  assert.ok(/const clearSel = [^\n]*S\.askDelSess = null/.test(src), "clearSel が askDelSess を外す");
+  const j = src.indexOf('q("[data-actclear]")');
+  const clr = src.slice(j, j + 600);
+  assert.ok(clr.includes("S.askDelSess = null"), clr);
+});

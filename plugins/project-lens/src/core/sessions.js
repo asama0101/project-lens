@@ -148,9 +148,9 @@ export function runningPlanned(data, taskId, now) {
   return (t?.sessions ?? []).filter((s) => s.kind === "planned" && started(s) && !isPast(s, now)).map((s) => s.id);
 }
 
-/** まだ開始していない予定枠の ID（進行中の枠・終了した枠・実績は含まない。完了にするとき解除する対象。進行中の枠は残り、終わったあとに実績にできる） */
+/** まだ開始していない予定枠の ID（進行中の枠・終了した枠・実績・actual を持つ枠は含まない。完了にするとき解除する対象。進行中の枠は残り、終わったあとに実績にできる） */
 export function futurePlanned(data, taskId, now) {
   const t = data.tasks.find((x) => x.id === taskId);
   const notStarted = (s) => s.date > now.date || (s.date === now.date && s.start > now.time);
-  return (t?.sessions ?? []).filter((s) => s.kind === "planned" && notStarted(s)).map((s) => s.id);
+  return (t?.sessions ?? []).filter((s) => s.kind === "planned" && !s.actual && notStarted(s)).map((s) => s.id);
 }
