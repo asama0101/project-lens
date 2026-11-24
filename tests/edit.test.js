@@ -729,3 +729,75 @@ test("recordSlotActual: 開始が今より後・ほかの実績と重なる・�
   assert.throws(() => recordSlotActual(d, "SX", { date: TODAY, start: "08:00", end: "09:00" }, at("10:15")), /枠 SX がありません/);
   assert.equal(JSON.stringify(d), before);
 });
+
+// ---- タスクの完了をまとめて保存する（completeTask） ----
+const { completeTask } = editMod;
+const ACT = { date: TODAY, start: "09:00", end: "10:00" };
+const NOW = at("10:15");
+
+test("completeTask: 実績つきで Done は、実績の枠・状態・doneAt・チェックを保存する。元のデータは変えない", () => {
+  const d = load();
+  task(d, "AA-0004").checklist = [{ id: "c1", text: "a", done: false }, { id: "c2", text: "b", done: false }];
+  const before = JSON.stringify(d);
+  const r = completeTask(d, "AA-0004", { actual: ACT, status: "Done", checks: { c1: true } }, NOW);
+  const t = task(r.data, "AA-0004");
+  assert.deepEqual([t.status, t.doneAt, t.checklist.map((c) => c.done)], ["Done", TODAY, [true, false]]);
+  assert.deepEqual(t.sessions.map((s) => [s.kind, s.start, s.end]), [["actual", "09:00", "10:00"]]);
+  assert.deepEqual([r.statusChanged, r.released, r.spawned], [true, 0, false]);
+  assert.equal(JSON.stringify(d), before);
+  ok(r.data);
+});
+
+test("completeTask: 実績の日付の予定の枠（actual なし）があれば、その枠に書く。なければ実績だけの枠を足す", () => {
+  const d = plan(plan(load(), "AA-0004", { id: "S90", date: TODAY, start: "11:00", end: "12:00" }), "AA-0004", { id: "S91", date: TODAY, start: "08:00", end: "08:30" });
+  const r = completeTask(d, "AA-0004", { actual: ACT, status: "In Progress" }, NOW);
+  assert.equal(task(r.data, "AA-0004").sessions.length, 2);
+  assert.deepEqual(sessOf(r.data, "S91").actual, ACT, "開始の昇順で最初の枠");
+  assert.equal(sessOf(r.data, "S90").actual, undefined);
+  const e = completeTask(plan(load(), "AA-0004", { id: "S92", date: "2026-10-21", start: "09:00", end: "10:00" }), "AA-0004", { actual: ACT, status: "In Progress" }, NOW);
+  assert.deepEqual(task(e.data, "AA-0004").sessions.map((s) => s.kind), ["planned", "actual"]);
+});
+
+test("completeTask: 実績なし（3 つとも空）で Done は、枠を増やさず状態だけ変える", () => {
+  for (const actual of [undefined, { date: "", start: "", end: "" }]) {
+    const r = completeTask(load(), "AA-0004", { actual, status: "Done" }, NOW);
+    assert.deepEqual([task(r.data, "AA-0004").sessions, task(r.data, "AA-0004").status], [[], "Done"]);
+  }
+});
+
+test("completeTask: 状態の選択が優先される（実績を入れても To Do のまま保存すれば To Do）", () => {
+  const r = completeTask(load(), "AA-0004", { actual: ACT, status: "To Do" }, NOW);
+  assert.deepEqual([task(r.data, "AA-0004").status, r.statusChanged, task(r.data, "AA-0004").sessions.length], ["To Do", false, 1]);
+});
+
+test("completeTask: Done・Cancelled で未来の予定の枠を解除する（released）。実績のある枠は残る", () => {
+  for (const status of ["Done", "Cancelled"]) {
+    let d = plan(load(), "AA-0004", { id: "S90", date: TODAY, start: "09:00", end: "10:00" });
+    d = plan(d, "AA-0004", { id: "S91", date: "2026-10-22", start: "09:00", end: "10:00" });
+    d = plan(d, "AA-0004", { id: "S92", date: "2026-10-23", start: "09:00", end: "10:00" });
+    const r = completeTask(d, "AA-0004", { actual: { date: "2026-10-20", start: "09:00", end: "10:00" }, status }, NOW);
+    assert.equal(r.released, 2);
+    assert.deepEqual(task(r.data, "AA-0004").sessions.map((s) => s.id), ["S90"]);
+  }
+});
+
+test("completeTask: 定例の Done で次回のタスクが 1 件できる（spawned）", () => {
+  const d = load();
+  task(d, "AA-0004").repeat = { unit: "week" };
+  const r = completeTask(d, "AA-0004", { status: "Done" }, NOW);
+  assert.deepEqual([r.spawned, r.data.tasks.length], [true, d.tasks.length + 1]);
+  assert.equal(completeTask(load(), "AA-0004", { status: "Done" }, NOW).spawned, false);
+});
+
+test("completeTask: 失敗は Error で、入力のデータは変わらない", () => {
+  const d = load();
+  task(d, "AA-0005").sessions.push({ id: "S43", date: TODAY, start: "09:30", end: "10:30", kind: "actual" });
+  const before = JSON.stringify(d);
+  assert.throws(() => completeTask(d, "AA-0004", { actual: { date: TODAY, start: "09:00", end: "" }, status: "Done" }, NOW), /時刻/);
+  assert.throws(() => completeTask(d, "AA-0004", { actual: { date: TODAY, start: "11:00", end: "12:00" }, status: "Done" }, NOW), /まだ始まっていない/);
+  assert.throws(() => completeTask(d, "AA-0004", { actual: ACT, status: "Done" }, NOW), /重なっています/);
+  assert.throws(() => completeTask(d, "AA-0004", { status: "Waiting" }, NOW), /状態/);
+  assert.throws(() => completeTask(d, "AA-0004", { status: "Nope" }, NOW), /状態/);
+  assert.throws(() => completeTask(d, "ZZ-9999", { status: "Done" }, NOW), /ZZ-9999 がありません/);
+  assert.equal(JSON.stringify(d), before);
+});
