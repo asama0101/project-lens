@@ -469,8 +469,7 @@ test("theme.css: 重要のバッジは 12px の太字、角の丸い帯（pill�
 
 test("app.js: ヘッダーの「＋ 突発タスク」は、clearSel() で選択を外し、スケジュール画面へ移り、urgentDefaultStart で開始を決めて件名にフォーカスする", () => {
   assert.ok(src.includes("data-urgent-open") && src.includes("＋ 突発タスク"));
-  const h = src.slice(src.indexOf('e.target.closest("[data-urgent-open]")'));
-  const body = h.slice(0, 900);
+  const body = src.slice(src.indexOf("function openUrgent()"), src.indexOf('$("filebar").addEventListener("click"'));
   assert.match(body, /clearSel\(\)/);
   assert.match(body, /S\.screen = "schedule"/);
   assert.match(body, /urgentDefaultStart\(date, clock\(\)\)/);
@@ -587,7 +586,7 @@ test("app.js: 作業枠を押して選ぶと（selectSession）、そのタス�
 
 test("app.js: 実績のブロック（data-actbar）・枠の影（data-ghost）の押下は、data-dragsess と同じ選択の処理に入る（欄外のクリックで外さない）。ドラッグ・下端のサイズ変更には入れない", () => {
   assert.ok(src.includes('const sb = q("[data-dragsess],[data-actbar],[data-ghost]");'));
-  assert.match(src, /!q\("\[data-dragsess\],\[data-actbar\],\[data-ghost\],\[data-mtg\],\[data-mact\],\[data-mghost\],/);
+  assert.match(src, /!q\("\[data-urgent-open\],\[data-dragsess\],\[data-actbar\],\[data-ghost\],\[data-mtg\],\[data-mact\],\[data-mghost\],/);
   const dragLine = src.split("\n").find((l) => l.includes('e.target.closest("[data-dragtask]")'));
   assert.ok(dragLine && !/actbar|ghost|mact/.test(dragLine), dragLine);
   const rzLine = src.split("\n").find((l) => l.includes('e.target.closest("[data-rz],[data-rzm]")'));
@@ -873,9 +872,9 @@ test("app.js: 会議の実績を消す（data-mtgactclear）は clearMeetingActu
 });
 
 test("app.js: 突発タスクは ToDo タブで画面を移さずに登録できる", () => {
-  const i = src.indexOf('closest("[data-urgent-open]")');
+  const i = src.indexOf("function openUrgent()");
   assert.ok(i > 0);
-  const h = src.slice(i, src.indexOf("return;", i));
+  const h = src.slice(i, src.indexOf('$("filebar").addEventListener("click"'));
   assert.ok(/S\.screen !== "todo"/.test(h) || /S\.screen === "todo"/.test(h), "ToDo タブの分岐");
   assert.match(h, /if \(S\.screen !== "todo"\) \{[^}]*S\.screen = "schedule"/, "移すのは ToDo タブ以外だけ");
   const j = src.indexOf("function submitUrgent");
@@ -943,4 +942,11 @@ test("ToDo タブ: S.tdPlan は clearSel・週の移動・render() の検証（�
   assert.ok(src.includes("if (S.tdPlan && !S.data?.tasks.some((t) => t.id === S.tdPlan.key)) S.tdPlan = null;"));
   assert.ok(src.includes('if (el.dataset.tp !== undefined) {') && /key && key === S\.tdPlan\?\.key\) S\.tdPlan = tdPlanDraft\(form, key\)/.test(src));
   assert.ok(src.includes('for (const k of ["tdnote", "tf", "tdckadd", "tp"])'));
+});
+
+test("app.js: 画面の中の「＋ 突発タスク」は、開くだけで、欄外クリックの下書き外しに消されない", () => {
+  assert.match(src, /!q\("\[data-urgent-open\],\[data-dragsess\]/, "欄外クリックの除外に入っている");
+  const v = src.slice(src.indexOf('view.addEventListener("click"'));
+  assert.ok(v.indexOf('q("[data-urgent-open]")') > 0 && v.indexOf('q("[data-urgent-open]")') < v.indexOf("let cleared = false"), "画面内のハンドラが、外す処理より先に開く");
+  assert.match(src, /function openUrgent\(\) \{\s*if \(S\.screen === "todo" && S\.urgentDraft\)/, "開いていれば、そのまま残す");
 });

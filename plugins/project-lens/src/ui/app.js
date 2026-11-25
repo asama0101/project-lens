@@ -446,17 +446,20 @@ document.querySelector("nav").addEventListener("click", (e) => {
   S.resetScroll = true;
   render();
 });
+/** 突発タスクの入力欄を開く(ヘッダーと ToDo タブの左の列のボタン)。ToDo タブでは画面を移さず、開いていればそのまま残す */
+function openUrgent() {
+  if (S.screen === "todo" && S.urgentDraft) { view.querySelector('[data-ug="title"]')?.focus(); return; }
+  clearSel(); S.tpop = null; S.pendingDone = null; S.ruleError = "";
+  const date = S.screen === "schedule" ? S.sdate : clock().date;
+  if (S.screen !== "todo") { S.screen = "schedule"; S.sdate = date; S.resetScroll = true; } // ToDo タブでは、その場で開く
+  S.urgentDraft = { date, start: urgentDefaultStart(date, clock()), title: "", projectId: "", minutes: 30 };
+  render(); view.querySelector('[data-ug="title"]')?.focus();
+}
+
 $("filebar").addEventListener("click", async (e) => {
   const pf = e.target.closest("[data-pref]");
   if (pf) { togglePref("showActual"); return; }
-  if (e.target.closest("[data-urgent-open]")) {
-    clearSel(); S.tpop = null; S.pendingDone = null; S.ruleError = "";
-    const date = S.screen === "schedule" ? S.sdate : clock().date;
-    if (S.screen !== "todo") { S.screen = "schedule"; S.sdate = date; S.resetScroll = true; } // ToDo タブでは、その場で開く
-    S.urgentDraft = { date, start: urgentDefaultStart(date, clock()), title: "", projectId: "", minutes: 30 };
-    render(); view.querySelector('[data-ug="title"]')?.focus();
-    return;
-  }
+  if (e.target.closest("[data-urgent-open]")) { openUrgent(); return; }
   if (e.target.closest("[data-actadd]")) { // 予定の無い作業の実績を入れる欄。開いている日（スケジュール以外からは今日）を初期値にする
     clearSel(); S.tpop = null; S.pendingDone = null; S.ruleError = "";
     const date = S.screen === "schedule" ? S.sdate : clock().date;
@@ -512,9 +515,10 @@ view.addEventListener("click", (e) => {
   if (ge) { const r = ge.getBoundingClientRect(); openTaskPop(ge.dataset.gedit, e.detail ? e.clientX : r.left, e.detail ? e.clientY : r.bottom); return; } // キーボード(detail 0)は、ボタンの位置に出す
   // 編集の窓の外(バー・タスク名以外)のクリックで閉じる
   if (S.tpop && !q(".tpop,[data-gt],[data-gh]")) { S.tpop = null; render(); } // 閉じたあと、押したものの操作もそのまま行う
+  if (q("[data-urgent-open]")) { openUrgent(); return; }
   let cleared = false;
   // 欄外のクリックで、枠・会議の選択と追加中の下書きを外す
-  if ((S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.actAdd || S.taskEdit) && !q("[data-dragsess],[data-actbar],[data-ghost],[data-mtg],[data-mact],[data-mghost],[data-delsel],[data-delsessok],[data-delsessno],.mtgform,.actform,[data-mtgadd],[data-actadd],[data-actsave],[data-actclear],[data-mtgact],[data-mtgactclear]")) { clearSel(); cleared = true; }
+  if ((S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.actAdd || S.taskEdit) && !q("[data-urgent-open],[data-dragsess],[data-actbar],[data-ghost],[data-mtg],[data-mact],[data-mghost],[data-delsel],[data-delsessok],[data-delsessno],.mtgform,.actform,[data-mtgadd],[data-actadd],[data-actsave],[data-actclear],[data-mtgact],[data-mtgactclear]")) { clearSel(); cleared = true; }
   const { date: today, time } = clock();
   const now = clock();
 
