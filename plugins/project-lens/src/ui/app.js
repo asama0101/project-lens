@@ -923,7 +923,7 @@ function onChange(el) {
   if (el.dataset.ug !== undefined) { if (S.urgentDraft) S.urgentDraft = { ...S.urgentDraft, [el.dataset.ug]: el.dataset.ug === "minutes" ? +el.value : el.value }; return; }
   // 実績の欄も同じ。どの欄の下書きかを key で持ち、描き直しても入力を残す（保存の成功・キャンセル・選択の変更で消す）
   if (el.dataset.ac !== undefined || el.dataset.ma !== undefined) {
-    const form = el.closest(".actform, .mtgform"), g = (a, k) => form?.querySelector(`[data-${a}="${k}"]`)?.value ?? "";
+    const form = el.closest(".actform"), g = (a, k) => form?.querySelector(`[data-${a}="${k}"]`)?.value ?? "";
     const mid = form?.querySelector("[data-mtgact]")?.dataset.mtgact, sid = form?.querySelector("[data-actsave]")?.dataset.actsave;
     if (mid !== undefined || sid !== undefined) S.actDraft = { key: mid !== undefined ? `m:${mid}` : sid || "add", task: g("ac", "task"), date: g("ac", "date"), start: g(mid !== undefined ? "ma" : "ac", "start"), end: g(mid !== undefined ? "ma" : "ac", "end") };
     return;

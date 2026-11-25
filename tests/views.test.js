@@ -462,6 +462,63 @@ test("会議フォーム: 下書き（key が m:<会議 ID>）の実績の開始
   assert.match(renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15, selMtg: "m1", actDraft: { key: "m:m2", start: "09:45", end: "10:15" } }), /<input[^>]*data-ma="start"[^>]*value="09:30"/);
 });
 
+// ---- 実績の欄（予定の枠と会議で、同じ部品・同じ位置・同じ並び） ----
+const mtgslotOf = (html) => /<div id="mtgslot">([\s\S]*?)<\/div><div id="calslot">/.exec(html)[1];
+const ACTBOX = '<div class="actform" role="group" aria-label="実績の入力">';
+/** 実績の欄の並び（ラベル・日付・開始・終了・ボタンの順）を、印の列にする */
+const actOrder = (box) => [...box.matchAll(/class="(aclb|acdt|acbtns)"|data-(?:ac|ma)="(date|start|end)"|data-(actsave|actclear|mtgact|mtgactclear)=/g)].map((m) => m[1] ?? m[2] ?? m[3]);
+/** #mtgslot の先頭の実績の欄（次の欄の始まりまで） */
+const actBoxOf = (slot) => { const rest = slot.slice(ACTBOX.length); const end = rest.search(/<div class="(mtgform|ask)/); return end < 0 ? rest : rest.slice(0, end); };
+const slotWithAct = () => sched(withPlan({ id: "S9", date: TODAY, start: "08:00", end: "09:00", actual: { date: TODAY, start: "08:15", end: "09:30" } }), { selSess: "S9", taskEdit: { id: "AA-0005", full: false, askDel: false } });
+const mtgSel = (id, d = noSessions()) => renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15, selMtg: id });
+
+test("実績の欄: 枠を選んだときも会議を選んだときも、#mtgslot の先頭に、同じ class（.actform）の欄で出す。編集の欄（タスクの編集欄・会議の編集欄）はその下", () => {
+  const slot = mtgslotOf(slotWithAct());
+  assert.ok(slot.startsWith(ACTBOX), slot.slice(0, 200));
+  assert.ok(slot.indexOf("data-tedit") > slot.indexOf('data-actclear="S9"'), "タスクの編集欄は実績の欄の下");
+  const mtg = mtgslotOf(mtgSel("m1"));
+  assert.ok(mtg.startsWith(ACTBOX), mtg.slice(0, 200));
+  const form = mtg.indexOf('<div class="mtgform"');
+  assert.ok(form > mtg.indexOf('data-mtgactclear="m1"'), "会議の編集欄は実績の欄の下");
+  for (const k of ['data-mt="title"', 'data-mt="date"', 'data-mt="start"', 'data-mt="end"', 'data-mt="projectId"', 'data-mt="skip"', "data-mtgclose"]) assert.ok(mtg.indexOf(k) > form, k);
+  const m2 = mtgslotOf(mtgSel("m2"));
+  assert.ok(m2.indexOf("data-delsel") > m2.indexOf('<div class="mtgform"'), "会議を削除も編集欄の中");
+  const box = actBoxOf(mtg);
+  assert.ok(!box.includes("data-mt="), "実績の欄に会議の編集の項目は無い");
+  assert.ok(!mtg.slice(form).includes("data-ma=") && !mtg.slice(form).includes("data-mtgact"), "会議の編集欄に実績の項目は無い");
+});
+
+test("実績の欄: 並びは「実績」のラベル・日付・開始・終了・ボタン（保存か更新、あれば消す）で、枠と会議で同じ。ボタンは同じ右端の入れ物（.acbtns）", () => {
+  const sBox = actBoxOf(mtgslotOf(slotWithAct())), mBox = actBoxOf(mtgslotOf(mtgSel("m1")));
+  assert.deepEqual(actOrder(sBox), ["aclb", "date", "start", "end", "acbtns", "actsave", "actclear"], sBox);
+  assert.deepEqual(actOrder(mBox), ["aclb", "acdt", "start", "end", "acbtns", "mtgact", "mtgactclear"], mBox);
+  assert.ok(sBox.includes('<span class="aclb">実績</span>') && mBox.includes('<span class="aclb">実績</span>'));
+  assert.match(sBox, /<label>開始<input[^>]*data-ac="start"/);
+  assert.match(mBox, /<label>開始<input[^>]*data-ma="start"/);
+  assert.match(mBox, /<label>終了<input[^>]*data-ma="end"/);
+});
+
+test("実績の欄: 会議の日付は文字（入力欄でない）。枠の日付は入力欄（data-ac=\"date\"）", () => {
+  const mBox = actBoxOf(mtgslotOf(mtgSel("m1")));
+  const dt = /<span class="acdt">([\s\S]*?)<\/span>/.exec(mBox)?.[1];
+  assert.ok(dt && dt.includes("10/20") && !dt.includes("<input"), mBox);
+  assert.ok(!mBox.includes('data-ac="date"') && !mBox.includes("data-date"), "会議の実績の欄に日付の入力欄は無い");
+  const sBox = actBoxOf(mtgslotOf(slotWithAct()));
+  assert.match(sBox, /<label>日付<span class="dfield"><input[^>]*data-ac="date"/);
+  assert.ok(!sBox.includes('class="acdt"'));
+});
+
+test("実績の欄: 始まっていない・参加しない・追加中の会議には出ない。下書きの値は、会議の実績の欄に出る", () => {
+  const d = noSessions();
+  d.events.find((e) => e.id === "m2").skip = true;
+  assert.ok(!mtgslotOf(mtgSel("m2", d)).includes(ACTBOX), "参加しない会議");
+  assert.ok(!mtgslotOf(renderSchedule(d, TODAY, { view: "day", date: "2026-10-21", now: NOW15, selMtg: "m3" })).includes(ACTBOX), "未来の会議");
+  assert.ok(!mtgslotOf(renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15, mtgDraft: { date: TODAY, start: "09:00", end: "10:00", title: "", skip: false } })).includes(ACTBOX), "追加中の会議");
+  const dr = mtgslotOf(renderSchedule(noSessions(), TODAY, { view: "day", date: TODAY, now: NOW15, selMtg: "m1", actDraft: { key: "m:m1", start: "09:45", end: "10:15" } }));
+  assert.ok(dr.startsWith(ACTBOX));
+  assert.match(actBoxOf(dr), /<input[^>]*data-ma="start"[^>]*value="09:45"/);
+});
+
 test("meetingBlocks: actual を持つ会議は、実績の時刻に data-mact の 1 つだけ（文字は「実績 開始-終了 ✓」、title に予定の時刻）。ドラッグ・伸縮の属性なし。時刻が予定と違うときだけ、予定の時刻に影（data-mghost）", () => {
   const d = noSessions();
   Object.assign(d.events.find((e) => e.id === "m1"), { confirmed: true, actual: { start: "09:35", end: "10:20" } });

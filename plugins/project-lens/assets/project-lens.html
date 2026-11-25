@@ -336,6 +336,11 @@ tr.hl td{transition:background .3s}
 .mtgform label,.actform label{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted)}
 .mtgform label.chk{flex-direction:row;align-items:center;gap:6px;color:var(--ink);font-size:13px}
 .mtgform .in:disabled{background:var(--line-soft);color:var(--muted);border-color:var(--line)}
+/* 実績の欄（予定の枠と会議で共通）: 「実績」のラベル・日付（会議は文字）・開始・終了・ボタン（右端）。下端をそろえる行で、文字は入力欄の文字の高さに合わせる */
+.actform .aclb{font-size:13px;font-weight:700;color:var(--ink);padding-bottom:5px}
+.actform .acdt{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted)}
+.actform .acdt b{font-size:13px;font-weight:400;color:var(--ink);padding:5px 0}
+.actform .acbtns{display:flex;gap:6px;align-items:center;margin-left:auto}
 .sw.skipsw{background:transparent;border:1px dashed var(--muted)}
 .blk.mtg.skip{right:auto;width:46%;z-index:3;background:var(--surface)}
 
@@ -4624,6 +4629,29 @@ function urgentInput(f) {
 /** 開始が今以前（今ちょうどを含む）か。実績を入れられるのは、始まった枠・会議だけ */
 const started = (x, now) => x.date < now.date || (x.date === now.date && x.start <= now.time);
 
+/**
+ * 実績の欄（予定の枠と会議で共通。#mtgslot の先頭に出す）。並び: 「実績」のラベル・日付・開始・終了・ボタン（右端。保存か更新、あれば消す）。
+ * date.editable が false（会議。日付は会議の日付で固定）なら、日付は文字で出す。attr は時刻の入力欄の属性（枠は ac、会議は ma）。buttons は [属性, 文言] の列
+ */
+function actualBox({ note = "", date, start, end, attr, buttons }) {
+  const time = (k, v) => `<label>${k === "start" ? "開始" : "終了"}<input class="in" type="time" step="900" data-${attr}="${k}" value="${esc(v)}"></label>`;
+  const dateHtml = date.editable ? `<label>日付${dateInputHtml({ value: date.value, attrs: 'data-ac="date"', label: "実績の日付" })}</label>` : `<span class="acdt">日付<b>${esc(fmtMD(date.value))}(${wdJa(date.value)})</b></span>`;
+  return `<div class="actform" role="group" aria-label="実績の入力">
+    ${note ? `<span class="note" style="flex-basis:100%;margin:0">${note}</span>` : ""}<span class="aclb">実績</span>${dateHtml}${time("start", start)}${time("end", end)}
+    <div class="acbtns">${buttons.map(([a, label]) => `<button class="btn" ${a}>${label}</button>`).join("")}</div>
+  </div>`;
+}
+
+/** 選んだ会議の実績の欄。参加しない会議・始まっていない会議・追加中の会議には出さない。入力中の下書き（key が m:<会議 ID>）があれば、その値で描く */
+function meetingActualBox(data, ctx) {
+  const m = ctx.mtgDraft ? null : (data.events ?? []).find((o) => o.id === ctx.selMtg);
+  if (!m || m.skip || !started(m, ctx.now)) return "";
+  const span = meetingActualSpan(m);
+  const act = ctx.actDraft?.key === `m:${m.id}` ? { start: ctx.actDraft.start, end: ctx.actDraft.end } : span;
+  const buttons = [[`data-mtgact="${esc(m.id)}"`, "実績を保存"], ...(m.confirmed === true ? [[`data-mtgactclear="${esc(m.id)}"`, "実績を消す"]] : [])];
+  return actualBox({ date: { value: m.date, editable: false }, start: act.start, end: act.end, attr: "ma", buttons });
+}
+
 function meetingForm(data, ctx) {
   const draft = ctx.mtgDraft;
   const m = draft ?? (data.events ?? []).find((o) => o.id === ctx.selMtg);
@@ -4635,11 +4663,6 @@ function meetingForm(data, ctx) {
   const autoName = projects.find((p) => p.id === autoId)?.name ?? "未設定";
   const cur = isNew ? (m.projectId ?? "") : m.projectBy === "manual" ? m.projectId : "";
   const projOpts = [`<option value=""${cur === "" ? " selected" : ""}>自動（規則）→ ${esc(autoName)}</option>`, ...projects.map((p) => `<option value="${esc(p.id)}"${cur === p.id ? " selected" : ""}>${esc(p.name)}</option>`)].join("");
-  const span = !isNew && !m.skip && started(m, ctx.now) ? meetingActualSpan(m) : null; // 参加しない会議・始まっていない会議には、実績を入れない
-  const act = span && (ctx.actDraft?.key === `m:${m.id}` ? { start: ctx.actDraft.start, end: ctx.actDraft.end } : span); // 入力中の下書きがあれば、その値で描く
-  const actHtml = act ? `<label>実績の開始<input class="in" type="time" step="900" data-ma="start" value="${esc(act.start)}"></label>
-    <label>実績の終了<input class="in" type="time" step="900" data-ma="end" value="${esc(act.end)}"></label>
-    <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-mtgact="${esc(m.id)}">実績を保存</button>${m.confirmed === true ? `<button class="btn" data-mtgactclear="${esc(m.id)}">実績を消す</button>` : ""}</div>` : "";
   return `<div class="mtgform" role="group" aria-label="会議の${isNew ? "追加" : "編集"}">
     <label>件名<input class="in" data-mt="title" value="${esc(m.title)}" placeholder="会議名" style="min-width:200px" ${lock}></label>
     <label>日付${dateInputHtml({ value: m.date, attrs: `data-mt="date" ${lock}`, label: "会議の日付" })}</label>
@@ -4647,7 +4670,7 @@ function meetingForm(data, ctx) {
     <label>終了<input class="in" type="time" step="900" data-mt="end" value="${esc(m.end)}" ${lock}></label>
     <label>プロジェクト<select class="in" data-mt="projectId" aria-label="会議のプロジェクト">${projOpts}</select></label>
     <label class="chk"><input type="checkbox" data-mt="skip" ${m.skip ? "checked" : ""}>参加しない(稼働に数えず、作業枠と重なっても注意しない)</label>
-    ${actHtml}<div style="display:flex;gap:6px;align-items:center">${isNew ? `<button class="btn" data-mtgsave>追加</button><button class="btn" data-mtgcancel>キャンセル</button>` : `${m.source === "manual" ? `<button class="btn danger" data-delsel>会議を削除</button>` : ""}<button class="btn" data-mtgclose>閉じる</button>`}</div>
+    <div style="display:flex;gap:6px;align-items:center">${isNew ? `<button class="btn" data-mtgsave>追加</button><button class="btn" data-mtgcancel>キャンセル</button>` : `${m.source === "manual" ? `<button class="btn danger" data-delsel>会議を削除</button>` : ""}<button class="btn" data-mtgclose>閉じる</button>`}</div>
     ${!isNew && m.source === "manual" ? `<p class="note" style="flex-basis:100%;margin:0">カレンダー上でドラッグして移動（別の日へも）、下端をドラッグして長さを変えられます。</p>` : ""}${!isNew && m.source === "mcp" ? `<p class="note" style="flex-basis:100%;margin:0">予定表から取得した会議です。件名と時間は取得内容が正のため変更できません。プロジェクトは、規則で自動に付き、ここで手動に変えられます。出席しない会議は「参加しない」にします（削除しても、次の取得で戻ります）。</p>` : ""}
   </div>`;
 }
@@ -4692,12 +4715,8 @@ function actualForm(data, ctx) {
   const time = (k, v) => `<label>${k === "start" ? "開始" : "終了"}<input class="in" type="time" step="900" data-ac="${k}" value="${esc(dr?.[k] ?? v)}"></label>`;
   if (fromPlan) { // 初期値は、実績（actual）があればその値、なければ枠の日付と予定の時刻
     const a = s.actual ?? s;
-    return `<div class="actform" role="group" aria-label="実績の入力">
-    <span class="note" style="flex-basis:100%;margin:0">「${esc(s.title)}」の実績を${s.actual ? "更新します" : "入れます"}（予定の枠は残ります）</span>
-    <label>日付${dateInputHtml({ value: dr?.date || a.date, attrs: 'data-ac="date"', label: "実績の日付" })}</label>
-    ${time("start", a.start)}${time("end", a.end)}
-    <div style="display:flex;gap:6px;align-items:center"><button class="btn" data-actsave="${esc(s.id)}">${s.actual ? "実績を更新" : "実績を保存"}</button>${s.actual ? `<button class="btn" data-actclear="${esc(s.id)}">実績を消す</button>` : ""}</div>
-  </div>`;
+    const buttons = [[`data-actsave="${esc(s.id)}"`, s.actual ? "実績を更新" : "実績を保存"], ...(s.actual ? [[`data-actclear="${esc(s.id)}"`, "実績を消す"]] : [])];
+    return actualBox({ note: `「${esc(s.title)}」の実績を${s.actual ? "更新します" : "入れます"}（予定の枠は残ります）`, date: { value: dr?.date || a.date, editable: true }, start: dr?.start ?? a.start, end: dr?.end ?? a.end, attr: "ac", buttons });
   }
   const pn = (t) => (data.projects ?? []).find((p) => p.id === t.projectId)?.name;
   const taskOpts = data.tasks.filter((t) => !isClosed(t)).map((t) => `<option value="${esc(t.id)}"${dr?.task === t.id ? " selected" : ""}>${esc(pn(t) ? `${t.title}（${pn(t)}）` : t.title)}</option>`).join("");
@@ -4780,8 +4799,9 @@ function renderSchedule(data, today, opts) {
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="chip-btn pref" data-sskip aria-pressed="${opts.showSkipped === true}" title="「参加しない」にした会議を、カレンダーに出したり隠したりします">参加しない会議</button><button class="btn" data-mtgadd>＋ 会議を追加</button><div class="seg" role="group" aria-label="表示"><button data-sview="week" aria-pressed="${view === "week"}">週</button><button data-sview="day" aria-pressed="${view === "day"}">日</button></div></div></div>
     <div class="summary"><span>実績 <b class="mono">${hours.toFixed(1)}時間</b></span><span>予定 <b class="mono">${planned}件</b></span>${unconf ? `<span class="pill wait">未確認 ${unconf}件（作業枠 ${unconfS}・会議 ${unconfM}）</span>` : ""}<button class="btn danger" data-delsel ${delOk ? "" : "disabled"}>${delLabel}</button></div>`;
   const et = selSess && opts.taskEdit ? data.tasks.find((t) => t.id === opts.taskEdit.id) : null; // 編集欄は、表示中の枠を選んでいる間だけ出す（枠を選ぶと、そのタスクの編集欄になる）
+  const mtgCtx = { mtgDraft: opts.mtgDraft, selMtg: selMtg?.id, actDraft: opts.actDraft, now };
   const editPanel = et ? renderTaskEditPanel(data, opts.taskEdit, statusCellHtml(et, { ...opts, todayIds: opts.showPrio === false ? new Set() : new Set(todayTaskIds(data, today)) }, taskFlags(et, today, data.settings).includes("overdue"))) : "";
-  return `<div class="cols${opts.showPrio === false ? " one" : ""}"><section class="panel"><div class="stop">${nav}</div><div id="mtgslot">${meetingForm(data, { mtgDraft: opts.mtgDraft, selMtg: selMtg?.id, actDraft: opts.actDraft, now })}${urgentForm(data, opts.urgentDraft)}${actualForm(data, { selSess: selSess?.id ?? null, add: opts.actAdd, draft: opts.actDraft, today, now })}${delAsk(selSess, opts.askDelSess)}${editPanel}</div><div id="calslot">${renderCalendar(data, today, calOpts)}</div></section>${renderSideToggle(opts.showPrio !== false)}${opts.showPrio === false ? "" : renderSide(data, today, { sched: true, pendingDone: opts.pendingDone, now })}</div>`;
+  return `<div class="cols${opts.showPrio === false ? " one" : ""}"><section class="panel"><div class="stop">${nav}</div><div id="mtgslot">${actualForm(data, { selSess: selSess?.id ?? null, add: opts.actAdd, draft: opts.actDraft, today, now })}${meetingActualBox(data, mtgCtx)}${meetingForm(data, mtgCtx)}${urgentForm(data, opts.urgentDraft)}${delAsk(selSess, opts.askDelSess)}${editPanel}</div><div id="calslot">${renderCalendar(data, today, calOpts)}</div></section>${renderSideToggle(opts.showPrio !== false)}${opts.showPrio === false ? "" : renderSide(data, today, { sched: true, pendingDone: opts.pendingDone, now })}</div>`;
 }
 
 
@@ -6031,7 +6051,7 @@ function onChange(el) {
   if (el.dataset.ug !== undefined) { if (S.urgentDraft) S.urgentDraft = { ...S.urgentDraft, [el.dataset.ug]: el.dataset.ug === "minutes" ? +el.value : el.value }; return; }
   // 実績の欄も同じ。どの欄の下書きかを key で持ち、描き直しても入力を残す（保存の成功・キャンセル・選択の変更で消す）
   if (el.dataset.ac !== undefined || el.dataset.ma !== undefined) {
-    const form = el.closest(".actform, .mtgform"), g = (a, k) => form?.querySelector(`[data-${a}="${k}"]`)?.value ?? "";
+    const form = el.closest(".actform"), g = (a, k) => form?.querySelector(`[data-${a}="${k}"]`)?.value ?? "";
     const mid = form?.querySelector("[data-mtgact]")?.dataset.mtgact, sid = form?.querySelector("[data-actsave]")?.dataset.actsave;
     if (mid !== undefined || sid !== undefined) S.actDraft = { key: mid !== undefined ? `m:${mid}` : sid || "add", task: g("ac", "task"), date: g("ac", "date"), start: g(mid !== undefined ? "ma" : "ac", "start"), end: g(mid !== undefined ? "ma" : "ac", "end") };
     return;

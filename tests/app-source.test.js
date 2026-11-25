@@ -788,6 +788,13 @@ test("app.js: 実績の入力欄（data-ac・data-ma）は、change で S.actDra
   assert.ok(src.includes('if (apply((d) => setMeetingActual(d, id, span, now), "会議の実績を入れました")) S.actDraft = null;'), "会議は成功したときだけ消す");
 });
 
+test("app.js: 実績の下書きは、入力欄を囲む実績の欄（.actform。枠と会議で共通）から、会議（data-mtgact）か枠（data-actsave）かを読む。会議の実績の欄は会議の編集欄（.mtgform）の外にある", () => {
+  const onChange = src.slice(src.indexOf("function onChange(el) {"), src.indexOf("function onChange(el) {") + 2500);
+  assert.ok(onChange.includes('const form = el.closest(".actform"), g = '), onChange.slice(0, 1500));
+  assert.ok(!onChange.includes('closest(".actform, .mtgform")'), "会議の実績の入力欄は .mtgform の中に無い");
+  assert.ok(onChange.includes('form?.querySelector("[data-mtgact]")?.dataset.mtgact') && onChange.includes('form?.querySelector("[data-actsave]")?.dataset.actsave'));
+});
+
 test("app.js: 予定の枠の実績の保存（data-actsave に枠の ID）は、日付・開始・終了を下書きへ先に写し、空・不正なら通知して下書きを残し、recordSlotActual を apply に通す。初回と更新で通知を分ける", () => {
   const i = src.indexOf('q("[data-actsave]")');
   const a = src.slice(i, src.indexOf('q("[data-actcancel]")'));

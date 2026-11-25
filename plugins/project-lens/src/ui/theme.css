@@ -329,6 +329,11 @@ tr.hl td{transition:background .3s}
 .mtgform label,.actform label{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted)}
 .mtgform label.chk{flex-direction:row;align-items:center;gap:6px;color:var(--ink);font-size:13px}
 .mtgform .in:disabled{background:var(--line-soft);color:var(--muted);border-color:var(--line)}
+/* 実績の欄（予定の枠と会議で共通）: 「実績」のラベル・日付（会議は文字）・開始・終了・ボタン（右端）。下端をそろえる行で、文字は入力欄の文字の高さに合わせる */
+.actform .aclb{font-size:13px;font-weight:700;color:var(--ink);padding-bottom:5px}
+.actform .acdt{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted)}
+.actform .acdt b{font-size:13px;font-weight:400;color:var(--ink);padding:5px 0}
+.actform .acbtns{display:flex;gap:6px;align-items:center;margin-left:auto}
 .sw.skipsw{background:transparent;border:1px dashed var(--muted)}
 .blk.mtg.skip{right:auto;width:46%;z-index:3;background:var(--surface)}
 
