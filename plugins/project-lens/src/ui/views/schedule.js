@@ -259,7 +259,7 @@ export function actualForm(data, ctx) {
 /** 色の凡例（上の操作の行に置く）。枠・会議それぞれの 3 つの状態（予定・未確認・実績）と、実績とずれた予定の影。現在時刻の線、参加しない会議を出すときはその印も */
 const legendHtml = (showSkipped) => `<div class="slegend" aria-label="色の凡例"><span><i class="sw plan"></i>予定</span><span><i class="sw unconf"></i>未確認(過ぎた予定)</span><span><i class="sw act"></i>実績(✓)</span><span><i class="sw mtg"></i>会議</span><span><i class="sw mtgun"></i>未確認の会議</span><span><i class="sw mtgact"></i>会議の実績(✓)</span>${showSkipped ? '<span><i class="sw skipsw"></i>参加しない会議</span>' : ""}<span><i class="sw pghost"></i>実績とずれた予定</span><span><i class="sw now"></i>現在時刻</span><span><i class="sw sel"></i>選択中</span></div>`;
 
-/** 現在時刻の赤い線。その日が今日のときだけ（日表示・週表示の今日の列で共通） */
+/** 現在時刻の赤い線。その日が今日のときだけ（日表示・週表示で共通） */
 const nowLineHtml = (d, g, ctx) => d === ctx.now.date && toMin(ctx.now.time) >= g.h0 && toMin(ctx.now.time) <= g.h0 + g.span ? `<span class="nowline" style="top:${g.tp(toMin(ctx.now.time))}" title="現在 ${ctx.now.time}"></span>` : "";
 
 /** カレンダー部分（週または日）。会議の編集中はここだけを描き直す */
@@ -272,7 +272,8 @@ export function renderCalendar(data, today, opts) {
   if (view === "week") {
     const days = [0, 1, 2, 3, 4, 5, 6].map((i) => addDays(weekStartOf(date), i));
     const heads = days.map((d) => `<button class="dh ${d === today ? "t" : ""}" data-day="${d}" aria-label="${fmtMD(d)}の1日表示">${fmtMD(d)}(${wdJa(d)})${isOff(d) ? '<small class="mono">—</small>' : ""}</button>`).join("");
-    const cols = days.map((d) => `<div class="col dz ${d === today ? "today" : ""} ${isOff(d) ? "weekend" : ""}" data-date="${d}">${dayBlocks(data, d, false, g, ctx)}${nowLineHtml(d, g, ctx)}</div>`).join("");
+    const nowInWeek = days.includes(ctx.now.date); // 今日が週にあれば、全部の列に同じ高さの線を引き、週の中で今の時刻を見比べられるようにする
+    const cols = days.map((d) => `<div class="col dz ${d === today ? "today" : ""} ${isOff(d) ? "weekend" : ""}" data-date="${d}">${dayBlocks(data, d, false, g, ctx)}${nowInWeek ? nowLineHtml(ctx.now.date, g, ctx) : ""}</div>`).join("");
     const dueByDay = days.map((d) => data.tasks.filter((t) => t.due === d && t.status !== "Done" && t.status !== "Cancelled"));
     // 期限の行: 日付の見出しのすぐ下に固定する（theme.css）。閉じると、各日のセルの代わりに、週の件数の帯だけを出す
     const dueOpen = opts.showDue !== false;

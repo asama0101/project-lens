@@ -509,7 +509,7 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .week .dh.t,.week .dh.t:hover{background:var(--accent);color:var(--on-accent);font-weight:700}
 .week .dh.t small{color:inherit}
 .dtt{background:var(--accent);color:var(--on-accent);border-radius:999px;padding:2px 10px}
-.blk.now{box-shadow:0 0 0 2px var(--bad);z-index:3}
+.blk.now{z-index:3}
 .blk .nw{color:var(--bad);font-weight:700;margin-right:2px}
 /* ページの先頭でも、固定の行が、固定したときと同じ位置にあるようにする（スクロールの始めに、固定の行が数 px 動かない）。ヘッダーの上の余白（body の 8px。ヘッダーの負の margin で上端 0）は、依頼の帯の節の body の規則で、どの画面にも当てる。下は、ガント・リスト（.ptool がある画面）とスケジュール（.stop がある画面）の、ヘッダーとフィルタ行・カードの間と、カードの上の余白 */
 .wrap:has(.ptool),.wrap:has(.stop){gap:0}

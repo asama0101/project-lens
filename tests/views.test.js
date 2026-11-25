@@ -2518,15 +2518,21 @@ const mtgAt = (d, id, start, end, extra = {}) => Object.assign(d.events.find((e)
 const wk = (d, now, o = {}) => renderSchedule(d, TODAY, { view: "week", date: TODAY, now, ...o });
 const dayv = (d, now, o = {}) => renderSchedule(d, TODAY, { view: "day", date: TODAY, now, ...o });
 
-test("現在時刻の線: 週表示は、今日が表示中の週にあるとき今日の列にだけ 1 本。今日が週に無いと出ない。日表示は今までどおり", () => {
+test("現在時刻の線: 週表示は、今日が表示中の週にあるとき全部の列に 1 本ずつ（同じ高さ・同じ見た目）。今日が週に無いと出ない。日表示は今までどおり", () => {
   const d = noSessions();
   const h = wk(d, nowD("10:15"));
-  assert.equal((h.match(/class="nowline"/g) ?? []).length, 1);
-  const col = /<div class="col dz today[^>]*>([\s\S]*?)(?=<div class="col dz|$)/.exec(h)[1];
-  assert.ok(col.includes('class="nowline"') && col.includes("現在 10:15"));
-  assert.ok(!wk(d, nowD("10:15"), { date: "2026-10-27" }).includes('class="nowline"'), "今日が週に無い");
+  const lines = h.match(/<span class="nowline[^"]*"[^>]*>/g) ?? [];
+  assert.equal(lines.length, 7);
+  assert.equal(new Set(lines.map((l) => /top:([^";]+)/.exec(l)[1])).size, 1, "全部の列で同じ高さ");
+  const cols = h.split(/(?=<div class="col dz)/).slice(1);
+  assert.equal(cols.length, 7);
+  for (const c of cols) assert.equal((c.match(/class="nowline/g) ?? []).length, 1, "列ごとに 1 本");
+  assert.ok(lines.every((l) => l.startsWith('<span class="nowline" ')), "どの列も同じ class（off などの違いを付けない）");
+  assert.ok(cols.every((c) => c.includes("現在 10:15")));
+  assert.ok(!wk(d, nowD("10:15"), { date: "2026-10-27" }).includes('class="nowline'), "今日が週に無い");
+  assert.equal((dayv(d, nowD("10:15")).match(/class="nowline/g) ?? []).length, 1);
   assert.ok(dayv(d, nowD("10:15")).includes('class="nowline"'));
-  assert.ok(!dayv(d, nowD("10:15"), { date: "2026-10-21" }).includes('class="nowline"'), "日表示で今日以外");
+  assert.ok(!dayv(d, nowD("10:15"), { date: "2026-10-21" }).includes('class="nowline'), "日表示で今日以外");
 });
 
 test("いまのブロック: 今を含む枠・会議に class now と「いま」。開始ちょうどは付き、終了ちょうどは付かない", () => {

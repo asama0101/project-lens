@@ -723,6 +723,13 @@ test("theme.css: スケジュールの重要の枠は、件名の赤い太字だ
   assert.ok(!/\.blk\.imp\{[^}]*box-shadow/.test(css), "左の線（box-shadow）は持たない");
 });
 
+test("theme.css: いまのブロックは「いま」の文字だけ（赤い外枠を持たない）。現在時刻の線は 1 つの見た目（.nowline.off などの違いを持たない）で、クリックを通す", () => {
+  assert.ok(!/\.blk\.now\{[^}]*box-shadow/.test(css), "外枠（box-shadow）を持たない");
+  assert.ok(css.includes(".blk .nw{color:var(--bad);font-weight:700"));
+  assert.ok(!/\.nowline\.[\w-]+/.test(css), "線の見た目の違い（.nowline.off など）を持たない");
+  assert.ok(/\.nowline\{[^}]*border-top:2px solid var\(--bad\)[^}]*pointer-events:none/.test(css), "2px の --bad。pointer-events:none");
+});
+
 test("theme.css: プロジェクトの稼働の札（.mono.hrs）の塗りは、週表示の時刻の列（.week .hrs）に効かない。使わなくなった今日のタスクのボタンの箱（.rank .bb）の規則は持たない", () => {
   assert.ok(css.includes(".mono.hrs{background:var(--accent-soft);"));
   assert.ok(!/(^|\n)\.hrs\{/.test(css), "素の .hrs に塗りを付けない");
