@@ -315,3 +315,18 @@ test("changed: 2 つのどちらかを他が書き換えたら true。読み直�
   sh.modified += 1;
   assert.equal(await s.changed(), true);
 });
+
+test("info: 開く前は両方 null。2 つ開くと、それぞれの名前と更新日時。呼んでも動きは変わらない", async () => {
+  const sh = fakeHandle(S0, "data.json"), pe = fakeHandle(P0, "personal.json");
+  pe.modified = 2000;
+  const queue = [sh];
+  const s = createPairStore({ showOpenFilePicker: async () => [queue.shift()], idb: memIdb() });
+  assert.deepEqual(s.info(), { shared: { name: null, at: null }, personal: { name: null, at: null } });
+  await s.choose("shared");
+  assert.deepEqual(s.info().shared, { name: "data.json", at: 1000 });
+  assert.deepEqual(s.info().personal, { name: null, at: null });
+  queue.push(pe);
+  await s.choose("personal");
+  assert.deepEqual(s.info(), { shared: { name: "data.json", at: 1000 }, personal: { name: "personal.json", at: 2000 } });
+  assert.equal(await s.changed(), false);
+});

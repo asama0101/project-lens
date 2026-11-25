@@ -9,7 +9,7 @@ const S = {
   screen: "gantt",
   filter: "all", gwin: "m6", hideDone: false,
   askDel: null, askDelProject: null, pendingWait: null, pendingDone: null, checkOpen: new Set(), detailOpen: new Set(),
-  sview: "week", sdate: clock().date, selSess: null, selMtg: null, mtgDraft: null, urgentDraft: null, actAdd: null, actDraft: null, taskEdit: null,
+  sview: "week", sdate: clock().date, selSess: null, selMtg: null, mtgDraft: null, urgentDraft: null, fileInfo: null, chosenFiles: null, actAdd: null, actDraft: null, taskEdit: null,
   prefs: loadPrefs(), settingsClosed: loadSettingsClosed(), tpop: null, addAt: null, last: null, ruleError: "",
   ib: { open: false, text: loadInboxDraft(), projectId: "", replies: {}, reasons: {}, causes: {} },
   wperiod: "day", wdate: clock().date,
@@ -96,7 +96,8 @@ function render() {
   const c = clock();
   $("todaylabel").textContent = `${c.date.replace(/-/g, "/")}(${wdJa(c.date)})`;
   document.querySelectorAll("nav [role=tab]").forEach((b) => b.setAttribute("aria-selected", String(b.id === "tab-" + S.screen)));
-  $("filebar").innerHTML = S.data ? `<button class="chip-btn pref" data-pref="actual" aria-pressed="${S.prefs.showActual}" title="ガントの実績の線を出したり隠したりします">ガント実績</button><span class="fsep" aria-hidden="true"></span><button class="btn primary" data-urgent-open title="突発タスクの入力欄を開きます">＋ 突発タスク</button><button class="btn" data-actadd title="予定の無い作業の実績を入れる欄を開きます">＋ 実績を追加</button><button class="btn" data-refresh title="ファイルを読み直します(Claude Code などが更新した内容を反映)">更新</button><button class="btn" data-open="shared" title="別の共有ファイル（data.json）を選びます">別の共有ファイル</button><button class="btn" data-open="personal" title="別の個人ファイル（personal.json）を選びます">別の個人ファイル</button>${typeof window.showOpenFilePicker === "function" ? "" : `<button class="btn" data-download>JSON を書き出す</button>`}` : "";
+  $("filebar").innerHTML = S.data ? `<button class="chip-btn pref" data-pref="actual" aria-pressed="${S.prefs.showActual}" title="ガントの実績の線を出したり隠したりします">ガント実績</button><span class="fsep" aria-hidden="true"></span><button class="btn primary" data-urgent-open title="突発タスクの入力欄を開きます">＋ 突発タスク</button><button class="btn" data-actadd title="予定の無い作業の実績を入れる欄を開きます">＋ 実績を追加</button><button class="btn" data-refresh title="ファイルを読み直します(Claude Code などが更新した内容を反映)">更新</button>${renderFileChips(S.data, fileInfo(), S.fileInfo)}${typeof window.showOpenFilePicker === "function" ? "" : `<button class="btn" data-download>JSON を書き出す</button>`}` : "";
+  placeFileInfo();
   renderBar();
   // ガントの横スクロール位置(全プロジェクトで同じ)とページの縦の位置は、編集で描き直しても保つ(表示期間・絞り込みなどを変えたときだけ今日の位置へ戻す)。
   // 描き直しの間、ページが縮んで scrollY が飛ばないよう、#view の高さを保つ
@@ -238,6 +239,32 @@ function downloadJson() {
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }, i * 300));
+}
+
+/** ヘッダーの札に出すファイルの情報。書き込めるのは、直接保存できるブラウザで、ファイルを開いているとき。
+ *  <input type=file> で選んだファイル（直接保存できないブラウザ）は、選んだときに控えた名前と更新日時を使う */
+function fileInfo() {
+  const i = store.info(), picker = typeof window.showOpenFilePicker === "function";
+  return Object.fromEntries(["shared", "personal"].map((w) => [w, { ...(i[w].name != null ? i[w] : S.chosenFiles?.[w] ?? i[w]), writable: picker && i[w].name != null }]));
+}
+/** 開いている札の詳細を、押した札の真下に置く（左端をそろえる）。画面の左右 16px の余白からはみ出すときは内側へ寄せ、幅の狭い画面では幅も縮める */
+function placeFileInfo() {
+  const bar = $("filebar"), pop = bar.querySelector(".fileinfo"), chip = pop?.parentElement.querySelector("[data-fileinfo]");
+  if (!pop || !chip) return;
+  const vw = document.documentElement.clientWidth, w = Math.min(360, vw - 32);
+  pop.style.width = w + "px";
+  const b = bar.getBoundingClientRect(), c = chip.getBoundingClientRect();
+  pop.style.left = Math.max(16, Math.min(c.left, vw - 16 - w)) - b.left + "px";
+  pop.style.top = c.bottom - b.top + 6 + "px";
+}
+
+/** 札の詳細を閉じる。描き直さない（打ちかけの入力を消さないため。外を押した直後の描き直しは、押したものの処理に任せる） */
+function closeFileInfo() {
+  if (!S.fileInfo) return;
+  S.fileInfo = null;
+  const bar = $("filebar");
+  bar.querySelector(".fileinfo")?.remove();
+  bar.querySelectorAll("[data-fileinfo]").forEach((b) => b.setAttribute("aria-expanded", "false"));
 }
 
 /** 画面の入力欄で打ちかけ（打った文字が、まだ change で確定していない）か。描き直すと消えるので、読み直しの描き直しを待たせる */
@@ -442,6 +469,7 @@ document.querySelector("nav").addEventListener("click", (e) => {
   const b = e.target.closest("[role=tab]");
   if (!b) return;
   S.screen = b.id.slice(4);
+  closeFileInfo();
   S.tpop = null;
   S.pendingDone = null;
   S.ruleError = "";
@@ -460,6 +488,8 @@ function openUrgent() {
 }
 
 $("filebar").addEventListener("click", async (e) => {
+  const fi = e.target.closest("[data-fileinfo]");
+  if (fi) { S.fileInfo = S.fileInfo === fi.dataset.fileinfo ? null : fi.dataset.fileinfo; render(); return; }
   const pf = e.target.closest("[data-pref]");
   if (pf) { togglePref("showActual"); return; }
   if (e.target.closest("[data-urgent-open]")) { openUrgent(); return; }
@@ -479,7 +509,7 @@ $("filebar").addEventListener("click", async (e) => {
     return;
   }
   const pick = e.target.closest("[data-open]");
-  if (pick) openFile("choose", pick.dataset.open);
+  if (pick) { closeFileInfo(); openFile("choose", pick.dataset.open); }
   if (e.target.closest("[data-download]")) downloadJson();
 });
 $("banner").addEventListener("click", async (e) => {
@@ -499,9 +529,10 @@ $("banner").addEventListener("click", async (e) => {
 /** 画面の外(ヘッダー・余白)のクリックでも、枠・会議の選択と追加中の下書きを外す。
  *  画面の描き直しで target が DOM から外れる前に判定するため、キャプチャ段階で処理する */
 document.addEventListener("click", (e) => {
+  if (S.fileInfo && !e.target.closest(".fileinfo,[data-fileinfo]")) closeFileInfo(); // 札の詳細は、外のクリックで閉じる（以降の処理は、そのまま続ける）
   if (S.tpop && !view.contains(e.target)) { S.tpop = null; render(); return; } // ガントの編集の窓は、画面の外のクリックでも閉じる
   if (view.contains(e.target) || !(S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.actAdd || S.taskEdit)) return;
-  if (e.target.closest("[data-delsel],[data-urgent-open]")) return; // 「＋ 突発タスク」は openUrgent が外す（ToDo タブで開いていれば、打った入力を残す）
+  if (e.target.closest("[data-delsel],[data-urgent-open],.fileinfo,[data-fileinfo]")) return; // 「＋ 突発タスク」は openUrgent が外す（ToDo タブで開いていれば、打った入力を残す）
   clearSel();
   render();
 }, true);
@@ -956,7 +987,8 @@ function onChange(el) {
   const { date: today } = clock();
   if (el.dataset.fileinput !== undefined) {
     if (!el.files?.length) return;
-    Promise.all([...el.files].map((f) => f.text())).then((texts) => { try { loaded(dataFromTexts(texts, [...el.files].map((f) => f.name))); } catch (err) { S.openError = `開けません: ${err.message}`; } render(); });
+    const files = [...el.files]; // 選び直しで el.files が変わる前に控える
+    Promise.all(files.map((f) => f.text())).then((texts) => { try { const d = dataFromTexts(texts, files.map((f) => f.name)); S.chosenFiles = {}; texts.forEach((t, i) => { S.chosenFiles[Array.isArray(JSON.parse(t).projects) ? "shared" : "personal"] = { name: files[i].name, at: files[i].lastModified }; }); loaded(d); } catch (err) { S.openError = `開けません: ${err.message}`; } render(); });
     return;
   }
   // 突発タスクの欄は、確定した値を下書きに残す（読み直しの描き直しで、打った内容を消さない）
@@ -1318,6 +1350,7 @@ view.addEventListener("mousedown", (e) => {
 document.addEventListener("keydown", (e) => {
   const typing = e.target.matches?.("input,select,textarea") || !!e.target.closest?.("[data-tedit], .mtgform, .actform"); // 編集欄・入力欄のボタンでも、枠を消さない
   if ((e.key === "Delete" || e.key === "Backspace") && S.screen === "schedule" && (S.selSess || S.selMtg) && !typing) { e.preventDefault(); deleteSelected(); }
+  if (e.key === "Escape" && S.fileInfo) { closeFileInfo(); return; } // 札の詳細だけを閉じる（開いている入力欄の下書きは、次の Escape まで残す）
   if (e.key === "Escape" && S.tpop) { S.tpop = null; render(); return; }
   if (e.key === "Escape" && (S.screen === "schedule" || S.screen === "todo") && (S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.actAdd || S.taskEdit)) { clearSel(); render(); }
 });
@@ -1463,6 +1496,7 @@ let depsQueued = false;
 window.addEventListener("resize", () => {
   syncSticky();
   if (!depsQueued) { depsQueued = true; requestAnimationFrame(() => { depsQueued = false; drawAllDeps(); }); } // ウィンドウを引っ張る間、線は 1 フレームに 1 回だけ引き直す
+  placeFileInfo();
 });
 
 render();

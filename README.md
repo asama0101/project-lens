@@ -30,7 +30,7 @@
 /project-lens:init
 ```
 
-そのあと、Edge か Chrome で `project-lens.html` を開き、共有ファイル（`.project-lens/data.json`）と個人ファイル（`.project-lens/personal.json`）を選びます。2 つとも選ぶと画面が開き、左上の `project-lens` の横に版の表記（`v` で始まる番号）が出ます。複数人での置き方と、個人ファイルの場所を変える `--mine` は、[利用ガイド](docs/guide.md#2-初回の準備)を見てください。
+そのあと、Edge か Chrome で `project-lens.html` を開き、共有ファイル（`.project-lens/data.json`）と個人ファイル（`.project-lens/personal.json`）を選びます。2 つとも選ぶと画面が開き、左上の `project-lens` の横に版の表記（`v` で始まる番号）が出ます。どのファイルを開いているかは、ヘッダーの札（共有・個人）に出て、押すと詳細と「別のファイルを選ぶ」が開きます。複数人での置き方と、個人ファイルの場所を変える `--mine` は、[利用ガイド](docs/guide.md#2-初回の準備)を見てください。
 
 **すでに `project-lens.html` があると、`init` は新しい版に置き換えます。** 手で直していたときは、先に別の名前でコピーします（`data.json`・`personal.json` は変わりません）。オフラインでの導入、更新、アンインストール、動作環境の確認（`/project-lens:doctor`）は、[利用ガイド](docs/guide.md)を見てください。
 

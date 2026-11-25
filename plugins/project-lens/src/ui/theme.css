@@ -367,7 +367,7 @@ tr.hl td{transition:background .3s}
 .gov .msl{position:absolute;top:0;bottom:0;border-left:1px dashed var(--ink);opacity:.3}
 .g-lane{width:var(--lanew)}
 
-.filebar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.filebar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;position:relative}
 .fsep{width:1px;align-self:stretch;background:var(--line)}
 .chip-btn.pref[aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:400}
 .cols.one{grid-template-columns:minmax(0,1fr) 14px}
@@ -534,6 +534,14 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .dtt{background:var(--accent);color:var(--on-accent);border-radius:999px;padding:2px 10px}
 .blk.now{z-index:3}
 .blk .nw{color:var(--bad);font-weight:700;margin-right:2px}
+/* ヘッダーの、読み込み中のファイルの札と詳細（views/filechips.js） */
+.filechip{position:static;display:inline-block} /* 詳細は .filebar を基準に絶対配置する。位置（札の真下・画面の内側）と幅は、placeFileInfo（app.js）が決める */
+.filechip .dot{width:8px;height:8px;background:var(--ok)}
+.filechip .dot.warn{background:var(--warn)}
+.fileinfo{position:absolute;left:0;top:100%;z-index:30;box-sizing:border-box;width:360px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;box-shadow:0 4px 14px rgba(0,0,0,.15)}
+.fileinfo dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0 0 10px}
+.fileinfo dt{color:var(--muted)}
+.fileinfo dd{margin:0;overflow-wrap:anywhere}
 /* ページの先頭でも、固定の行が、固定したときと同じ位置にあるようにする（スクロールの始めに、固定の行が数 px 動かない）。ヘッダーの上の余白（body の 8px。ヘッダーの負の margin で上端 0）は、依頼の帯の節の body の規則で、どの画面にも当てる。下は、ガント・リスト（.ptool がある画面）とスケジュール（.stop がある画面）の、ヘッダーとフィルタ行・カードの間と、カードの上の余白 */
 .wrap:has(.ptool),.wrap:has(.stop){gap:0}
 #banner:not(:empty){margin-block:8px}

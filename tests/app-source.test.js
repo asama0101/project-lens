@@ -3,6 +3,17 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const src = readFileSync(new URL("../plugins/project-lens/src/ui/app.js", import.meta.url), "utf8");
+test("ヘッダーの札の詳細: placeFileInfo が、押した札の真下（左端をそろえ、画面の内側に収める）に置き、幅も決める。描画のあとと resize で呼ぶ", () => {
+  const f = src.slice(src.indexOf("function placeFileInfo("), src.indexOf("/** 札の詳細を閉じる")); // 次の関数の直前の説明コメントまで
+  assert.match(f, /Math\.min\(c\.left, vw - 16 - w\)/, "札の左端に合わせ、右へはみ出さない");
+  assert.match(f, /Math\.max\(16,/, "左へはみ出さない");
+  assert.match(f, /c\.bottom - b\.top/, "札の真下（折り返した 2 行目の札でも）");
+  assert.match(f, /Math\.min\(360, vw - 32\)/, "幅の狭い画面では幅を縮める");
+  assert.ok(/placeFileInfo\(\);\s*renderBar\(\);/.test(src), "描画のあとに呼ぶ");
+  const rz = src.slice(src.indexOf("addEventListener(\"resize\""));
+  assert.ok(rz.slice(0, 500).includes("placeFileInfo();"), "resize で呼ぶ");
+});
+
 const stk = readFileSync(new URL("../plugins/project-lens/src/ui/sticky.js", import.meta.url), "utf8"); // 固定表示（日付軸・列見出しの複製、横スクロールのそろえ）
 
 // 編集は、いまのデータへの差分として書く。決まった結果を返す編集（() => data）は、保存の競合のとき、最新のファイルに当て直すと、
@@ -536,7 +547,7 @@ test("app.js: ファイルを選ぶと store.choose(which)。2 つ揃ったら�
   const fb = src.slice(src.indexOf('$("filebar").addEventListener("click"'), src.indexOf('$("banner").addEventListener("click"'));
   assert.match(fb, /openFile\("choose", pick\.dataset\.open\)/);
   const bar = src.slice(src.indexOf('$("filebar").innerHTML'), src.indexOf('$("filebar").innerHTML') + 1200);
-  assert.ok(bar.includes('data-open="shared"') && bar.includes('data-open="personal"'), "上部のバーも、共有・個人の 2 つのボタン");
+  assert.ok(bar.includes("renderFileChips(") && !bar.includes("data-open="), "上部のバーのファイルを選ぶボタンは、札の詳細（views/filechips.js）の中にある");
 });
 
 test("app.js: 読み直し（「更新」・バナーの再読込）は、失敗しても sync.reset() する（破棄すると伝えた編集を、あとで当て直さない）", () => {
@@ -1016,13 +1027,60 @@ test("app.js: 画面の中の「＋ 突発タスク」は、開くだけで、�
 
 test("app.js: ヘッダーの「＋ 突発タスク」は、画面の外のクリックの下書き外し（キャプチャ段階）に消されない", () => {
   const c = src.slice(src.indexOf('document.addEventListener("click"'));
-  assert.ok(c.slice(0, c.indexOf("}, true);")).includes('if (e.target.closest("[data-delsel],[data-urgent-open]")) return;'), "キャプチャ段階の除外に入っている（ToDo タブで、打った入力を残すため）");
+  assert.ok(c.slice(0, c.indexOf("}, true);")).includes('if (e.target.closest("[data-delsel],[data-urgent-open],.fileinfo,[data-fileinfo]")) return;'), "キャプチャ段階の除外に入っている（ToDo タブで、打った入力を残すため）");
 });
 
 test("チェックの警告: 「未完了のまま」の選択肢（ckkeep）は無い。data-ckall だけが checkAll を立てる", () => {
   assert.ok(!src.includes("ckkeep"));
   const i = src.indexOf('q("[data-ckall]")'), a = src.slice(i, i + 500);
   assert.ok(i > 0 && a.includes("checkAll: true") && a.includes("setStatus(pd.id, pd.status, [], true)"), a);
+});
+
+// ヘッダーの札（読み込み中のファイル）。詳細の開閉は S.fileInfo で持ち、描き直しでも閉じない
+test("app.js: filebar は renderFileChips で札を描き、「別の共有ファイル」の直書きは無い", () => {
+  const line = src.split(/\r?\n/).find((l) => l.includes('$("filebar").innerHTML'));
+  assert.ok(line, "filebar の描画行");
+  assert.match(line, /renderFileChips\(S\.data, fileInfo\(\), S\.fileInfo\)/);
+  assert.ok(!line.includes("別の共有ファイル") && !line.includes("別の個人ファイル"));
+  assert.ok(!/data-open="(shared|personal)"[^>]*>別の/.test(line));
+  const fn = src.slice(src.indexOf("function fileInfo()"), src.indexOf("function closeFileInfo"));
+  assert.match(fn, /picker = typeof window\.showOpenFilePicker === "function"/);
+  assert.match(fn, /writable: picker && /);
+});
+
+test("app.js: data-fileinfo のクリックで S.fileInfo を開閉する（同じ札なら閉じる）", () => {
+  const m = src.match(/closest\("\[data-fileinfo\]"\)[^\n]*\n?[^\n]*/);
+  assert.ok(m, "ハンドラ");
+  assert.match(m[0], /S\.fileInfo = S\.fileInfo === [^;]+\? null :/);
+});
+
+test("app.js: Escape・画面の移動・data-open（ファイルを選ぶ）で S.fileInfo を閉じる", () => {
+  const esc = src.slice(src.indexOf("/* ---------- キーボード"));
+  assert.match(esc.slice(0, 800), /Escape" && S\.fileInfo\) \{ closeFileInfo\(\); return; \}/, "札の詳細を閉じたら return する（下書きを消す clearSel へ続けない）");
+  const nav = src.slice(src.indexOf('document.querySelector("nav").addEventListener'), src.indexOf("function openUrgent"));
+  assert.match(nav, /closeFileInfo\(\)/);
+  const bar = src.slice(src.indexOf('$("filebar").addEventListener'), src.indexOf('$("banner").addEventListener'));
+  assert.match(bar, /const pick = e\.target\.closest\("\[data-open\]"\);\s*\n\s*if \(pick\) \{ closeFileInfo\(\); openFile/);
+});
+
+test("app.js: 外を押したら閉じる。詳細の中・札は外として扱わず、閉じても描き直さない（打ちかけの入力を消さない）", () => {
+  const cap = src.slice(src.indexOf('document.addEventListener("click", (e) => {') + 0, src.indexOf('view.addEventListener("click"'));
+  assert.ok(cap.length > 0);
+  assert.match(cap, /S\.fileInfo && !e\.target\.closest\("\.fileinfo,\[data-fileinfo\]"\)\) closeFileInfo\(\)/);
+  assert.match(cap, /\[data-delsel\],\[data-urgent-open\],\.fileinfo,\[data-fileinfo\]/, "札を押しても、枠の選択・下書きを外さない");
+  const fn = src.slice(src.indexOf("function closeFileInfo"), src.indexOf("function closeFileInfo") + 300);
+  assert.ok(!fn.includes("render()"));
+});
+
+test("theme.css: ファイル情報の詳細は .filebar を基準に絶対配置し、位置と幅は placeFileInfo が決める", () => {
+  const css = readFileSync(new URL("../plugins/project-lens/src/ui/theme.css", import.meta.url), "utf8");
+  assert.match(css, /.filebar{[^}]*position:relative/);
+  assert.match(css, /.filechip{position:static/);
+  const info = css.match(/.fileinfo{[^}]*}/);
+  assert.ok(info, ".fileinfo の規則");
+  assert.match(info[0], /position:absolute;left:0;top:100%/);
+  assert.match(info[0], /width:360px/);
+  assert.doesNotMatch(info[0], /right:0|100vw/);
 });
 
 test("今日の優先の「今日へ」（data-prioplan）は、ToDo タブへ移り、S.todoWeek を今週にして、そのあと openPlan を呼ぶ", () => {
