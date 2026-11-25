@@ -173,6 +173,9 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 .wl .banner{margin-top:14px}
 .tbl.edit td[data-l="件名"] .in{min-width:13em}
 .tbl.edit td[data-l="状態"] select{min-width:9.5em} /* In Progress・Cancelled が切れない幅（select の矢印の分を含む） */
+/* リストの確認の行は表の全幅なので、横にスクロールしても見えるよう、中身を表示中の範囲の左端に付け、リストの表の横スクロールの枠の幅に収める */
+#view .twrap > .tscroll{container-type:inline-size}
+.tbl.edit tr.askrow .askwrap{position:sticky;left:0;width:max-content;max-width:min(60em,100cqw - 16px)}
 .tbl.edit td[data-l="待ち先"] .in{min-width:6em}
 .tbl.edit td[data-l="メモ"] .in{min-width:16em} /* メモ欄が列の幅に潰されないよう最小幅を持たせる。表は .tscroll の中で横にスクロールする */
 .in:disabled{background:transparent;border-color:transparent;color:var(--muted)}

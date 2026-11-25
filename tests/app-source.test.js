@@ -424,6 +424,9 @@ test("theme.css: リストの状態の欄は、In Progress・Cancelled が切れ
   assert.ok(m && Number(m[1]) >= 9, m?.[0]);
   const narrow = css.slice(css.search(/@media\(max-width:860px\)\{\r?\n {2}\.tbl\.edit thead/));
   assert.match(narrow.slice(0, narrow.search(/\r?\n\}/)), /\.tbl\.edit tr\.askrow>td\{grid-column:1\/-1\}/);
+  // 確認の行は表の全幅なので、中身（.askwrap）を、横スクロールの表示中の範囲の左端に付け、枠の幅に収める（左端に置くと、右へスクロールしたとき画面の外に出る）
+  assert.ok(css.includes("#view .twrap > .tscroll{container-type:inline-size}"));
+  assert.match(css, /\.tbl\.edit tr\.askrow \.askwrap\{position:sticky;left:0;width:max-content;max-width:min\(60em,100cqw - 16px\)\}/);
 });
 
 test("app.js: リストの確認の行（askrow）の中のクリックで、待ち先・Done の確認（pendingWait・pendingDone）を捨てない。捨てるのは、やめる・確定・タブの切り替え・取っ手だけ", () => {

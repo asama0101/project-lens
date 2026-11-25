@@ -102,7 +102,7 @@ test("renderProjects(list): pendingDone のとき、その行の直下に全幅�
   for (const pd of [{ id: "AA-0001", status: "Done", n: 1, future: ["S3"], open: [], stage: "future" }, { id: "AA-0001", status: "Done", n: 0, future: [], open: ["x"], stage: "check" }]) {
     const html = listAA(load(), { pendingDone: pd });
     const [, next] = rowAndNext(html, "AA-0001");
-    assert.ok(next?.startsWith(`<tr class="askrow"><td colspan="${headCols(html)}">`), next);
+    assert.ok(next?.startsWith(`<tr class="askrow"><td colspan="${headCols(html)}"><div class="askwrap"><div class="ask`), next);
     assert.ok(next.includes(pd.stage === "check" ? 'data-ckall="AA-0001"' : 'data-doneok="AA-0001"'), next);
     assert.ok(next.includes('style="max-width:none"'), ".ask の幅の上限（190px）を外して、全幅に広げる");
     const st = statusTd(rowAndNext(html, "AA-0001")[0]);
@@ -114,7 +114,7 @@ test("renderProjects(list): pendingDone のとき、その行の直下に全幅�
 test("renderProjects(list): pendingWait のとき、待ち先の入力（data-waitparty）は行の直下の askrow の中", () => {
   const html = listAA(load(), { pendingWait: "AA-0001" });
   const [row, next] = rowAndNext(html, "AA-0001");
-  assert.ok(next?.startsWith(`<tr class="askrow"><td colspan="${headCols(html)}">`), next);
+  assert.ok(next?.startsWith(`<tr class="askrow"><td colspan="${headCols(html)}"><div class="askwrap"><div class="ask`), next);
   assert.ok(next.includes('data-waitparty="AA-0001"') && next.includes('data-waitok="AA-0001"') && next.includes("data-waitno"), next);
   assert.ok(!statusTd(row).includes("data-waitparty") && statusTd(row).includes('data-f="status"'));
   assert.equal(count(html, /data-waitparty=/g), 1);
