@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { weekTasks, weekSummary, mondayOf, setReview, todayTasks } from "../plugins/project-lens/src/core/week.js";
+import { weekTasks, rangeTasks, progressByProject, weekSummary, mondayOf, setReview, todayTasks } from "../plugins/project-lens/src/core/week.js";
 
 const WS = "2026-11-23"; // 月曜。日曜は 2026-11-29
 const TODAY = "2026-11-25";
@@ -205,4 +205,60 @@ test("todayTasks: slots とタスクの並びは、今日に見せる時刻（ac
 test("todayTasks: projectId が null のタスクで例外にならない", () => {
   const d = mk([task("A", { projectId: null, sessions: [plan("S1", TODAY, "10:00", "11:00")] })]);
   assert.deepEqual(todayIds(d), ["A"]);
+});
+
+const ids = (rows) => rows.map((r) => r.task.id);
+test("rangeTasks: 週の範囲は weekTasks と同じ結果", () => {
+  const d = mk([
+    task("A", { due: "2026-11-20" }),
+    task("B", { due: "2026-12-10", sessions: [plan("S1", "2026-11-26", "10:00", "11:00")] }),
+    task("C", { due: "2026-11-28" }),
+    task("D", { status: "Done", doneAt: "2026-11-24" }),
+  ]);
+  const rows = rangeTasks(d, { start: WS, end: "2026-11-29" }, TODAY);
+  assert.equal(rows.length, 4);
+  assert.deepEqual(rows, weekTasks(d, WS, TODAY));
+});
+test("rangeTasks: 日の範囲は、その日に枠のあるタスクが scheduled、その日が期限のタスクが due", () => {
+  const d = mk([
+    task("A", { due: "2026-12-10", sessions: [plan("S1", "2026-11-26", "10:00", "11:00")] }),
+    task("B", { due: "2026-11-26" }),
+    task("C", { due: "2026-11-27" }),
+    task("E", { due: "2026-12-10", sessions: [plan("S2", "2026-11-27", "10:00", "11:00")] }),
+  ]);
+  const rows = rangeTasks(d, { start: "2026-11-26", end: "2026-11-26" }, TODAY);
+  assert.deepEqual(rows.map((r) => [r.task.id, r.group]), [["A", "scheduled"], ["B", "due"]]);
+});
+test("rangeTasks: 月の範囲は、月末が期限のタスクが入り、翌月が期限のタスクは入らない", () => {
+  const d = mk([task("A", { due: "2026-11-30" }), task("B", { due: "2026-12-01" })]);
+  assert.deepEqual(ids(rangeTasks(d, { start: "2026-11-01", end: "2026-11-30" }, TODAY)), ["A"]);
+});
+test("rangeTasks: 期限超過は、範囲によらず今日基準", () => {
+  const d = mk([task("A", { due: "2026-11-24" })]);
+  const rows = rangeTasks(d, { start: "2026-12-01", end: "2026-12-31" }, TODAY);
+  assert.deepEqual(rows.map((r) => [r.task.id, r.group]), [["A", "overdue"]]);
+});
+test("rangeTasks: Done は doneAt が範囲にあるものだけ。Cancelled は入らない", () => {
+  const d = mk([
+    task("A", { status: "Done", doneAt: "2026-11-10" }),
+    task("B", { status: "Done", doneAt: "2026-10-31" }),
+    task("C", { status: "Cancelled", due: "2026-11-05" }),
+  ]);
+  assert.deepEqual(ids(rangeTasks(d, { start: "2026-11-01", end: "2026-11-30" }, TODAY)), ["A"]);
+});
+test("progressByProject: プロジェクトごとの done / total。projectId が null は null のキー", () => {
+  const d = mk([
+    task("A", { status: "Done", doneAt: "2026-11-24" }),
+    task("B", { due: "2026-11-25" }),
+    task("C", { projectId: "P2", status: "Done", doneAt: "2026-11-24" }),
+    task("D", { projectId: null, due: "2026-11-25" }),
+  ]);
+  const m = progressByProject(rangeTasks(d, { start: WS, end: "2026-11-29" }, TODAY));
+  assert.deepEqual(m.get("P1"), { done: 1, total: 2 });
+  assert.deepEqual(m.get("P2"), { done: 1, total: 1 });
+  assert.deepEqual(m.get(null), { done: 0, total: 1 });
+  assert.equal(m.size, 3);
+});
+test("progressByProject: 空の行は空の Map", () => {
+  assert.equal(progressByProject([]).size, 0);
 });

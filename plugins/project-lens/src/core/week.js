@@ -27,23 +27,25 @@ export function setReview(data, weekStart, text) {
 const minutes = (x) => toMin(x.end) - toMin(x.start);
 
 /** 今週の行（task・group・waiting・planned・actual・checked）。組の順・期限・ID の順 */
-export function weekTasks(data, weekStart, today) {
-  const weekEnd = addDays(weekStart, 6);
-  const inWeek = (date) => date >= weekStart && date <= weekEnd;
+export const weekTasks = (data, weekStart, today) => rangeTasks(data, { start: weekStart, end: addDays(weekStart, 6) }, today);
+
+/** 期間 { start, end }（両端を含む）の行。規則と並びは weekTasks と同じ（週を期間に読み替える。期限超過だけは today 基準） */
+export function rangeTasks(data, range, today) {
+  const inRange = (date) => date >= range.start && date <= range.end;
   const byId = new Map(data.tasks.map((t) => [t.id, t]));
   const spans = actualSpans(data);
   const rows = [];
   for (const task of data.tasks) {
     if (task.status === "Cancelled") continue;
-    const planned = (task.sessions ?? []).filter((s) => s.kind === "planned" && inWeek(s.date));
-    const actuals = spans.filter((a) => a.taskId === task.id && inWeek(a.date));
+    const planned = (task.sessions ?? []).filter((s) => s.kind === "planned" && inRange(s.date));
+    const actuals = spans.filter((a) => a.taskId === task.id && inRange(a.date));
     const touched = planned.length > 0 || actuals.length > 0;
     let group = null;
     if (task.status === "Done") {
-      if ((task.doneAt && inWeek(task.doneAt)) || touched) group = "done";
+      if ((task.doneAt && inRange(task.doneAt)) || touched) group = "done";
     } else if (task.due && task.due < today) group = "overdue";
     else if (touched) group = "scheduled";
-    else if (task.due && task.due <= weekEnd) group = "due";
+    else if (task.due && task.due <= range.end) group = "due";
     if (!group) continue;
     const { total, done } = checklistCount(task);
     rows.push({
@@ -57,6 +59,19 @@ export function weekTasks(data, weekStart, today) {
   }
   const dueKey = (r) => r.task.due ?? "9999-99-99";
   return rows.sort((a, b) => ORDER.indexOf(a.group) - ORDER.indexOf(b.group) || dueKey(a).localeCompare(dueKey(b)) || a.task.id.localeCompare(b.task.id));
+}
+
+/** 行をプロジェクトごとに数える。Map<projectId|null, { done, total }>（Done の行が done） */
+export function progressByProject(rows) {
+  const m = new Map();
+  for (const r of rows) {
+    const key = r.task.projectId ?? null;
+    const p = m.get(key) ?? { done: 0, total: 0 };
+    p.total++;
+    if (r.task.status === "Done") p.done++;
+    m.set(key, p);
+  }
+  return m;
 }
 
 /** 今日の枠の、今日に見せる開始の時刻 */
