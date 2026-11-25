@@ -101,13 +101,19 @@ test("shiftWorkloadDate: 日は1日、週は7日、月は1か月（年またぎ�
   assert.equal(shiftWorkloadDate("month", "2026-03-31", 1), "2026-04-01");
 });
 
-test("renderWorkload: 末尾に週の見返し（日を含む週）。気づきの欄の週は月曜日。期間を渡さないときも出る", () => {
+test("renderWorkload: 末尾はタスクの表。期間を渡さないとき（日・今日）も出る。見返し・気づきは出ない", () => {
   const html = wl(mk());
-  assert.ok(html.endsWith("</section>") && html.indexOf('aria-label="週の見返し"') > html.indexOf("<tfoot>"));
-  assert.ok(html.includes("週の見返し（10/19〜10/25）") && html.includes('data-tdnote="2026-10-19"'));
-  assert.ok(renderWorkload(mk(), D, { now: NOW }).includes('data-tdnote="2026-10-19"'), "期間・日を省略（日・今日）");
+  assert.ok(html.endsWith("</section>") && html.indexOf("<h2>タスク</h2>") > html.indexOf("<tfoot>"));
+  for (const s of ["週の見返し", "data-tdnote", "気づき"]) assert.ok(!html.includes(s), s);
+  assert.ok(renderWorkload(mk(), D, { now: NOW }).includes("<h2>タスク</h2>"), "期間・日を省略（日・今日）");
   const empty = { version: 1, settings: {}, projects: [], tasks: [], events: [], changeLog: [] };
-  assert.ok(wl(empty).includes("完了 0 / 0 件"), "空データ");
+  assert.ok(wl(empty).includes("この期間のタスクはありません。"), "空データ");
+});
+
+test("renderWorkload: 時間の数字（タスク・会議・合計）は、完了・進捗の列を足しても変わらない", () => {
+  const html = wl(mk());
+  assert.match(html, /<th>プロジェクト<\/th><th class="num">タスク<\/th><th class="num">会議<\/th><th class="num">合計<\/th><th>内訳<\/th><th class="num">完了<\/th><th>進捗<\/th>/);
+  assert.match(html, /拠点A<\/td><td class="num mono">1\.5h<\/td><td class="num mono">1\.0h<\/td><td class="num mono"><b>2\.5h<\/b>/);
 });
 
 test("renderWorkload: 期間を渡さないときは日（今日）。app.js の初期値も日", () => {

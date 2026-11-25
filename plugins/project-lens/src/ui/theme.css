@@ -176,19 +176,24 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 .wl-bar .t,.sw.wl-t{background:var(--ok)}
 .wl-bar .m,.sw.wl-m{background:var(--meeting-edge)}
 .wl-bar.un{opacity:.6}
+.wl-prog{height:12px;min-width:60px;background:var(--line)}
+.wl-prog i{display:block;height:100%;background:var(--ok)}
+.wl h2{margin:16px 0 8px}
 .wl .banner{margin-top:14px}
 .tbl.edit td[data-l="件名"] .in{min-width:13em}
 .tbl.edit td[data-l="状態"] select{min-width:9.5em} /* In Progress・Cancelled が切れない幅（select の矢印の分を含む） */
 /* リストの確認の行は表の全幅なので、横にスクロールしても見えるよう、中身を表示中の範囲の左端に付け、リストの表の横スクロールの枠の幅に収める */
 #view .twrap > .tscroll{container-type:inline-size}
 .tbl.edit tr.askrow .askwrap{position:sticky;left:0;width:max-content;max-width:min(60em,100cqw - 16px)}
-.tbl.edit tr[data-detailpanel] .askwrap{position:sticky;left:0;width:max-content;max-width:min(60em,100cqw - 16px)} /* 「詳細」の行も、横にスクロールしても見える位置に留める */
 .tbl.edit td[data-l="待ち先"] .in{min-width:6em}
+.tbl.edit td[data-l=""]{min-width:4.5em;white-space:nowrap} /* 「削除」が縦に折り返さない幅（確認は全幅の行に出す） */
+.tbl.edit td[data-l=""] .btn{white-space:nowrap}
 .tbl.edit td[data-l="メモ"] .in{min-width:16em} /* メモ欄が列の幅に潰されないよう最小幅を持たせる。表は .tscroll の中で横にスクロールする */
 .in:disabled{background:transparent;border-color:transparent;color:var(--muted)}
 .tbl.edit{min-width:860px}
 .tbl.edit td{vertical-align:top}
 .chips{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.chips.pred{flex-direction:column;align-items:flex-start} /* 前のタスク: 選ぶ欄を上、選んだ札を下（札は、その中で折り返す） */
 .chip{display:inline-flex;gap:2px;align-items:center;font-family:var(--f-mono);font-size:12px;background:var(--line-soft);border-radius:5px;padding:1px 2px 1px 7px}
 .chip button{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;padding:0 4px}
 .chip button:hover{color:var(--bad)}
@@ -260,7 +265,7 @@ tr.drop-after>td,.g-row.drop-after>.g-label,.g-row.drop-after>.g-lane{box-shadow
   .tbl.edit td{display:block;padding:0;border:0}
   .tbl.edit td::before{content:attr(data-l);display:block;font-size:11px;color:var(--muted)}
   .tbl.edit td[data-l=""]::before,.tbl.edit td[data-l="ID"]::before{display:none}
-  .tbl.edit td:nth-child(4),.tbl.edit td:nth-child(12){grid-column:1/-1}
+  .tbl.edit td:nth-child(4),.tbl.edit td:nth-child(13){grid-column:1/-1}
   #view .tbl.edit tr.ck-tr>td{grid-column:1/-1;padding-left:0} /* チェックリストの展開行は全幅 */
   .tbl.edit tr.askrow>td{grid-column:1/-1}
 }
@@ -494,10 +499,6 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .tf-ckitem{display:inline-flex;align-items:center}
 .tf-ckitem .gx{opacity:1;min-width:28px;min-height:28px}
 .tf-cks [data-tdckadd]{flex:1 1 180px;min-width:0}
-.wl + .tdreview{margin-top:16px}
-.tdreview .td-sum{margin:0 0 10px}
-.tdreview .td-note{display:flex;flex-direction:column;gap:4px;margin-top:12px;font-size:12px;color:var(--muted)}
-.tdreview .td-note textarea{resize:vertical;font-size:13px}
 
 /* 固定表示（ガント・リスト）: 画面のスクロールに対して、CSS の sticky で付ける */
 #view{overflow-anchor:none} /* 描き直しのたびに、ブラウザのスクロール位置の補正(スクロールアンカー)で縦の位置が数 px ずれるのを防ぐ。位置は render が戻す */

@@ -3,6 +3,22 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const src = readFileSync(new URL("../plugins/project-lens/src/ui/app.js", import.meta.url), "utf8");
+// トップレベルの関数 name の全文（行頭の `function name` から、行頭の `}` まで）。固定の文字数で切ると、関数が伸びたときに、検査の対象が黙って欠ける
+const fnSource = (name) => {
+  const i = src.indexOf(`function ${name}(`);
+  if (i < 0) throw new Error(`関数 ${name} が見つかりません`);
+  const m = /\r?\n\}/.exec(src.slice(i)); // 改行が CRLF でも LF でも、行頭の } まで
+  if (!m) throw new Error(`関数 ${name} の終わりが見つかりません`);
+  return src.slice(i, i + m.index + m[0].length);
+};
+test("fnSource: focusSelector を、固定の文字数でなく、関数の終わりまで切り出す（検査の対象が、関数が伸びても欠けない）", () => {
+  const f = fnSource("focusSelector");
+  assert.ok(f.startsWith("function focusSelector(") && f.endsWith("}"), "関数の全文（行頭の } まで）");
+  assert.ok(f.includes("return null;"), "末尾の return null まで含む");
+  assert.ok(f.length > 1500, "固定の長さの切り出しなら欠ける長さの全文を返す: " + f.length);
+  assert.ok(!f.includes("function render("), "次の関数まで食い込まない");
+});
+
 test("ヘッダーの札の詳細: placeFileInfo が、押した札の真下（左端をそろえ、画面の内側に収める）に置き、幅も決める。描画のあとと resize で呼ぶ", () => {
   const f = src.slice(src.indexOf("function placeFileInfo("), src.indexOf("/** 札の詳細を閉じる")); // 次の関数の直前の説明コメントまで
   assert.match(f, /Math\.min\(c\.left, vw - 16 - w\)/, "札の左端に合わせ、右へはみ出さない");
@@ -53,7 +69,7 @@ test("app.js: 設定タブの data-set は updateSettings で保存し、data-rm
   assert.match(src, /updateSettings\(/);
   assert.match(src, /moveProjectRule\(/);
   assert.match(src, /data-rmove/);
-  const fs = src.slice(src.indexOf("function focusSelector"), src.indexOf("function focusSelector") + 900);
+  const fs = fnSource("focusSelector");
   assert.match(fs, /d\.set/);
 });
 
@@ -64,7 +80,7 @@ test("app.js: 休みの追加（期間を含む）・区分の変更・削除と
   assert.ok(src.includes('e.key === "Enter" && !e.isComposing && e.target.matches("[data-wnew],[data-wnote]")'));
   assert.match(src, /除外/);
   assert.match(src, /日本の祝日は未取得/);
-  const fs = src.slice(src.indexOf("function focusSelector"), src.indexOf("function focusSelector") + 1400);
+  const fs = fnSource("focusSelector");
   for (const k of ["hnew", "hto", "hnote", "wnew", "wnote"]) assert.ok(fs.includes(`"${k}"`), k);
 });
 
@@ -422,18 +438,10 @@ test("app.js: チェックリストの編集欄のイベントをつなぐ（開
   assert.match(src, /S\.checkOpen = new Set\(\)/);
 });
 
-test("app.js: 「詳細」の開閉は S.detailOpen。描画へ渡し、ファイルを開いたら空にする", () => {
-  assert.ok(src.includes("[data-detailtoggle]"));
-  assert.match(src, /S\.detailOpen\.has\(id\)/);
-  assert.match(src, /detailOpen: S\.detailOpen/);
-  assert.match(src, /S\.detailOpen = new Set\(\)/);
-  assert.ok(src.includes("d.detailtoggle"), "描き直しのあと、フォーカスを戻す");
-});
-
 // ---- 全体レビューの修正（M1・M3・M4） ----
 
 test("focusSelector: チェックリストのチェック・削除・展開ボタンも、描き直しのあとにフォーカスを戻せる（キーボードで操作しても位置を見失わない）", () => {
-  const fn = src.slice(src.indexOf("function focusSelector("), src.indexOf("function focusSelector(") + 1600);
+  const fn = fnSource("focusSelector");
   for (const k of ["d.ckdone", "d.ckdel", "d.cktoggle"]) assert.ok(fn.includes(k), k);
 });
 
@@ -856,7 +864,7 @@ test("ToDo タブ: index.html のタブ（スケジュールと稼働の間）�
 
 test("ToDo タブ: 古い ToDo の状態・ハンドラ・関数は無い", () => {
   for (const s of ["todoDay", "tdAct", "tdAskDel", "renderTodayTodos", "setTodoDay", "submitTodoInput", "deleteTodoNow", "data-tdnew", "data-tdday", "data-tdassign", "data-tdcarry", "data-tddel", "data-tdactsave", "dataset.tdone", "dataset.tdtitle", "dataset.tdcktoggle", "dataset.ta ", "addTodo(", "assignToDay(", "carryTodo(", "deleteTodo(", "ToDo）"]) assert.ok(!src.includes(s), s);
-  assert.ok(src.includes('for (const k of ["tdnote", "tf", "tdckadd", "tp", "ch"])'), "入力中の欄（読み直しで描き直さない・フォーカスを保つ）");
+  assert.ok(src.includes('for (const k of ["tf", "tdckadd", "tp", "ch"])'), "入力中の欄（読み直しで描き直さない・フォーカスを保つ）");
 });
 
 test("ToDo タブ: 入力欄の項目の追加（data-tdckadd の Enter。isComposing を除く）・削除（data-tdckdel）は、先に S.tdDraft へ写してから apply ですぐ保存する", () => {
@@ -896,16 +904,12 @@ test("ToDo タブ: 保存（data-tdsave）は、欄の値を先に S.tdDraft へ
   assert.match(a, /apply\(\(d\) => \{ r = completeTask\(d, id, completeInput\(draft\), now\); return r\.data; \}, null, \{ quiet: true \}\)/); // 入力の変換は views.test.js の completeInput
   assert.match(a, /S\.tdOpen = null; S\.tdCol = null; S\.tdDraft = null; render\(\);/);
   for (const s of ["にしました", "未来の予定の枠 ${r.released} 件を解除しました", "次回（期限"]) assert.ok(a.includes(s), s);
-  assert.ok(src.includes("if (el.dataset.tdnote !== undefined) {") && src.includes("setReview(d, wk, text)"), "気づきは change で setReview");
 });
 
-test("週の見返しの気づき（data-tdnote）: 稼働タブでも保存する。change の処理は画面で限らない。フォーカス・打ちかけの保護も画面によらない", () => {
-  const fn = src.slice(src.indexOf("function onChange("), src.indexOf("if (el.dataset.tdnote !== undefined) {"));
-  assert.ok(fn.length > 0 && !fn.includes("S.screen"), "気づきの処理の前に、画面の条件で return しない");
-  assert.ok(src.includes('if (el.dataset.tdnote !== undefined) { const wk = el.dataset.tdnote, text = el.value.trim(); apply((d) => setReview(d, wk, text), "気づきを保存しました"); return; }'));
-  assert.ok(src.includes('view.addEventListener("change", (e) => { const el = e.target; setTimeout(() => onChange(el), 0); });'), "change はどの画面でも onChange へ");
+test("稼働タブ: 気づきの処理は無く、フォーカス・打ちかけの保護は画面によらない", () => {
+  assert.ok(!src.includes("気づきを保存"));
   const fs = src.slice(src.indexOf("function focusSelector("), src.indexOf("/** カレンダー部分だけを描き直す"));
-  assert.ok(fs.includes('"tdnote"') && !fs.includes("S.screen"), "focusSelector は画面によらず tdnote を扱う");
+  assert.ok(fs.length > 0 && !fs.includes('"tdnote"'));
   const ed = src.slice(src.indexOf("function isEditing("), src.indexOf("function isEditing(") + 400);
   assert.ok(ed.includes('el.tagName === "TEXTAREA"') && !ed.includes("S.screen"), "打ちかけの textarea は画面によらず守る");
   assert.ok(src.includes('if (S.screen === "workload") return renderWorkload(S.data, today, { period: S.wperiod, date: S.wdate, now: clock() });'), "稼働は表示中の日（S.wdate）を渡す");
@@ -1015,7 +1019,7 @@ test("ToDo タブ: S.tdPlan は clearSel・週の移動・render() の検証（�
   assert.match(src, /function moveTodoWeek\(week\) \{[^}]*S\.tdPlan = null;/);
   assert.ok(src.includes("if (S.tdPlan && !S.data?.tasks.some((t) => t.id === S.tdPlan.key)) S.tdPlan = null;"));
   assert.ok(src.includes('if (el.dataset.tp !== undefined) {') && /key && key === S\.tdPlan\?\.key\) S\.tdPlan = tdPlanDraft\(form, key\)/.test(src));
-  assert.ok(src.includes('for (const k of ["tdnote", "tf", "tdckadd", "tp", "ch"])'));
+  assert.ok(src.includes('for (const k of ["tf", "tdckadd", "tp", "ch"])'));
 });
 
 test("app.js: 画面の中の「＋ 突発タスク」は、開くだけで、欄外クリックの下書き外しに消されない", () => {
@@ -1134,5 +1138,5 @@ test("ToDo タブ: S.tdChase は clearSel・週の移動・render() の検証（
   assert.match(src, /function moveTodoWeek\(week\) \{[^}]*S\.tdChase = null;/);
   assert.ok(src.includes("if (S.tdChase && !chaseTasks(S.data, clock().date).some((r) => r.task.id === S.tdChase.key)) S.tdChase = null;"));
   assert.ok(src.includes("if (el.dataset.ch !== undefined) {") && /key === S\.tdChase\?\.key\) S\.tdChase = tdChaseDraft\(form, key, S\.tdChase\.mode\)/.test(src));
-  assert.ok(src.includes('for (const k of ["tdnote", "tf", "tdckadd", "tp", "ch"])'));
+  assert.ok(src.includes('for (const k of ["tf", "tdckadd", "tp", "ch"])'));
 });

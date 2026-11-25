@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { weekTasks, weekSummary, mondayOf, setReview, todayTasks, chaseTasks } from "../plugins/project-lens/src/core/week.js";
+import { weekTasks, rangeTasks, progressByProject, mondayOf, todayTasks, chaseTasks } from "../plugins/project-lens/src/core/week.js";
 
 const WS = "2026-11-23"; // 月曜。日曜は 2026-11-29
 const TODAY = "2026-11-25";
@@ -103,28 +103,11 @@ test("planned・actual は週の日付の分。actual を持つ予定の枠も p
   assert.deepEqual(a.checked, { done: 1, total: 2 });
   assert.equal(rowOf(d, "B").checked, null);
 });
-test("weekSummary: done / total / planned / actual / note", () => {
-  const d = mk([
-    task("A", { status: "Done", doneAt: "2026-11-24", sessions: [plan("S1", "2026-11-24", "10:00", "11:00", { date: "2026-11-24", start: "10:00", end: "10:30" })] }),
-    task("B", { due: "2026-11-27", sessions: [plan("S2", "2026-11-25", "10:00", "10:30")] }),
-  ], { reviews: { [WS]: "気づき" } });
-  const s = weekSummary(d, WS, TODAY);
-  assert.deepEqual({ done: s.done, total: s.total, planned: s.planned, actual: s.actual, note: s.note }, { done: 1, total: 2, planned: 90, actual: 30, note: "気づき" });
-  assert.equal(s.rows.length, 2);
-  assert.equal(weekSummary(mk([]), WS, TODAY).note, "");
-});
-
 test("mondayOf: 月〜日は、その週の月曜日（日曜は前の月曜日）", () => {
   assert.equal(mondayOf("2026-10-19"), "2026-10-19");
   assert.equal(mondayOf("2026-10-20"), "2026-10-19");
   assert.equal(mondayOf("2026-10-25"), "2026-10-19");
   assert.equal(mondayOf("2026-10-26"), "2026-10-26");
-});
-
-test("setReview: 保存し、空文字でキーが消える", () => {
-  const a = setReview(mk([]), "2026-10-19", "気づき");
-  assert.deepEqual(a.reviews, { "2026-10-19": "気づき" });
-  assert.deepEqual(setReview(a, "2026-10-19", "").reviews, {});
 });
 
 /* ---------- todayTasks（今日の ToDo） ---------- */
@@ -207,19 +190,91 @@ test("todayTasks: projectId が null のタスクで例外にならない", () =
   assert.deepEqual(todayIds(d), ["A"]);
 });
 
+const ids = (rows) => rows.map((r) => r.task.id);
+test("rangeTasks: 週の範囲は weekTasks と同じ結果", () => {
+  const d = mk([
+    task("A", { due: "2026-11-20" }),
+    task("B", { due: "2026-12-10", sessions: [plan("S1", "2026-11-26", "10:00", "11:00")] }),
+    task("C", { due: "2026-11-28" }),
+    task("D", { status: "Done", doneAt: "2026-11-24" }),
+  ]);
+  const rows = rangeTasks(d, { start: WS, end: "2026-11-29" }, TODAY);
+  assert.equal(rows.length, 4);
+  assert.deepEqual(rows, weekTasks(d, WS, TODAY));
+});
+test("rangeTasks: 日の範囲は、その日に枠のあるタスクが scheduled、その日が期限のタスクが due", () => {
+  const d = mk([
+    task("A", { due: "2026-12-10", sessions: [plan("S1", "2026-11-26", "10:00", "11:00")] }),
+    task("B", { due: "2026-11-26" }),
+    task("C", { due: "2026-11-27" }),
+    task("E", { due: "2026-12-10", sessions: [plan("S2", "2026-11-27", "10:00", "11:00")] }),
+  ]);
+  const rows = rangeTasks(d, { start: "2026-11-26", end: "2026-11-26" }, TODAY);
+  assert.deepEqual(rows.map((r) => [r.task.id, r.group]), [["A", "scheduled"], ["B", "due"]]);
+});
+test("rangeTasks: 月の範囲は、月末が期限のタスクが入り、翌月が期限のタスクは入らない", () => {
+  const d = mk([task("A", { due: "2026-11-30" }), task("B", { due: "2026-12-01" })]);
+  assert.deepEqual(ids(rangeTasks(d, { start: "2026-11-01", end: "2026-11-30" }, TODAY)), ["A"]);
+});
+test("rangeTasks: 期限超過は、範囲によらず今日基準", () => {
+  const d = mk([task("A", { due: "2026-11-24" })]);
+  const rows = rangeTasks(d, { start: "2026-12-01", end: "2026-12-31" }, TODAY);
+  assert.deepEqual(rows.map((r) => [r.task.id, r.group]), [["A", "overdue"]]);
+});
+test("rangeTasks: Done は doneAt が範囲にあるものだけ。Cancelled は入らない", () => {
+  const d = mk([
+    task("A", { status: "Done", doneAt: "2026-11-10" }),
+    task("B", { status: "Done", doneAt: "2026-10-31" }),
+    task("C", { status: "Cancelled", due: "2026-11-05" }),
+  ]);
+  assert.deepEqual(ids(rangeTasks(d, { start: "2026-11-01", end: "2026-11-30" }, TODAY)), ["A"]);
+});
+test("progressByProject: プロジェクトごとの done / total。projectId が null は null のキー", () => {
+  const d = mk([
+    task("A", { status: "Done", doneAt: "2026-11-24" }),
+    task("B", { due: "2026-11-25" }),
+    task("C", { projectId: "P2", status: "Done", doneAt: "2026-11-24" }),
+    task("D", { projectId: null, due: "2026-11-25" }),
+  ]);
+  const m = progressByProject(rangeTasks(d, { start: WS, end: "2026-11-29" }, TODAY));
+  assert.deepEqual(m.get("P1"), { done: 1, total: 2 });
+  assert.deepEqual(m.get("P2"), { done: 1, total: 1 });
+  assert.deepEqual(m.get(null), { done: 0, total: 1 });
+  assert.equal(m.size, 3);
+});
+test("progressByProject: 空の行は空の Map", () => {
+  assert.equal(progressByProject([]).size, 0);
+});
+test("rangeTasks: Done で doneAt が範囲の外でも、範囲の日付の実績の区間があれば done の組に残る", () => {
+  const d = mk([task("A", { status: "Done", doneAt: "2026-10-01", sessions: [act("S1", "2026-11-10", "10:00", "11:00")] })]);
+  const rows = rangeTasks(d, { start: "2026-11-01", end: "2026-11-30" }, TODAY);
+  assert.deepEqual(rows.map((r) => [r.task.id, r.group, r.actual]), [["A", "done", 60]]);
+});
+test("rangeTasks: 期限の無いタスクも、枠があれば行になる（期限は並びの最後）", () => {
+  const d = mk([task("A", { sessions: [plan("S1", "2026-11-26", "10:00", "11:00")] }), task("B", { due: "2026-12-10", sessions: [plan("S2", "2026-11-26", "10:00", "11:00")] })]);
+  const rows = rangeTasks(d, { start: "2026-11-26", end: "2026-11-26" }, TODAY);
+  assert.deepEqual(rows.map((r) => [r.task.id, r.group]), [["B", "scheduled"], ["A", "scheduled"]]);
+  assert.equal(rows[1].task.due, null);
+});
+test("progressByProject: data.projects に無い projectId も、その id のキーで数える（表示側で未設定へ寄せる）", () => {
+  const d = mk([task("A", { projectId: "ZZ", due: "2026-11-25" })]);
+  const m = progressByProject(rangeTasks(d, { start: WS, end: "2026-11-29" }, TODAY));
+  assert.deepEqual(m.get("ZZ"), { done: 0, total: 1 });
+});
+
 // ---- chaseTasks（催促の対象） ----
 const wt = (id, w, o = {}) => task(id, { status: "Waiting", waitingOn: w, ...o });
 const chase = (tasks, settings = {}) => chaseTasks(mk(tasks, { settings }), TODAY);
-const ids = (rows) => rows.map((r) => r.task.id);
+const chaseIds = (rows) => rows.map((r) => r.task.id);
 
 test("chaseTasks: 予定日が昨日は入り（lapsedDays 1）、今日・明日は入らない", () => {
   const rows = chase([wt("A", { party: "X", since: "2026-11-20", expected: "2026-11-24" }), wt("B", { party: "X", since: "2026-11-20", expected: TODAY }), wt("C", { party: "X", since: "2026-10-01", expected: "2026-11-26" })]);
-  assert.deepEqual(ids(rows), ["A"]);
+  assert.deepEqual(chaseIds(rows), ["A"]);
   assert.deepEqual([rows[0].party, rows[0].since, rows[0].expected, rows[0].lapsedDays, rows[0].waitedDays], ["X", "2026-11-20", "2026-11-24", 1, 5]);
 });
 test("chaseTasks: 予定日なしは、待ち始めから 7 日で入り、6 日では入らない。待ち始めなしは入らない", () => {
   const rows = chase([wt("A", { party: "X", since: "2026-11-18" }), wt("B", { party: "X", since: "2026-11-19" }), wt("C", { party: "X" })]);
-  assert.deepEqual(ids(rows), ["A"]);
+  assert.deepEqual(chaseIds(rows), ["A"]);
   assert.deepEqual([rows[0].lapsedDays, rows[0].waitedDays], [null, 7]);
 });
 test("chaseTasks: Waiting 以外は入らない", () => {
@@ -234,18 +289,18 @@ test("chaseTasks: 並びは、超過日数の多い順、予定日なしの待�
     wt("E", { party: "X", since: "2026-11-10" }),
     wt("F", { party: "X", since: "2026-11-01", expected: "2026-11-23" }),
   ]);
-  assert.deepEqual(ids(rows), ["B", "F", "A", "C", "D", "E"]);
+  assert.deepEqual(chaseIds(rows), ["B", "F", "A", "C", "D", "E"]);
 });
 test("chaseTasks: waitingLongDays で境界が変わる", () => {
   const t = [wt("A", { party: "X", since: "2026-11-22" })];
   assert.deepEqual(chase(t), []);
-  assert.deepEqual(ids(chase(t, { waitingLongDays: 3 })), ["A"]);
+  assert.deepEqual(chaseIds(chase(t, { waitingLongDays: 3 })), ["A"]);
 });
 test("chaseTasks: 超過日数が同じなら、待ち始めに関わらず ID の順", () => {
   const rows = chase([wt("B", { party: "X", since: "2026-11-20", expected: "2026-11-23" }), wt("A", { party: "X", since: "2026-11-01", expected: "2026-11-23" })]);
-  assert.deepEqual(ids(rows), ["A", "B"]);
+  assert.deepEqual(chaseIds(rows), ["A", "B"]);
   const rev = chase([wt("A", { party: "X", since: "2026-11-24", expected: "2026-11-23" }), wt("B", { party: "X", since: "2026-11-01", expected: "2026-11-23" })]);
-  assert.deepEqual(ids(rev), ["A", "B"]);
+  assert.deepEqual(chaseIds(rev), ["A", "B"]);
 });
 test("chaseTasks: 不正な since・expected は無いものとして扱い、例外にしない", () => {
   const rows = chase([
@@ -253,7 +308,7 @@ test("chaseTasks: 不正な since・expected は無いものとして扱い、�
     wt("B", { party: "X", since: "xx", expected: "2026-11-20" }),
     wt("C", { party: "X", since: "xx" }),
   ]);
-  assert.deepEqual(ids(rows), ["B", "A"]);
+  assert.deepEqual(chaseIds(rows), ["B", "A"]);
   assert.equal(rows[0].waitedDays, null);
   assert.equal(rows[1].expected, null);
 });

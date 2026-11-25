@@ -8,7 +8,7 @@ const S = {
   data: null, openError: "",
   screen: "gantt",
   filter: "all", gwin: "m6", hideDone: false,
-  askDel: null, askDelProject: null, pendingWait: null, pendingDone: null, checkOpen: new Set(), detailOpen: new Set(),
+  askDel: null, askDelProject: null, pendingWait: null, pendingDone: null, checkOpen: new Set(),
   sview: "week", sdate: clock().date, selSess: null, selMtg: null, mtgDraft: null, urgentDraft: null, fileInfo: null, chosenFiles: null, actAdd: null, actDraft: null, taskEdit: null,
   prefs: loadPrefs(), settingsClosed: loadSettingsClosed(), tpop: null, addAt: null, last: null, ruleError: "",
   ib: { open: false, text: loadInboxDraft(), projectId: "", replies: {}, reasons: {}, causes: {} },
@@ -53,7 +53,7 @@ function renderBody() {
   const { date: today } = clock();
   if (!S.data) return startScreen();
   if (S.screen === "gantt" || S.screen === "list") {
-    return renderProjects(S.data, today, { filter: S.filter, view: S.screen, window: S.gwin, hideDone: S.hideDone, askDel: S.askDel, askDelProject: S.askDelProject, pendingWait: S.pendingWait, pendingDone: S.pendingDone, checkOpen: S.checkOpen, detailOpen: S.detailOpen, addAt: S.addAt, tpop: S.screen === "gantt" ? S.tpop : null, showPrio: S.prefs.showPrio, showActual: S.prefs.showActual, now: clock() });
+    return renderProjects(S.data, today, { filter: S.filter, view: S.screen, window: S.gwin, hideDone: S.hideDone, askDel: S.askDel, askDelProject: S.askDelProject, pendingWait: S.pendingWait, pendingDone: S.pendingDone, checkOpen: S.checkOpen, addAt: S.addAt, tpop: S.screen === "gantt" ? S.tpop : null, showPrio: S.prefs.showPrio, showActual: S.prefs.showActual, now: clock() });
   }
   if (S.screen === "settings") return renderSettings(S.data, today, { ruleError: S.ruleError, closed: S.settingsClosed });
   if (S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, col: S.tdCol, draft: S.tdDraft, plan: S.tdPlan, chase: S.tdChase, urgentDraft: S.urgentDraft });
@@ -169,7 +169,6 @@ function focusSelector(el) {
   if (d.pref) return `[data-pref="${CSS.escape(d.pref)}"]`; // 右の列の取っ手
   if (d.sdue !== undefined) return "[data-sdue]"; // 週表示の期限の行の開閉
   if (d.set) return q("data-set", d.set);
-  if (d.detailtoggle) return q("data-detailtoggle", d.detailtoggle);
   // 規則の欄は、書き換えるとキーワードが変わるので、行の位置（data-ri。書き換えても並びは変わらない）で探す
   if (d.rkw !== undefined) return `[data-rkw][data-ri="${CSS.escape(d.ri)}"]`;
   if (d.rpj !== undefined) return `[data-rpj][data-ri="${CSS.escape(d.ri)}"]`;
@@ -178,7 +177,7 @@ function focusSelector(el) {
   if (d.rnewpj !== undefined) return "[data-rnewpj]";
   if (d.waitparty) return q("data-waitparty", d.waitparty);
   if (d.ug) return q("data-ug", d.ug); // 突発タスクの欄（読み直しで待たせた描き直しが、欄を移ったときに走る）
-  for (const k of ["tdnote", "tf", "tdckadd", "tp", "ch"]) if (d[k] !== undefined) return q(`data-${k}`, d[k]); // ToDo 画面の欄（tf・tdckadd・tp）と、稼働画面の週の見返しの気づき（tdnote）
+  for (const k of ["tf", "tdckadd", "tp", "ch"]) if (d[k] !== undefined) return q(`data-${k}`, d[k]); // ToDo 画面の欄（完了・今日へ・催促）
   return null;
 }
 
@@ -299,7 +298,6 @@ function loaded(data) {
   S.data = data;
   S.tpop = null;
   S.checkOpen = new Set();
-  S.detailOpen = new Set();
   sync.reset();
   S.ruleError = "";
   S.openError = "";
@@ -543,8 +541,6 @@ view.addEventListener("click", (e) => {
   if (q("[data-tpopclose]")) { S.tpop = null; render(); return; }
   const ckt = q("[data-cktoggle]");
   if (ckt) { const id = ckt.dataset.cktoggle; if (S.checkOpen.has(id)) S.checkOpen.delete(id); else S.checkOpen.add(id); render(); return; }
-  const dtl = q("[data-detailtoggle]");
-  if (dtl) { const id = dtl.dataset.detailtoggle; if (S.detailOpen.has(id)) S.detailOpen.delete(id); else S.detailOpen.add(id); render(); return; }
   const ckd = q("[data-ckdel]");
   if (ckd) { const [tid, iid] = ckd.dataset.ckdel.split("|"); apply((d) => removeChecklistItem(d, tid, iid)); return; }
   const ge = q("[data-gedit]");
@@ -1016,7 +1012,6 @@ function onChange(el) {
     if (key && key === S.tdChase?.key) S.tdChase = tdChaseDraft(form, key, S.tdChase.mode);
     return;
   }
-  if (el.dataset.tdnote !== undefined) { const wk = el.dataset.tdnote, text = el.value.trim(); apply((d) => setReview(d, wk, text), "気づきを保存しました"); return; }
   if (el.dataset.mt) {
     const f = el.dataset.mt, v = f === "skip" ? el.checked : el.value;
     const m = S.mtgDraft ?? S.data.events.find((o) => o.id === S.selMtg);

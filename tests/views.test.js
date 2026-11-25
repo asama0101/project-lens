@@ -9,7 +9,7 @@ import * as prioModule from "../plugins/project-lens/src/ui/views/prio.js";
 import { renderSettings } from "../plugins/project-lens/src/ui/views/settings.js";
 import { checkMeterHtml, dateInputHtml } from "../plugins/project-lens/src/ui/common.js";
 import { checklistEditorHtml } from "../plugins/project-lens/src/ui/views/checklist.js";
-import { renderTaskPop, renderTaskEditPanel } from "../plugins/project-lens/src/ui/views/taskpop.js";
+import { renderTaskPop, renderTaskEditPanel, predEditHtml } from "../plugins/project-lens/src/ui/views/taskpop.js";
 import { renderInboxBar, ibExamples } from "../plugins/project-lens/src/ui/views/inboxpanel.js";
 import { ruleMeetingCounts } from "../plugins/project-lens/src/core/rules.js";
 import { renderSchedule, renderCalendar, selectionKey, sessionSelection, revealSelection, snapStart, calendarGeometry, urgentDefaultStart, urgentInput } from "../plugins/project-lens/src/ui/views/schedule.js";
@@ -1779,27 +1779,38 @@ test("renderProjects(list): 列「チェック」。閉じていれば ▸ M/N�
   assert.equal(count(open, /data-ckpanel=/g), 1);
 });
 
-test("renderProjects(list): 「詳細」ボタン。閉じていれば詳細の行が無く、開くとその行の直後に繰り返しの select と説明が出る。チェックリストと同時に開ける", () => {
+test("renderProjects(list): 「繰り返し」の列。見出しは期限の次で、行ごとに繰り返しの select（aria-label つき）。「詳細」のボタンも行も無い", () => {
   const d = load();
   const html = renderProjects(d, TODAY, { view: "list", filter: "AA" });
-  assert.ok(/data-detailtoggle="AA-0005" aria-expanded="false"/.test(html));
-  assert.ok(!html.includes("data-detailpanel"));
-  const open = renderProjects(d, TODAY, { view: "list", filter: "AA", detailOpen: new Set(["AA-0005"]), checkOpen: new Set(["AA-0005"]) });
-  assert.ok(/data-detailtoggle="AA-0005" aria-expanded="true"/.test(open));
-  const i = open.indexOf('data-row="AA-0005"'), p = open.indexOf('data-detailpanel="AA-0005"'), nxt = open.indexOf('<tr data-row="', i + 1);
-  assert.ok(i >= 0 && p > i && p < nxt, "AA-0005 の行の直後");
-  assert.equal(count(open, /data-detailpanel=/g), 1);
-  assert.ok(open.includes('data-ckpanel="AA-0005"'), "チェックリストも同時に開く");
-  const panel = open.slice(p, open.indexOf("</tr>", p));
-  assert.ok(panel.includes('data-f="repeat" data-id="AA-0005"') && panel.includes("完了すると、次回のタスクを作ります"));
+  const head = html.slice(html.indexOf("<thead>"), html.indexOf("</thead>"));
+  assert.ok(head.indexOf("<th>期限</th><th>繰り返し</th><th>前のタスク</th>") >= 0, "期限の次");
+  assert.equal(count(html, /data-f="repeat"/g), count(html, /data-row="/g), "行ごとに 1 つ");
+  assert.ok(html.includes('data-f="repeat" data-id="AA-0005" aria-label="AA-0005 の繰り返し"'));
+  assert.ok(html.includes('<td data-l="繰り返し">'));
+  assert.ok(!/data-detailtoggle|data-detailpanel/.test(html) && !html.includes("詳細"), "詳細のボタンも行も無い");
 });
 
-test("renderProjects(list): 詳細の行で、毎月の定例には「（N 日）」が出る", () => {
+test("renderProjects(list): 毎月の定例の「繰り返し」の select には「（N 日）」が出る", () => {
   const d = load();
   d.tasks.find((t) => t.id === "AA-0005").repeat = { unit: "month", day: 15 };
-  const open = renderProjects(d, TODAY, { view: "list", filter: "AA", detailOpen: new Set(["AA-0005"]) });
-  const p = open.indexOf('data-detailpanel="AA-0005"');
-  assert.ok(open.slice(p, open.indexOf("</tr>", p)).includes("毎月（15 日）"));
+  const html = renderProjects(d, TODAY, { view: "list", filter: "AA" });
+  const p = html.indexOf('data-f="repeat" data-id="AA-0005"');
+  assert.ok(html.slice(p, html.indexOf("</select>", p)).includes("毎月（15 日）"));
+});
+
+test("renderProjects(list): 削除のボタンは縦に折り返さない（CSS で固定）。削除の確認は、狭い欄でなく、全幅の askrow に出す", () => {
+  const css = readFileSync(new URL("../plugins/project-lens/src/ui/theme.css", import.meta.url), "utf8");
+  assert.ok(css.includes('.tbl.edit td[data-l=""]{min-width:4.5em;white-space:nowrap}'));
+  assert.ok(css.includes('.tbl.edit td[data-l=""] .btn{white-space:nowrap}'));
+  const d = load();
+  const closed = renderProjects(d, TODAY, { view: "list", filter: "AA" });
+  assert.ok(closed.includes('data-del="AA-0005"') && !closed.includes("data-delyes") && !closed.includes("askrow"));
+  const html = renderProjects(d, TODAY, { view: "list", filter: "AA", askDel: "AA-0005" });
+  const i = html.indexOf('data-row="AA-0005"'), r = html.indexOf('<tr class="askrow">', i), nxt = html.indexOf('<tr data-row="', i + 1);
+  assert.ok(r > i && (nxt < 0 || r < nxt), "行の直下");
+  const ask = html.slice(r, html.indexOf("</tr>", r));
+  assert.ok(ask.includes('data-delyes="AA-0005"') && ask.includes("data-delno") && ask.includes('class="askwrap"'));
+  assert.ok(html.slice(i, r).includes('data-del="AA-0005"') && !html.slice(i, r).includes("data-delyes"), "行の中には、削除のボタンだけ");
 });
 
 test("renderTaskPop: チェックリストの欄を、期限の下・前のタスクの上に置く", () => {
@@ -2509,47 +2520,68 @@ test("renderTodo: draft（key が同じ）があれば、入力欄がその値�
   assert.match(other, /<option value="Done" selected>/, "別のタスクの下書きは使わない");
 });
 
-/** 稼働タブ（週の見返しの領域を末尾に出す） */
+/** 稼働タブ（プロジェクト別の完了・進捗と、期間のタスクの表） */
 const wlHtml = (d, o = {}) => renderWorkload(d, TODAY, { period: "week", date: TODAY, now: TD_NOW, ...o });
-const reviewOf = (html) => html.slice(html.indexOf('<section class="tdreview panel" aria-label="週の見返し">'));
+const tasksPart = (html) => html.slice(html.indexOf("<h2>タスク</h2>"));
+const trOf = (html, t) => html.split("<tr").find((x) => x.includes(t)) ?? "";
 
 test("renderTodo: 週の移動（data-tdweek・data-tdweek-today）は残り、週の見返しは出ない（稼働タブへ移した）", () => {
   const html = tdHtml(tdData({ [TD_WEEK]: "会議が多い週" }));
-  for (const a of ['data-tdweek="-1"', 'data-tdweek="1"', "data-tdweek-today", "10/19〜10/25"]) assert.ok(html.includes(a), a);
+  for (const a of ['data-tdweek="-1"', 'data-tdweek="1"', "data-tdweek-today", "10/19〜10/25"]) assert.ok(a && html.includes(a), a);
   for (const s of ["週の見返し", "tdreview", "data-tdnote", "会議が多い週", "td-sum"]) assert.ok(!html.includes(s), s);
 });
 
-test("renderWorkload: 末尾に週の見返し（完了 X / Y 件・予定 P 分に対して実績 A 分・タスクごとの進捗/予定/実績・気づき）。回した回数の列は無い", () => {
+test("renderWorkload: 見返しの見出し・完了の文・気づきの欄は出ない（過去の気づきがデータにあっても）", () => {
   const html = wlHtml(tdData({ [TD_WEEK]: "会議が多い週" }));
-  const i = html.indexOf('<section class="tdreview panel" aria-label="週の見返し">');
-  assert.ok(i > html.indexOf('<section class="panel wl"') && html.endsWith("</section>") && html.lastIndexOf('class="panel wl"') < i, "稼働の領域の後ろ（末尾）");
-  const rv = reviewOf(html);
-  assert.ok(rv.includes("<h2>週の見返し（10/19〜10/25）</h2>"), rv);
-  assert.ok(rv.includes("完了 1 / 4 件"), rv);
-  assert.ok(rv.includes("予定 120 分に対して実績 30 分"), rv);
-  const tr = (t) => rv.split("<tr").find((x) => x.includes(t)) ?? "";
-  assert.ok(tr("超過のタスク").includes("1/2") && tr("超過のタスク").includes("0 分"), tr("超過のタスク"));
-  assert.ok(tr("予定のタスク").includes("—") && tr("予定のタスク").includes("120 分") && tr("予定のタスク").includes("30 分"), tr("予定のタスク"));
-  assert.ok(!rv.includes("回した"));
-  assert.match(rv, /<label class="td-note">気づき<textarea class="in" rows="3" data-tdnote="2026-10-19">会議が多い週<\/textarea><\/label>/);
+  for (const s of ["週の見返し", "tdreview", "data-tdnote", "会議が多い週", "td-sum", "td-note", "気づき", "に対して実績"]) assert.ok(!html.includes(s), s);
+  assert.ok(!/完了 \d+ \/ \d+ 件/.test(html));
 });
 
-test("renderWorkload: 週の見返しは、期間（日・週・月）によらず出て、例外にならない。週は opts.date を含む週", () => {
-  for (const period of ["day", "week", "month"]) {
-    const rv = reviewOf(wlHtml(tdData(), { period }));
-    assert.ok(rv.includes("<h2>週の見返し（10/19〜10/25）</h2>") && rv.includes('data-tdnote="2026-10-19"') && rv.includes("完了 1 / 4 件"), `${period}: ${rv}`);
-  }
+test("renderWorkload: プロジェクト別の表に「完了」「進捗」の列。n / m 件、合計の行に合計、0 件は —", () => {
+  const html = wlHtml(tdData());
+  assert.match(html, /<th class="num">完了<\/th><th>進捗<\/th>/);
+  const px = trOf(html, "案件X");
+  assert.ok(px.includes("1 / 4 件"), px); // 週: 超過・予定・期限・完了の 4 件のうち 1 件
+  assert.ok(px.includes('class="wl-prog"') && px.includes("25.0%"), px);
+  const foot = html.slice(html.indexOf("<tfoot>"));
+  assert.ok(foot.includes("1 / 4 件"), foot);
+  const d = tdData(); d.projects.push({ id: "PY", name: "案件Y" });
+  const py = trOf(wlHtml(d), "案件Y");
+  assert.ok(py.includes("—") && !py.includes(" 件"), py);
 });
 
-test("renderWorkload: 週の見返しの週は、opts.date を含む月曜〜日曜。日曜日は前の月曜日の週。日を 1 週動かすと、見出しと気づきの週が変わる", () => {
-  const d = tdData({ "2026-10-19": "前の週の気づき", "2026-10-26": "次の週の気づき" });
-  const mon = reviewOf(wlHtml(d, { date: "2026-10-19" })), sun = reviewOf(wlHtml(d, { period: "day", date: "2026-10-25" }));
-  for (const rv of [mon, sun]) assert.ok(rv.includes("<h2>週の見返し（10/19〜10/25）</h2>") && rv.includes('data-tdnote="2026-10-19">前の週の気づき</textarea>'), rv);
-  const next = reviewOf(wlHtml(d, { period: "day", date: "2026-10-26" }));
-  assert.ok(next.includes("<h2>週の見返し（10/26〜11/1）</h2>") && next.includes('data-tdnote="2026-10-26">次の週の気づき</textarea>'), next);
-  assert.ok(!next.includes("前の週の気づき"));
-  const month = reviewOf(wlHtml(d, { period: "month", date: "2026-10-28" }));
-  assert.ok(month.includes("<h2>週の見返し（10/26〜11/1）</h2>"), "月の表示でも、日を含む週");
+test("renderWorkload: プロジェクト未設定の行にも完了・進捗が出る（projectId なし・存在しない projectId を寄せる）", () => {
+  const d = tdData();
+  d.tasks.push(tdTask("AA-0006", { title: "無所属", projectId: null, due: "2026-10-22" }), tdTask("AA-0007", { title: "迷子", projectId: "ZZ", status: "Done", doneAt: TD_WEEK }));
+  const html = wlHtml(d);
+  const un = trOf(html, "プロジェクト未設定");
+  assert.ok(un.includes("1 / 2 件"), un);
+  assert.ok(html.slice(html.indexOf("<tfoot>")).includes("2 / 6 件"));
+  assert.ok(!html.includes("ZZ"), "ID は出ない");
+});
+
+test("renderWorkload: 「タスク」の表（プロジェクト・タスク・進捗・予定・実績）。期間（日・週・月）で範囲が変わる", () => {
+  const html = tasksPart(wlHtml(tdData()));
+  assert.match(html, /<th>プロジェクト<\/th><th>タスク<\/th><th class="num">進捗<\/th><th class="num">予定<\/th><th class="num">実績<\/th>/);
+  const t1 = trOf(html, "超過のタスク"), t2 = trOf(html, "予定のタスク");
+  assert.ok(t1.includes("案件X") && t1.includes("1/2") && t1.includes("0 分"), t1);
+  assert.ok(t2.includes("—") && t2.includes("120 分") && t2.includes("30 分"), t2);
+  assert.ok(!html.includes("中止のタスク"));
+  const names = (o) => ["超過のタスク", "予定のタスク", "期限のタスク", "済みのタスク"].filter((n) => tasksPart(wlHtml(tdData(), o)).includes(n));
+  assert.deepEqual(names({ period: "day" }), ["超過のタスク", "予定のタスク"]);
+  assert.deepEqual(names({ period: "week" }), ["超過のタスク", "予定のタスク", "期限のタスク", "済みのタスク"]);
+  assert.deepEqual(names({ period: "month" }), ["超過のタスク", "予定のタスク", "期限のタスク", "済みのタスク"]);
+  assert.deepEqual(names({ period: "week", date: "2026-10-26" }), ["超過のタスク", "期限のタスク"], "来週: 超過と、期限が範囲の終わり以前のもの（期限の過ぎた今日以降のもの）");
+});
+
+test("renderWorkload: タスクの表のプロジェクトは名前。未設定・存在しない projectId は「プロジェクトなし」。0 件は文だけで表は出ない", () => {
+  const d = tdData();
+  d.tasks.push(tdTask("AA-0006", { title: "無所属", projectId: null, due: "2026-10-22" }), tdTask("AA-0007", { title: "迷子", projectId: "ZZ", due: "2026-10-22" }));
+  const html = tasksPart(wlHtml(d));
+  assert.ok(trOf(html, "無所属").includes("プロジェクトなし") && trOf(html, "迷子").includes("プロジェクトなし"));
+  assert.ok(!html.includes("ZZ"));
+  const empty = tasksPart(wlHtml({ ...tdData(), tasks: [] }));
+  assert.ok(empty.includes('<p class="muted">この期間のタスクはありません。</p>') && !empty.includes("<table"), empty);
 });
 
 test("renderTodo: 件名・プロジェクト名・チェックの項目は esc() される", () => {
@@ -2562,19 +2594,20 @@ test("renderTodo: 件名・プロジェクト名・チェックの項目は esc(
   assert.ok(html.includes("&lt;b&gt;&amp;"));
 });
 
-test("renderWorkload: 週の見返しの件名・気づきは esc() される", () => {
-  const d = tdData({ [TD_WEEK]: "</textarea><b>&" });
+test("renderWorkload: タスクの表の件名・プロジェクト名は esc() される", () => {
+  const d = tdData();
   Object.assign(d.tasks[0], { title: "<b>&" });
-  const rv = reviewOf(wlHtml(d));
-  assert.ok(!rv.includes("<b>&") && !rv.includes("</textarea><b>"), "生のタグが無い");
-  assert.ok(rv.includes("<td>&lt;b&gt;&amp;</td>") && rv.includes(">&lt;/textarea&gt;&lt;b&gt;&amp;</textarea>"), rv);
+  d.projects[0].name = "<i>&";
+  const rv = tasksPart(wlHtml(d));
+  assert.ok(!rv.includes("<b>&") && !rv.includes("<i>&"), "生のタグが無い");
+  assert.ok(rv.includes("<td>&lt;b&gt;&amp;</td>") && rv.includes("<td>&lt;i&gt;&amp;</td>"), rv);
 });
 
-test("renderTodo: 週にタスクが無ければ、一覧は案内だけ。稼働タブの週の見返しは 0 件で、例外にならない", () => {
+test("renderTodo: 週にタスクが無ければ、一覧は案内だけ。稼働タブのタスクの表は 0 件で、例外にならない", () => {
   const html = tdHtml({ ...tdData(), tasks: [] });
   assert.ok(!html.includes("data-tdrow=") && html.includes("この週のタスクはありません"));
-  const rv = reviewOf(wlHtml({ ...tdData(), tasks: [] }));
-  assert.ok(rv.includes("完了 0 / 0 件") && rv.includes("予定 0 分に対して実績 0 分") && rv.includes("<tbody></tbody>"), rv);
+  const rv = wlHtml({ ...tdData(), tasks: [] });
+  assert.ok(rv.includes("この期間のタスクはありません。") && rv.includes("0 / 0 件") === false && rv.slice(rv.indexOf("<tfoot>")).includes("—"), rv);
 });
 
 test("renderTodo: 左に『今日の ToDo（M/D）』、右に『この週のタスク候補』の見出しが、この順に出る。古い見出し「この週のタスク」だけの見出しは無い", () => {
@@ -2902,7 +2935,7 @@ test("renderTaskPop: 窓の項目の入力は、今までと同じ属性・値",
   assert.ok(/<select class="in sm" data-f="projectId" data-id="AA-0007">/.test(h));
   assert.ok(/<input type="checkbox" data-f="important" data-id="AA-0007" >|<input type="checkbox" data-f="important" data-id="AA-0007" checked>/.test(h));
   assert.ok(/<input class="in" data-f="memo" data-id="AA-0007" value="[^"]*" placeholder="メモ">/.test(h));
-  assert.ok(/<select class="in sm" data-f="repeat" data-id="AA-0007"><option value="">なし<\/option>/.test(h));
+  assert.ok(/<select class="in sm" data-f="repeat" data-id="AA-0007" aria-label="AA-0007 の繰り返し"><option value="">なし<\/option>/.test(h));
   assert.ok(/data-f="due" data-id="AA-0007"/.test(h) && /data-f="start" data-id="AA-0007"/.test(h));
 });
 
@@ -3055,4 +3088,21 @@ test("renderTodo: chase（edit）を渡すと、待ち先の入力欄と回答�
   for (const s of ['data-chasesave="AA-0010"', "data-chasecancel"]) assert.ok(a.includes(s), s);
   assert.ok(!a.includes('data-ch="days"'));
   assert.ok(!TASK_ID.test(visibleText(html)));
+});
+
+test("predEditHtml: 前のタスクは、選ぶ欄が上、選んだ札が下（札が無いときは、札の入れ物を出さない）", () => {
+  const data = { projects: [{ id: "AA", name: "案件" }], tasks: [
+    { id: "AA-0001", title: "一", projectId: "AA", status: "To Do", due: "2026-12-01", predecessors: [] },
+    { id: "AA-0002", title: "二", projectId: "AA", status: "To Do", due: "2026-12-02", predecessors: ["AA-0001"] },
+    { id: "AA-0003", title: "三", projectId: "AA", status: "To Do", due: "2026-12-03", predecessors: [] },
+  ] };
+  const t = data.tasks[1];
+  const h = predEditHtml(data, t);
+  const iSel = h.indexOf("data-addpre="), iChip = h.indexOf("data-rmpre=");
+  assert.ok(iSel > 0 && iChip > 0, "選ぶ欄と札がある");
+  assert.ok(iSel < iChip, "選ぶ欄が上、選んだ札が下");
+  assert.ok(h.startsWith('<div class="chips pred">'), "縦に並べる入れ物");
+  assert.ok(h.includes('<div class="chips"><span class="chip">AA-0001'), "札は、その下の入れ物の中");
+  const none = predEditHtml(data, data.tasks[2]);
+  assert.ok(!none.includes('<div class="chips">'), "札が無ければ、札の入れ物は出さない");
 });

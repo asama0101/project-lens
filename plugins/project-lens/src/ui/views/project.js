@@ -34,8 +34,7 @@ function checkCell(t, opts) {
   const { total, done } = checklistCount(t);
   const open = !!opts.checkOpen?.has(t.id);
   const label = total ? `${open ? "▾" : "▸"} ${done}/${total}` : "＋ 追加";
-  const detailOpen = !!opts.detailOpen?.has(t.id);
-  return `<button class="ck-toggle${total ? "" : " ck-empty"}" data-cktoggle="${esc(t.id)}" aria-expanded="${open}" aria-label="${esc(t.id)} のチェックリスト">${label}</button> <button class="ck-toggle ck-empty" data-detailtoggle="${esc(t.id)}" aria-expanded="${detailOpen}" aria-label="${esc(t.id)} の詳細">${detailOpen ? "▾" : "▸"} 詳細</button>`;
+  return `<button class="ck-toggle${total ? "" : " ck-empty"}" data-cktoggle="${esc(t.id)}" aria-expanded="${open}" aria-label="${esc(t.id)} のチェックリスト">${label}</button>`;
 }
 
 function renderList(data, p, today, opts) {
@@ -43,14 +42,15 @@ function renderList(data, p, today, opts) {
   const prog = none ? null : projectProgress(data, p.id);
   const tasks = data.tasks.filter((t) => t.projectId === p.id);
   const labels = groupLabels(data.settings);
-  const heads = ["ID", labels.group, labels.subgroup, "件名", "プロジェクト", "状態", "開始", "期限", "前のタスク", "待ち先", "重要", "メモ", "チェック", ""];
+  const heads = ["ID", labels.group, labels.subgroup, "件名", "プロジェクト", "状態", "開始", "期限", "繰り返し", "前のタスク", "待ち先", "重要", "メモ", "チェック", ""];
   const cols = heads.length; // 全幅の行（グループ・チェックリスト・確認）の colspan
   const rowOf = (t) => {
     const needParty = t.status === "Waiting" && !t.waitingOn?.party ? `<span class="pill wait">待ち先を入力</span>` : "";
     const dependents = data.tasks.filter((o) => (o.predecessors ?? []).includes(t.id)).map((o) => o.id);
-    const delCell = opts.askDel === t.id
-      ? `<div class="ask">${dependents.length ? `次のタスク ${esc(dependents.join(", "))} の前のタスクから外れます。` : "このタスクを削除します。"}<div style="display:flex;gap:6px;margin-top:4px"><button class="btn danger" data-delyes="${esc(t.id)}">削除する</button><button class="btn" data-delno>やめる</button></div></div>`
-      : `<button class="btn" data-del="${esc(t.id)}" aria-label="${esc(t.id)} を削除">削除</button>`;
+    const delAsk = opts.askDel === t.id
+      ? `<div class="ask" style="max-width:none">${dependents.length ? `次のタスク ${esc(dependents.join(", "))} の前のタスクから外れます。` : "このタスクを削除します。"}<div style="display:flex;gap:6px;margin-top:4px"><button class="btn danger" data-delyes="${esc(t.id)}">削除する</button><button class="btn" data-delno>やめる</button></div></div>`
+      : "";
+    const delCell = `<button class="btn" data-del="${esc(t.id)}" aria-label="${esc(t.id)} を削除">削除</button>`; // 確認は、狭い欄に入れず、全幅の行（askrow）に出す
     const late = taskFlags(t, today, data.settings).includes("overdue");
     return `<tr${isImportantMark(t) ? ' class="imp"' : ""} data-row="${esc(t.id)}" data-mvrow="${esc(t.id)}"><td class="id" data-l="ID"><span class="mv" draggable="true" data-mvh="${esc(t.id)}" title="ドラッグで並べ替え" aria-label="${esc(t.id)} を並べ替え">⠿</span>${esc(t.id)}${t.repeat ? ` <span class="muted" title="${t.repeat.unit === "week" ? "毎週" : `毎月 ${esc(t.repeat.day)} 日`}の定例（完了で次回を作ります）" aria-label="定例">↻</span>` : ""}</td>
       <td data-l="${esc(labels.group)}"><input class="in gi" data-f="group" data-id="${esc(t.id)}" value="${esc(t.group ?? "")}" aria-label="${esc(t.id)} の${esc(labels.group)}"></td>
@@ -60,12 +60,13 @@ function renderList(data, p, today, opts) {
       <td data-l="状態">${statusCellHtml(t, opts, late, { inline: false })}</td>
       <td data-l="開始">${startInputHtml(data, t)}</td>
       <td data-l="期限">${dateInputHtml({ value: t.due, attrs: `data-f="due" data-id="${esc(t.id)}" aria-label="${esc(t.id)} の期限"`, label: "期限" })}</td>
+      <td data-l="繰り返し">${taskFieldHtml(data, t, "repeat")}</td>
       <td data-l="前のタスク">${predEditHtml(data, t)}</td>
       <td data-l="待ち先"><input class="in" data-f="party" data-id="${esc(t.id)}" value="${esc(t.waitingOn?.party ?? "")}" placeholder="${t.status === "Waiting" ? "ベンダー・部署名" : "—"}" ${t.status === "Waiting" ? "" : "disabled"} aria-label="${esc(t.id)} の待ち先">${needParty}${dateInputHtml({ value: t.waitingOn?.expected ?? "", cls: "in sm", attrs: `data-f="expected" data-id="${esc(t.id)}" title="回答予定日" ${t.status === "Waiting" && t.waitingOn?.party ? "" : "disabled"} aria-label="${esc(t.id)} の回答予定日"`, label: "回答予定日" })}</td>
       <td data-l="重要"><input type="checkbox" data-f="important" data-id="${esc(t.id)}" ${t.important === true ? "checked" : ""} aria-label="${esc(t.id)} を重要にする"></td>
       <td data-l="メモ"><input class="in" data-f="memo" data-id="${esc(t.id)}" value="${esc(t.memo ?? "")}" placeholder="メモ" aria-label="${esc(t.id)} のメモ"></td>
       <td data-l="チェック">${checkCell(t, opts)}</td>
-      <td data-l="">${delCell}</td></tr>${(() => { const ask = askHtml(t, opts); return ask ? `<tr class="askrow"><td colspan="${cols}"><div class="askwrap">${ask}</div></td></tr>` : ""; })()}${opts.checkOpen?.has(t.id) ? `<tr class="ck-tr" data-ckpanel="${esc(t.id)}"><td colspan="${cols}">${checklistEditorHtml(t)}</td></tr>` : ""}${opts.detailOpen?.has(t.id) ? `<tr class="ck-tr" data-detailpanel="${esc(t.id)}"><td colspan="${cols}"><div class="askwrap"><label>繰り返し ${taskFieldHtml(data, t, "repeat")}</label> <span class="muted">完了すると、次回のタスクを作ります</span></div></td></tr>` : ""}`;
+      <td data-l="">${delCell}</td></tr>${(() => { const ask = askHtml(t, opts) + delAsk; return ask ? `<tr class="askrow"><td colspan="${cols}"><div class="askwrap">${ask}</div></td></tr>` : ""; })()}${opts.checkOpen?.has(t.id) ? `<tr class="ck-tr" data-ckpanel="${esc(t.id)}"><td colspan="${cols}">${checklistEditorHtml(t)}</td></tr>` : ""}`;
   };
   // (大項目, 中項目) ごとに見出し行を入れて並べる。「＋」はそのグループへ追加する入口なので、0 件でも「（なし）」を出す
   const secs = groupSections(tasks, { ensureNone: !none });

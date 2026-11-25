@@ -183,19 +183,24 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 .wl-bar .t,.sw.wl-t{background:var(--ok)}
 .wl-bar .m,.sw.wl-m{background:var(--meeting-edge)}
 .wl-bar.un{opacity:.6}
+.wl-prog{height:12px;min-width:60px;background:var(--line)}
+.wl-prog i{display:block;height:100%;background:var(--ok)}
+.wl h2{margin:16px 0 8px}
 .wl .banner{margin-top:14px}
 .tbl.edit td[data-l="件名"] .in{min-width:13em}
 .tbl.edit td[data-l="状態"] select{min-width:9.5em} /* In Progress・Cancelled が切れない幅（select の矢印の分を含む） */
 /* リストの確認の行は表の全幅なので、横にスクロールしても見えるよう、中身を表示中の範囲の左端に付け、リストの表の横スクロールの枠の幅に収める */
 #view .twrap > .tscroll{container-type:inline-size}
 .tbl.edit tr.askrow .askwrap{position:sticky;left:0;width:max-content;max-width:min(60em,100cqw - 16px)}
-.tbl.edit tr[data-detailpanel] .askwrap{position:sticky;left:0;width:max-content;max-width:min(60em,100cqw - 16px)} /* 「詳細」の行も、横にスクロールしても見える位置に留める */
 .tbl.edit td[data-l="待ち先"] .in{min-width:6em}
+.tbl.edit td[data-l=""]{min-width:4.5em;white-space:nowrap} /* 「削除」が縦に折り返さない幅（確認は全幅の行に出す） */
+.tbl.edit td[data-l=""] .btn{white-space:nowrap}
 .tbl.edit td[data-l="メモ"] .in{min-width:16em} /* メモ欄が列の幅に潰されないよう最小幅を持たせる。表は .tscroll の中で横にスクロールする */
 .in:disabled{background:transparent;border-color:transparent;color:var(--muted)}
 .tbl.edit{min-width:860px}
 .tbl.edit td{vertical-align:top}
 .chips{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.chips.pred{flex-direction:column;align-items:flex-start} /* 前のタスク: 選ぶ欄を上、選んだ札を下（札は、その中で折り返す） */
 .chip{display:inline-flex;gap:2px;align-items:center;font-family:var(--f-mono);font-size:12px;background:var(--line-soft);border-radius:5px;padding:1px 2px 1px 7px}
 .chip button{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;padding:0 4px}
 .chip button:hover{color:var(--bad)}
@@ -267,7 +272,7 @@ tr.drop-after>td,.g-row.drop-after>.g-label,.g-row.drop-after>.g-lane{box-shadow
   .tbl.edit td{display:block;padding:0;border:0}
   .tbl.edit td::before{content:attr(data-l);display:block;font-size:11px;color:var(--muted)}
   .tbl.edit td[data-l=""]::before,.tbl.edit td[data-l="ID"]::before{display:none}
-  .tbl.edit td:nth-child(4),.tbl.edit td:nth-child(12){grid-column:1/-1}
+  .tbl.edit td:nth-child(4),.tbl.edit td:nth-child(13){grid-column:1/-1}
   #view .tbl.edit tr.ck-tr>td{grid-column:1/-1;padding-left:0} /* チェックリストの展開行は全幅 */
   .tbl.edit tr.askrow>td{grid-column:1/-1}
 }
@@ -501,10 +506,6 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .tf-ckitem{display:inline-flex;align-items:center}
 .tf-ckitem .gx{opacity:1;min-width:28px;min-height:28px}
 .tf-cks [data-tdckadd]{flex:1 1 180px;min-width:0}
-.wl + .tdreview{margin-top:16px}
-.tdreview .td-sum{margin:0 0 10px}
-.tdreview .td-note{display:flex;flex-direction:column;gap:4px;margin-top:12px;font-size:12px;color:var(--muted)}
-.tdreview .td-note textarea{resize:vertical;font-size:13px}
 
 /* 固定表示（ガント・リスト）: 画面のスクロールに対して、CSS の sticky で付ける */
 #view{overflow-anchor:none} /* 描き直しのたびに、ブラウザのスクロール位置の補正(スクロールアンカー)で縦の位置が数 px ずれるのを防ぐ。位置は render が戻す */
@@ -1487,7 +1488,7 @@ return { LAST_END, ownerOf, allSessions, actualSpans, actualSlots, sessionKind, 
 })();
 
 /* src/core/week.js */
-const { mondayOf, setReview, weekTasks, todayTasks, weekSummary, chaseTasks } = (() => {
+const { mondayOf, weekTasks, rangeTasks, progressByProject, todayTasks, chaseTasks } = (() => {
 // 週のタスクの一覧と見返しの計算。保存せず、タスクと枠から、その場で求める純関数。
 // 週は weekStart（月曜）〜 weekStart + 6 日（日曜）。日付は文字列のまま比べる。
 // - Cancelled は、どの週にも出さない。1 つのタスクは 1 行だけで、組の優先は overdue > scheduled > due > done。
@@ -1509,31 +1510,28 @@ const ORDER = ["overdue", "scheduled", "due", "done"];
 /** その日を含む週の月曜日 */
 const mondayOf = (date) => addDays(date, -((weekday(date) + 6) % 7));
 
-/** 週（月曜日のキー）の気づき。空文字ならキーを消す */
-function setReview(data, weekStart, text) {
-  const { [weekStart]: _, ...rest } = data.reviews ?? {};
-  return { ...data, reviews: text ? { ...rest, [weekStart]: text } : rest };
-}
 const minutes = (x) => toMin(x.end) - toMin(x.start);
 
 /** 今週の行（task・group・waiting・planned・actual・checked）。組の順・期限・ID の順 */
-function weekTasks(data, weekStart, today) {
-  const weekEnd = addDays(weekStart, 6);
-  const inWeek = (date) => date >= weekStart && date <= weekEnd;
+const weekTasks = (data, weekStart, today) => rangeTasks(data, { start: weekStart, end: addDays(weekStart, 6) }, today);
+
+/** 期間 { start, end }（両端を含む）の行。規則と並びは weekTasks と同じ（週を期間に読み替える。期限超過だけは today 基準） */
+function rangeTasks(data, range, today) {
+  const inRange = (date) => date >= range.start && date <= range.end;
   const byId = new Map(data.tasks.map((t) => [t.id, t]));
   const spans = actualSpans(data);
   const rows = [];
   for (const task of data.tasks) {
     if (task.status === "Cancelled") continue;
-    const planned = (task.sessions ?? []).filter((s) => s.kind === "planned" && inWeek(s.date));
-    const actuals = spans.filter((a) => a.taskId === task.id && inWeek(a.date));
+    const planned = (task.sessions ?? []).filter((s) => s.kind === "planned" && inRange(s.date));
+    const actuals = spans.filter((a) => a.taskId === task.id && inRange(a.date));
     const touched = planned.length > 0 || actuals.length > 0;
     let group = null;
     if (task.status === "Done") {
-      if ((task.doneAt && inWeek(task.doneAt)) || touched) group = "done";
+      if ((task.doneAt && inRange(task.doneAt)) || touched) group = "done";
     } else if (task.due && task.due < today) group = "overdue";
     else if (touched) group = "scheduled";
-    else if (task.due && task.due <= weekEnd) group = "due";
+    else if (task.due && task.due <= range.end) group = "due";
     if (!group) continue;
     const { total, done } = checklistCount(task);
     rows.push({
@@ -1547,6 +1545,19 @@ function weekTasks(data, weekStart, today) {
   }
   const dueKey = (r) => r.task.due ?? "9999-99-99";
   return rows.sort((a, b) => ORDER.indexOf(a.group) - ORDER.indexOf(b.group) || dueKey(a).localeCompare(dueKey(b)) || a.task.id.localeCompare(b.task.id));
+}
+
+/** 行をプロジェクトごとに数える。Map<projectId|null, { done, total }>（Done の行が done） */
+function progressByProject(rows) {
+  const m = new Map();
+  for (const r of rows) {
+    const key = r.task.projectId ?? null;
+    const p = m.get(key) ?? { done: 0, total: 0 };
+    p.total++;
+    if (r.task.status === "Done") p.done++;
+    m.set(key, p);
+  }
+  return m;
 }
 
 /** 今日の枠の、今日に見せる開始の時刻 */
@@ -1587,20 +1598,6 @@ function todayTasks(data, today) {
   return rows.sort((a, b) => isDone(a) - isDone(b) || shownStart(a.slots[0], today).localeCompare(shownStart(b.slots[0], today)) || a.task.id.localeCompare(b.task.id));
 }
 
-/** 週の見返し。done はそのうち Done の数、planned・actual は行の合計、note は reviews の気づき */
-function weekSummary(data, weekStart, today) {
-  const rows = weekTasks(data, weekStart, today);
-  const sum = (k) => rows.reduce((n, r) => n + r[k], 0);
-  return {
-    done: rows.filter((r) => r.task.status === "Done").length,
-    total: rows.length,
-    planned: sum("planned"),
-    actual: sum("actual"),
-    note: data.reviews?.[weekStart] ?? "",
-    rows,
-  };
-}
-
 /**
  * 催促の対象（task・party・since・expected・lapsedDays・waitedDays）。Waiting で、回答予定日が today より前、
  * または回答予定日が無く待ち始めから settings.waitingLongDays（既定 7）日以上のもの。待ち始めが無く予定日も無いものは入れない。
@@ -1623,7 +1620,7 @@ function chaseTasks(data, today) {
   return rows.sort((a, b) => (b.lapsedDays ?? -1) - (a.lapsedDays ?? -1) || (a.lapsedDays == null ? b.waitedDays - a.waitedDays : 0) || a.task.id.localeCompare(b.task.id));
 }
 
-return { mondayOf, setReview, weekTasks, todayTasks, weekSummary, chaseTasks };
+return { mondayOf, weekTasks, rangeTasks, progressByProject, todayTasks, chaseTasks };
 })();
 
 /* src/core/impact.js */
@@ -3965,8 +3962,8 @@ return { assignLevels, layoutMilestones, renderGantt };
 })();
 
 /* src/ui/views/workload.js */
-const { weekReviewHtml, renderWorkload, shiftWorkloadDate } = (() => {
-// 「稼働」画面: 期間（日・週・月）ごとに、プロジェクト別のタスク（実績の作業枠）と会議（確認済み・参加するもの）の時間を見せる。末尾に、表示中の日を含む週の見返し（weekSummary）。気づきの保存の結線は app.js（data-tdnote）。
+const { renderWorkload, shiftWorkloadDate } = (() => {
+// 「稼働」画面: 期間（日・週・月）ごとに、プロジェクト別のタスク（実績の作業枠）と会議（確認済み・参加するもの）の時間を見せる。プロジェクト別に、期間のタスクの完了と進捗（rangeTasks・progressByProject）も出し、末尾に期間のタスクの表を置く。
 
 
 
@@ -3974,21 +3971,9 @@ const { weekReviewHtml, renderWorkload, shiftWorkloadDate } = (() => {
 
 const h = (v) => `${v.toFixed(1)}h`;
 
-/** 週の見返し（weekStart は週の月曜日）: 完了の件数・予定と実績の分・タスクごとの表・気づきの欄 */
-function weekReviewHtml(data, today, weekStart) {
-  const rv = weekSummary(data, weekStart, today);
-  const progress = (r) => (r.checked ? `${r.checked.done}/${r.checked.total}` : "—");
-  const trs = rv.rows.map((r) => `<tr><td>${esc(r.task.title)}</td><td class="num mono">${progress(r)}</td><td class="num mono">${r.planned} 分</td><td class="num mono">${r.actual} 分</td></tr>`).join("");
-  return `<section class="tdreview panel" aria-label="週の見返し"><h2>週の見返し（${fmtMD(weekStart)}〜${fmtMD(addDays(weekStart, 6))}）</h2>
-      <p class="td-sum"><b>完了 ${rv.done} / ${rv.total} 件</b>　予定 ${rv.planned} 分に対して実績 ${rv.actual} 分</p>
-      <div class="tscroll"><table class="tbl"><thead><tr><th>タスク</th><th class="num">進捗</th><th class="num">予定</th><th class="num">実績</th></tr></thead><tbody>${trs}</tbody></table></div>
-      <label class="td-note">気づき<textarea class="in" rows="3" data-tdnote="${esc(weekStart)}">${esc(rv.note)}</textarea></label>
-    </section>`;
-}
-
 /**
  * @param opts.period "day" | "week" | "month"
- * @param opts.date   表示する日（その日・その日を含む週・月）。週の見返しは、期間によらず、この日を含む週
+ * @param opts.date   表示する日（その日・その日を含む週・月）
  * @param opts.now    {date, time} 未確認の件数を数えるための現在時刻
  */
 function renderWorkload(data, today, opts = {}) {
@@ -4006,9 +3991,22 @@ function renderWorkload(data, today, opts = {}) {
     const tp = total ? (task / total) * 100 : 0;
     return `<div class="wl-bar" style="width:${width.toFixed(1)}%"><i class="t" style="width:${tp.toFixed(1)}%"></i><i class="m" style="width:${(100 - tp).toFixed(1)}%"></i></div>`;
   };
-  const rows = w.rows.map((r) => `<tr><td>${esc(data.projects.find((p) => p.id === r.projectId)?.name ?? r.projectId)}</td><td class="num mono">${h(r.task)}</td><td class="num mono">${h(r.meeting)}</td><td class="num mono"><b>${h(r.total)}</b></td><td>${bar(r.task, r.meeting)}</td></tr>`).join("");
-  const un = unTotal > 0
-    ? `<tr class="muted"><td>プロジェクト未設定</td><td class="num mono">${h(w.unassigned.task)}</td><td class="num mono">${h(w.unassigned.meeting)}</td><td class="num mono"><b>${h(unTotal)}</b></td><td>${bar(w.unassigned.task, w.unassigned.meeting).replace('class="wl-bar"', 'class="wl-bar un"')}</td></tr>`
+  const ids = new Set(data.projects.map((p) => p.id));
+  const taskRows = rangeTasks(data, range, today);
+  const prog = progressByProject(taskRows);
+  const unProg = { done: 0, total: 0 }; // プロジェクト未設定（null・存在しない）は、workload() の unassigned と同じく 1 行に寄せる
+  for (const [id, p] of prog) if (!ids.has(id)) { unProg.done += p.done; unProg.total += p.total; }
+  const sumProg = { done: taskRows.filter((r) => r.task.status === "Done").length, total: taskRows.length };
+  const progCells = ({ done, total }) => total
+    ? `<td class="num mono">${done} / ${total} 件</td><td><div class="wl-prog"><i style="width:${((done / total) * 100).toFixed(1)}%"></i></div></td>`
+    : `<td class="num mono">—</td><td></td>`;
+  const projName = (id) => data.projects.find((p) => p.id === id)?.name ?? "プロジェクトなし";
+  const tasksTbl = taskRows.length
+    ? `<div class="tscroll"><table class="tbl"><thead><tr><th>プロジェクト</th><th>タスク</th><th class="num">進捗</th><th class="num">予定</th><th class="num">実績</th></tr></thead><tbody>${taskRows.map((r) => `<tr><td>${esc(projName(r.task.projectId))}</td><td>${esc(r.task.title)}</td><td class="num mono">${r.checked ? `${r.checked.done}/${r.checked.total}` : "—"}</td><td class="num mono">${r.planned} 分</td><td class="num mono">${r.actual} 分</td></tr>`).join("")}</tbody></table></div>`
+    : `<p class="muted">この期間のタスクはありません。</p>`;
+  const rows = w.rows.map((r) => `<tr><td>${esc(data.projects.find((p) => p.id === r.projectId)?.name ?? r.projectId)}</td><td class="num mono">${h(r.task)}</td><td class="num mono">${h(r.meeting)}</td><td class="num mono"><b>${h(r.total)}</b></td><td>${bar(r.task, r.meeting)}</td>${progCells(prog.get(r.projectId) ?? { done: 0, total: 0 })}</tr>`).join("");
+  const un = unTotal > 0 || unProg.total > 0
+    ? `<tr class="muted"><td>プロジェクト未設定</td><td class="num mono">${h(w.unassigned.task)}</td><td class="num mono">${h(w.unassigned.meeting)}</td><td class="num mono"><b>${h(unTotal)}</b></td><td>${bar(w.unassigned.task, w.unassigned.meeting).replace('class="wl-bar"', 'class="wl-bar un"')}</td>${progCells(unProg)}</tr>`
     : "";
   const sumTask = w.rows.reduce((a, r) => a + r.task, 0) + w.unassigned.task;
   const sumMtg = w.rows.reduce((a, r) => a + r.meeting, 0) + w.unassigned.meeting;
@@ -4021,11 +4019,12 @@ function renderWorkload(data, today, opts = {}) {
       <div class="seg" role="group" aria-label="期間"><button data-wperiod="day" aria-pressed="${period === "day"}">日</button><button data-wperiod="week" aria-pressed="${period === "week"}">週</button><button data-wperiod="month" aria-pressed="${period === "month"}">月</button></div></div>
     <div class="legend"><span><i class="sw wl-t"></i>タスク（実績の作業枠）</span><span><i class="sw wl-m"></i>会議（確認済み・参加するもの）</span></div>
     ${none}
-    <div class="tscroll"><table class="tbl wl-tbl"><thead><tr><th>プロジェクト</th><th class="num">タスク</th><th class="num">会議</th><th class="num">合計</th><th>内訳</th></tr></thead><tbody>${rows}${un}</tbody>
-      <tfoot><tr><td>合計</td><td class="num mono">${h(sumTask)}</td><td class="num mono">${h(sumMtg)}</td><td class="num mono">${h(w.total)}</td><td></td></tr></tfoot></table></div>
+    <div class="tscroll"><table class="tbl wl-tbl"><thead><tr><th>プロジェクト</th><th class="num">タスク</th><th class="num">会議</th><th class="num">合計</th><th>内訳</th><th class="num">完了</th><th>進捗</th></tr></thead><tbody>${rows}${un}</tbody>
+      <tfoot><tr><td>合計</td><td class="num mono">${h(sumTask)}</td><td class="num mono">${h(sumMtg)}</td><td class="num mono">${h(w.total)}</td><td></td>${progCells(sumProg)}</tr></tfoot></table></div>
     ${note}
-  </section>
-  ${weekReviewHtml(data, today, mondayOf(date))}`;
+    <h2>タスク</h2>
+    ${tasksTbl}
+  </section>`;
 }
 
 /** 期間を 1 つ前後へ動かした日（日は 1 日、週は 7 日、月は 1 か月） */
@@ -4037,7 +4036,7 @@ function shiftWorkloadDate(period, date, dir) {
   return `${String(Math.floor(t / 12)).padStart(4, "0")}-${String((t % 12) + 1).padStart(2, "0")}-01`;
 }
 
-return { weekReviewHtml, renderWorkload, shiftWorkloadDate };
+return { renderWorkload, shiftWorkloadDate };
 })();
 
 /* src/ui/views/settings.js */
@@ -4353,13 +4352,13 @@ const { predEditHtml, startInputHtml, taskFieldHtml, renderTaskPop, renderTaskEd
 
 
 
-/** 前のタスクの外し方（×）と足し方（選択）。リストの編集欄と共用。ids が false なら ID を出さず件名で出す（スケジュールの編集欄） */
+/** 前のタスクの足し方（選択。上）と外し方（選んだ札の ×。下）。リストの編集欄と共用。ids が false なら ID を出さず件名で出す（スケジュールの編集欄） */
 function predEditHtml(data, t, { ids = true } = {}) {
   const label = (id) => (ids ? id : data.tasks.find((u) => u.id === id)?.title ?? id);
   const chips = (t.predecessors ?? []).map((id) => `<span class="chip">${esc(label(id))}<button data-rmpre="${esc(t.id)}|${esc(id)}" aria-label="${esc(id)} を前のタスクから外す">×</button></span>`).join("");
   const cand = predecessorCandidates(data, t.id).map((id) => data.tasks.find((u) => u.id === id));
   const add = cand.length ? `<select class="in sm" data-addpre="${esc(t.id)}" aria-label="前のタスクを追加"><option value="">＋前のタスク</option>${cand.map((u) => `<option value="${esc(u.id)}">${ids ? `${esc(u.id)} ` : ""}${esc(u.title)}</option>`).join("")}</select>` : "";
-  return `<div class="chips">${chips}${add}</div>`;
+  return `<div class="chips pred">${add}${chips ? `<div class="chips">${chips}</div>` : ""}</div>`; // 選ぶ欄が上、選んだ前のタスクの札は、その下
 }
 
 /** 開始日の入力。指定がなく前のタスクがあるときは、前のタスクの期限から決まる日を入れて「前のタスクから」と添える（空にすると指定を外す） */
@@ -4370,7 +4369,7 @@ function startInputHtml(data, t) {
 }
 
 /**
- * 編集の項目 1 つの入力部分（ラベルは含まない）。窓とスケジュールの編集欄が共用する。リストの「詳細」の行も、繰り返しに使う。
+ * 編集の項目 1 つの入力部分（ラベルは含まない）。窓とスケジュールの編集欄が共用する。リストの「繰り返し」の列も使う。
  * name = title|projectId|start|due|important|memo|party|expected|repeat。party・expected は状態が Waiting のときだけ（expected は待ち先が空なら disabled）。
  * ids が false なら、aria-label に ID を出さない（スケジュールの編集欄）
  */
@@ -4389,7 +4388,7 @@ function taskFieldHtml(data, t, name, { ids = true } = {}) {
     case "memo": return `<input class="in" ${attrs} value="${esc(t.memo ?? "")}" placeholder="メモ">`;
     case "party": return t.status === "Waiting" ? `<input class="in" ${attrs} value="${esc(t.waitingOn?.party ?? "")}" placeholder="ベンダー・部署名"${ids ? ` aria-label="${id} の待ち先"` : ""}>` : "";
     case "expected": return t.status === "Waiting" ? dateInputHtml({ value: t.waitingOn?.expected ?? "", cls: "in sm", attrs: `${attrs} title="回答予定日" ${t.waitingOn?.party ? "" : "disabled"}${ids ? ` aria-label="${id} の回答予定日"` : ""}`, label: "回答予定日" }) : "";
-    case "repeat": return `<select class="in sm" ${attrs}><option value="">なし</option><option value="week" ${t.repeat?.unit === "week" ? "selected" : ""}>毎週</option><option value="month" ${t.repeat?.unit === "month" ? "selected" : ""}>毎月${t.repeat?.unit === "month" ? `（${esc(t.repeat.day)} 日）` : ""}</option></select>`;
+    case "repeat": return `<select class="in sm" ${attrs}${ids ? ` aria-label="${id} の繰り返し"` : ""}><option value="">なし</option><option value="week" ${t.repeat?.unit === "week" ? "selected" : ""}>毎週</option><option value="month" ${t.repeat?.unit === "month" ? "selected" : ""}>毎月${t.repeat?.unit === "month" ? `（${esc(t.repeat.day)} 日）` : ""}</option></select>`;
   }
   throw new Error(`taskFieldHtml: 知らない項目 ${name}`);
 }
@@ -4511,8 +4510,7 @@ function checkCell(t, opts) {
   const { total, done } = checklistCount(t);
   const open = !!opts.checkOpen?.has(t.id);
   const label = total ? `${open ? "▾" : "▸"} ${done}/${total}` : "＋ 追加";
-  const detailOpen = !!opts.detailOpen?.has(t.id);
-  return `<button class="ck-toggle${total ? "" : " ck-empty"}" data-cktoggle="${esc(t.id)}" aria-expanded="${open}" aria-label="${esc(t.id)} のチェックリスト">${label}</button> <button class="ck-toggle ck-empty" data-detailtoggle="${esc(t.id)}" aria-expanded="${detailOpen}" aria-label="${esc(t.id)} の詳細">${detailOpen ? "▾" : "▸"} 詳細</button>`;
+  return `<button class="ck-toggle${total ? "" : " ck-empty"}" data-cktoggle="${esc(t.id)}" aria-expanded="${open}" aria-label="${esc(t.id)} のチェックリスト">${label}</button>`;
 }
 
 function renderList(data, p, today, opts) {
@@ -4520,14 +4518,15 @@ function renderList(data, p, today, opts) {
   const prog = none ? null : projectProgress(data, p.id);
   const tasks = data.tasks.filter((t) => t.projectId === p.id);
   const labels = groupLabels(data.settings);
-  const heads = ["ID", labels.group, labels.subgroup, "件名", "プロジェクト", "状態", "開始", "期限", "前のタスク", "待ち先", "重要", "メモ", "チェック", ""];
+  const heads = ["ID", labels.group, labels.subgroup, "件名", "プロジェクト", "状態", "開始", "期限", "繰り返し", "前のタスク", "待ち先", "重要", "メモ", "チェック", ""];
   const cols = heads.length; // 全幅の行（グループ・チェックリスト・確認）の colspan
   const rowOf = (t) => {
     const needParty = t.status === "Waiting" && !t.waitingOn?.party ? `<span class="pill wait">待ち先を入力</span>` : "";
     const dependents = data.tasks.filter((o) => (o.predecessors ?? []).includes(t.id)).map((o) => o.id);
-    const delCell = opts.askDel === t.id
-      ? `<div class="ask">${dependents.length ? `次のタスク ${esc(dependents.join(", "))} の前のタスクから外れます。` : "このタスクを削除します。"}<div style="display:flex;gap:6px;margin-top:4px"><button class="btn danger" data-delyes="${esc(t.id)}">削除する</button><button class="btn" data-delno>やめる</button></div></div>`
-      : `<button class="btn" data-del="${esc(t.id)}" aria-label="${esc(t.id)} を削除">削除</button>`;
+    const delAsk = opts.askDel === t.id
+      ? `<div class="ask" style="max-width:none">${dependents.length ? `次のタスク ${esc(dependents.join(", "))} の前のタスクから外れます。` : "このタスクを削除します。"}<div style="display:flex;gap:6px;margin-top:4px"><button class="btn danger" data-delyes="${esc(t.id)}">削除する</button><button class="btn" data-delno>やめる</button></div></div>`
+      : "";
+    const delCell = `<button class="btn" data-del="${esc(t.id)}" aria-label="${esc(t.id)} を削除">削除</button>`; // 確認は、狭い欄に入れず、全幅の行（askrow）に出す
     const late = taskFlags(t, today, data.settings).includes("overdue");
     return `<tr${isImportantMark(t) ? ' class="imp"' : ""} data-row="${esc(t.id)}" data-mvrow="${esc(t.id)}"><td class="id" data-l="ID"><span class="mv" draggable="true" data-mvh="${esc(t.id)}" title="ドラッグで並べ替え" aria-label="${esc(t.id)} を並べ替え">⠿</span>${esc(t.id)}${t.repeat ? ` <span class="muted" title="${t.repeat.unit === "week" ? "毎週" : `毎月 ${esc(t.repeat.day)} 日`}の定例（完了で次回を作ります）" aria-label="定例">↻</span>` : ""}</td>
       <td data-l="${esc(labels.group)}"><input class="in gi" data-f="group" data-id="${esc(t.id)}" value="${esc(t.group ?? "")}" aria-label="${esc(t.id)} の${esc(labels.group)}"></td>
@@ -4537,12 +4536,13 @@ function renderList(data, p, today, opts) {
       <td data-l="状態">${statusCellHtml(t, opts, late, { inline: false })}</td>
       <td data-l="開始">${startInputHtml(data, t)}</td>
       <td data-l="期限">${dateInputHtml({ value: t.due, attrs: `data-f="due" data-id="${esc(t.id)}" aria-label="${esc(t.id)} の期限"`, label: "期限" })}</td>
+      <td data-l="繰り返し">${taskFieldHtml(data, t, "repeat")}</td>
       <td data-l="前のタスク">${predEditHtml(data, t)}</td>
       <td data-l="待ち先"><input class="in" data-f="party" data-id="${esc(t.id)}" value="${esc(t.waitingOn?.party ?? "")}" placeholder="${t.status === "Waiting" ? "ベンダー・部署名" : "—"}" ${t.status === "Waiting" ? "" : "disabled"} aria-label="${esc(t.id)} の待ち先">${needParty}${dateInputHtml({ value: t.waitingOn?.expected ?? "", cls: "in sm", attrs: `data-f="expected" data-id="${esc(t.id)}" title="回答予定日" ${t.status === "Waiting" && t.waitingOn?.party ? "" : "disabled"} aria-label="${esc(t.id)} の回答予定日"`, label: "回答予定日" })}</td>
       <td data-l="重要"><input type="checkbox" data-f="important" data-id="${esc(t.id)}" ${t.important === true ? "checked" : ""} aria-label="${esc(t.id)} を重要にする"></td>
       <td data-l="メモ"><input class="in" data-f="memo" data-id="${esc(t.id)}" value="${esc(t.memo ?? "")}" placeholder="メモ" aria-label="${esc(t.id)} のメモ"></td>
       <td data-l="チェック">${checkCell(t, opts)}</td>
-      <td data-l="">${delCell}</td></tr>${(() => { const ask = askHtml(t, opts); return ask ? `<tr class="askrow"><td colspan="${cols}"><div class="askwrap">${ask}</div></td></tr>` : ""; })()}${opts.checkOpen?.has(t.id) ? `<tr class="ck-tr" data-ckpanel="${esc(t.id)}"><td colspan="${cols}">${checklistEditorHtml(t)}</td></tr>` : ""}${opts.detailOpen?.has(t.id) ? `<tr class="ck-tr" data-detailpanel="${esc(t.id)}"><td colspan="${cols}"><div class="askwrap"><label>繰り返し ${taskFieldHtml(data, t, "repeat")}</label> <span class="muted">完了すると、次回のタスクを作ります</span></div></td></tr>` : ""}`;
+      <td data-l="">${delCell}</td></tr>${(() => { const ask = askHtml(t, opts) + delAsk; return ask ? `<tr class="askrow"><td colspan="${cols}"><div class="askwrap">${ask}</div></td></tr>` : ""; })()}${opts.checkOpen?.has(t.id) ? `<tr class="ck-tr" data-ckpanel="${esc(t.id)}"><td colspan="${cols}">${checklistEditorHtml(t)}</td></tr>` : ""}`;
   };
   // (大項目, 中項目) ごとに見出し行を入れて並べる。「＋」はそのグループへ追加する入口なので、0 件でも「（なし）」を出す
   const secs = groupSections(tasks, { ensureNone: !none });
@@ -5334,7 +5334,7 @@ const S = {
   data: null, openError: "",
   screen: "gantt",
   filter: "all", gwin: "m6", hideDone: false,
-  askDel: null, askDelProject: null, pendingWait: null, pendingDone: null, checkOpen: new Set(), detailOpen: new Set(),
+  askDel: null, askDelProject: null, pendingWait: null, pendingDone: null, checkOpen: new Set(),
   sview: "week", sdate: clock().date, selSess: null, selMtg: null, mtgDraft: null, urgentDraft: null, fileInfo: null, chosenFiles: null, actAdd: null, actDraft: null, taskEdit: null,
   prefs: loadPrefs(), settingsClosed: loadSettingsClosed(), tpop: null, addAt: null, last: null, ruleError: "",
   ib: { open: false, text: loadInboxDraft(), projectId: "", replies: {}, reasons: {}, causes: {} },
@@ -5379,7 +5379,7 @@ function renderBody() {
   const { date: today } = clock();
   if (!S.data) return startScreen();
   if (S.screen === "gantt" || S.screen === "list") {
-    return renderProjects(S.data, today, { filter: S.filter, view: S.screen, window: S.gwin, hideDone: S.hideDone, askDel: S.askDel, askDelProject: S.askDelProject, pendingWait: S.pendingWait, pendingDone: S.pendingDone, checkOpen: S.checkOpen, detailOpen: S.detailOpen, addAt: S.addAt, tpop: S.screen === "gantt" ? S.tpop : null, showPrio: S.prefs.showPrio, showActual: S.prefs.showActual, now: clock() });
+    return renderProjects(S.data, today, { filter: S.filter, view: S.screen, window: S.gwin, hideDone: S.hideDone, askDel: S.askDel, askDelProject: S.askDelProject, pendingWait: S.pendingWait, pendingDone: S.pendingDone, checkOpen: S.checkOpen, addAt: S.addAt, tpop: S.screen === "gantt" ? S.tpop : null, showPrio: S.prefs.showPrio, showActual: S.prefs.showActual, now: clock() });
   }
   if (S.screen === "settings") return renderSettings(S.data, today, { ruleError: S.ruleError, closed: S.settingsClosed });
   if (S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, col: S.tdCol, draft: S.tdDraft, plan: S.tdPlan, chase: S.tdChase, urgentDraft: S.urgentDraft });
@@ -5495,7 +5495,6 @@ function focusSelector(el) {
   if (d.pref) return `[data-pref="${CSS.escape(d.pref)}"]`; // 右の列の取っ手
   if (d.sdue !== undefined) return "[data-sdue]"; // 週表示の期限の行の開閉
   if (d.set) return q("data-set", d.set);
-  if (d.detailtoggle) return q("data-detailtoggle", d.detailtoggle);
   // 規則の欄は、書き換えるとキーワードが変わるので、行の位置（data-ri。書き換えても並びは変わらない）で探す
   if (d.rkw !== undefined) return `[data-rkw][data-ri="${CSS.escape(d.ri)}"]`;
   if (d.rpj !== undefined) return `[data-rpj][data-ri="${CSS.escape(d.ri)}"]`;
@@ -5504,7 +5503,7 @@ function focusSelector(el) {
   if (d.rnewpj !== undefined) return "[data-rnewpj]";
   if (d.waitparty) return q("data-waitparty", d.waitparty);
   if (d.ug) return q("data-ug", d.ug); // 突発タスクの欄（読み直しで待たせた描き直しが、欄を移ったときに走る）
-  for (const k of ["tdnote", "tf", "tdckadd", "tp", "ch"]) if (d[k] !== undefined) return q(`data-${k}`, d[k]); // ToDo 画面の欄（tf・tdckadd・tp）と、稼働画面の週の見返しの気づき（tdnote）
+  for (const k of ["tf", "tdckadd", "tp", "ch"]) if (d[k] !== undefined) return q(`data-${k}`, d[k]); // ToDo 画面の欄（完了・今日へ・催促）
   return null;
 }
 
@@ -5625,7 +5624,6 @@ function loaded(data) {
   S.data = data;
   S.tpop = null;
   S.checkOpen = new Set();
-  S.detailOpen = new Set();
   sync.reset();
   S.ruleError = "";
   S.openError = "";
@@ -5869,8 +5867,6 @@ view.addEventListener("click", (e) => {
   if (q("[data-tpopclose]")) { S.tpop = null; render(); return; }
   const ckt = q("[data-cktoggle]");
   if (ckt) { const id = ckt.dataset.cktoggle; if (S.checkOpen.has(id)) S.checkOpen.delete(id); else S.checkOpen.add(id); render(); return; }
-  const dtl = q("[data-detailtoggle]");
-  if (dtl) { const id = dtl.dataset.detailtoggle; if (S.detailOpen.has(id)) S.detailOpen.delete(id); else S.detailOpen.add(id); render(); return; }
   const ckd = q("[data-ckdel]");
   if (ckd) { const [tid, iid] = ckd.dataset.ckdel.split("|"); apply((d) => removeChecklistItem(d, tid, iid)); return; }
   const ge = q("[data-gedit]");
@@ -6342,7 +6338,6 @@ function onChange(el) {
     if (key && key === S.tdChase?.key) S.tdChase = tdChaseDraft(form, key, S.tdChase.mode);
     return;
   }
-  if (el.dataset.tdnote !== undefined) { const wk = el.dataset.tdnote, text = el.value.trim(); apply((d) => setReview(d, wk, text), "気づきを保存しました"); return; }
   if (el.dataset.mt) {
     const f = el.dataset.mt, v = f === "skip" ? el.checked : el.value;
     const m = S.mtgDraft ?? S.data.events.find((o) => o.id === S.selMtg);
