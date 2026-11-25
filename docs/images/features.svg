@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 334" font-family="'Yu Gothic','Meiryo','Hiragino Sans',sans-serif" role="img" aria-labelledby="t d">
   <title id="t">project-lens の機能</title>
-  <desc id="d">5 つの機能。一覧と優先は、進捗を見て、今日やる順を点数で並べ、重要の印を付けられる。日程の調整は、バーのドラッグか依頼の帯で行う。突発タスクは、画面上部の「＋ 突発タスク」から、日付と開始を選んで、タスクと作業枠を作る。取り込みは、Excel の WBS と予定表の会議を入れる。スケジュールと稼働は、タスクをドラッグで時間枠に置き、「実績を保存」で記録し、日・週・月の稼働を集計する。データは、全員で使う共有ファイル（data.json）と、各自の個人ファイル（personal.json）の 2 つ。</desc>
+  <desc id="d">5 つの機能。一覧と優先は、進捗を見て、今日やる順を点数で並べ、重要の印を付けられる。ToDo タブでは、今日の枠があるタスクと今週の候補を並べ、回答予定日を過ぎた Waiting の催促も出す。日程の調整は、バーのドラッグか依頼の帯で行う。突発タスクは、画面上部の「＋ 突発タスク」から、日付と開始を選んで、タスクと作業枠を作る。取り込みは、Excel の WBS と予定表の会議を入れる。スケジュールと稼働は、タスクをドラッグで時間枠に置き、「実績を保存」で記録し、日・週・月の稼働と、タスクの完了・進捗を集計する。データは、全員で使う共有ファイル（data.json）と、各自の個人ファイル（personal.json）の 2 つ。</desc>
   <defs>
     <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#334155"/>
@@ -17,7 +17,7 @@
   <text x="80" y="164" text-anchor="middle" font-size="14" fill="#0c4a6e">進捗を 1 枚で見る</text>
   <text x="80" y="186" text-anchor="middle" font-size="14" fill="#0c4a6e">今日やる順を</text>
   <text x="80" y="208" text-anchor="middle" font-size="14" fill="#0c4a6e">点数で並べる</text>
-  <text x="80" y="230" text-anchor="middle" font-size="14" fill="#0c4a6e">重要の印も付ける</text>
+  <text x="80" y="230" text-anchor="middle" font-size="14" fill="#0c4a6e">重要・催促も出す</text>
 
   <rect x="167" y="10" width="146" height="230" rx="10" fill="#fef9c3" stroke="#a16207" stroke-width="2"/>
   <rect x="205" y="56" width="70" height="16" rx="3" fill="#a16207"/>
@@ -57,7 +57,7 @@
   <text x="720" y="166" text-anchor="middle" font-size="14" fill="#1e293b">ドラッグで枠に置く</text>
   <text x="720" y="186" text-anchor="middle" font-size="14" fill="#1e293b">実績を入れて記録する</text>
   <text x="720" y="206" text-anchor="middle" font-size="14" fill="#1e293b">稼働を日・週・月で</text>
-  <text x="720" y="226" text-anchor="middle" font-size="14" fill="#1e293b">集計する</text>
+  <text x="720" y="226" text-anchor="middle" font-size="14" fill="#1e293b">進捗も合わせて集計</text>
   <rect x="7" y="254" width="786" height="72" rx="10" fill="#ffffff" stroke="#475569" stroke-width="2"/>
   <text x="80" y="286" text-anchor="middle" font-size="15" font-weight="bold" fill="#1e293b">データは</text>
   <text x="80" y="306" text-anchor="middle" font-size="15" font-weight="bold" fill="#1e293b">2 つのファイル</text>
