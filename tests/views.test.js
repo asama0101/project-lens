@@ -2435,7 +2435,8 @@ test("renderTodo: 別の週を見ても、候補の並びは今日の点数の�
   d.tasks.push(tdTask("AA-0006", { title: "来週のタスク", due: "2026-10-27" }));
   const html = tdHtml(d, { week: "2026-10-26" }), list = tdList(html);
   assert.ok(list.includes('data-tdrow="AA-0006"') && !list.includes("<h3>期限超過</h3>"));
-  const ids = [...list.matchAll(/data-tdrow="(AA-d+)"/g)].map((m) => m[1]);
+  const ids = [...list.matchAll(/data-tdrow="(AA-\d+)"/g)].map((m) => m[1]);
+  assert.ok(ids.length >= 2 && ids.includes("AA-0006") && ids.includes("AA-0001"), ids.join(","));
   const rank = rankTasks(d, TODAY).map((r) => r.taskId);
   assert.deepEqual(ids, rank.filter((id) => ids.includes(id)));
 });
