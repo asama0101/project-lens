@@ -434,7 +434,7 @@ test("app.js: 突発タスクの入力欄は、ヘッダーのボタンからだ
   for (const s of ["data-free", "freedate", "snapFreeStart"]) assert.ok(!src.includes(s), s);
   assert.ok(src.includes("addUrgentTask(d,"));
   assert.ok(src.includes('e.key === "Enter" && !e.isComposing && e.target.matches("[data-ug=\\"title\\"]")'));
-  assert.match(src, /e\.key === "Escape" && S\.screen === "schedule" && \([^)]*S\.urgentDraft/);
+  assert.match(src, /e\.key === "Escape" && \(S\.screen === "schedule" \|\| S\.screen === "todo"\) && \([^)]*S\.urgentDraft/);
 });
 
 test("app.js: タスクを押して選ぶ状態（S.picked・data-pick・body.picking）を持たない。右の列の行は data-dragtask でドラッグする", () => {
@@ -469,8 +469,7 @@ test("theme.css: 重要のバッジは 12px の太字、角の丸い帯（pill�
 
 test("app.js: ヘッダーの「＋ 突発タスク」は、clearSel() で選択を外し、スケジュール画面へ移り、urgentDefaultStart で開始を決めて件名にフォーカスする", () => {
   assert.ok(src.includes("data-urgent-open") && src.includes("＋ 突発タスク"));
-  const h = src.slice(src.indexOf('e.target.closest("[data-urgent-open]")'));
-  const body = h.slice(0, 900);
+  const body = src.slice(src.indexOf("function openUrgent()"), src.indexOf('$("filebar").addEventListener("click"'));
   assert.match(body, /clearSel\(\)/);
   assert.match(body, /S\.screen = "schedule"/);
   assert.match(body, /urgentDefaultStart\(date, clock\(\)\)/);
@@ -587,7 +586,7 @@ test("app.js: 作業枠を押して選ぶと（selectSession）、そのタス�
 
 test("app.js: 実績のブロック（data-actbar）・枠の影（data-ghost）の押下は、data-dragsess と同じ選択の処理に入る（欄外のクリックで外さない）。ドラッグ・下端のサイズ変更には入れない", () => {
   assert.ok(src.includes('const sb = q("[data-dragsess],[data-actbar],[data-ghost]");'));
-  assert.match(src, /!q\("\[data-dragsess\],\[data-actbar\],\[data-ghost\],\[data-mtg\],\[data-mact\],\[data-mghost\],/);
+  assert.match(src, /!q\("\[data-urgent-open\],\[data-dragsess\],\[data-actbar\],\[data-ghost\],\[data-mtg\],\[data-mact\],\[data-mghost\],/);
   const dragLine = src.split("\n").find((l) => l.includes('e.target.closest("[data-dragtask]")'));
   assert.ok(dragLine && !/actbar|ghost|mact/.test(dragLine), dragLine);
   const rzLine = src.split("\n").find((l) => l.includes('e.target.closest("[data-rz],[data-rzm]")'));
@@ -795,14 +794,14 @@ test("ToDo タブ: index.html のタブ（スケジュールと稼働の間）�
   assert.ok(html.indexOf('id="tab-schedule"') < html.indexOf('id="tab-todo"') && html.indexOf('id="tab-todo"') < html.indexOf('id="tab-workload"'));
   assert.ok(src.includes("S.screen = b.id.slice(4)"), "tab-todo のクリックで S.screen が todo になる");
   const body = src.slice(src.indexOf("function renderBody()"), src.indexOf("function placeTaskPop"));
-  assert.ok(body.includes('S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, col: S.tdCol, draft: S.tdDraft });'), body);
+  assert.ok(body.includes('S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, col: S.tdCol, draft: S.tdDraft, plan: S.tdPlan, urgentDraft: S.urgentDraft });'), body);
   const build = readFileSync(new URL("../plugins/project-lens/tools/build.js", import.meta.url), "utf8");
   assert.ok(build.indexOf('"src/ui/views/schedule.js"') < build.indexOf('"src/ui/views/todo.js"'));
 });
 
 test("ToDo タブ: 古い ToDo の状態・ハンドラ・関数は無い", () => {
   for (const s of ["todoDay", "tdAct", "tdAskDel", "renderTodayTodos", "setTodoDay", "submitTodoInput", "deleteTodoNow", "data-tdnew", "data-tdday", "data-tdassign", "data-tdcarry", "data-tddel", "data-tdactsave", "dataset.tdone", "dataset.tdtitle", "dataset.tdcktoggle", "dataset.ta ", "addTodo(", "assignToDay(", "carryTodo(", "deleteTodo(", "ToDo）"]) assert.ok(!src.includes(s), s);
-  assert.ok(src.includes('for (const k of ["tdnote", "tf", "tdckadd"])'), "入力中の欄（読み直しで描き直さない・フォーカスを保つ）");
+  assert.ok(src.includes('for (const k of ["tdnote", "tf", "tdckadd", "tp"])'), "入力中の欄（読み直しで描き直さない・フォーカスを保つ）");
 });
 
 test("ToDo タブ: 入力欄の項目の追加（data-tdckadd の Enter。isComposing を除く）・削除（data-tdckdel）は、先に S.tdDraft へ写してから apply ですぐ保存する", () => {
@@ -877,4 +876,89 @@ test("app.js: 会議の実績を消す（data-mtgactclear）は clearMeetingActu
   const a = src.slice(i, i + 400);
   assert.ok(a.includes("apply((d) => clearMeetingActual(d, ") && a.includes("会議の実績を消しました") && a.includes("S.actDraft = null"), a);
   assert.ok(src.slice(src.indexOf("// 欄外のクリックで"), src.indexOf("// 欄外のクリックで") + 400).includes("[data-mtgactclear]"));
+});
+
+test("app.js: 突発タスクは ToDo タブで画面を移さずに登録できる", () => {
+  const i = src.indexOf("function openUrgent()");
+  assert.ok(i > 0);
+  const h = src.slice(i, src.indexOf('$("filebar").addEventListener("click"'));
+  assert.ok(/S\.screen !== "todo"/.test(h) || /S\.screen === "todo"/.test(h), "ToDo タブの分岐");
+  assert.match(h, /if \(S\.screen !== "todo"\) \{[^}]*S\.screen = "schedule"/, "移すのは ToDo タブ以外だけ");
+  const j = src.indexOf("function submitUrgent");
+  const s = src.slice(j, src.indexOf("\n}\n", j));
+  assert.match(s, /S\.screen !== "todo"/, "保存の成功は ToDo タブで S.sdate を変えない");
+  assert.ok(!/S\.screen = /.test(s), "保存は画面を移さない");
+  assert.match(src, /e\.key === "Escape" && \(S\.screen === "schedule" \|\| S\.screen === "todo"\)/);
+  const calls = [...src.matchAll(/renderTodo\([^\n]*/g)].map((m) => m[0]);
+  assert.ok(calls.length && calls.every((c) => c.includes("urgentDraft: S.urgentDraft")), calls.join("\n"));
+});
+
+test("ToDo タブ: 今日へ（data-tdplan）は S.tdPlan を開き（planDefault の初期値）、S.tdOpen を外す。完了（data-tdopen）は S.tdPlan を外す", () => {
+  assert.match(src, /tdDraft: null, tdPlan: null/);
+  const i = src.indexOf('const tdp = q("[data-tdplan]")'), h = src.slice(i, src.indexOf("return; }", i));
+  assert.ok(i > 0, "ハンドラ");
+  assert.match(h, /if \(S\.tdPlan\?\.key === id\) \{ S\.tdPlan = null; S\.focusSel = null; render\(\); \} else openPlan\(id\);/, "同じ行をもう一度押すと閉じる");
+  const j = src.indexOf("function openPlan(id)"), a = src.slice(j, src.indexOf("\n}", j));
+  assert.ok(j > 0, "開く処理（ボタンとドロップで共通）");
+  assert.ok(a.includes("planDefault(clock())") && a.includes("key: id"), a);
+  assert.ok(a.includes("S.tdOpen = null; S.tdCol = null; S.tdDraft = null;"), "完了の入力欄を閉じる");
+  assert.ok(a.includes(`S.focusSel = '[data-tp="start"]';`) && a.includes("render();"), a);
+  assert.match(src, /const tdo = q\("\[data-tdopen\]"\);\s*if \(tdo\) \{[^\n]*S\.tdDraft = null; S\.tdPlan = null;/);
+  assert.match(src, /q\("\[data-tdplancancel\]"\)\) \{ S\.tdPlan = null; render\(\); return; \}/);
+});
+
+test("ToDo タブ: 候補の行（data-tdrag）のドラッグ。dragstart で kind \"today\"、dragover は左の列（data-tddrop）の上だけ preventDefault と強調、drop で openPlan、dragend で強調を外す", () => {
+  const body = (ev) => { const i = src.indexOf(`view.addEventListener("${ev}"`); return src.slice(i, src.indexOf("\n});", i) + 4); };
+  const ds = body("dragstart");
+  assert.match(ds, /const tr = e\.target\.closest\("\[data-tdrag\]"\);[^\n]*\s*if \(tr\) \{ drag = \{ kind: "today", id: tr\.dataset\.tdrag \}; e\.dataTransfer\.setData\("text\/plain", drag\.id\); e\.dataTransfer\.effectAllowed = "copy"; return; \}/);
+  assert.ok(ds.indexOf("[data-tdrag]") < ds.indexOf("[data-ckmv]"), "既存の判定より先に抜ける");
+  const ov = body("dragover"), ot = ov.slice(ov.indexOf('if (drag?.kind === "today")'), ov.indexOf("return;", ov.indexOf('if (drag?.kind === "today")')));
+  assert.ok(ov.indexOf('drag?.kind === "today"') >= 0 && ov.indexOf('drag?.kind === "today"') < ov.indexOf('drag?.kind === "ckorder"'), "先に抜ける（.dz・ghost・showTip に進まない）");
+  assert.match(ot, /const z = e\.target\.closest\("\[data-tddrop\]"\);/);
+  assert.match(ot, /if \(z\) \{ e\.preventDefault\(\); e\.dataTransfer\.dropEffect = "copy"; \}/);
+  assert.match(ot, /classList\.toggle\("drop", !!z\)/);
+  const dr = body("drop"), dt = dr.slice(dr.indexOf('if (drag?.kind === "today")'), dr.indexOf("return;", dr.indexOf('if (drag?.kind === "today")')));
+  assert.ok(dr.indexOf('drag?.kind === "today"') >= 0 && dr.indexOf('drag?.kind === "today"') < dr.indexOf('drag?.kind === "ckorder"'), "先に抜ける");
+  assert.ok(dt.includes("clearTdDrop();") && dt.includes("drag = null;") && /if \(e\.target\.closest\("\[data-tddrop\]"\)\) openPlan\(id\);/.test(dt), dt);
+  assert.ok(body("dragend").includes("clearTdDrop();"));
+  assert.match(src, /const clearTdDrop = \(\) => view\.querySelector\("\[data-tddrop\]\.drop"\)\?\.classList\.remove\("drop"\);/);
+  assert.equal(src.split(" openPlan(id);").length, 3, "openPlan を使うのは、ボタンとドロップの 2 か所");
+});
+
+test("ToDo タブ: 既存のドラッグ（data-dragtask・data-dragsess・data-dragmtg・data-mvh・data-ckmv）の判定は data-tdrag に当たらない", () => {
+  const i = src.indexOf('view.addEventListener("dragstart"'), ds = src.slice(i, src.indexOf("\n});", i));
+  const sels = [...ds.matchAll(/closest\("([^"]+)"\)/g)].map((m) => m[1]).filter((s) => s !== "[data-tdrag]");
+  assert.ok(sels.length >= 5 && sels.every((s) => !s.includes("tdrag")), sels.join(" "));
+});
+
+test("ToDo タブ: 今日に入れる（data-tdplansave）は、先に S.tdPlan へ写してから addSession を apply する。成功のときだけ S.tdPlan を外して通知する", () => {
+  const i = src.indexOf('const tps = q("[data-tdplansave]")'), a = src.slice(i, src.indexOf('q("[data-tdplancancel]")', i));
+  assert.ok(i > 0, "ハンドラ");
+  const w = a.indexOf("S.tdPlan = tdPlanDraft("), ap = a.indexOf("addSession(d, id, { date: today, start, end })");
+  assert.ok(w > 0 && ap > w, "写すのが先");
+  assert.match(a, /end = toHHMM\(toMin\(start\) \+ minutes\)/);
+  assert.match(a, /if \(apply\(\(d\) => \{ r = addSession\(d, id, \{ date: today, start, end \}\); if \(r\.error\) throw new Error\(r\.error\); return r\.data; \}, null, \{ quiet: true \}\)\) \{\s*S\.tdPlan = null; render\(\);/);
+  assert.equal(a.split("S.tdPlan = null").length, 2, "外すのは成功のときだけ");
+  assert.ok(a.includes("を今日の ${start}–${end} に入れました") && a.includes("r.warning ? `（${r.warning}）`"), a);
+  assert.match(src, /function tdPlanDraft\(form, key\) \{[^]*?return \{ key, start: f\("start"\), minutes: \+f\("minutes"\) \};/);
+});
+
+test("ToDo タブ: S.tdPlan は clearSel・週の移動・render() の検証（タスクが無い）で外す。欄の change は S.tdPlan へ写す。フォーカスを保つ欄に tp", () => {
+  assert.match(src, /const clearSel = \(\) => \{[^\n]*S\.tdPlan = null;/);
+  assert.match(src, /function moveTodoWeek\(week\) \{[^}]*S\.tdPlan = null;/);
+  assert.ok(src.includes("if (S.tdPlan && !S.data?.tasks.some((t) => t.id === S.tdPlan.key)) S.tdPlan = null;"));
+  assert.ok(src.includes('if (el.dataset.tp !== undefined) {') && /key && key === S\.tdPlan\?\.key\) S\.tdPlan = tdPlanDraft\(form, key\)/.test(src));
+  assert.ok(src.includes('for (const k of ["tdnote", "tf", "tdckadd", "tp"])'));
+});
+
+test("app.js: 画面の中の「＋ 突発タスク」は、開くだけで、欄外クリックの下書き外しに消されない", () => {
+  assert.match(src, /!q\("\[data-urgent-open\],\[data-dragsess\]/, "欄外クリックの除外に入っている");
+  const v = src.slice(src.indexOf('view.addEventListener("click"'));
+  assert.ok(v.indexOf('q("[data-urgent-open]")') > 0 && v.indexOf('q("[data-urgent-open]")') < v.indexOf("let cleared = false"), "画面内のハンドラが、外す処理より先に開く");
+  assert.match(src, /function openUrgent\(\) \{\s*if \(S\.screen === "todo" && S\.urgentDraft\)/, "開いていれば、そのまま残す");
+});
+
+test("app.js: ヘッダーの「＋ 突発タスク」は、画面の外のクリックの下書き外し（キャプチャ段階）に消されない", () => {
+  const c = src.slice(src.indexOf('document.addEventListener("click"'));
+  assert.ok(c.slice(0, c.indexOf("}, true);")).includes('if (e.target.closest("[data-delsel],[data-urgent-open]")) return;'), "キャプチャ段階の除外に入っている（ToDo タブで、打った入力を残すため）");
 });

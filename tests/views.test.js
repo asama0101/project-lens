@@ -18,7 +18,7 @@ import { rankTasks } from "../plugins/project-lens/src/core/schedule.js";
 import { bannerHtml } from "../plugins/project-lens/src/ui/common.js";
 import { validate } from "../plugins/project-lens/src/core/schema.js";
 import { renderWorkload } from "../plugins/project-lens/src/ui/views/workload.js";
-import { renderTodo, completeInput } from "../plugins/project-lens/src/ui/views/todo.js";
+import { renderTodo, completeInput, planDefault } from "../plugins/project-lens/src/ui/views/todo.js";
 import { completeTask } from "../plugins/project-lens/src/ui/edit.js";
 
 
@@ -2585,4 +2585,69 @@ test("今日の強調: 週表示は今日の見出しだけ .dh.t・今日の列
   assert.ok(dayv(noSessions(), nowD("10:15")).includes('<strong class="dtt"'));
   assert.ok(!dayv(noSessions(), nowD("10:15"), { date: "2026-10-21" }).includes("dtt"));
   assert.ok(!wk(noSessions(), nowD("10:15"), { date: "2026-10-27" }).includes('class="dh t"'));
+});
+
+test("renderTodo: urgentDraft を渡すと左の列に突発タスクの入力欄が出る。渡さないと出ない。見出しの横に「＋ 突発タスク」", () => {
+  const d = load();
+  const draft = { date: TODAY, start: "13:00", title: "", projectId: "", minutes: 30 };
+  const html = tdHtml(d, { urgentDraft: draft });
+  const left = html.slice(html.indexOf('class="panel tdtoday"'), html.indexOf('class="panel tdweek"'));
+  assert.ok(left.includes('data-ug="title"') && left.includes("data-urgsave") && left.includes("data-urgcancel"));
+  assert.ok(!tdHtml(d, { urgentDraft: null }).includes("data-ug="));
+  assert.ok(!tdHtml(d).includes("data-ug="));
+  assert.ok(tdHtml(d).slice(0, tdHtml(d).indexOf('class="panel tdweek"')).includes("data-urgent-open"));
+  assert.ok(tdHtml(d).includes("＋ 突発タスク"));
+});
+
+test("renderTodo: 未完了の候補の行に「今日へ」（data-tdplan）。Done の行（完了の組）には出ない", () => {
+  const html = tdHtml(tdData());
+  for (const id of ["AA-0001", "AA-0002", "AA-0003"]) assert.ok(tdRow(html, id).includes(`data-tdplan="${id}"`), id);
+  assert.ok(!tdRow(html, "AA-0004").includes("data-tdplan"), "Done");
+  const d = tdData();
+  d.tasks.push(tdTask("AA-0006", { title: "中止の今週", status: "Cancelled", sessions: [{ id: "S6", date: "2026-10-21", start: "09:00", end: "10:00", kind: "planned" }] }));
+  assert.ok(!tdHtml(d).includes('data-tdplan="AA-0006"'), "Cancelled");
+});
+
+test("renderTodo: plan を渡すと、その行の下に、開始・長さ（15/30/45/60）・『今日に入れる』・『キャンセル』が出て、初期値が plan の値。ほかの行には出ない", () => {
+  const html = tdHtml(tdData(), { plan: { key: "AA-0001", start: "10:30", minutes: 45 } }), f = tdRow(html, "AA-0001");
+  assert.match(f, /<input class="in" type="time" step="900" data-tp="start" value="10:30">/);
+  const opts = [...f.matchAll(/<option value="(\d+)"( selected)?/g)].map((m) => m[1] + (m[2] ? "*" : ""));
+  assert.deepEqual(opts, ["15", "30", "45*", "60"]);
+  for (const a of ['data-tp="minutes"', 'data-tdplansave="AA-0001"', "data-tdplancancel", "今日に入れる", "キャンセル"]) assert.ok(f.includes(a), a);
+  assert.ok(f.indexOf("data-tdplan=") < f.indexOf('data-tp="start"'), "行の下");
+  assert.ok(f.includes('data-tdplan="AA-0001" aria-expanded="true"'), "開いた印");
+  assert.ok(!tdRow(html, "AA-0002").includes("data-tp="), "ほかの行");
+  assert.ok(!tdRow(tdHtml(tdData()), "AA-0001").includes("data-tp="), "plan が null");
+  assert.ok(!TASK_ID.test(visibleText(html)), visibleText(html).match(TASK_ID)?.[0]);
+});
+
+test("renderTodo: 左の『今日の ToDo』の行には「今日へ」も、その入力欄も出ない", () => {
+  const html = tdHtml(tdData(), { plan: { key: "AA-0002", start: "10:30", minutes: 60 } });
+  assert.ok(tdTodayRow(html, "AA-0002") && !tdTodayRow(html, "AA-0002").includes("data-tdplan") && !tdTodayRow(html, "AA-0002").includes("data-tp="));
+  assert.ok(tdRow(html, "AA-0002").includes('data-tp="start"'), "右には出る");
+  assert.equal(html.split('data-tdplansave="AA-0002"').length, 2, "入力欄は 1 つだけ");
+});
+
+test("renderTodo: 未完了の候補の行に draggable と data-tdrag。完了・中止の行、左の列の行、入力欄を開いた行には付かない。左の列がドロップ先（data-tddrop）", () => {
+  const d = tdData();
+  d.tasks.push(tdTask("AA-0006", { title: "中止の今週", status: "Cancelled", sessions: [{ id: "S6", date: "2026-10-21", start: "09:00", end: "10:00", kind: "planned" }] }));
+  const html = tdHtml(d);
+  for (const id of ["AA-0001", "AA-0002", "AA-0003"]) assert.ok(tdRow(html, id).startsWith(`<li class="td-row" draggable="true" data-tdrag="${id}"`), id);
+  assert.ok(!tdRow(html, "AA-0004").includes("draggable") && !tdRow(html, "AA-0004").includes("data-tdrag"), "Done");
+  assert.ok(!html.includes('data-tdrag="AA-0006"'), "Cancelled");
+  assert.ok(tdTodayRow(html, "AA-0002") && !tdTodayRow(html, "AA-0002").includes("draggable") && !tdTodayRow(html, "AA-0002").includes("data-tdrag"), "左の列");
+  const plan = tdHtml(tdData(), { plan: { key: "AA-0001", start: "10:30", minutes: 45 } });
+  assert.ok(!tdRow(plan, "AA-0001").includes("data-tdrag") && tdRow(plan, "AA-0002").includes("data-tdrag"), "今日への入力欄を開いた行は動かさない（欄の文字を選べるように）");
+  const comp = tdHtml(tdData(), { open: "AA-0001", col: "week" });
+  assert.ok(!tdRow(comp, "AA-0001").includes("data-tdrag"), "完了の入力欄を開いた行");
+  assert.ok(html.includes('<section class="panel tdtoday" data-tddrop'), "左の列");
+  assert.equal(html.split("data-tddrop").length, 2, "ドロップ先は左の列だけ");
+  assert.ok(!/data-drag(task|sess|mtg)|data-mvh|data-ckmv|class="[^"]*\bdz\b/.test(html), "スケジュール画面のドラッグの属性・落とし先は出さない");
+});
+
+test("planDefault: 開始は今を 15 分刻みに切り上げ（最大 23:45）、長さ 60 分", () => {
+  const at = (time) => planDefault({ date: TODAY, time });
+  assert.deepEqual(at("10:15"), { start: "10:15", minutes: 60 });
+  assert.deepEqual(at("10:16"), { start: "10:30", minutes: 60 });
+  assert.deepEqual(at("23:50"), { start: "23:45", minutes: 60 });
 });
