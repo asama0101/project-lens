@@ -40,7 +40,7 @@ test("共有の詳細: プロジェクト 3 件と「ほか 1 件」・タスク
   assert.ok(h.includes("案件1") && h.includes("案件2") && h.includes("案件3"));
   assert.ok(!h.includes("案件4"));
   assert.ok(h.includes("ほか 1 件"));
-  assert.ok(h.includes("3 件") && h.includes("うち Done 2 件"));
+  assert.ok(h.includes("<dd>3 件（うち Done 2 件）</dd>"));
   assert.ok(h.includes("2026/11/26 09:12"));
   assert.ok(h.includes("書き込めます"));
   assert.equal(count(h, /<dl>/g), 1);
@@ -68,8 +68,8 @@ test("writable が false なら「読み込み専用」と橙の点", () => {
 
 test("個人の詳細: 作業枠と実績の区間の数・会議の数（個人の枠は、タスクの枠と孤立の枠の合計）", () => {
   const h = renderFileChips(DATA, INFO, "personal");
-  assert.ok(h.includes("4 件"), "枠 3 + 孤立 1");
-  assert.ok(h.includes("2 件"), "会議");
+  assert.ok(h.includes("<dt>作業枠・実績</dt><dd>4 件</dd>"), "枠 3 + 孤立 1");
+  assert.ok(h.includes("<dt>会議</dt><dd>2 件</dd>"), "会議");
   assert.ok(h.includes("personal.json"));
   assert.ok(!h.includes("案件1"));
 });
@@ -88,4 +88,17 @@ test("名前に < を含むプロジェクトとファイル名はエスケー�
   assert.ok(!h.includes("<b>x") && !h.includes("<i>.json"));
   assert.ok(h.includes("&lt;b&gt;x&lt;/b&gt;") && h.includes("&lt;i&gt;.json"));
   assert.ok(!h.includes("QQ") && !h.includes("ZZ1"));
+});
+
+test("プロジェクトが 0 件なら「なし」、1 件ならその名前だけ", () => {
+  const none = renderFileChips({ ...DATA, projects: [] }, INFO, "shared");
+  assert.ok(none.includes("<dt>プロジェクト</dt><dd>なし</dd>"));
+  const one = renderFileChips({ ...DATA, projects: [proj(1)] }, INFO, "shared");
+  assert.ok(one.includes("<dt>プロジェクト</dt><dd>案件1</dd>"));
+});
+
+test("日時は 0 埋め（00:00・1 桁の月日分）", () => {
+  const at = (ms) => renderFileChips(DATA, { ...INFO, shared: { ...INFO.shared, at: ms } }, "shared");
+  assert.ok(at(new Date(2026, 0, 5, 0, 5).getTime()).includes("<dd>2026/01/05 00:05</dd>"));
+  assert.ok(at(new Date(2026, 8, 9, 0, 0).getTime()).includes("<dd>2026/09/09 00:00</dd>"));
 });
