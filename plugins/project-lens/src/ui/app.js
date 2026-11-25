@@ -13,7 +13,7 @@ const S = {
   prefs: loadPrefs(), settingsClosed: loadSettingsClosed(), tpop: null, addAt: null, last: null, ruleError: "",
   ib: { open: false, text: loadInboxDraft(), projectId: "", replies: {}, reasons: {}, causes: {} },
   wperiod: "day", wdate: clock().date,
-  todoWeek: mondayOf(clock().date), tdOpen: null, tdCol: null, tdDraft: null, askDelSess: null, // 実績つきの枠の削除の確認を出している枠の id（メモリのみ）。ToDo 画面の週（月曜日）・完了の入力欄を開いているタスクと、開いた列（"today" か "week"）と、その下書き
+  todoWeek: mondayOf(clock().date), tdOpen: null, tdCol: null, tdDraft: null, tdPlan: null, askDelSess: null, // 実績つきの枠の削除の確認を出している枠の id（メモリのみ）。ToDo 画面の週（月曜日）・完了の入力欄を開いているタスクと、開いた列（"today" か "week"）と、その下書き・「今日へ」の入力欄（{ key: タスクの id, start, minutes }。完了の入力欄とは同時に開かない）
 };
 const $ = (id) => document.getElementById(id);
 const view = $("view");
@@ -56,7 +56,7 @@ function renderBody() {
     return renderProjects(S.data, today, { filter: S.filter, view: S.screen, window: S.gwin, hideDone: S.hideDone, askDel: S.askDel, askDelProject: S.askDelProject, pendingWait: S.pendingWait, pendingDone: S.pendingDone, checkOpen: S.checkOpen, addAt: S.addAt, tpop: S.screen === "gantt" ? S.tpop : null, showPrio: S.prefs.showPrio, showActual: S.prefs.showActual, now: clock() });
   }
   if (S.screen === "settings") return renderSettings(S.data, today, { ruleError: S.ruleError, closed: S.settingsClosed });
-  if (S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, col: S.tdCol, draft: S.tdDraft, urgentDraft: S.urgentDraft });
+  if (S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, col: S.tdCol, draft: S.tdDraft, plan: S.tdPlan, urgentDraft: S.urgentDraft });
   if (S.screen === "workload") return renderWorkload(S.data, today, { period: S.wperiod, date: S.wdate, now: clock() });
   return renderSchedule(S.data, today, scheduleOpts());
 }
@@ -91,6 +91,7 @@ function render() {
   if (S.taskEdit && (S.screen !== "schedule" || !S.data.tasks.some((t) => t.id === S.taskEdit.id))) { S.taskEdit = null; S.selSess = null; } // スケジュールの編集欄も同じ（編集欄は枠の選択と一緒なので、選択も外す）
   if (S.askDelSess && (S.screen !== "schedule" || S.askDelSess !== S.selSess)) S.askDelSess = null; // 削除の確認は、その枠を選んでいる間だけ（枠の id は S.data.tasks で検証しない）
   if (S.tdOpen && (!S.data?.tasks.some((t) => t.id === S.tdOpen) || !["today", "week"].includes(S.tdCol))) { S.tdOpen = null; S.tdCol = null; S.tdDraft = null; } // 読み直しなどでタスクが無くなったら（開いた列が不正でも）、完了の入力欄を閉じる
+  if (S.tdPlan && !S.data?.tasks.some((t) => t.id === S.tdPlan.key)) S.tdPlan = null; // 「今日へ」の入力欄も同じ
   const c = clock();
   $("todaylabel").textContent = `${c.date.replace(/-/g, "/")}(${wdJa(c.date)})`;
   document.querySelectorAll("nav [role=tab]").forEach((b) => b.setAttribute("aria-selected", String(b.id === "tab-" + S.screen)));
@@ -174,7 +175,7 @@ function focusSelector(el) {
   if (d.rnewpj !== undefined) return "[data-rnewpj]";
   if (d.waitparty) return q("data-waitparty", d.waitparty);
   if (d.ug) return q("data-ug", d.ug); // 突発タスクの欄（読み直しで待たせた描き直しが、欄を移ったときに走る）
-  for (const k of ["tdnote", "tf", "tdckadd"]) if (d[k] !== undefined) return q(`data-${k}`, d[k]); // ToDo 画面の欄
+  for (const k of ["tdnote", "tf", "tdckadd", "tp"]) if (d[k] !== undefined) return q(`data-${k}`, d[k]); // ToDo 画面の欄
   return null;
 }
 
@@ -392,7 +393,7 @@ function submitGAdd(input) {
 }
 
 /* ---------- 選択と削除 ---------- */
-const clearSel = () => { S.selSess = null; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.actDraft = null; S.taskEdit = null; S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.askDelSess = null; };
+const clearSel = () => { S.selSess = null; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.actDraft = null; S.taskEdit = null; S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.tdPlan = null; S.askDelSess = null; };
 /** 作業枠を選ぶ（id が null なら外す）。規則は sessionSelection（編集欄も開く） */
 const selectSession = (id) => { Object.assign(S, sessionSelection(S.data, id, S.taskEdit)); };
 
@@ -602,7 +603,7 @@ view.addEventListener("click", (e) => {
   const tw = q("[data-tdweek]"); if (tw) { moveTodoWeek(addDays(S.todoWeek, 7 * +tw.dataset.tdweek)); return; }
   if (q("[data-tdweek-today]")) { moveTodoWeek(mondayOf(today)); return; }
   const tdo = q("[data-tdopen]");
-  if (tdo) { const id = tdo.dataset.tdopen, col = tdo.dataset.tdcol, same = S.tdOpen === id && S.tdCol === col; S.tdOpen = same ? null : id; S.tdCol = same ? null : col; S.tdDraft = null; S.focusSel = S.tdOpen ? '[data-tf="start"]' : null; render(); return; }
+  if (tdo) { const id = tdo.dataset.tdopen, col = tdo.dataset.tdcol, same = S.tdOpen === id && S.tdCol === col; S.tdOpen = same ? null : id; S.tdCol = same ? null : col; S.tdDraft = null; S.tdPlan = null; S.focusSel = S.tdOpen ? '[data-tf="start"]' : null; render(); return; }
   const tdd = q("[data-tdckdel]"); // 入力欄の項目の削除。すぐタスクへ保存する。描き直しても入力が残るよう、先に下書きへ写す
   if (tdd) { const [tid, iid] = tdd.dataset.tdckdel.split(":"); S.tdDraft = tdFormDraft(tdd.closest(".tdform"), tid); apply((d) => removeChecklistItem(d, tid, iid)); return; }
   const tdca = q("[data-tdckall]"); // 入力欄のチェックを、すべて付ける（描き直さない。保存で書く）
@@ -626,6 +627,23 @@ view.addEventListener("click", (e) => {
     return;
   }
   if (q("[data-tdcancel]")) { S.tdOpen = null; S.tdCol = null; S.tdDraft = null; render(); return; }
+  const tdp = q("[data-tdplan]"); // 今日へ（右の列の行）。開閉。完了の入力欄は閉じる
+  if (tdp) { const id = tdp.dataset.tdplan; S.tdPlan = S.tdPlan?.key === id ? null : { key: id, ...planDefault(clock()) }; S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.focusSel = S.tdPlan ? '[data-tp="start"]' : null; render(); return; }
+  const tps = q("[data-tdplansave]"); // 今日に入れる（今日の予定の枠を足す）。欄の値は、押したときに読む。失敗しても打った値が消えないよう、先に S.tdPlan へ写す
+  if (tps) {
+    const id = tps.dataset.tdplansave;
+    S.tdPlan = tdPlanDraft(tps.closest(".tdplan"), id);
+    const { start, minutes } = S.tdPlan, title = taskTitle(id);
+    if (!isTime(start)) { toast("開始を入力してください"); return; }
+    const end = toHHMM(toMin(start) + minutes); // 23:59 を超えるときは、addSession のエラーに任せる
+    let r;
+    if (apply((d) => { r = addSession(d, id, { date: today, start, end }); if (r.error) throw new Error(r.error); return r.data; }, null, { quiet: true })) {
+      S.tdPlan = null; render();
+      toast(`「${title}」を今日の ${start}–${end} に入れました${r.warning ? `（${r.warning}）` : ""}`);
+    }
+    return;
+  }
+  if (q("[data-tdplancancel]")) { S.tdPlan = null; render(); return; }
 
   /* 稼働画面 */
   const wp = q("[data-wperiod]"); if (wp) { S.wperiod = wp.dataset.wperiod; render(); return; }
@@ -709,8 +727,14 @@ view.addEventListener("click", (e) => {
 
 /** ToDo 画面の週を動かす（完了の入力欄は閉じる） */
 function moveTodoWeek(week) {
-  S.todoWeek = week; S.tdOpen = null; S.tdCol = null; S.tdDraft = null;
+  S.todoWeek = week; S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.tdPlan = null;
   render();
+}
+
+/** 「今日へ」の入力欄（.tdplan）の値 → S.tdPlan（{ key, start, minutes }） */
+function tdPlanDraft(form, key) {
+  const f = (k) => form?.querySelector(`[data-tp="${k}"]`)?.value ?? "";
+  return { key, start: f("start"), minutes: +f("minutes") };
 }
 
 /** 完了の入力欄（.tdform）の値 → 下書き（{ key, date, start, end, status, checks }） */
@@ -898,6 +922,11 @@ function onChange(el) {
   if (el.dataset.tf !== undefined || el.dataset.tfck !== undefined) { // 完了の入力欄の下書き（描き直しても入力を残す）。この欄を開いたままのときだけ
     const form = el.closest(".tdform"), key = form?.querySelector("[data-tdsave]")?.dataset.tdsave;
     if (key && key === S.tdOpen) S.tdDraft = tdFormDraft(form, key);
+    return;
+  }
+  if (el.dataset.tp !== undefined) { // 「今日へ」の入力欄も同じ。この欄を開いたままのときだけ
+    const form = el.closest(".tdplan"), key = form?.querySelector("[data-tdplansave]")?.dataset.tdplansave;
+    if (key && key === S.tdPlan?.key) S.tdPlan = tdPlanDraft(form, key);
     return;
   }
   if (el.dataset.tdnote !== undefined) { const wk = el.dataset.tdnote, text = el.value.trim(); apply((d) => setReview(d, wk, text), "気づきを保存しました"); return; }

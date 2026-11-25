@@ -1,14 +1,30 @@
-// 「ToDo」画面: 左に今日の ToDo（todayTasks。今日の枠の時刻と札）、右に表示中の週のタスク候補（weekTasks。組ごと）、行の完了の入力欄、週の見返し（weekSummary）。操作の結線は app.js（data-td*・data-tf*）。
+// 「ToDo」画面: 左に今日の ToDo（todayTasks。今日の枠の時刻と札）、右に表示中の週のタスク候補（weekTasks。組ごと）、行の完了の入力欄、右の行の「今日へ」の入力欄、週の見返し（weekSummary）。操作の結線は app.js（data-td*・data-tf*・data-tp*）。
 import { addDays } from "../../core/dates.js";
 import { weekTasks, weekSummary, todayTasks } from "../../core/week.js";
 import { futurePlanned, actualSlots } from "../../core/sessions.js";
+import { isClosed } from "../../core/schema.js";
 import { esc, fmtMD, dateInputHtml } from "../common.js";
 import { statusPill, slotHtml } from "./prio.js";
-import { urgentForm } from "./schedule.js";
+import { urgentForm, urgentDefaultStart } from "./schedule.js";
 
 const GROUP_JA = { overdue: "期限超過", scheduled: "今週に予定あり", due: "今週の期限", done: "完了" };
 /** 完了の入力欄で選べる状態（completeTask と同じ。Waiting は選べない） */
 const FORM_STATUSES = ["To Do", "In Progress", "Done", "Cancelled"];
+
+/** 「今日へ」の入力欄で選べる長さ（分） */
+const PLAN_MINUTES = [15, 30, 45, 60];
+
+/** 「今日へ」の入力欄の初期値: 開始は今を 15 分刻みに切り上げた時刻（urgentDefaultStart の今日の規則）、長さ 60 分 */
+export const planDefault = (now) => ({ start: urgentDefaultStart(now.date, now), minutes: 60 });
+
+/** 「今日へ」の入力欄（今日の予定の枠を足す）。値は plan（{ key, start, minutes }） */
+function planForm(t, plan) {
+  return `<div class="actform tdplan" role="group" aria-label="今日へ入れる">
+    <label>開始<input class="in" type="time" step="900" data-tp="start" value="${esc(plan.start)}"></label>
+    <label>長さ<select class="in" data-tp="minutes">${PLAN_MINUTES.map((m) => `<option value="${m}"${m === +plan.minutes ? " selected" : ""}>${m} 分</option>`).join("")}</select></label>
+    <div style="display:flex;gap:6px;align-items:center"><button class="btn primary" data-tdplansave="${esc(t.id)}">今日に入れる</button><button class="btn" data-tdplancancel>キャンセル</button></div>
+  </div>`;
+}
 
 const progress = (r) => (r.checked ? `${r.checked.done}/${r.checked.total}` : "—");
 
@@ -37,17 +53,18 @@ function completeForm(data, t, day, now, draft) {
   </div>`;
 }
 
-/** 一覧の 1 行（左右の列で共通）。r.slots があれば（今日の ToDo）、今日の枠の時刻と札を足す。入力欄は、開いた列（ctx.col）の行にだけ出す */
+/** 一覧の 1 行（左右の列で共通）。r.slots があれば（今日の ToDo）、今日の枠の時刻と札を足す。完了の入力欄は、開いた列（ctx.col）の行にだけ出す。「今日へ」とその入力欄は、右の列（week）の未完了の行にだけ出す */
 function row(data, r, ctx) {
   const t = r.task, id = esc(t.id);
   const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? "プロジェクトなし");
   const done = t.status === "Done";
   const open = ctx.open === t.id && ctx.openCol === ctx.col;
+  const canPlan = ctx.col === "week" && !isClosed(t), planOpen = canPlan && ctx.plan?.key === t.id;
   return `<li class="td-row${done ? " closed" : ""}" data-tdrow="${id}">
-    <div class="td-main"><span class="pj">${proj}</span><span class="td-title">${esc(t.title)}</span>${statusPill(t)}${r.waiting ? `<span class="pill wait">前のタスク待ち</span>` : ""}${done ? "" : `<button class="btn" data-tdopen="${id}" data-tdcol="${ctx.col}" aria-expanded="${open}">完了</button>`}</div>
+    <div class="td-main"><span class="pj">${proj}</span><span class="td-title">${esc(t.title)}</span>${statusPill(t)}${r.waiting ? `<span class="pill wait">前のタスク待ち</span>` : ""}${done ? "" : `<button class="btn" data-tdopen="${id}" data-tdcol="${ctx.col}" aria-expanded="${open}">完了</button>`}${canPlan ? `<button class="btn" data-tdplan="${id}" aria-expanded="${planOpen}">今日へ</button>` : ""}</div>
     ${r.slots ? `<div class="td-slots mono">${r.slots.map((s) => slotHtml(s, ctx.now, ctx.actuals)).join("")}</div>` : ""}
     <div class="td-meta">${t.due ? `<span>期限 <b class="mono">${fmtMD(t.due)}</b></span>` : ""}${r.checked ? `<span>チェック <b class="mono">${progress(r)}</b></span>` : ""}<span>予定 <b class="mono">${r.planned}</b> 分</span><span>実績 <b class="mono">${r.actual}</b> 分</span></div>
-    ${open ? completeForm(data, t, ctx.day, ctx.now, ctx.draft) : ""}
+    ${open ? completeForm(data, t, ctx.day, ctx.now, ctx.draft) : planOpen ? planForm(t, ctx.plan) : ""}
   </li>`;
 }
 
@@ -60,11 +77,12 @@ export const completeInput = (dr) => ({ actual: dr.start || dr.end ? { date: dr.
  * @param opts.open  完了の入力欄を開いているタスクの ID か null
  * @param opts.col   入力欄を開いた列（"today" か "week"。省略は "week"）。同じタスクが左右にあっても、この列の行にだけ出す
  * @param opts.draft 完了の入力欄の下書き（{ key: タスクの ID, date, start, end, status, checks: { 項目 ID: 済みか } }）か null
+ * @param opts.plan  「今日へ」の入力欄（{ key: タスクの ID, start, minutes }）か null。右の列の行にだけ出す
  */
 export function renderTodo(data, today, opts) {
-  const { week, now, open = null, col = "week", draft = null, urgentDraft = null } = opts;
+  const { week, now, open = null, col = "week", draft = null, plan = null, urgentDraft = null } = opts;
   const weekEnd = addDays(week, 6);
-  const base = { open, openCol: col, draft, now, actuals: actualSlots(data) };
+  const base = { open, openCol: col, draft, plan, now, actuals: actualSlots(data) };
   const ctx = { ...base, col: "week", day: today >= week && today <= weekEnd ? today : week };
   const todayCtx = { ...base, col: "today", day: today };
   const rows = weekTasks(data, week, today);

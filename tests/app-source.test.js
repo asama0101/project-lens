@@ -788,14 +788,14 @@ test("ToDo タブ: index.html のタブ（スケジュールと稼働の間）�
   assert.ok(html.indexOf('id="tab-schedule"') < html.indexOf('id="tab-todo"') && html.indexOf('id="tab-todo"') < html.indexOf('id="tab-workload"'));
   assert.ok(src.includes("S.screen = b.id.slice(4)"), "tab-todo のクリックで S.screen が todo になる");
   const body = src.slice(src.indexOf("function renderBody()"), src.indexOf("function placeTaskPop"));
-  assert.ok(body.includes('S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, col: S.tdCol, draft: S.tdDraft, urgentDraft: S.urgentDraft });'), body);
+  assert.ok(body.includes('S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, col: S.tdCol, draft: S.tdDraft, plan: S.tdPlan, urgentDraft: S.urgentDraft });'), body);
   const build = readFileSync(new URL("../plugins/project-lens/tools/build.js", import.meta.url), "utf8");
   assert.ok(build.indexOf('"src/ui/views/schedule.js"') < build.indexOf('"src/ui/views/todo.js"'));
 });
 
 test("ToDo タブ: 古い ToDo の状態・ハンドラ・関数は無い", () => {
   for (const s of ["todoDay", "tdAct", "tdAskDel", "renderTodayTodos", "setTodoDay", "submitTodoInput", "deleteTodoNow", "data-tdnew", "data-tdday", "data-tdassign", "data-tdcarry", "data-tddel", "data-tdactsave", "dataset.tdone", "dataset.tdtitle", "dataset.tdcktoggle", "dataset.ta ", "addTodo(", "assignToDay(", "carryTodo(", "deleteTodo(", "ToDo）"]) assert.ok(!src.includes(s), s);
-  assert.ok(src.includes('for (const k of ["tdnote", "tf", "tdckadd"])'), "入力中の欄（読み直しで描き直さない・フォーカスを保つ）");
+  assert.ok(src.includes('for (const k of ["tdnote", "tf", "tdckadd", "tp"])'), "入力中の欄（読み直しで描き直さない・フォーカスを保つ）");
 });
 
 test("ToDo タブ: 入力欄の項目の追加（data-tdckadd の Enter。isComposing を除く）・削除（data-tdckdel）は、先に S.tdDraft へ写してから apply ですぐ保存する", () => {
@@ -885,4 +885,35 @@ test("app.js: 突発タスクは ToDo タブで画面を移さずに登録でき
   assert.match(src, /e\.key === "Escape" && \(S\.screen === "schedule" \|\| S\.screen === "todo"\)/);
   const calls = [...src.matchAll(/renderTodo\([^\n]*/g)].map((m) => m[0]);
   assert.ok(calls.length && calls.every((c) => c.includes("urgentDraft: S.urgentDraft")), calls.join("\n"));
+});
+
+test("ToDo タブ: 今日へ（data-tdplan）は S.tdPlan を開き（planDefault の初期値）、S.tdOpen を外す。完了（data-tdopen）は S.tdPlan を外す", () => {
+  assert.match(src, /tdDraft: null, tdPlan: null/);
+  const i = src.indexOf('const tdp = q("[data-tdplan]")'), a = src.slice(i, src.indexOf("return; }", i));
+  assert.ok(i > 0, "ハンドラ");
+  assert.ok(a.includes("planDefault(clock())") && a.includes("key: id"), a);
+  assert.ok(a.includes("S.tdOpen = null; S.tdCol = null; S.tdDraft = null;"), "完了の入力欄を閉じる");
+  assert.ok(a.includes(`S.focusSel = S.tdPlan ? '[data-tp="start"]' : null;`), a);
+  assert.match(src, /const tdo = q\("\[data-tdopen\]"\);\s*if \(tdo\) \{[^\n]*S\.tdDraft = null; S\.tdPlan = null;/);
+  assert.match(src, /q\("\[data-tdplancancel\]"\)\) \{ S\.tdPlan = null; render\(\); return; \}/);
+});
+
+test("ToDo タブ: 今日に入れる（data-tdplansave）は、先に S.tdPlan へ写してから addSession を apply する。成功のときだけ S.tdPlan を外して通知する", () => {
+  const i = src.indexOf('const tps = q("[data-tdplansave]")'), a = src.slice(i, src.indexOf('q("[data-tdplancancel]")', i));
+  assert.ok(i > 0, "ハンドラ");
+  const w = a.indexOf("S.tdPlan = tdPlanDraft("), ap = a.indexOf("addSession(d, id, { date: today, start, end })");
+  assert.ok(w > 0 && ap > w, "写すのが先");
+  assert.match(a, /end = toHHMM\(toMin\(start\) \+ minutes\)/);
+  assert.match(a, /if \(apply\(\(d\) => \{ r = addSession\(d, id, \{ date: today, start, end \}\); if \(r\.error\) throw new Error\(r\.error\); return r\.data; \}, null, \{ quiet: true \}\)\) \{\s*S\.tdPlan = null; render\(\);/);
+  assert.equal(a.split("S.tdPlan = null").length, 2, "外すのは成功のときだけ");
+  assert.ok(a.includes("を今日の ${start}–${end} に入れました") && a.includes("r.warning ? `（${r.warning}）`"), a);
+  assert.match(src, /function tdPlanDraft\(form, key\) \{[^]*?return \{ key, start: f\("start"\), minutes: \+f\("minutes"\) \};/);
+});
+
+test("ToDo タブ: S.tdPlan は clearSel・週の移動・render() の検証（タスクが無い）で外す。欄の change は S.tdPlan へ写す。フォーカスを保つ欄に tp", () => {
+  assert.match(src, /const clearSel = \(\) => \{[^\n]*S\.tdPlan = null;/);
+  assert.match(src, /function moveTodoWeek\(week\) \{[^}]*S\.tdPlan = null;/);
+  assert.ok(src.includes("if (S.tdPlan && !S.data?.tasks.some((t) => t.id === S.tdPlan.key)) S.tdPlan = null;"));
+  assert.ok(src.includes('if (el.dataset.tp !== undefined) {') && /key && key === S\.tdPlan\?\.key\) S\.tdPlan = tdPlanDraft\(form, key\)/.test(src));
+  assert.ok(src.includes('for (const k of ["tdnote", "tf", "tdckadd", "tp"])'));
 });
