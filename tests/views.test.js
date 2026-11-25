@@ -1779,6 +1779,29 @@ test("renderProjects(list): 列「チェック」。閉じていれば ▸ M/N�
   assert.equal(count(open, /data-ckpanel=/g), 1);
 });
 
+test("renderProjects(list): 「詳細」ボタン。閉じていれば詳細の行が無く、開くとその行の直後に繰り返しの select と説明が出る。チェックリストと同時に開ける", () => {
+  const d = load();
+  const html = renderProjects(d, TODAY, { view: "list", filter: "AA" });
+  assert.ok(/data-detailtoggle="AA-0005" aria-expanded="false"/.test(html));
+  assert.ok(!html.includes("data-detailpanel"));
+  const open = renderProjects(d, TODAY, { view: "list", filter: "AA", detailOpen: new Set(["AA-0005"]), checkOpen: new Set(["AA-0005"]) });
+  assert.ok(/data-detailtoggle="AA-0005" aria-expanded="true"/.test(open));
+  const i = open.indexOf('data-row="AA-0005"'), p = open.indexOf('data-detailpanel="AA-0005"'), nxt = open.indexOf('<tr data-row="', i + 1);
+  assert.ok(i >= 0 && p > i && p < nxt, "AA-0005 の行の直後");
+  assert.equal(count(open, /data-detailpanel=/g), 1);
+  assert.ok(open.includes('data-ckpanel="AA-0005"'), "チェックリストも同時に開く");
+  const panel = open.slice(p, open.indexOf("</tr>", p));
+  assert.ok(panel.includes('data-f="repeat" data-id="AA-0005"') && panel.includes("完了すると、次回のタスクを作ります"));
+});
+
+test("renderProjects(list): 詳細の行で、毎月の定例には「（N 日）」が出る", () => {
+  const d = load();
+  d.tasks.find((t) => t.id === "AA-0005").repeat = { unit: "month", day: 15 };
+  const open = renderProjects(d, TODAY, { view: "list", filter: "AA", detailOpen: new Set(["AA-0005"]) });
+  const p = open.indexOf('data-detailpanel="AA-0005"');
+  assert.ok(open.slice(p, open.indexOf("</tr>", p)).includes("毎月（15 日）"));
+});
+
 test("renderTaskPop: チェックリストの欄を、期限の下・前のタスクの上に置く", () => {
   const h = renderTaskPop(load(), { id: "AA-0005", x: 10, y: 10 }, "");
   const due = h.indexOf('data-f="due"'), ck = h.indexOf("ckedit"), pre = h.indexOf("前のタスク");

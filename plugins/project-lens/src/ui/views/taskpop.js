@@ -23,7 +23,7 @@ export function startInputHtml(data, t) {
 }
 
 /**
- * 編集の項目 1 つの入力部分（ラベルは含まない）。窓とスケジュールの編集欄が共用する。
+ * 編集の項目 1 つの入力部分（ラベルは含まない）。窓とスケジュールの編集欄が共用する。リストの「詳細」の行も、繰り返しに使う。
  * name = title|projectId|start|due|important|memo|party|expected|repeat。party・expected は状態が Waiting のときだけ（expected は待ち先が空なら disabled）。
  * ids が false なら、aria-label に ID を出さない（スケジュールの編集欄）
  */

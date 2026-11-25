@@ -411,6 +411,14 @@ test("app.js: チェックリストの編集欄のイベントをつなぐ（開
   assert.match(src, /S\.checkOpen = new Set\(\)/);
 });
 
+test("app.js: 「詳細」の開閉は S.detailOpen。描画へ渡し、ファイルを開いたら空にする", () => {
+  assert.ok(src.includes("[data-detailtoggle]"));
+  assert.match(src, /S\.detailOpen\.has\(id\)/);
+  assert.match(src, /detailOpen: S\.detailOpen/);
+  assert.match(src, /S\.detailOpen = new Set\(\)/);
+  assert.ok(src.includes("d.detailtoggle"), "描き直しのあと、フォーカスを戻す");
+});
+
 // ---- 全体レビューの修正（M1・M3・M4） ----
 
 test("focusSelector: チェックリストのチェック・削除・展開ボタンも、描き直しのあとにフォーカスを戻せる（キーボードで操作しても位置を見失わない）", () => {
