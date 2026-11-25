@@ -13,7 +13,7 @@ const S = {
   prefs: loadPrefs(), settingsClosed: loadSettingsClosed(), tpop: null, addAt: null, last: null, ruleError: "",
   ib: { open: false, text: loadInboxDraft(), projectId: "", replies: {}, reasons: {}, causes: {} },
   wperiod: "day", wdate: clock().date,
-  todoWeek: mondayOf(clock().date), tdOpen: null, tdCol: null, tdDraft: null, tdPlan: null, askDelSess: null, // 実績つきの枠の削除の確認を出している枠の id（メモリのみ）。ToDo 画面の週（月曜日）・完了の入力欄を開いているタスクと、開いた列（"today" か "week"）と、その下書き・「今日へ」の入力欄（{ key: タスクの id, start, minutes }。完了の入力欄とは同時に開かない）
+  todoWeek: mondayOf(clock().date), tdOpen: null, tdCol: null, tdDraft: null, tdPlan: null, tdChase: null, askDelSess: null, // 実績つきの枠の削除の確認を出している枠の id（メモリのみ）。ToDo 画面の週（月曜日）・完了の入力欄を開いているタスクと、開いた列（"today" か "week"）と、その下書き・「今日へ」の入力欄（{ key: タスクの id, start, minutes }。完了の入力欄とは同時に開かない）・催促の入力欄 tdChase（{ key, mode, days, party, expected }。完了・「今日へ」とは同時に開かない）
 };
 const $ = (id) => document.getElementById(id);
 const view = $("view");
@@ -56,7 +56,7 @@ function renderBody() {
     return renderProjects(S.data, today, { filter: S.filter, view: S.screen, window: S.gwin, hideDone: S.hideDone, askDel: S.askDel, askDelProject: S.askDelProject, pendingWait: S.pendingWait, pendingDone: S.pendingDone, checkOpen: S.checkOpen, detailOpen: S.detailOpen, addAt: S.addAt, tpop: S.screen === "gantt" ? S.tpop : null, showPrio: S.prefs.showPrio, showActual: S.prefs.showActual, now: clock() });
   }
   if (S.screen === "settings") return renderSettings(S.data, today, { ruleError: S.ruleError, closed: S.settingsClosed });
-  if (S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, col: S.tdCol, draft: S.tdDraft, plan: S.tdPlan, urgentDraft: S.urgentDraft });
+  if (S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, col: S.tdCol, draft: S.tdDraft, plan: S.tdPlan, chase: S.tdChase, urgentDraft: S.urgentDraft });
   if (S.screen === "workload") return renderWorkload(S.data, today, { period: S.wperiod, date: S.wdate, now: clock() });
   return renderSchedule(S.data, today, scheduleOpts());
 }
@@ -92,6 +92,7 @@ function render() {
   if (S.askDelSess && (S.screen !== "schedule" || S.askDelSess !== S.selSess)) S.askDelSess = null; // 削除の確認は、その枠を選んでいる間だけ（枠の id は S.data.tasks で検証しない）
   if (S.tdOpen && (!S.data?.tasks.some((t) => t.id === S.tdOpen) || !["today", "week"].includes(S.tdCol))) { S.tdOpen = null; S.tdCol = null; S.tdDraft = null; } // 読み直しなどでタスクが無くなったら（開いた列が不正でも）、完了の入力欄を閉じる
   if (S.tdPlan && !S.data?.tasks.some((t) => t.id === S.tdPlan.key)) S.tdPlan = null; // 「今日へ」の入力欄も同じ
+  if (S.tdChase && !chaseTasks(S.data, clock().date).some((r) => r.task.id === S.tdChase.key)) S.tdChase = null; // 催促の入力欄は、そのタスクが催促の対象でなくなったら（保存・読み直し・状態の変更）閉じる
   const c = clock();
   $("todaylabel").textContent = `${c.date.replace(/-/g, "/")}(${wdJa(c.date)})`;
   document.querySelectorAll("nav [role=tab]").forEach((b) => b.setAttribute("aria-selected", String(b.id === "tab-" + S.screen)));
@@ -176,7 +177,7 @@ function focusSelector(el) {
   if (d.rnewpj !== undefined) return "[data-rnewpj]";
   if (d.waitparty) return q("data-waitparty", d.waitparty);
   if (d.ug) return q("data-ug", d.ug); // 突発タスクの欄（読み直しで待たせた描き直しが、欄を移ったときに走る）
-  for (const k of ["tdnote", "tf", "tdckadd", "tp"]) if (d[k] !== undefined) return q(`data-${k}`, d[k]); // ToDo 画面の欄（tf・tdckadd・tp）と、稼働画面の週の見返しの気づき（tdnote）
+  for (const k of ["tdnote", "tf", "tdckadd", "tp", "ch"]) if (d[k] !== undefined) return q(`data-${k}`, d[k]); // ToDo 画面の欄（tf・tdckadd・tp）と、稼働画面の週の見返しの気づき（tdnote）
   return null;
 }
 
@@ -395,7 +396,7 @@ function submitGAdd(input) {
 }
 
 /* ---------- 選択と削除 ---------- */
-const clearSel = () => { S.selSess = null; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.actDraft = null; S.taskEdit = null; S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.tdPlan = null; S.askDelSess = null; };
+const clearSel = () => { S.selSess = null; S.selMtg = null; S.mtgDraft = null; S.urgentDraft = null; S.actAdd = null; S.actDraft = null; S.taskEdit = null; S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.tdPlan = null; S.tdChase = null; S.askDelSess = null; };
 /** 作業枠を選ぶ（id が null なら外す）。規則は sessionSelection（編集欄も開く） */
 const selectSession = (id) => { Object.assign(S, sessionSelection(S.data, id, S.taskEdit)); };
 
@@ -611,7 +612,7 @@ view.addEventListener("click", (e) => {
   const tw = q("[data-tdweek]"); if (tw) { moveTodoWeek(addDays(S.todoWeek, 7 * +tw.dataset.tdweek)); return; }
   if (q("[data-tdweek-today]")) { moveTodoWeek(mondayOf(today)); return; }
   const tdo = q("[data-tdopen]");
-  if (tdo) { const id = tdo.dataset.tdopen, col = tdo.dataset.tdcol, same = S.tdOpen === id && S.tdCol === col; S.tdOpen = same ? null : id; S.tdCol = same ? null : col; S.tdDraft = null; S.tdPlan = null; S.focusSel = S.tdOpen ? '[data-tf="start"]' : null; render(); return; }
+  if (tdo) { const id = tdo.dataset.tdopen, col = tdo.dataset.tdcol, same = S.tdOpen === id && S.tdCol === col; S.tdOpen = same ? null : id; S.tdCol = same ? null : col; S.tdDraft = null; S.tdPlan = null; S.tdChase = null; S.focusSel = S.tdOpen ? '[data-tf="start"]' : null; render(); return; }
   const tdd = q("[data-tdckdel]"); // 入力欄の項目の削除。すぐタスクへ保存する。描き直しても入力が残るよう、先に下書きへ写す
   if (tdd) { const [tid, iid] = tdd.dataset.tdckdel.split(":"); S.tdDraft = tdFormDraft(tdd.closest(".tdform"), tid); apply((d) => removeChecklistItem(d, tid, iid)); return; }
   const tdca = q("[data-tdckall]"); // 入力欄のチェックを、すべて付ける（描き直さない。保存で書く）
@@ -635,6 +636,8 @@ view.addEventListener("click", (e) => {
     return;
   }
   if (q("[data-tdcancel]")) { S.tdOpen = null; S.tdCol = null; S.tdDraft = null; render(); return; }
+  const pp = q("[data-prioplan]"); // 今日の優先の行の「今日へ」。ToDo タブの今週へ移り、その行の入力欄を開く（画面の移動なので、ほかの入力欄は閉じる）
+  if (pp) { S.screen = "todo"; S.tpop = null; S.pendingDone = null; clearSel(); S.todoWeek = mondayOf(today); S.resetScroll = true; openPlan(pp.dataset.prioplan); return; }
   const tdp = q("[data-tdplan]"); // 今日へ（右の列の行）。開閉。完了の入力欄は閉じる
   if (tdp) { const id = tdp.dataset.tdplan; if (S.tdPlan?.key === id) { S.tdPlan = null; S.focusSel = null; render(); } else openPlan(id); return; }
   const tps = q("[data-tdplansave]"); // 今日に入れる（今日の予定の枠を足す）。欄の値は、押したときに読む。失敗しても打った値が消えないよう、先に S.tdPlan へ写す
@@ -652,6 +655,23 @@ view.addEventListener("click", (e) => {
     return;
   }
   if (q("[data-tdplancancel]")) { S.tdPlan = null; render(); return; }
+  const chd = q("[data-chasedone]"), che = q("[data-chaseedit]"); // 催促の組の「催促した」「待ち先・予定日を直す」。同じ行の同じ種類をもう一度押すと閉じる。ほかの入力欄は閉じる
+  if (chd || che) { const b = chd ?? che, id = b.dataset.chasedone ?? b.dataset.chaseedit, mode = chd ? "done" : "edit"; if (S.tdChase?.key === id && S.tdChase.mode === mode) { S.tdChase = null; S.focusSel = null; render(); } else openChase(id, mode); return; }
+  const chs = q("[data-chasesave]"); // 記録する・保存。欄の値は、押したときに読む。失敗しても打った値が消えないよう、先に S.tdChase へ写す
+  if (chs) {
+    const id = chs.dataset.chasesave;
+    S.tdChase = tdChaseDraft(chs.closest(".tdchaseform"), id, S.tdChase?.mode);
+    const { mode, days, party, expected } = S.tdChase, title = taskTitle(id);
+    const edit = mode === "done"
+      ? (d) => markChased(d, id, days, today)
+      : (d) => { if (!party.trim()) throw new Error("待ち先を入力してください"); return updateTask(d, id, { waitingOn: { party, expected: expected || null } }, today); };
+    if (apply(edit, null, { quiet: true })) {
+      S.tdChase = null; render();
+      toast(mode === "done" ? `「${title}」の催促を記録しました（${days} 日後に回答予定）` : `「${title}」の待ち先・予定日を直しました`);
+    }
+    return;
+  }
+  if (q("[data-chasecancel]")) { S.tdChase = null; render(); return; }
 
   /* 稼働画面 */
   const wp = q("[data-wperiod]"); if (wp) { S.wperiod = wp.dataset.wperiod; render(); return; }
@@ -735,14 +755,29 @@ view.addEventListener("click", (e) => {
 
 /** ToDo 画面の週を動かす（完了の入力欄は閉じる） */
 function moveTodoWeek(week) {
-  S.todoWeek = week; S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.tdPlan = null;
+  S.todoWeek = week; S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.tdPlan = null; S.tdChase = null;
   render();
 }
 
 /** 「今日へ」の入力欄を、そのタスクの行の下に開く（「今日へ」のボタンと、左の列へのドロップで共通）。完了の入力欄は閉じる */
 function openPlan(id) {
-  S.tdPlan = { key: id, ...planDefault(clock()) }; S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.focusSel = '[data-tp="start"]';
+  S.tdPlan = { key: id, ...planDefault(clock()) }; S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.tdChase = null; S.focusSel = '[data-tp="start"]';
   render();
+}
+
+/** 催促の入力欄を、そのタスクの行の下に開く。ほかの入力欄（完了・今日へ・突発タスク）は閉じる。初期値は、done が 3 日後、edit が今の待ち先と回答予定日 */
+function openChase(id, mode) {
+  const w = S.data.tasks.find((t) => t.id === id)?.waitingOn;
+  S.tdChase = { key: id, mode, days: 3, party: w?.party ?? "", expected: w?.expected ?? "" };
+  S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.tdPlan = null; S.urgentDraft = null; S.focusSel = mode === "done" ? '[data-ch="days"]' : '[data-ch="party"]';
+  render();
+}
+
+/** 催促の入力欄（.tdchaseform）の値 → S.tdChase（{ key, mode, days, party, expected }）。その種類にない欄は、前の値のまま */
+function tdChaseDraft(form, key, mode) {
+  const f = (k) => form?.querySelector(`[data-ch="${k}"]`)?.value;
+  const old = S.tdChase?.key === key ? S.tdChase : {};
+  return { key, mode, days: f("days") !== undefined ? +f("days") : old.days ?? 3, party: f("party") ?? old.party ?? "", expected: f("expected") ?? old.expected ?? "" };
 }
 
 /** 「今日へ」の入力欄（.tdplan）の値 → S.tdPlan（{ key, start, minutes }） */
@@ -942,6 +977,11 @@ function onChange(el) {
   if (el.dataset.tp !== undefined) { // 「今日へ」の入力欄も同じ。この欄を開いたままのときだけ
     const form = el.closest(".tdplan"), key = form?.querySelector("[data-tdplansave]")?.dataset.tdplansave;
     if (key && key === S.tdPlan?.key) S.tdPlan = tdPlanDraft(form, key);
+    return;
+  }
+  if (el.dataset.ch !== undefined) { // 催促の入力欄も同じ。この欄を開いたままのときだけ
+    const form = el.closest(".tdchaseform"), key = form?.querySelector("[data-chasesave]")?.dataset.chasesave;
+    if (key && key === S.tdChase?.key) S.tdChase = tdChaseDraft(form, key, S.tdChase.mode);
     return;
   }
   if (el.dataset.tdnote !== undefined) { const wk = el.dataset.tdnote, text = el.value.trim(); apply((d) => setReview(d, wk, text), "気づきを保存しました"); return; }

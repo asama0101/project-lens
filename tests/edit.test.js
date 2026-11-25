@@ -9,7 +9,7 @@ import {
   updateTask, updateProject, addMilestone, updateMilestone, deleteMilestone, moveTaskDates, moveProjectDates, moveMilestone,
   addTaskQuick, predecessorCandidates, addTask, deleteTask, addProject, deleteProject,
   addHoliday, addHolidayRange, holidayRangeDays, removeHoliday, addWorkday, removeWorkday, addPredecessor, moveTask,
-  nextTaskId, nextProjectId, addUrgentTask, moveToProject,
+  nextTaskId, nextProjectId, addUrgentTask, moveToProject, markChased,
 } from "../plugins/project-lens/src/ui/edit.js";
 
 import { addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, recordActual, recordSlotActual } from "../plugins/project-lens/src/ui/edit.js";
@@ -805,4 +805,24 @@ test("completeTask: 失敗は Error で、入力のデータは変わらない",
   assert.throws(() => completeTask(d, "AA-0004", { status: "Nope" }, NOW), /状態/);
   assert.throws(() => completeTask(d, "ZZ-9999", { status: "Done" }, NOW), /ZZ-9999 がありません/);
   assert.equal(JSON.stringify(d), before);
+});
+
+test("markChased: since が今日、expected が今日 + days。待ち先は変えず、元の data は変えない", () => {
+  const d = updateTask(load(), "AA-0004", { status: "Waiting", waitingOn: { party: "ベンダーZ", since: "2026-10-01", expected: "2026-10-10" } }, TODAY);
+  const a = markChased(d, "AA-0004", 3, TODAY);
+  assert.deepEqual(task(a, "AA-0004").waitingOn, { party: "ベンダーZ", since: TODAY, expected: "2026-10-23" });
+  assert.equal(task(d, "AA-0004").waitingOn.since, "2026-10-01");
+  ok(a);
+});
+test("markChased: Waiting 以外・待ち先が空・days が範囲外はエラー", () => {
+  const d = updateTask(load(), "AA-0004", { status: "Waiting", waitingOn: { party: "ベンダーZ", since: TODAY } }, TODAY);
+  assert.throws(() => markChased(d, "AA-0005", 3, TODAY), /Waiting/);
+  const empty = { ...d, tasks: d.tasks.map((t) => (t.id === "AA-0004" ? { ...t, waitingOn: { party: " ", since: TODAY } } : t)) };
+  assert.throws(() => markChased(empty, "AA-0004", 3, TODAY), /待ち先/);
+  for (const days of [0, 31, 1.5]) assert.throws(() => markChased(d, "AA-0004", days, TODAY), /1〜30/);
+});
+test("markChased: Waiting で waitingOn が無いときはエラー", () => {
+  const d = load();
+  const w = { ...d, tasks: d.tasks.map((t) => (t.id === "AA-0004" ? { ...t, status: "Waiting", waitingOn: null } : t)) };
+  assert.throws(() => markChased(w, "AA-0004", 3, TODAY), /待ち先/);
 });

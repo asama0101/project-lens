@@ -84,6 +84,7 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 .rank .pj:empty{display:none}
 .rank .t{font-weight:700;line-height:1.4;overflow-wrap:anywhere}
 .rank .why{grid-column:2;color:var(--muted);font-size:12px;line-height:1.5}
+.rank [data-prioplan]{grid-column:2;justify-self:start}
 .rank .act{display:inline-block;font-size:11px;padding:0 6px;border-radius:4px;background:var(--warn-soft);color:var(--warn);margin-right:6px}
 .rank li[data-dragtask]{cursor:grab;border-radius:6px}
 .rank .t .pill{vertical-align:1px}
@@ -465,6 +466,7 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .tdpage .toolbar{margin-bottom:12px}
 .tdcols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start;margin-bottom:16px}
 @media(max-width:700px){.tdcols{grid-template-columns:minmax(0,1fr)}}
+.tdleft{display:flex;flex-direction:column;gap:16px;min-width:0}
 .td-slots{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px}
 .td-slots .ts{display:inline-flex;align-items:center;gap:6px}
 .tdweek h3{margin:14px 0 6px;font-size:13px;color:var(--muted)}
@@ -479,8 +481,13 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .td-main .pj{font-size:11px;font-weight:700;color:var(--accent);overflow-wrap:anywhere}
 .td-main .td-title{flex:1 1 12em;min-width:0;overflow-wrap:anywhere}
 .td-main .btn{font-size:12px;padding:3px 9px}
+.td-why{font-size:12px;color:var(--muted)}
 .td-meta{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
 .tdlist .actform{margin:0}
+/* 催促の組: 黄色の背景と枠、見出しも黄色、行は白（面）。「催促した」は主ボタン（画面案どおり） */
+.tdchase{border-color:var(--warn);background:var(--warn-soft)}
+.tdchase h2{color:var(--warn)}
+.tdchase .tdlist>li{background:var(--surface);border-color:var(--warn)}
 .tf-cks{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;flex-basis:100%}
 .tdform label.tf-ck{flex-direction:row;align-items:center;gap:6px;font-size:13px;color:var(--ink)}
 .tf-ck input[type=checkbox]{width:18px;height:18px;margin:0;accent-color:var(--accent);flex:none}

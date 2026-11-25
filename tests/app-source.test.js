@@ -838,14 +838,14 @@ test("ToDo タブ: index.html のタブ（スケジュールと稼働の間）�
   assert.ok(html.indexOf('id="tab-schedule"') < html.indexOf('id="tab-todo"') && html.indexOf('id="tab-todo"') < html.indexOf('id="tab-workload"'));
   assert.ok(src.includes("S.screen = b.id.slice(4)"), "tab-todo のクリックで S.screen が todo になる");
   const body = src.slice(src.indexOf("function renderBody()"), src.indexOf("function placeTaskPop"));
-  assert.ok(body.includes('S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, col: S.tdCol, draft: S.tdDraft, plan: S.tdPlan, urgentDraft: S.urgentDraft });'), body);
+  assert.ok(body.includes('S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, col: S.tdCol, draft: S.tdDraft, plan: S.tdPlan, chase: S.tdChase, urgentDraft: S.urgentDraft });'), body);
   const build = readFileSync(new URL("../plugins/project-lens/tools/build.js", import.meta.url), "utf8");
   assert.ok(build.indexOf('"src/ui/views/schedule.js"') < build.indexOf('"src/ui/views/todo.js"'));
 });
 
 test("ToDo タブ: 古い ToDo の状態・ハンドラ・関数は無い", () => {
   for (const s of ["todoDay", "tdAct", "tdAskDel", "renderTodayTodos", "setTodoDay", "submitTodoInput", "deleteTodoNow", "data-tdnew", "data-tdday", "data-tdassign", "data-tdcarry", "data-tddel", "data-tdactsave", "dataset.tdone", "dataset.tdtitle", "dataset.tdcktoggle", "dataset.ta ", "addTodo(", "assignToDay(", "carryTodo(", "deleteTodo(", "ToDo）"]) assert.ok(!src.includes(s), s);
-  assert.ok(src.includes('for (const k of ["tdnote", "tf", "tdckadd", "tp"])'), "入力中の欄（読み直しで描き直さない・フォーカスを保つ）");
+  assert.ok(src.includes('for (const k of ["tdnote", "tf", "tdckadd", "tp", "ch"])'), "入力中の欄（読み直しで描き直さない・フォーカスを保つ）");
 });
 
 test("ToDo タブ: 入力欄の項目の追加（data-tdckadd の Enter。isComposing を除く）・削除（data-tdckdel）は、先に S.tdDraft へ写してから apply ですぐ保存する", () => {
@@ -1004,7 +1004,7 @@ test("ToDo タブ: S.tdPlan は clearSel・週の移動・render() の検証（�
   assert.match(src, /function moveTodoWeek\(week\) \{[^}]*S\.tdPlan = null;/);
   assert.ok(src.includes("if (S.tdPlan && !S.data?.tasks.some((t) => t.id === S.tdPlan.key)) S.tdPlan = null;"));
   assert.ok(src.includes('if (el.dataset.tp !== undefined) {') && /key && key === S\.tdPlan\?\.key\) S\.tdPlan = tdPlanDraft\(form, key\)/.test(src));
-  assert.ok(src.includes('for (const k of ["tdnote", "tf", "tdckadd", "tp"])'));
+  assert.ok(src.includes('for (const k of ["tdnote", "tf", "tdckadd", "tp", "ch"])'));
 });
 
 test("app.js: 画面の中の「＋ 突発タスク」は、開くだけで、欄外クリックの下書き外しに消されない", () => {
@@ -1023,4 +1023,58 @@ test("チェックの警告: 「未完了のまま」の選択肢（ckkeep）は
   assert.ok(!src.includes("ckkeep"));
   const i = src.indexOf('q("[data-ckall]")'), a = src.slice(i, i + 500);
   assert.ok(i > 0 && a.includes("checkAll: true") && a.includes("setStatus(pd.id, pd.status, [], true)"), a);
+});
+
+test("今日の優先の「今日へ」（data-prioplan）は、ToDo タブへ移り、S.todoWeek を今週にして、そのあと openPlan を呼ぶ", () => {
+  const i = src.indexOf('const pp = q("[data-prioplan]")');
+  assert.ok(i > 0, "ハンドラ");
+  const h = src.slice(i, src.indexOf("return; }", i));
+  const a = h.indexOf('S.screen = "todo"'), b = h.indexOf("S.todoWeek = mondayOf(today)"), c = h.indexOf("openPlan(");
+  assert.ok(a > 0 && b > a && c > b, h);
+  assert.ok(h.includes("clearSel()") && h.indexOf("clearSel()") < c, "画面の移動で、ほかの入力欄を閉じてから開く");
+  assert.ok(h.includes("S.resetScroll = true"), h);
+});
+
+test("theme.css: 催促の組は、黄色の背景と枠・黄色の見出し・白い行（画面案どおり）。「催促した」は主ボタン", () => {
+  const css = readFileSync(new URL("../plugins/project-lens/src/ui/theme.css", import.meta.url), "utf8");
+  assert.match(css, /\.tdchase\{border-color:var\(--warn\);background:var\(--warn-soft\)\}/);
+  assert.match(css, /\.tdchase h2\{color:var\(--warn\)\}/);
+  assert.match(css, /\.tdchase \.tdlist>li\{background:var\(--surface\);border-color:var\(--warn\)\}/);
+  const todo = readFileSync(new URL("../plugins/project-lens/src/ui/views/todo.js", import.meta.url), "utf8");
+  assert.ok(todo.includes("<button class=\"btn primary\" data-chasedone="), "「催促した」は主ボタン");
+});
+
+test("ToDo タブ: 催促（data-chasedone・data-chaseedit）は S.tdChase を開き、S.tdOpen・S.tdPlan・S.urgentDraft を外す。逆に、ほかを開くと S.tdChase を外す", () => {
+  assert.match(src, /tdPlan: null, tdChase: null/);
+  const i = src.indexOf("function openChase("), a = src.slice(i, src.indexOf("\n}", i));
+  assert.ok(i > 0, "開く処理");
+  for (const s of ["S.tdChase = {", "S.tdOpen = null;", "S.tdPlan = null;", "S.urgentDraft = null;", "S.tdDraft = null;"]) assert.ok(a.includes(s), s);
+  assert.match(src, /q\("\[data-chasedone\]"\)/);
+  assert.match(src, /q\("\[data-chaseedit\]"\)/);
+  assert.match(src, /const chd = q\("\[data-chasedone\]"\), che = q\("\[data-chaseedit\]"\);[^]*?mode = chd \? "done" : "edit"[^]*?else openChase\(id, mode\)/);
+  assert.match(src, /const tdo = q\("\[data-tdopen\]"\);\s*if \(tdo\) \{[^\n]*S\.tdPlan = null; S\.tdChase = null;/);
+  const j = src.indexOf("function openPlan(id)"); assert.ok(src.slice(j, src.indexOf("\n}", j)).includes("S.tdChase = null;"), "今日へ");
+  const k = src.indexOf("function openUrgent()"); assert.ok(src.slice(k, src.indexOf("\n}", k)).includes("clearSel();"), "突発は clearSel で外す");
+  assert.match(src, /plan: S\.tdPlan, chase: S\.tdChase, urgentDraft: S\.urgentDraft/);
+});
+
+test("ToDo タブ: 催促の保存（data-chasesave）は、先に S.tdChase へ写してから apply する。待ち先が空なら throw。成功のときだけ外す", () => {
+  const i = src.indexOf('const chs = q("[data-chasesave]")'), a = src.slice(i, src.indexOf('q("[data-chasecancel]")', i));
+  assert.ok(i > 0, "ハンドラ");
+  const w = a.indexOf("S.tdChase = tdChaseDraft("), ap = a.indexOf("apply(");
+  assert.ok(w > 0 && ap > w, "写すのが先");
+  assert.ok(a.includes("markChased(d, id,") && a.includes("updateTask(d, id, { waitingOn:"), a);
+  assert.ok(/throw new Error\("待ち先を入力してください"\)/.test(a), "空は throw");
+  assert.match(a, /\)\) \{\s*S\.tdChase = null; render\(\);/);
+  assert.equal(a.split("S.tdChase = null").length, 2, "外すのは成功のときだけ");
+  assert.match(src, /function tdChaseDraft\(form, key, mode\) \{[^]*?return \{ key, mode, days:/);
+  assert.match(src, /q\("\[data-chasecancel\]"\)\) \{ S\.tdChase = null; render\(\); return; \}/);
+});
+
+test("ToDo タブ: S.tdChase は clearSel・週の移動・render() の検証（催促の対象でなくなった）で外す。欄の change は S.tdChase へ写す。フォーカスを保つ欄に ch", () => {
+  assert.match(src, /const clearSel = \(\) => \{[^\n]*S\.tdChase = null;/);
+  assert.match(src, /function moveTodoWeek\(week\) \{[^}]*S\.tdChase = null;/);
+  assert.ok(src.includes("if (S.tdChase && !chaseTasks(S.data, clock().date).some((r) => r.task.id === S.tdChase.key)) S.tdChase = null;"));
+  assert.ok(src.includes("if (el.dataset.ch !== undefined) {") && /key === S\.tdChase\?\.key\) S\.tdChase = tdChaseDraft\(form, key, S\.tdChase\.mode\)/.test(src));
+  assert.ok(src.includes('for (const k of ["tdnote", "tf", "tdckadd", "tp", "ch"])'));
 });
