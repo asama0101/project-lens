@@ -79,15 +79,68 @@ test("空データでも例外を出さず、空状態を表示する", () => {
   assert.ok(renderProjects(d, TODAY, { filter: "all", view: "list" }).includes("プロジェクトがありません"));
 });
 
-test("renderProjects(list): 状態（英語表記）・待ち先・日程変更の履歴・実績", () => {
+test("renderProjects(list): 状態（英語表記）・待ち先・日程変更の履歴。実績の列は無い", () => {
   const html = renderProjects(load(), TODAY, { filter: "AA", view: "list" });
   for (const s of ["To Do", "In Progress", "Waiting", "Done", "Cancelled"]) assert.ok(html.includes(`>${s}</option>`), s);
   assert.ok(html.includes('value="ベンダーX"'));
   assert.ok(html.includes("ベンダーX の納期回答が遅れたため"));
-  assert.ok(html.includes("3.5h・初回 10/14・3回"), "AA-0005 の実績");
+  const thead = html.match(/<table class="tbl edit"><thead>[\s\S]*?<\/thead>/)[0];
+  assert.ok(!thead.includes("<th>実績</th>"), "見出しに実績が無い");
+  assert.ok(!html.includes('data-l="実績"') && !html.includes("3.5h・初回 10/14・3回"), "行にも実績のセルが無い");
   assert.ok(html.includes("前のタスクから"), "前のタスクがあり、開始日の指定がないときは、決まる日と『前のタスクから』を添える");
   assert.ok(html.includes('data-date="1" data-f="start" data-id="AA-0005"'), "前のタスクなしは開始日を入力できる");
   assert.ok(html.includes('data-f="start" data-id="AA-0006"'), "前のタスクありでも開始日を入力できる");
+});
+
+// リストの Done の確認・待ち先の入力は、狭い状態の欄ではなく、行の直下の全幅の行（askrow）に出す
+const listAA = (d, opts) => renderProjects(d, TODAY, { filter: "AA", view: "list", showPrio: false, ...opts });
+const headCols = (html) => count(html.match(/<table class="tbl edit"><thead>[\s\S]*?<\/thead>/)[0], /<th>/g);
+const rowAndNext = (html, id) => html.match(new RegExp(`<tr[^>]*data-row="${id}"[\\s\\S]*?</tr>(<tr[\\s\\S]*?</tr>)?`));
+const statusTd = (row) => row.match(/<td data-l="状態">[\s\S]*?<\/td>/)[0];
+
+test("renderProjects(list): pendingDone のとき、その行の直下に全幅の askrow を出す。状態のセルには select だけ", () => {
+  for (const pd of [{ id: "AA-0001", status: "Done", n: 1, future: ["S3"], open: [], stage: "future" }, { id: "AA-0001", status: "Done", n: 0, future: [], open: ["x"], stage: "check" }]) {
+    const html = listAA(load(), { pendingDone: pd });
+    const [, next] = rowAndNext(html, "AA-0001");
+    assert.ok(next?.startsWith(`<tr class="askrow"><td colspan="${headCols(html)}"><div class="askwrap"><div class="ask`), next);
+    assert.ok(next.includes(pd.stage === "check" ? 'data-ckall="AA-0001"' : 'data-doneok="AA-0001"'), next);
+    assert.ok(next.includes('style="max-width:none"'), ".ask の幅の上限（190px）を外して、全幅に広げる");
+    const st = statusTd(rowAndNext(html, "AA-0001")[0]);
+    assert.ok(!st.includes('class="ask') && st.includes('data-f="status"'), st);
+    assert.equal(count(html, /class="askrow"/g), 1);
+  }
+});
+
+test("renderProjects(list): pendingWait のとき、待ち先の入力（data-waitparty）は行の直下の askrow の中", () => {
+  const html = listAA(load(), { pendingWait: "AA-0001" });
+  const [row, next] = rowAndNext(html, "AA-0001");
+  assert.ok(next?.startsWith(`<tr class="askrow"><td colspan="${headCols(html)}"><div class="askwrap"><div class="ask`), next);
+  assert.ok(next.includes('data-waitparty="AA-0001"') && next.includes('data-waitok="AA-0001"') && next.includes("data-waitno"), next);
+  assert.ok(!statusTd(row).includes("data-waitparty") && statusTd(row).includes('data-f="status"'));
+  assert.equal(count(html, /data-waitparty=/g), 1);
+});
+
+test("renderProjects(list): pendingDone・pendingWait が無いとき、askrow は出ない。今日のタスクの行の pendingDone も、リストには出さない", () => {
+  assert.ok(!listAA(load(), {}).includes("askrow"));
+  const { d } = withToday();
+  const html = renderProjects(d, TODAY, { filter: "all", view: "list", pendingDone: { id: "AA-0005", status: "Done", n: 1, future: ["S3"] } });
+  assert.ok(!html.includes("askrow"), "今日のタスクの行（右の列）に出すので、リストには出さない");
+});
+
+test("renderProjects(list): 見出しの列数と、グループの行・チェックリストの展開行の colspan がそろう", () => {
+  const html = listAA(load(), { checkOpen: new Set(["AA-0001"]) });
+  const n = headCols(html);
+  const spans = [...html.matchAll(/<tr class="(?:grp-tr|ck-tr)"[^>]*><td colspan="(\d+)"/g)].map((m) => Number(m[1]));
+  assert.ok(spans.length >= 2 && spans.every((x) => x === n), `${n}: ${spans}`);
+});
+
+test("ガントの編集の窓では、待ち先の入力・Done の確認は、今までどおり窓の中（状態の欄）に出る", () => {
+  const pop = (o) => renderProjects(load(), TODAY, { filter: "AA", view: "gantt", showPrio: false, tpop: { id: "AA-0001", x: 0, y: 0 }, ...o });
+  const w = pop({ pendingWait: "AA-0001" });
+  assert.ok(w.includes('data-waitparty="AA-0001"') && !w.includes("askrow"));
+  assert.ok(w.slice(w.indexOf('class="tpop"')).includes('data-waitparty="AA-0001"'));
+  const dn = pop({ pendingDone: { id: "AA-0001", status: "Done", n: 1, future: ["S3"], open: [], stage: "future" } });
+  assert.ok(dn.slice(dn.indexOf('class="tpop"')).includes('data-doneok="AA-0001"') && !dn.includes("askrow"));
 });
 
 test("renderGantt: 行数＝タスク数、今日の線、マイルストーン、実績の線は実績のあるタスクだけ", () => {
@@ -409,6 +462,82 @@ test("会議フォーム: 下書き（key が m:<会議 ID>）の実績の開始
   assert.match(renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15, selMtg: "m1", actDraft: { key: "m:m2", start: "09:45", end: "10:15" } }), /<input[^>]*data-ma="start"[^>]*value="09:30"/);
 });
 
+// ---- 実績の欄（予定の枠と会議で、同じ部品・同じ位置・同じ並び） ----
+const mtgslotOf = (html) => /<div id="mtgslot">([\s\S]*?)<\/div><div id="calslot">/.exec(html)[1];
+const ACTBOX = '<div class="actform" role="group" aria-label="実績の入力">';
+/** 実績の欄の並び（ラベル・日付・開始・終了・ボタンの順）を、印の列にする */
+const actOrder = (box) => [...box.matchAll(/class="(aclb|acdt|acbtns)"|data-(?:ac|ma)="(date|start|end)"|data-(actsave|actclear|mtgact|mtgactclear)=/g)].map((m) => m[1] ?? m[2] ?? m[3]);
+/** #mtgslot の先頭の実績の欄（次の欄の始まりまで） */
+const actBoxOf = (slot) => { const rest = slot.slice(ACTBOX.length); const end = rest.search(/<div class="(mtgform|ask)/); return end < 0 ? rest : rest.slice(0, end); };
+const slotWithAct = () => sched(withPlan({ id: "S9", date: TODAY, start: "08:00", end: "09:00", actual: { date: TODAY, start: "08:15", end: "09:30" } }), { selSess: "S9", taskEdit: { id: "AA-0005", full: false, askDel: false } });
+const mtgSel = (id, d = noSessions()) => renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15, selMtg: id });
+
+test("実績の欄: 枠を選んだときも会議を選んだときも、#mtgslot の先頭に、同じ class（.actform）の欄で出す。編集の欄（タスクの編集欄・会議の編集欄）はその下", () => {
+  const slot = mtgslotOf(slotWithAct());
+  assert.ok(slot.startsWith(ACTBOX), slot.slice(0, 200));
+  assert.ok(slot.indexOf("data-tedit") > slot.indexOf('data-actclear="S9"'), "タスクの編集欄は実績の欄の下");
+  const mtg = mtgslotOf(mtgSel("m1"));
+  assert.ok(mtg.startsWith(ACTBOX), mtg.slice(0, 200));
+  const form = mtg.indexOf('<div class="mtgform"');
+  assert.ok(form > mtg.indexOf('data-mtgactclear="m1"'), "会議の編集欄は実績の欄の下");
+  for (const k of ['data-mt="title"', 'data-mt="date"', 'data-mt="start"', 'data-mt="end"', 'data-mt="projectId"', 'data-mt="skip"', "data-mtgclose"]) assert.ok(mtg.indexOf(k) > form, k);
+  const m2 = mtgslotOf(mtgSel("m2"));
+  assert.ok(m2.indexOf("data-delsel") > m2.indexOf('<div class="mtgform"'), "会議を削除も編集欄の中");
+  const box = actBoxOf(mtg);
+  assert.ok(!box.includes("data-mt="), "実績の欄に会議の編集の項目は無い");
+  assert.ok(!mtg.slice(form).includes("data-ma=") && !mtg.slice(form).includes("data-mtgact"), "会議の編集欄に実績の項目は無い");
+});
+
+test("実績の欄: 並びは「実績」のラベル・日付・開始・終了・ボタン（保存か更新、あれば消す）で、枠と会議で同じ。ボタンは同じ右端の入れ物（.acbtns）", () => {
+  const sBox = actBoxOf(mtgslotOf(slotWithAct())), mBox = actBoxOf(mtgslotOf(mtgSel("m1")));
+  assert.deepEqual(actOrder(sBox), ["aclb", "date", "start", "end", "acbtns", "actsave", "actclear"], sBox);
+  assert.deepEqual(actOrder(mBox), ["aclb", "acdt", "start", "end", "acbtns", "mtgact", "mtgactclear"], mBox);
+  assert.ok(sBox.includes('<span class="aclb">実績</span>') && mBox.includes('<span class="aclb">実績</span>'));
+  assert.match(sBox, /<label>開始<input[^>]*data-ac="start"/);
+  assert.match(mBox, /<label>開始<input[^>]*data-ma="start"/);
+  assert.match(mBox, /<label>終了<input[^>]*data-ma="end"/);
+  // ボタンの文言: 実績を持つ（会議は確認済み）なら「実績を更新」、無ければ「実績を保存」。枠と会議で同じ
+  assert.ok(sBox.includes('data-actsave="S9">実績を更新</button>') && mBox.includes('data-mtgact="m1">実績を更新</button>'), mBox);
+  const sNew = actBoxOf(mtgslotOf(sched(withPlan({ id: "S9", date: TODAY, start: "08:00", end: "09:00" }), { selSess: "S9" })));
+  const d = noSessions(); d.events.find((e) => e.id === "m1").confirmed = false;
+  const mNew = actBoxOf(mtgslotOf(mtgSel("m1", d)));
+  assert.ok(sNew.includes('data-actsave="S9">実績を保存</button>') && mNew.includes('data-mtgact="m1">実績を保存</button>'), mNew);
+  assert.ok(!sNew.includes("data-actclear") && !mNew.includes("data-mtgactclear"));
+});
+
+test("実績の欄: 説明の行（.note）が、枠と会議の両方で、ラベルの行の前にある。件名はエスケープし、実績の有無で「入れます」「更新します」", () => {
+  const d = noSessions(); Object.assign(d.events.find((e) => e.id === "m1"), { title: "定例<b>&", confirmed: false });
+  const mBox = actBoxOf(mtgslotOf(mtgSel("m1", d)));
+  const sBox = actBoxOf(mtgslotOf(slotWithAct()));
+  for (const box of [sBox, mBox]) {
+    const n = box.indexOf('<span class="note" style="flex-basis:100%;margin:0">');
+    assert.ok(n >= 0 && n < box.indexOf('class="aclb"'), box);
+  }
+  assert.ok(mBox.includes("「定例&lt;b&gt;&amp;」の実績を入れます") && !mBox.includes("<b>&"), mBox);
+  assert.ok(actBoxOf(mtgslotOf(mtgSel("m1"))).includes("「NW運用定例」の実績を更新します"), "確認済みの会議");
+});
+
+test("実績の欄: 会議の日付は文字（入力欄でない）。枠の日付は入力欄（data-ac=\"date\"）", () => {
+  const mBox = actBoxOf(mtgslotOf(mtgSel("m1")));
+  const dt = /<span class="acdt">([\s\S]*?)<\/span>/.exec(mBox)?.[1];
+  assert.ok(dt && dt.includes("10/20") && !dt.includes("<input"), mBox);
+  assert.ok(!mBox.includes('data-ac="date"') && !mBox.includes("data-date"), "会議の実績の欄に日付の入力欄は無い");
+  const sBox = actBoxOf(mtgslotOf(slotWithAct()));
+  assert.match(sBox, /<label>日付<span class="dfield"><input[^>]*data-ac="date"/);
+  assert.ok(!sBox.includes('class="acdt"'));
+});
+
+test("実績の欄: 始まっていない・参加しない・追加中の会議には出ない。下書きの値は、会議の実績の欄に出る", () => {
+  const d = noSessions();
+  d.events.find((e) => e.id === "m2").skip = true;
+  assert.ok(!mtgslotOf(mtgSel("m2", d)).includes(ACTBOX), "参加しない会議");
+  assert.ok(!mtgslotOf(renderSchedule(d, TODAY, { view: "day", date: "2026-10-21", now: NOW15, selMtg: "m3" })).includes(ACTBOX), "未来の会議");
+  assert.ok(!mtgslotOf(renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15, mtgDraft: { date: TODAY, start: "09:00", end: "10:00", title: "", skip: false } })).includes(ACTBOX), "追加中の会議");
+  const dr = mtgslotOf(renderSchedule(noSessions(), TODAY, { view: "day", date: TODAY, now: NOW15, selMtg: "m1", actDraft: { key: "m:m1", start: "09:45", end: "10:15" } }));
+  assert.ok(dr.startsWith(ACTBOX));
+  assert.match(actBoxOf(dr), /<input[^>]*data-ma="start"[^>]*value="09:45"/);
+});
+
 test("meetingBlocks: actual を持つ会議は、実績の時刻に data-mact の 1 つだけ（文字は「実績 開始-終了 ✓」、title に予定の時刻）。ドラッグ・伸縮の属性なし。時刻が予定と違うときだけ、予定の時刻に影（data-mghost）", () => {
   const d = noSessions();
   Object.assign(d.events.find((e) => e.id === "m1"), { confirmed: true, actual: { start: "09:35", end: "10:20" } });
@@ -723,7 +852,7 @@ test("会議フォーム: 選んだ会議（mcp・manual）に、実績の開始
   const m1 = renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15, selMtg: "m1" });
   assert.match(m1, /<input[^>]*data-ma="start"[^>]*value="09:30"/);
   assert.match(m1, /<input[^>]*data-ma="end"[^>]*value="10:30"/);
-  assert.ok(m1.includes('data-mtgact="m1"') && m1.includes(">実績を保存</button>"));
+  assert.ok(m1.includes('data-mtgact="m1">実績を更新</button>'), "確認済みの会議は「実績を更新」");
   assert.ok(!/<input[^>]*data-ma="start"[^>]*disabled/.test(m1), "予定表から取得した会議でも、実績は入れられる");
   d.events.find((e) => e.id === "m2").actual = { start: "13:15", end: "14:30" };
   const m2 = renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15, selMtg: "m2" });
@@ -1657,11 +1786,14 @@ test("renderTaskPop: チェックリストの欄を、期限の下・前のタ�
 });
 
 // ---- Done にするときの警告 ----
-test("doneAskHtml: stage が check なら、未完了の項目の一覧と 3 つのボタン。文言はエスケープする", () => {
+test("doneAskHtml: stage が check なら、未完了の項目の一覧と 2 つのボタン（残りをチェック・やめる）。文言はエスケープする", () => {
   const h = doneAskHtml({ id: "AA-0005", status: "Done", n: 0, future: [], open: ["a<b>", "b"], stage: "check", checkAll: false });
   assert.ok(h.includes("未完了の項目が 2 件あります") && h.includes('role="alert"'));
   assert.ok(h.includes("<li>a&lt;b&gt;</li>") && !h.includes("<li>a<b>"));
-  for (const a of ['data-ckall="AA-0005"', 'data-ckkeep="AA-0005"', "data-doneno"]) assert.ok(h.includes(a), a);
+  for (const a of ['data-ckall="AA-0005"', "data-doneno"]) assert.ok(h.includes(a), a);
+  assert.equal((h.match(/<button/g) || []).length, 2, "ボタンは 2 つだけ");
+  assert.ok(!h.includes("data-ckkeep") && !h.includes("未完了のまま"));
+  assert.ok(h.includes("不要な項目は、削除してから"));
   assert.ok(!h.includes("data-doneok"));
 });
 
@@ -2238,7 +2370,7 @@ const tdData = (reviews) => ({
 const tdHtml = (d, o = {}) => renderTodo(d, TODAY, { week: TD_WEEK, now: TD_NOW, open: null, draft: null, ...o });
 const rowIn = (html, id) => html.match(new RegExp(`<li[^>]*data-tdrow="${id}"[^]*?</li>`))?.[0] ?? "";
 /** 右の列（この週のタスク候補）と、左の列（今日の ToDo） */
-const tdList = (html) => html.slice(html.indexOf('class="panel tdweek'), html.indexOf('class="tdreview'));
+const tdList = (html) => html.slice(html.indexOf('class="panel tdweek'));
 const tdTodayCol = (html) => html.slice(html.indexOf('class="panel tdtoday'), html.indexOf('class="panel tdweek'));
 const tdRow = (html, id) => rowIn(tdList(html), id);
 const tdTodayRow = (html, id) => rowIn(tdTodayCol(html), id);
@@ -2324,21 +2456,51 @@ test("renderTodo: draft（key が同じ）があれば、入力欄がその値�
   assert.match(other, /<option value="Done" selected>/, "別のタスクの下書きは使わない");
 });
 
-test("renderTodo: 週の移動（data-tdweek・data-tdweek-today）と、見返し（完了 X / Y 件・予定 P 分に対して実績 A 分・タスクごとの進捗/予定/実績・気づき）。回した回数の列は無い", () => {
+/** 稼働タブ（週の見返しの領域を末尾に出す） */
+const wlHtml = (d, o = {}) => renderWorkload(d, TODAY, { period: "week", date: TODAY, now: TD_NOW, ...o });
+const reviewOf = (html) => html.slice(html.indexOf('<section class="tdreview panel" aria-label="週の見返し">'));
+
+test("renderTodo: 週の移動（data-tdweek・data-tdweek-today）は残り、週の見返しは出ない（稼働タブへ移した）", () => {
   const html = tdHtml(tdData({ [TD_WEEK]: "会議が多い週" }));
   for (const a of ['data-tdweek="-1"', 'data-tdweek="1"', "data-tdweek-today", "10/19〜10/25"]) assert.ok(html.includes(a), a);
-  const rv = html.slice(html.indexOf('class="tdreview'));
+  for (const s of ["週の見返し", "tdreview", "data-tdnote", "会議が多い週", "td-sum"]) assert.ok(!html.includes(s), s);
+});
+
+test("renderWorkload: 末尾に週の見返し（完了 X / Y 件・予定 P 分に対して実績 A 分・タスクごとの進捗/予定/実績・気づき）。回した回数の列は無い", () => {
+  const html = wlHtml(tdData({ [TD_WEEK]: "会議が多い週" }));
+  const i = html.indexOf('<section class="tdreview panel" aria-label="週の見返し">');
+  assert.ok(i > html.indexOf('<section class="panel wl"') && html.endsWith("</section>") && html.lastIndexOf('class="panel wl"') < i, "稼働の領域の後ろ（末尾）");
+  const rv = reviewOf(html);
+  assert.ok(rv.includes("<h2>週の見返し（10/19〜10/25）</h2>"), rv);
   assert.ok(rv.includes("完了 1 / 4 件"), rv);
   assert.ok(rv.includes("予定 120 分に対して実績 30 分"), rv);
   const tr = (t) => rv.split("<tr").find((x) => x.includes(t)) ?? "";
   assert.ok(tr("超過のタスク").includes("1/2") && tr("超過のタスク").includes("0 分"), tr("超過のタスク"));
   assert.ok(tr("予定のタスク").includes("—") && tr("予定のタスク").includes("120 分") && tr("予定のタスク").includes("30 分"), tr("予定のタスク"));
   assert.ok(!rv.includes("回した"));
-  assert.match(rv, /<textarea[^>]*data-tdnote="2026-10-19"[^>]*>会議が多い週<\/textarea>/);
+  assert.match(rv, /<label class="td-note">気づき<textarea class="in" rows="3" data-tdnote="2026-10-19">会議が多い週<\/textarea><\/label>/);
 });
 
-test("renderTodo: 件名・プロジェクト名・チェックの項目・気づきは esc() される", () => {
-  const d = tdData({ [TD_WEEK]: "<b>&" });
+test("renderWorkload: 週の見返しは、期間（日・週・月）によらず出て、例外にならない。週は opts.date を含む週", () => {
+  for (const period of ["day", "week", "month"]) {
+    const rv = reviewOf(wlHtml(tdData(), { period }));
+    assert.ok(rv.includes("<h2>週の見返し（10/19〜10/25）</h2>") && rv.includes('data-tdnote="2026-10-19"') && rv.includes("完了 1 / 4 件"), `${period}: ${rv}`);
+  }
+});
+
+test("renderWorkload: 週の見返しの週は、opts.date を含む月曜〜日曜。日曜日は前の月曜日の週。日を 1 週動かすと、見出しと気づきの週が変わる", () => {
+  const d = tdData({ "2026-10-19": "前の週の気づき", "2026-10-26": "次の週の気づき" });
+  const mon = reviewOf(wlHtml(d, { date: "2026-10-19" })), sun = reviewOf(wlHtml(d, { period: "day", date: "2026-10-25" }));
+  for (const rv of [mon, sun]) assert.ok(rv.includes("<h2>週の見返し（10/19〜10/25）</h2>") && rv.includes('data-tdnote="2026-10-19">前の週の気づき</textarea>'), rv);
+  const next = reviewOf(wlHtml(d, { period: "day", date: "2026-10-26" }));
+  assert.ok(next.includes("<h2>週の見返し（10/26〜11/1）</h2>") && next.includes('data-tdnote="2026-10-26">次の週の気づき</textarea>'), next);
+  assert.ok(!next.includes("前の週の気づき"));
+  const month = reviewOf(wlHtml(d, { period: "month", date: "2026-10-28" }));
+  assert.ok(month.includes("<h2>週の見返し（10/26〜11/1）</h2>"), "月の表示でも、日を含む週");
+});
+
+test("renderTodo: 件名・プロジェクト名・チェックの項目は esc() される", () => {
+  const d = tdData();
   d.projects[0].name = "<b>&";
   Object.assign(d.tasks[0], { title: "<b>&" });
   d.tasks[0].checklist[0].text = "<b>&";
@@ -2347,9 +2509,19 @@ test("renderTodo: 件名・プロジェクト名・チェックの項目・気�
   assert.ok(html.includes("&lt;b&gt;&amp;"));
 });
 
-test("renderTodo: 週にタスクが無ければ、一覧は案内だけ。見返しは 0 件", () => {
+test("renderWorkload: 週の見返しの件名・気づきは esc() される", () => {
+  const d = tdData({ [TD_WEEK]: "</textarea><b>&" });
+  Object.assign(d.tasks[0], { title: "<b>&" });
+  const rv = reviewOf(wlHtml(d));
+  assert.ok(!rv.includes("<b>&") && !rv.includes("</textarea><b>"), "生のタグが無い");
+  assert.ok(rv.includes("<td>&lt;b&gt;&amp;</td>") && rv.includes(">&lt;/textarea&gt;&lt;b&gt;&amp;</textarea>"), rv);
+});
+
+test("renderTodo: 週にタスクが無ければ、一覧は案内だけ。稼働タブの週の見返しは 0 件で、例外にならない", () => {
   const html = tdHtml({ ...tdData(), tasks: [] });
-  assert.ok(!html.includes("data-tdrow=") && html.includes("この週のタスクはありません") && html.includes("完了 0 / 0 件"));
+  assert.ok(!html.includes("data-tdrow=") && html.includes("この週のタスクはありません"));
+  const rv = reviewOf(wlHtml({ ...tdData(), tasks: [] }));
+  assert.ok(rv.includes("完了 0 / 0 件") && rv.includes("予定 0 分に対して実績 0 分") && rv.includes("<tbody></tbody>"), rv);
 });
 
 test("renderTodo: 左に『今日の ToDo（M/D）』、右に『この週のタスク候補』の見出しが、この順に出る。古い見出し「この週のタスク」だけの見出しは無い", () => {
@@ -2440,7 +2612,10 @@ test("完了の保存: 予定の枠が無いタスクで、初期値のまま保
   const dr = formDraft(tdRow(tdHtml(d, { open: "AA-0001" }), "AA-0001"), "AA-0001");
   assert.deepEqual([dr.date, dr.start, dr.end, dr.status], [TODAY, "", "", "Done"]);
   assert.equal(completeInput(dr).actual, undefined);
-  const r = completeTask(d, "AA-0001", completeInput(dr), TD_NOW);
+  assert.ok(Object.values(dr.checks).includes(false), "初期値は、未完了の項目が残る");
+  assert.throws(() => completeTask(d, "AA-0001", completeInput(dr), TD_NOW), /未完了の項目があります/, "未完了の項目があれば Done にしない");
+  const all = { ...dr, checks: Object.fromEntries(Object.keys(dr.checks).map((k) => [k, true])) }; // 「残りをすべてチェック」
+  const r = completeTask(d, "AA-0001", completeInput(all), TD_NOW);
   const t = r.data.tasks.find((x) => x.id === "AA-0001");
   assert.equal(t.status, "Done");
   assert.deepEqual(t.sessions, [], "実績は足さない");

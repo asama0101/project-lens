@@ -172,7 +172,10 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 .wl-bar.un{opacity:.6}
 .wl .banner{margin-top:14px}
 .tbl.edit td[data-l="件名"] .in{min-width:13em}
-.tbl.edit td[data-l="状態"] select{min-width:7em}
+.tbl.edit td[data-l="状態"] select{min-width:9.5em} /* In Progress・Cancelled が切れない幅（select の矢印の分を含む） */
+/* リストの確認の行は表の全幅なので、横にスクロールしても見えるよう、中身を表示中の範囲の左端に付け、リストの表の横スクロールの枠の幅に収める */
+#view .twrap > .tscroll{container-type:inline-size}
+.tbl.edit tr.askrow .askwrap{position:sticky;left:0;width:max-content;max-width:min(60em,100cqw - 16px)}
 .tbl.edit td[data-l="待ち先"] .in{min-width:6em}
 .tbl.edit td[data-l="メモ"] .in{min-width:16em} /* メモ欄が列の幅に潰されないよう最小幅を持たせる。表は .tscroll の中で横にスクロールする */
 .in:disabled{background:transparent;border-color:transparent;color:var(--muted)}
@@ -252,6 +255,7 @@ tr.drop-after>td,.g-row.drop-after>.g-label,.g-row.drop-after>.g-lane{box-shadow
   .tbl.edit td[data-l=""]::before,.tbl.edit td[data-l="ID"]::before{display:none}
   .tbl.edit td:nth-child(4),.tbl.edit td:nth-child(12){grid-column:1/-1}
   #view .tbl.edit tr.ck-tr>td{grid-column:1/-1;padding-left:0} /* チェックリストの展開行は全幅 */
+  .tbl.edit tr.askrow>td{grid-column:1/-1}
 }
 
 .g-lane .gbar{top:6px;height:14px}
@@ -325,6 +329,11 @@ tr.hl td{transition:background .3s}
 .mtgform label,.actform label{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted)}
 .mtgform label.chk{flex-direction:row;align-items:center;gap:6px;color:var(--ink);font-size:13px}
 .mtgform .in:disabled{background:var(--line-soft);color:var(--muted);border-color:var(--line)}
+/* 実績の欄（予定の枠と会議で共通）: 「実績」のラベル・日付（会議は文字）・開始・終了・ボタン（右端）。下端をそろえる行で、文字は入力欄の文字の高さに合わせる */
+.actform .aclb{font-size:13px;font-weight:700;color:var(--ink);padding-bottom:5px}
+.actform .acdt{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--muted)}
+.actform .acdt b{font-size:13px;font-weight:400;color:var(--ink);padding:5px 0}
+.actform .acbtns{display:flex;gap:6px;align-items:center;margin-left:auto}
 .sw.skipsw{background:transparent;border:1px dashed var(--muted)}
 .blk.mtg.skip{right:auto;width:46%;z-index:3;background:var(--surface)}
 
@@ -472,6 +481,7 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .tf-ckitem{display:inline-flex;align-items:center}
 .tf-ckitem .gx{opacity:1;min-width:28px;min-height:28px}
 .tf-cks [data-tdckadd]{flex:1 1 180px;min-width:0}
+.wl + .tdreview{margin-top:16px}
 .tdreview .td-sum{margin:0 0 10px}
 .tdreview .td-note{display:flex;flex-direction:column;gap:4px;margin-top:12px;font-size:12px;color:var(--muted)}
 .tdreview .td-note textarea{resize:vertical;font-size:13px}

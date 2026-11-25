@@ -101,6 +101,15 @@ test("shiftWorkloadDate: 日は1日、週は7日、月は1か月（年またぎ�
   assert.equal(shiftWorkloadDate("month", "2026-03-31", 1), "2026-04-01");
 });
 
+test("renderWorkload: 末尾に週の見返し（日を含む週）。気づきの欄の週は月曜日。期間を渡さないときも出る", () => {
+  const html = wl(mk());
+  assert.ok(html.endsWith("</section>") && html.indexOf('aria-label="週の見返し"') > html.indexOf("<tfoot>"));
+  assert.ok(html.includes("週の見返し（10/19〜10/25）") && html.includes('data-tdnote="2026-10-19"'));
+  assert.ok(renderWorkload(mk(), D, { now: NOW }).includes('data-tdnote="2026-10-19"'), "期間・日を省略（日・今日）");
+  const empty = { version: 1, settings: {}, projects: [], tasks: [], events: [], changeLog: [] };
+  assert.ok(wl(empty).includes("完了 0 / 0 件"), "空データ");
+});
+
 test("renderWorkload: 期間を渡さないときは日（今日）。app.js の初期値も日", () => {
   const html = renderWorkload(mk(), D, { now: NOW });
   assert.ok(html.includes('data-wperiod="day" aria-pressed="true"') && html.includes("2026/10/20(火)"));

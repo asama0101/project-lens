@@ -1,13 +1,26 @@
-// 「稼働」画面: 期間（日・週・月）ごとに、プロジェクト別のタスク（実績の作業枠）と会議（確認済み・参加するもの）の時間を見せる。
+// 「稼働」画面: 期間（日・週・月）ごとに、プロジェクト別のタスク（実績の作業枠）と会議（確認済み・参加するもの）の時間を見せる。末尾に、表示中の日を含む週の見返し（weekSummary）。気づきの保存の結線は app.js（data-tdnote）。
 import { addDays } from "../../core/dates.js";
 import { workload, periodRange } from "../../core/workload.js";
+import { weekSummary, mondayOf } from "../../core/week.js";
 import { esc, fmtMD, wdJa } from "../common.js";
 
 const h = (v) => `${v.toFixed(1)}h`;
 
+/** 週の見返し（weekStart は週の月曜日）: 完了の件数・予定と実績の分・タスクごとの表・気づきの欄 */
+export function weekReviewHtml(data, today, weekStart) {
+  const rv = weekSummary(data, weekStart, today);
+  const progress = (r) => (r.checked ? `${r.checked.done}/${r.checked.total}` : "—");
+  const trs = rv.rows.map((r) => `<tr><td>${esc(r.task.title)}</td><td class="num mono">${progress(r)}</td><td class="num mono">${r.planned} 分</td><td class="num mono">${r.actual} 分</td></tr>`).join("");
+  return `<section class="tdreview panel" aria-label="週の見返し"><h2>週の見返し（${fmtMD(weekStart)}〜${fmtMD(addDays(weekStart, 6))}）</h2>
+      <p class="td-sum"><b>完了 ${rv.done} / ${rv.total} 件</b>　予定 ${rv.planned} 分に対して実績 ${rv.actual} 分</p>
+      <div class="tscroll"><table class="tbl"><thead><tr><th>タスク</th><th class="num">進捗</th><th class="num">予定</th><th class="num">実績</th></tr></thead><tbody>${trs}</tbody></table></div>
+      <label class="td-note">気づき<textarea class="in" rows="3" data-tdnote="${esc(weekStart)}">${esc(rv.note)}</textarea></label>
+    </section>`;
+}
+
 /**
  * @param opts.period "day" | "week" | "month"
- * @param opts.date   表示する日（その日・その日を含む週・月）
+ * @param opts.date   表示する日（その日・その日を含む週・月）。週の見返しは、期間によらず、この日を含む週
  * @param opts.now    {date, time} 未確認の件数を数えるための現在時刻
  */
 export function renderWorkload(data, today, opts = {}) {
@@ -43,7 +56,8 @@ export function renderWorkload(data, today, opts = {}) {
     <div class="tscroll"><table class="tbl wl-tbl"><thead><tr><th>プロジェクト</th><th class="num">タスク</th><th class="num">会議</th><th class="num">合計</th><th>内訳</th></tr></thead><tbody>${rows}${un}</tbody>
       <tfoot><tr><td>合計</td><td class="num mono">${h(sumTask)}</td><td class="num mono">${h(sumMtg)}</td><td class="num mono">${h(w.total)}</td><td></td></tr></tfoot></table></div>
     ${note}
-  </section>`;
+  </section>
+  ${weekReviewHtml(data, today, mondayOf(date))}`;
 }
 
 /** 期間を 1 つ前後へ動かした日（日は 1 日、週は 7 日、月は 1 か月） */

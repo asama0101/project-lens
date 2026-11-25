@@ -18,13 +18,13 @@ export function slotHtml(s, now, actuals) {
   return `<span class="ts"><span class="ktag ${cls}">${label}</span>${esc(`${s.start}–${s.end}`)}</span>`;
 }
 
-/** Done・Cancelled にする前の確認（今日のタスクの行と、リストの状態の欄が使う）。
- *  stage が "check" なら、未完了のチェック項目の警告（残りをチェックして Done／そのまま Done／やめる）。
+/** Done・Cancelled にする前の確認（今日のタスクの行・リストの確認の行・ガントの編集の窓とスケジュールの編集欄の状態の欄が使う）。
+ *  stage が "check" なら、未完了のチェック項目の警告（残りをすべてチェックして Done／やめる。不要な項目は削除してから Done にする）。
  *  それ以外（"future"、または stage なし）は、未来の予定の枠を解除する確認 */
 export function doneAskHtml(pd) {
   const id = esc(pd.id);
   if (pd.stage === "check") {
-    return `<div class="ask warn-ck" role="alert" style="max-width:none"><b>チェックリストに、未完了の項目が ${pd.open.length} 件あります。</b><ul>${pd.open.map((x) => `<li>${esc(x)}</li>`).join("")}</ul><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px"><button class="btn" data-ckall="${id}">残りをすべてチェックして ${esc(pd.status)} にする</button><button class="btn" data-ckkeep="${id}">未完了のまま ${esc(pd.status)} にする</button><button class="btn" data-doneno>やめる</button></div></div>`;
+    return `<div class="ask warn-ck" role="alert" style="max-width:none"><b>チェックリストに、未完了の項目が ${pd.open.length} 件あります。</b><ul>${pd.open.map((x) => `<li>${esc(x)}</li>`).join("")}</ul><div class="muted">不要な項目は、削除してから ${esc(pd.status)} にできます。</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px"><button class="btn" data-ckall="${id}">残りをすべてチェックして ${esc(pd.status)} にする</button><button class="btn" data-doneno>やめる</button></div></div>`;
   }
   return `<div class="ask" style="max-width:none">このタスクの未来の予定の枠 ${pd.n} 件を解除して ${esc(pd.status)} にします。<div style="display:flex;gap:6px;margin-top:4px"><button class="btn danger" data-doneok="${id}">解除して ${esc(pd.status)} にする</button><button class="btn" data-doneno>やめる</button></div></div>`;
 }

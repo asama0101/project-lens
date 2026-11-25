@@ -175,7 +175,7 @@ function focusSelector(el) {
   if (d.rnewpj !== undefined) return "[data-rnewpj]";
   if (d.waitparty) return q("data-waitparty", d.waitparty);
   if (d.ug) return q("data-ug", d.ug); // 突発タスクの欄（読み直しで待たせた描き直しが、欄を移ったときに走る）
-  for (const k of ["tdnote", "tf", "tdckadd", "tp"]) if (d[k] !== undefined) return q(`data-${k}`, d[k]); // ToDo 画面の欄
+  for (const k of ["tdnote", "tf", "tdckadd", "tp"]) if (d[k] !== undefined) return q(`data-${k}`, d[k]); // ToDo 画面の欄（tf・tdckadd・tp）と、稼働画面の週の見返しの気づき（tdnote）
   return null;
 }
 
@@ -588,12 +588,12 @@ view.addEventListener("click", (e) => {
   if (wk) { submitWait(wk.dataset.waitok); return; }
   if (q("[data-waitno]")) { S.pendingWait = null; render(); return; }
   if (q("[data-doneno]")) { S.pendingDone = null; render(); return; }
-  const ck = q("[data-ckall],[data-ckkeep]"); // チェックの警告の「残りをチェックして Done」「そのまま Done」
+  const ck = q("[data-ckall]"); // チェックの警告の「残りをチェックして Done」（「未完了のまま」は無い）
   if (ck && S.pendingDone) {
-    const pd = S.pendingDone, checkAll = ck.matches("[data-ckall]");
-    if (pd.future.length) { S.pendingDone = { ...pd, stage: "future", checkAll }; render(); return; } // 続けて予定枠の確認
+    const pd = S.pendingDone;
+    if (pd.future.length) { S.pendingDone = { ...pd, stage: "future", checkAll: true }; render(); return; } // 続けて予定枠の確認
     S.pendingDone = null;
-    setStatus(pd.id, pd.status, [], checkAll);
+    setStatus(pd.id, pd.status, [], true);
     return;
   }
   const dk = q("[data-doneok]");
@@ -695,7 +695,7 @@ view.addEventListener("click", (e) => {
   }
   if (q("[data-actcancel]")) { S.actAdd = null; S.actDraft = null; render(); return; }
   const mact = q("[data-mtgact]"); // 会議の実績の保存（confirmed と actual を書く）
-  if (mact) { const id = mact.dataset.mtgact, f = (k) => view.querySelector(`[data-ma="${k}"]`)?.value ?? "", span = { start: f("start"), end: f("end") }; if (apply((d) => setMeetingActual(d, id, span, now), "会議の実績を入れました")) S.actDraft = null; return; }
+  if (mact) { const id = mact.dataset.mtgact, f = (k) => view.querySelector(`[data-ma="${k}"]`)?.value ?? "", span = { start: f("start"), end: f("end") }, upd = S.data.events.find((m) => m.id === id)?.confirmed === true; if (apply((d) => setMeetingActual(d, id, span, now), upd ? "会議の実績を更新しました" : "会議の実績を入れました")) S.actDraft = null; return; }
   const mclr = q("[data-mtgactclear]"); // 会議の実績を消す（actual を外し、confirmed を false に戻す）
   if (mclr) { if (apply((d) => clearMeetingActual(d, mclr.dataset.mtgactclear), "会議の実績を消しました")) S.actDraft = null; return; }
   if (q("[data-delsel]")) { deleteSelected(); return; }
@@ -771,6 +771,7 @@ function submitUrgent() {
 
 /** 状態の変更（リストの select・編集の窓・スケジュールの編集欄）。待ち先・未来の予定枠の確認が要るときは、確認待ちにする */
 function changeStatus(id, status) {
+  S.pendingDone = null; S.pendingWait = null; // 選び直したら、前の確認（Done の警告・待ち先の入力）を外す。要るときは下で立て直す
   const t = S.data.tasks.find((x) => x.id === id);
   if (status === "Waiting" && !t.waitingOn?.party) { S.pendingWait = id; S.focusSel = `[data-waitparty="${id}"]`; render(); return; }
   const { open, future } = planDone(S.data, id, status, clock());
@@ -923,7 +924,7 @@ function onChange(el) {
   if (el.dataset.ug !== undefined) { if (S.urgentDraft) S.urgentDraft = { ...S.urgentDraft, [el.dataset.ug]: el.dataset.ug === "minutes" ? +el.value : el.value }; return; }
   // 実績の欄も同じ。どの欄の下書きかを key で持ち、描き直しても入力を残す（保存の成功・キャンセル・選択の変更で消す）
   if (el.dataset.ac !== undefined || el.dataset.ma !== undefined) {
-    const form = el.closest(".actform, .mtgform"), g = (a, k) => form?.querySelector(`[data-${a}="${k}"]`)?.value ?? "";
+    const form = el.closest(".actform"), g = (a, k) => form?.querySelector(`[data-${a}="${k}"]`)?.value ?? "";
     const mid = form?.querySelector("[data-mtgact]")?.dataset.mtgact, sid = form?.querySelector("[data-actsave]")?.dataset.actsave;
     if (mid !== undefined || sid !== undefined) S.actDraft = { key: mid !== undefined ? `m:${mid}` : sid || "add", task: g("ac", "task"), date: g("ac", "date"), start: g(mid !== undefined ? "ma" : "ac", "start"), end: g(mid !== undefined ? "ma" : "ac", "end") };
     return;

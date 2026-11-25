@@ -729,9 +729,9 @@ test("completeTask: 実績つきで Done は、実績の枠・状態・doneAt・
   const d = load();
   task(d, "AA-0004").checklist = [{ id: "c1", text: "a", done: false }, { id: "c2", text: "b", done: false }];
   const before = JSON.stringify(d);
-  const r = completeTask(d, "AA-0004", { actual: ACT, status: "Done", checks: { c1: true } }, NOW);
+  const r = completeTask(d, "AA-0004", { actual: ACT, status: "Done", checks: { c1: true, c2: true } }, NOW);
   const t = task(r.data, "AA-0004");
-  assert.deepEqual([t.status, t.doneAt, t.checklist.map((c) => c.done)], ["Done", TODAY, [true, false]]);
+  assert.deepEqual([t.status, t.doneAt, t.checklist.map((c) => c.done)], ["Done", TODAY, [true, true]]);
   assert.deepEqual(t.sessions.map((s) => [s.kind, s.start, s.end]), [["actual", "09:00", "10:00"]]);
   assert.deepEqual([r.statusChanged, r.released, r.spawned], [true, 0, false]);
   assert.equal(JSON.stringify(d), before);
@@ -777,6 +777,21 @@ test("completeTask: 定例の Done で次回のタスクが 1 件できる（spa
   const r = completeTask(d, "AA-0004", { status: "Done" }, NOW);
   assert.deepEqual([r.spawned, r.data.tasks.length], [true, d.tasks.length + 1]);
   assert.equal(completeTask(load(), "AA-0004", { status: "Done" }, NOW).spawned, false);
+});
+
+test("completeTask: Done は、checks を当てたあとに未完了の項目が残れば Error（データは変わらない）。Done 以外・項目なしは止めない", () => {
+  const d = load();
+  task(d, "AA-0004").checklist = [{ id: "c1", text: "a", done: false }, { id: "c2", text: "b", done: true }];
+  const before = JSON.stringify(d);
+  assert.throws(() => completeTask(d, "AA-0004", { actual: ACT, status: "Done" }, NOW), /未完了の項目があります。チェックするか、削除してください/);
+  assert.throws(() => completeTask(d, "AA-0004", { status: "Done", checks: { c1: true, c2: false } }, NOW), /未完了の項目/, "checks で外した項目も数える");
+  assert.equal(JSON.stringify(d), before);
+  assert.deepEqual(task(completeTask(d, "AA-0004", { status: "Done", checks: { c1: true } }, NOW).data, "AA-0004").checklist.map((c) => c.done), [true, true]);
+  for (const status of ["Cancelled", "In Progress", "To Do"]) assert.equal(task(completeTask(d, "AA-0004", { status }, NOW).data, "AA-0004").status, status);
+  const n = load();
+  task(n, "AA-0004").checklist = [];
+  assert.equal(task(completeTask(n, "AA-0004", { status: "Done" }, NOW).data, "AA-0004").status, "Done");
+  assert.equal(task(completeTask(load(), "AA-0004", { status: "Done" }, NOW).data, "AA-0004").status, "Done", "checklist が無いタスク");
 });
 
 test("completeTask: 失敗は Error で、入力のデータは変わらない", () => {

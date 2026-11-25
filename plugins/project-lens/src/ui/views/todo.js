@@ -1,6 +1,6 @@
-// 「ToDo」画面: 左に今日の ToDo（todayTasks。今日の枠の時刻と札）、右に表示中の週のタスク候補（weekTasks。組ごと）、行の完了の入力欄、右の行の「今日へ」の入力欄、週の見返し（weekSummary）。操作の結線は app.js（data-td*・data-tf*・data-tp*）。
+// 「ToDo」画面: 左に今日の ToDo（todayTasks。今日の枠の時刻と札）、右に表示中の週のタスク候補（weekTasks。組ごと）、行の完了の入力欄、右の行の「今日へ」の入力欄。週の見返しは稼働画面（views/workload.js）。操作の結線は app.js（data-td*・data-tf*・data-tp*）。
 import { addDays } from "../../core/dates.js";
-import { weekTasks, weekSummary, todayTasks } from "../../core/week.js";
+import { weekTasks, todayTasks } from "../../core/week.js";
 import { futurePlanned, actualSlots } from "../../core/sessions.js";
 import { isClosed } from "../../core/schema.js";
 import { esc, fmtMD, dateInputHtml } from "../common.js";
@@ -95,8 +95,6 @@ export function renderTodo(data, today, opts) {
   const tlist = trows.length
     ? `<ul class="tdlist">${trows.map((r) => row(data, r, todayCtx)).join("")}</ul>`
     : `<p class="muted">今日の枠のあるタスクはありません。</p>`;
-  const rv = weekSummary(data, week, today);
-  const trs = rv.rows.map((r) => `<tr><td>${esc(r.task.title)}</td><td class="num mono">${progress(r)}</td><td class="num mono">${r.planned} 分</td><td class="num mono">${r.actual} 分</td></tr>`).join("");
   return `<div class="tdpage">
     <div class="tdcols">
       <section class="panel tdtoday" data-tddrop aria-label="今日の ToDo"><div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap"><h2>今日の ToDo（${fmtMD(today)}）</h2><button class="btn" data-urgent-open title="突発タスクの入力欄を開きます">＋ 突発タスク</button></div>${urgentForm(data, urgentDraft)}${tlist}</section>
@@ -104,10 +102,5 @@ export function renderTodo(data, today, opts) {
         <div class="toolbar"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn" data-tdweek="-1" aria-label="前の週">←</button><button class="btn" data-tdweek="1" aria-label="次の週">→</button><button class="btn" data-tdweek-today>今週</button><strong style="margin-left:6px">${fmtMD(week)}〜${fmtMD(weekEnd)} の週</strong></div></div>
         ${list}</section>
     </div>
-    <section class="tdreview panel" aria-label="週の見返し"><h2>週の見返し（${fmtMD(week)}〜${fmtMD(weekEnd)}）</h2>
-      <p class="td-sum"><b>完了 ${rv.done} / ${rv.total} 件</b>　予定 ${rv.planned} 分に対して実績 ${rv.actual} 分</p>
-      <div class="tscroll"><table class="tbl"><thead><tr><th>タスク</th><th class="num">進捗</th><th class="num">予定</th><th class="num">実績</th></tr></thead><tbody>${trs}</tbody></table></div>
-      <label class="td-note">気づき<textarea class="in" rows="3" data-tdnote="${esc(week)}">${esc(rv.note)}</textarea></label>
-    </section>
   </div>`;
 }

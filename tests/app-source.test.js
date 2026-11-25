@@ -21,6 +21,13 @@ test("app.js: 状態の変更は changeStatus に集める（リストの select
   assert.match(src, /const scheduleOpts = \(\) => \(\{[^\n]*pendingDone: S\.pendingDone/);
 });
 
+// リストでは select が確認の行の横に残るので、選び直したときに前の確認（Done の警告・待ち先の入力）が残ると、古い選択で Done・Waiting にできてしまう
+test("app.js: changeStatus は、最初に pendingDone と pendingWait を外す（要るときだけ立て直す）", () => {
+  const body = src.slice(src.indexOf("function changeStatus("), src.indexOf("function setStatus("));
+  const first = body.split(/\r?\n/)[1].trim();
+  assert.match(first, /^S\.pendingDone = null; S\.pendingWait = null;/);
+});
+
 test("app.js・index.html: 開始画面の案内、帯の対象の引き継ぎ、#toast の role", () => {
   assert.ok(!src.includes("data/sample.json"));
   assert.ok(src.includes("/project-lens:init") && src.includes(".project-lens/data.json"));
@@ -419,6 +426,28 @@ test("theme.css: 幅 860px 以下で、リストのチェックリストの展�
   assert.match(css, /\.tbl\.edit tr\.ck-tr>td\{grid-column:1\/-1;padding-left:0\}/);
 });
 
+test("theme.css: リストの状態の欄は、In Progress・Cancelled が切れない最小幅を持つ。確認の行（.askrow）は、860px 以下でも全幅", () => {
+  const m = css.match(/\.tbl\.edit td\[data-l="状態"\] select\{min-width:([\d.]+)em\}/);
+  assert.ok(m && Number(m[1]) >= 9, m?.[0]);
+  const narrow = css.slice(css.search(/@media\(max-width:860px\)\{\r?\n {2}\.tbl\.edit thead/));
+  assert.match(narrow.slice(0, narrow.search(/\r?\n\}/)), /\.tbl\.edit tr\.askrow>td\{grid-column:1\/-1\}/);
+  // 確認の行は表の全幅なので、中身（.askwrap）を、横スクロールの表示中の範囲の左端に付け、枠の幅に収める（左端に置くと、右へスクロールしたとき画面の外に出る）
+  assert.ok(css.includes("#view .twrap > .tscroll{container-type:inline-size}"));
+  assert.match(css, /\.tbl\.edit tr\.askrow \.askwrap\{position:sticky;left:0;width:max-content;max-width:min\(60em,100cqw - 16px\)\}/);
+});
+
+test("app.js: リストの確認の行（askrow）の中のクリックで、待ち先・Done の確認（pendingWait・pendingDone）を捨てない。捨てるのは、やめる・確定・タブの切り替え・取っ手だけ", () => {
+  const clicks = src.slice(src.indexOf('view.addEventListener("click"'));
+  const body = clicks.slice(0, clicks.search(/\r?\n\}\);/));
+  assert.deepEqual(body.match(/S\.pendingWait = null[^\r\n]*/g), ['S.pendingWait = null; render(); return; }']);
+  assert.ok(body.includes('if (q("[data-waitno]")) { S.pendingWait = null;'), "やめる（data-waitno）だけが待ち先の入力を閉じる");
+  // 画面の外のクリック（キャプチャ段階）は、待ち先・Done の確認に触れない
+  const outside = src.slice(src.indexOf('document.addEventListener("click", (e) => {'));
+  assert.ok(!outside.slice(0, outside.indexOf("}, true);")).includes("pending"));
+  // 行の並べ替え（ドラッグ）は、data-mvrow の行だけを対象にする（askrow には data-mvrow を付けない）
+  assert.match(src, /s\.dataset\.mvrow/);
+});
+
 test("app.js: 日付の欄（data-date）は、キャプチャ段階の change で parseDateInput により YYYY-MM-DD に直し、読めないときは元の値に戻して通知し、ほかの処理に渡さない。Enter の確定も先に直す。「📅」は showPicker（使えないときは focus・click）", () => {
   const fn = src.slice(src.indexOf("function normalizeDateField(el)"), src.indexOf("function normalizeDateField(el)") + 600);
   assert.ok(fn.includes("parseDateInput(v)") && fn.includes("el.value = iso") && fn.includes("el.value = el.defaultValue") && fn.includes("日付は 2026/10/20 の形で入力してください"), fn);
@@ -701,7 +730,7 @@ test("app.js: 会議の実績の保存（data-mtgact）は、入力欄（data-ma
   const i = src.indexOf('q("[data-mtgact]")');
   assert.ok(i > 0);
   const a = src.slice(i, i + 500);
-  assert.ok(a.includes('view.querySelector(`[data-ma="${k}"]`)') && a.includes("setMeetingActual(d, id, span, now)") && a.includes("会議の実績を入れました"), a);
+  assert.ok(a.includes('view.querySelector(`[data-ma="${k}"]`)') && a.includes("setMeetingActual(d, id, span, now)") && a.includes('upd = S.data.events.find((m) => m.id === id)?.confirmed === true') && a.includes('upd ? "会議の実績を更新しました" : "会議の実績を入れました"'), a);
 });
 
 test("app.js: 読み直しなどで選択中の枠が無くなったら、選択と編集欄を外す", () => {
@@ -763,7 +792,14 @@ test("app.js: 実績の入力欄（data-ac・data-ma）は、change で S.actDra
   const a = src.slice(i, src.indexOf('q("[data-actcancel]")'));
   assert.ok(a.includes("clearSel(); render();"), "枠・追加の保存の成功は clearSel で消す");
   assert.ok(!a.slice(0, a.indexOf("if (apply(")).includes("S.actDraft = null"), "失敗の経路では消さない");
-  assert.ok(src.includes('if (apply((d) => setMeetingActual(d, id, span, now), "会議の実績を入れました")) S.actDraft = null;'), "会議は成功したときだけ消す");
+  assert.ok(src.includes('if (apply((d) => setMeetingActual(d, id, span, now), upd ? "会議の実績を更新しました" : "会議の実績を入れました")) S.actDraft = null;'), "会議は成功したときだけ消す");
+});
+
+test("app.js: 実績の下書きは、入力欄を囲む実績の欄（.actform。枠と会議で共通）から、会議（data-mtgact）か枠（data-actsave）かを読む。会議の実績の欄は会議の編集欄（.mtgform）の外にある", () => {
+  const onChange = src.slice(src.indexOf("function onChange(el) {"), src.indexOf("function onChange(el) {") + 2500);
+  assert.ok(onChange.includes('const form = el.closest(".actform"), g = '), onChange.slice(0, 1500));
+  assert.ok(!onChange.includes('closest(".actform, .mtgform")'), "会議の実績の入力欄は .mtgform の中に無い");
+  assert.ok(onChange.includes('form?.querySelector("[data-mtgact]")?.dataset.mtgact') && onChange.includes('form?.querySelector("[data-actsave]")?.dataset.actsave'));
 });
 
 test("app.js: 予定の枠の実績の保存（data-actsave に枠の ID）は、日付・開始・終了を下書きへ先に写し、空・不正なら通知して下書きを残し、recordSlotActual を apply に通す。初回と更新で通知を分ける", () => {
@@ -842,6 +878,18 @@ test("ToDo タブ: 保存（data-tdsave）は、欄の値を先に S.tdDraft へ
   assert.match(a, /S\.tdOpen = null; S\.tdCol = null; S\.tdDraft = null; render\(\);/);
   for (const s of ["にしました", "未来の予定の枠 ${r.released} 件を解除しました", "次回（期限"]) assert.ok(a.includes(s), s);
   assert.ok(src.includes("if (el.dataset.tdnote !== undefined) {") && src.includes("setReview(d, wk, text)"), "気づきは change で setReview");
+});
+
+test("週の見返しの気づき（data-tdnote）: 稼働タブでも保存する。change の処理は画面で限らない。フォーカス・打ちかけの保護も画面によらない", () => {
+  const fn = src.slice(src.indexOf("function onChange("), src.indexOf("if (el.dataset.tdnote !== undefined) {"));
+  assert.ok(fn.length > 0 && !fn.includes("S.screen"), "気づきの処理の前に、画面の条件で return しない");
+  assert.ok(src.includes('if (el.dataset.tdnote !== undefined) { const wk = el.dataset.tdnote, text = el.value.trim(); apply((d) => setReview(d, wk, text), "気づきを保存しました"); return; }'));
+  assert.ok(src.includes('view.addEventListener("change", (e) => { const el = e.target; setTimeout(() => onChange(el), 0); });'), "change はどの画面でも onChange へ");
+  const fs = src.slice(src.indexOf("function focusSelector("), src.indexOf("/** カレンダー部分だけを描き直す"));
+  assert.ok(fs.includes('"tdnote"') && !fs.includes("S.screen"), "focusSelector は画面によらず tdnote を扱う");
+  const ed = src.slice(src.indexOf("function isEditing("), src.indexOf("function isEditing(") + 400);
+  assert.ok(ed.includes('el.tagName === "TEXTAREA"') && !ed.includes("S.screen"), "打ちかけの textarea は画面によらず守る");
+  assert.ok(src.includes('if (S.screen === "workload") return renderWorkload(S.data, today, { period: S.wperiod, date: S.wdate, now: clock() });'), "稼働は表示中の日（S.wdate）を渡す");
 });
 
 test("枠の削除: actual を持つ予定の枠は S.askDelSess に入れて描き直し、すぐ消さない。data-delsessok で removeSession、data-delsessno で外す。ほかの枠は 1 回で削除", () => {
@@ -961,4 +1009,10 @@ test("app.js: 画面の中の「＋ 突発タスク」は、開くだけで、�
 test("app.js: ヘッダーの「＋ 突発タスク」は、画面の外のクリックの下書き外し（キャプチャ段階）に消されない", () => {
   const c = src.slice(src.indexOf('document.addEventListener("click"'));
   assert.ok(c.slice(0, c.indexOf("}, true);")).includes('if (e.target.closest("[data-delsel],[data-urgent-open]")) return;'), "キャプチャ段階の除外に入っている（ToDo タブで、打った入力を残すため）");
+});
+
+test("チェックの警告: 「未完了のまま」の選択肢（ckkeep）は無い。data-ckall だけが checkAll を立てる", () => {
+  assert.ok(!src.includes("ckkeep"));
+  const i = src.indexOf('q("[data-ckall]")'), a = src.slice(i, i + 500);
+  assert.ok(i > 0 && a.includes("checkAll: true") && a.includes("setStatus(pd.id, pd.status, [], true)"), a);
 });
