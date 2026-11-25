@@ -1060,3 +1060,14 @@ test("app.js: 外を押したら閉じる。詳細の中・札は外として扱
   const fn = src.slice(src.indexOf("function closeFileInfo"), src.indexOf("function closeFileInfo") + 300);
   assert.ok(!fn.includes("render()"));
 });
+
+test("theme.css: ファイル情報の詳細は .filebar を基準に置く（札の右端に合わせると、幅の狭いとき画面の外へはみ出す）", () => {
+  const css = readFileSync(new URL("../plugins/project-lens/src/ui/theme.css", import.meta.url), "utf8");
+  assert.match(css, /.filebar{[^}]*position:relative/);
+  assert.match(css, /.filechip{position:static/);
+  const info = css.match(/.fileinfo{[^}]*}/);
+  assert.ok(info, ".fileinfo の規則");
+  assert.match(info[0], /position:absolute;left:0;top:100%/);
+  assert.match(info[0], /width:min\(360px,100%\);max-width:100%/);
+  assert.doesNotMatch(info[0], /right:0|100vw/);
+});

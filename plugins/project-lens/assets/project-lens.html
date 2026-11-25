@@ -373,7 +373,7 @@ tr.hl td{transition:background .3s}
 .gov .msl{position:absolute;top:0;bottom:0;border-left:1px dashed var(--ink);opacity:.3}
 .g-lane{width:var(--lanew)}
 
-.filebar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.filebar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;position:relative}
 .fsep{width:1px;align-self:stretch;background:var(--line)}
 .chip-btn.pref[aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:400}
 .cols.one{grid-template-columns:minmax(0,1fr) 14px}
@@ -535,10 +535,10 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .blk.now{z-index:3}
 .blk .nw{color:var(--bad);font-weight:700;margin-right:2px}
 /* ヘッダーの、読み込み中のファイルの札と詳細（views/filechips.js） */
-.filechip{position:relative;display:inline-block}
+.filechip{position:static;display:inline-block} /* 詳細は札ではなく .filebar を基準に置く（札が折り返しても、幅の狭いときも、画面の外へはみ出さない） */
 .filechip .dot{width:8px;height:8px;background:var(--ok)}
 .filechip .dot.warn{background:var(--warn)}
-.fileinfo{position:absolute;right:0;top:calc(100% + 6px);z-index:30;min-width:260px;max-width:min(360px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;box-shadow:0 4px 14px rgba(0,0,0,.15)}
+.fileinfo{position:absolute;left:0;top:100%;margin-top:6px;z-index:30;box-sizing:border-box;width:min(360px,100%);max-width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;box-shadow:0 4px 14px rgba(0,0,0,.15)}
 .fileinfo dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0 0 10px}
 .fileinfo dt{color:var(--muted)}
 .fileinfo dd{margin:0;overflow-wrap:anywhere}
