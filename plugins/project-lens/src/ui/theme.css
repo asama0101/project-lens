@@ -185,8 +185,9 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 /* リストの確認の行は表の全幅なので、横にスクロールしても見えるよう、中身を表示中の範囲の左端に付け、リストの表の横スクロールの枠の幅に収める */
 #view .twrap > .tscroll{container-type:inline-size}
 .tbl.edit tr.askrow .askwrap{position:sticky;left:0;width:max-content;max-width:min(60em,100cqw - 16px)}
-.tbl.edit tr[data-detailpanel] .askwrap{position:sticky;left:0;width:max-content;max-width:min(60em,100cqw - 16px)} /* 「詳細」の行も、横にスクロールしても見える位置に留める */
 .tbl.edit td[data-l="待ち先"] .in{min-width:6em}
+.tbl.edit td[data-l=""]{min-width:4.5em;white-space:nowrap} /* 「削除」が縦に折り返さない幅（確認は全幅の行に出す） */
+.tbl.edit td[data-l=""] .btn{white-space:nowrap}
 .tbl.edit td[data-l="メモ"] .in{min-width:16em} /* メモ欄が列の幅に潰されないよう最小幅を持たせる。表は .tscroll の中で横にスクロールする */
 .in:disabled{background:transparent;border-color:transparent;color:var(--muted)}
 .tbl.edit{min-width:860px}
@@ -263,7 +264,7 @@ tr.drop-after>td,.g-row.drop-after>.g-label,.g-row.drop-after>.g-lane{box-shadow
   .tbl.edit td{display:block;padding:0;border:0}
   .tbl.edit td::before{content:attr(data-l);display:block;font-size:11px;color:var(--muted)}
   .tbl.edit td[data-l=""]::before,.tbl.edit td[data-l="ID"]::before{display:none}
-  .tbl.edit td:nth-child(4),.tbl.edit td:nth-child(12){grid-column:1/-1}
+  .tbl.edit td:nth-child(4),.tbl.edit td:nth-child(13){grid-column:1/-1}
   #view .tbl.edit tr.ck-tr>td{grid-column:1/-1;padding-left:0} /* チェックリストの展開行は全幅 */
   .tbl.edit tr.askrow>td{grid-column:1/-1}
 }

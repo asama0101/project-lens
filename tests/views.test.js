@@ -1779,27 +1779,38 @@ test("renderProjects(list): 列「チェック」。閉じていれば ▸ M/N�
   assert.equal(count(open, /data-ckpanel=/g), 1);
 });
 
-test("renderProjects(list): 「詳細」ボタン。閉じていれば詳細の行が無く、開くとその行の直後に繰り返しの select と説明が出る。チェックリストと同時に開ける", () => {
+test("renderProjects(list): 「繰り返し」の列。見出しは期限の次で、行ごとに繰り返しの select（aria-label つき）。「詳細」のボタンも行も無い", () => {
   const d = load();
   const html = renderProjects(d, TODAY, { view: "list", filter: "AA" });
-  assert.ok(/data-detailtoggle="AA-0005" aria-expanded="false"/.test(html));
-  assert.ok(!html.includes("data-detailpanel"));
-  const open = renderProjects(d, TODAY, { view: "list", filter: "AA", detailOpen: new Set(["AA-0005"]), checkOpen: new Set(["AA-0005"]) });
-  assert.ok(/data-detailtoggle="AA-0005" aria-expanded="true"/.test(open));
-  const i = open.indexOf('data-row="AA-0005"'), p = open.indexOf('data-detailpanel="AA-0005"'), nxt = open.indexOf('<tr data-row="', i + 1);
-  assert.ok(i >= 0 && p > i && p < nxt, "AA-0005 の行の直後");
-  assert.equal(count(open, /data-detailpanel=/g), 1);
-  assert.ok(open.includes('data-ckpanel="AA-0005"'), "チェックリストも同時に開く");
-  const panel = open.slice(p, open.indexOf("</tr>", p));
-  assert.ok(panel.includes('data-f="repeat" data-id="AA-0005"') && panel.includes("完了すると、次回のタスクを作ります"));
+  const head = html.slice(html.indexOf("<thead>"), html.indexOf("</thead>"));
+  assert.ok(head.indexOf("<th>期限</th><th>繰り返し</th><th>前のタスク</th>") >= 0, "期限の次");
+  assert.equal(count(html, /data-f="repeat"/g), count(html, /data-row="/g), "行ごとに 1 つ");
+  assert.ok(html.includes('data-f="repeat" data-id="AA-0005" aria-label="AA-0005 の繰り返し"'));
+  assert.ok(html.includes('<td data-l="繰り返し">'));
+  assert.ok(!/data-detailtoggle|data-detailpanel/.test(html) && !html.includes("詳細"), "詳細のボタンも行も無い");
 });
 
-test("renderProjects(list): 詳細の行で、毎月の定例には「（N 日）」が出る", () => {
+test("renderProjects(list): 毎月の定例の「繰り返し」の select には「（N 日）」が出る", () => {
   const d = load();
   d.tasks.find((t) => t.id === "AA-0005").repeat = { unit: "month", day: 15 };
-  const open = renderProjects(d, TODAY, { view: "list", filter: "AA", detailOpen: new Set(["AA-0005"]) });
-  const p = open.indexOf('data-detailpanel="AA-0005"');
-  assert.ok(open.slice(p, open.indexOf("</tr>", p)).includes("毎月（15 日）"));
+  const html = renderProjects(d, TODAY, { view: "list", filter: "AA" });
+  const p = html.indexOf('data-f="repeat" data-id="AA-0005"');
+  assert.ok(html.slice(p, html.indexOf("</select>", p)).includes("毎月（15 日）"));
+});
+
+test("renderProjects(list): 削除のボタンは縦に折り返さない（CSS で固定）。削除の確認は、狭い欄でなく、全幅の askrow に出す", () => {
+  const css = readFileSync(new URL("../plugins/project-lens/src/ui/theme.css", import.meta.url), "utf8");
+  assert.ok(css.includes('.tbl.edit td[data-l=""]{min-width:4.5em;white-space:nowrap}'));
+  assert.ok(css.includes('.tbl.edit td[data-l=""] .btn{white-space:nowrap}'));
+  const d = load();
+  const closed = renderProjects(d, TODAY, { view: "list", filter: "AA" });
+  assert.ok(closed.includes('data-del="AA-0005"') && !closed.includes("data-delyes") && !closed.includes("askrow"));
+  const html = renderProjects(d, TODAY, { view: "list", filter: "AA", askDel: "AA-0005" });
+  const i = html.indexOf('data-row="AA-0005"'), r = html.indexOf('<tr class="askrow">', i), nxt = html.indexOf('<tr data-row="', i + 1);
+  assert.ok(r > i && (nxt < 0 || r < nxt), "行の直下");
+  const ask = html.slice(r, html.indexOf("</tr>", r));
+  assert.ok(ask.includes('data-delyes="AA-0005"') && ask.includes("data-delno") && ask.includes('class="askwrap"'));
+  assert.ok(html.slice(i, r).includes('data-del="AA-0005"') && !html.slice(i, r).includes("data-delyes"), "行の中には、削除のボタンだけ");
 });
 
 test("renderTaskPop: チェックリストの欄を、期限の下・前のタスクの上に置く", () => {
@@ -2924,7 +2935,7 @@ test("renderTaskPop: 窓の項目の入力は、今までと同じ属性・値",
   assert.ok(/<select class="in sm" data-f="projectId" data-id="AA-0007">/.test(h));
   assert.ok(/<input type="checkbox" data-f="important" data-id="AA-0007" >|<input type="checkbox" data-f="important" data-id="AA-0007" checked>/.test(h));
   assert.ok(/<input class="in" data-f="memo" data-id="AA-0007" value="[^"]*" placeholder="メモ">/.test(h));
-  assert.ok(/<select class="in sm" data-f="repeat" data-id="AA-0007"><option value="">なし<\/option>/.test(h));
+  assert.ok(/<select class="in sm" data-f="repeat" data-id="AA-0007" aria-label="AA-0007 の繰り返し"><option value="">なし<\/option>/.test(h));
   assert.ok(/data-f="due" data-id="AA-0007"/.test(h) && /data-f="start" data-id="AA-0007"/.test(h));
 });
 

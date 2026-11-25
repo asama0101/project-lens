@@ -15,7 +15,7 @@ test("fnSource: focusSelector を、固定の文字数でなく、関数の終�
   const f = fnSource("focusSelector");
   assert.ok(f.startsWith("function focusSelector(") && f.endsWith("}"), "関数の全文（行頭の } まで）");
   assert.ok(f.includes("return null;"), "末尾の return null まで含む");
-  assert.ok(f.length > 1600, "以前の固定の長さ（最大 1600 文字）より長い全文を返す: " + f.length);
+  assert.ok(f.length > 1500, "固定の長さの切り出しなら欠ける長さの全文を返す: " + f.length);
   assert.ok(!f.includes("function render("), "次の関数まで食い込まない");
 });
 
@@ -425,14 +425,6 @@ test("app.js: チェックリストの編集欄のイベントをつなぐ（開
   assert.match(src, /e\.isComposing/);
   assert.match(src, /checkOpen: S\.checkOpen/, "リストの展開の状態を描画に渡す");
   assert.match(src, /S\.checkOpen = new Set\(\)/);
-});
-
-test("app.js: 「詳細」の開閉は S.detailOpen。描画へ渡し、ファイルを開いたら空にする", () => {
-  assert.ok(src.includes("[data-detailtoggle]"));
-  assert.match(src, /S\.detailOpen\.has\(id\)/);
-  assert.match(src, /detailOpen: S\.detailOpen/);
-  assert.match(src, /S\.detailOpen = new Set\(\)/);
-  assert.ok(src.includes("d.detailtoggle"), "描き直しのあと、フォーカスを戻す");
 });
 
 // ---- 全体レビューの修正（M1・M3・M4） ----

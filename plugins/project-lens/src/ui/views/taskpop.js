@@ -23,7 +23,7 @@ export function startInputHtml(data, t) {
 }
 
 /**
- * 編集の項目 1 つの入力部分（ラベルは含まない）。窓とスケジュールの編集欄が共用する。リストの「詳細」の行も、繰り返しに使う。
+ * 編集の項目 1 つの入力部分（ラベルは含まない）。窓とスケジュールの編集欄が共用する。リストの「繰り返し」の列も使う。
  * name = title|projectId|start|due|important|memo|party|expected|repeat。party・expected は状態が Waiting のときだけ（expected は待ち先が空なら disabled）。
  * ids が false なら、aria-label に ID を出さない（スケジュールの編集欄）
  */
@@ -42,7 +42,7 @@ export function taskFieldHtml(data, t, name, { ids = true } = {}) {
     case "memo": return `<input class="in" ${attrs} value="${esc(t.memo ?? "")}" placeholder="メモ">`;
     case "party": return t.status === "Waiting" ? `<input class="in" ${attrs} value="${esc(t.waitingOn?.party ?? "")}" placeholder="ベンダー・部署名"${ids ? ` aria-label="${id} の待ち先"` : ""}>` : "";
     case "expected": return t.status === "Waiting" ? dateInputHtml({ value: t.waitingOn?.expected ?? "", cls: "in sm", attrs: `${attrs} title="回答予定日" ${t.waitingOn?.party ? "" : "disabled"}${ids ? ` aria-label="${id} の回答予定日"` : ""}`, label: "回答予定日" }) : "";
-    case "repeat": return `<select class="in sm" ${attrs}><option value="">なし</option><option value="week" ${t.repeat?.unit === "week" ? "selected" : ""}>毎週</option><option value="month" ${t.repeat?.unit === "month" ? "selected" : ""}>毎月${t.repeat?.unit === "month" ? `（${esc(t.repeat.day)} 日）` : ""}</option></select>`;
+    case "repeat": return `<select class="in sm" ${attrs}${ids ? ` aria-label="${id} の繰り返し"` : ""}><option value="">なし</option><option value="week" ${t.repeat?.unit === "week" ? "selected" : ""}>毎週</option><option value="month" ${t.repeat?.unit === "month" ? "selected" : ""}>毎月${t.repeat?.unit === "month" ? `（${esc(t.repeat.day)} 日）` : ""}</option></select>`;
   }
   throw new Error(`taskFieldHtml: 知らない項目 ${name}`);
 }
