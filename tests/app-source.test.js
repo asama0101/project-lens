@@ -950,3 +950,8 @@ test("app.js: 画面の中の「＋ 突発タスク」は、開くだけで、�
   assert.ok(v.indexOf('q("[data-urgent-open]")') > 0 && v.indexOf('q("[data-urgent-open]")') < v.indexOf("let cleared = false"), "画面内のハンドラが、外す処理より先に開く");
   assert.match(src, /function openUrgent\(\) \{\s*if \(S\.screen === "todo" && S\.urgentDraft\)/, "開いていれば、そのまま残す");
 });
+
+test("app.js: ヘッダーの「＋ 突発タスク」は、画面の外のクリックの下書き外し（キャプチャ段階）に消されない", () => {
+  const c = src.slice(src.indexOf('document.addEventListener("click"'));
+  assert.ok(c.slice(0, c.indexOf("}, true);")).includes('if (e.target.closest("[data-delsel],[data-urgent-open]")) return;'), "キャプチャ段階の除外に入っている（ToDo タブで、打った入力を残すため）");
+});

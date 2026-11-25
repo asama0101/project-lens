@@ -498,7 +498,7 @@ $("banner").addEventListener("click", async (e) => {
 document.addEventListener("click", (e) => {
   if (S.tpop && !view.contains(e.target)) { S.tpop = null; render(); return; } // ガントの編集の窓は、画面の外のクリックでも閉じる
   if (view.contains(e.target) || !(S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.actAdd || S.taskEdit)) return;
-  if (e.target.closest("[data-delsel]")) return;
+  if (e.target.closest("[data-delsel],[data-urgent-open]")) return; // 「＋ 突発タスク」は openUrgent が外す（ToDo タブで開いていれば、打った入力を残す）
   clearSel();
   render();
 }, true);
