@@ -3,6 +3,22 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const src = readFileSync(new URL("../plugins/project-lens/src/ui/app.js", import.meta.url), "utf8");
+// トップレベルの関数 name の全文（行頭の `function name` から、行頭の `}` まで）。固定の文字数で切ると、関数が伸びたときに、検査の対象が黙って欠ける
+const fnSource = (name) => {
+  const i = src.indexOf(`function ${name}(`);
+  if (i < 0) throw new Error(`関数 ${name} が見つかりません`);
+  const m = /\r?\n\}/.exec(src.slice(i)); // 改行が CRLF でも LF でも、行頭の } まで
+  if (!m) throw new Error(`関数 ${name} の終わりが見つかりません`);
+  return src.slice(i, i + m.index + m[0].length);
+};
+test("fnSource: focusSelector を、固定の文字数でなく、関数の終わりまで切り出す（検査の対象が、関数が伸びても欠けない）", () => {
+  const f = fnSource("focusSelector");
+  assert.ok(f.startsWith("function focusSelector(") && f.endsWith("}"), "関数の全文（行頭の } まで）");
+  assert.ok(f.includes("return null;"), "末尾の return null まで含む");
+  assert.ok(f.length > 1600, "以前の固定の長さ（最大 1600 文字）より長い全文を返す: " + f.length);
+  assert.ok(!f.includes("function render("), "次の関数まで食い込まない");
+});
+
 const stk = readFileSync(new URL("../plugins/project-lens/src/ui/sticky.js", import.meta.url), "utf8"); // 固定表示（日付軸・列見出しの複製、横スクロールのそろえ）
 
 // 編集は、いまのデータへの差分として書く。決まった結果を返す編集（() => data）は、保存の競合のとき、最新のファイルに当て直すと、
@@ -42,7 +58,7 @@ test("app.js: 設定タブの data-set は updateSettings で保存し、data-rm
   assert.match(src, /updateSettings\(/);
   assert.match(src, /moveProjectRule\(/);
   assert.match(src, /data-rmove/);
-  const fs = src.slice(src.indexOf("function focusSelector"), src.indexOf("function focusSelector") + 900);
+  const fs = fnSource("focusSelector");
   assert.match(fs, /d\.set/);
 });
 
@@ -53,7 +69,7 @@ test("app.js: 休みの追加（期間を含む）・区分の変更・削除と
   assert.ok(src.includes('e.key === "Enter" && !e.isComposing && e.target.matches("[data-wnew],[data-wnote]")'));
   assert.match(src, /除外/);
   assert.match(src, /日本の祝日は未取得/);
-  const fs = src.slice(src.indexOf("function focusSelector"), src.indexOf("function focusSelector") + 1400);
+  const fs = fnSource("focusSelector");
   for (const k of ["hnew", "hto", "hnote", "wnew", "wnote"]) assert.ok(fs.includes(`"${k}"`), k);
 });
 
@@ -422,7 +438,7 @@ test("app.js: 「詳細」の開閉は S.detailOpen。描画へ渡し、ファ�
 // ---- 全体レビューの修正（M1・M3・M4） ----
 
 test("focusSelector: チェックリストのチェック・削除・展開ボタンも、描き直しのあとにフォーカスを戻せる（キーボードで操作しても位置を見失わない）", () => {
-  const fn = src.slice(src.indexOf("function focusSelector("), src.indexOf("function focusSelector(") + 1600);
+  const fn = fnSource("focusSelector");
   for (const k of ["d.ckdone", "d.ckdel", "d.cktoggle"]) assert.ok(fn.includes(k), k);
 });
 
