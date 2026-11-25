@@ -50,7 +50,7 @@ function chaseRow(data, r, chase) {
   return `<li class="td-row" data-chaserow="${id}">
     <div class="td-main"><span class="pj">${proj}</span><span class="td-title">${esc(t.title)}</span></div>
     <div class="td-meta"><span>${who} ・ ${when}</span></div>
-    <div class="td-main"><button class="btn" data-chasedone="${id}">催促した</button><button class="btn" data-chaseedit="${id}">待ち先・予定日を直す</button></div>
+    <div class="td-main"><button class="btn primary" data-chasedone="${id}">催促した</button><button class="btn" data-chaseedit="${id}">待ち先・予定日を直す</button></div>
     ${chase?.key === t.id ? chaseForm(t, chase) : ""}
   </li>`;
 }

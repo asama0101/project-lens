@@ -1093,6 +1093,15 @@ test("今日の優先の「今日へ」（data-prioplan）は、ToDo タブへ�
   assert.ok(h.includes("S.resetScroll = true"), h);
 });
 
+test("theme.css: 催促の組は、黄色の背景と枠・黄色の見出し・白い行（画面案どおり）。「催促した」は主ボタン", () => {
+  const css = readFileSync(new URL("../plugins/project-lens/src/ui/theme.css", import.meta.url), "utf8");
+  assert.match(css, /\.tdchase\{border-color:var\(--warn\);background:var\(--warn-soft\)\}/);
+  assert.match(css, /\.tdchase h2\{color:var\(--warn\)\}/);
+  assert.match(css, /\.tdchase \.tdlist>li\{background:var\(--surface\);border-color:var\(--warn\)\}/);
+  const todo = readFileSync(new URL("../plugins/project-lens/src/ui/views/todo.js", import.meta.url), "utf8");
+  assert.ok(todo.includes("<button class=\"btn primary\" data-chasedone="), "「催促した」は主ボタン");
+});
+
 test("ToDo タブ: 催促（data-chasedone・data-chaseedit）は S.tdChase を開き、S.tdOpen・S.tdPlan・S.urgentDraft を外す。逆に、ほかを開くと S.tdChase を外す", () => {
   assert.match(src, /tdPlan: null, tdChase: null/);
   const i = src.indexOf("function openChase("), a = src.slice(i, src.indexOf("\n}", i));
