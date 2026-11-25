@@ -172,7 +172,7 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 .wl-bar.un{opacity:.6}
 .wl .banner{margin-top:14px}
 .tbl.edit td[data-l="件名"] .in{min-width:13em}
-.tbl.edit td[data-l="状態"] select{min-width:7em}
+.tbl.edit td[data-l="状態"] select{min-width:9.5em} /* In Progress・Cancelled が切れない幅（select の矢印の分を含む） */
 .tbl.edit td[data-l="待ち先"] .in{min-width:6em}
 .tbl.edit td[data-l="メモ"] .in{min-width:16em} /* メモ欄が列の幅に潰されないよう最小幅を持たせる。表は .tscroll の中で横にスクロールする */
 .in:disabled{background:transparent;border-color:transparent;color:var(--muted)}
@@ -252,6 +252,7 @@ tr.drop-after>td,.g-row.drop-after>.g-label,.g-row.drop-after>.g-lane{box-shadow
   .tbl.edit td[data-l=""]::before,.tbl.edit td[data-l="ID"]::before{display:none}
   .tbl.edit td:nth-child(4),.tbl.edit td:nth-child(12){grid-column:1/-1}
   #view .tbl.edit tr.ck-tr>td{grid-column:1/-1;padding-left:0} /* チェックリストの展開行は全幅 */
+  .tbl.edit tr.askrow>td{grid-column:1/-1}
 }
 
 .g-lane .gbar{top:6px;height:14px}

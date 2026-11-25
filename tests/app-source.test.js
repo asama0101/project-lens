@@ -419,6 +419,25 @@ test("theme.css: 幅 860px 以下で、リストのチェックリストの展�
   assert.match(css, /\.tbl\.edit tr\.ck-tr>td\{grid-column:1\/-1;padding-left:0\}/);
 });
 
+test("theme.css: リストの状態の欄は、In Progress・Cancelled が切れない最小幅を持つ。確認の行（.askrow）は、860px 以下でも全幅", () => {
+  const m = css.match(/\.tbl\.edit td\[data-l="状態"\] select\{min-width:([\d.]+)em\}/);
+  assert.ok(m && Number(m[1]) >= 9, m?.[0]);
+  const narrow = css.slice(css.search(/@media\(max-width:860px\)\{\r?\n {2}\.tbl\.edit thead/));
+  assert.match(narrow.slice(0, narrow.search(/\r?\n\}/)), /\.tbl\.edit tr\.askrow>td\{grid-column:1\/-1\}/);
+});
+
+test("app.js: リストの確認の行（askrow）の中のクリックで、待ち先・Done の確認（pendingWait・pendingDone）を捨てない。捨てるのは、やめる・確定・タブの切り替え・取っ手だけ", () => {
+  const clicks = src.slice(src.indexOf('view.addEventListener("click"'));
+  const body = clicks.slice(0, clicks.search(/\r?\n\}\);/));
+  assert.deepEqual(body.match(/S\.pendingWait = null[^\r\n]*/g), ['S.pendingWait = null; render(); return; }']);
+  assert.ok(body.includes('if (q("[data-waitno]")) { S.pendingWait = null;'), "やめる（data-waitno）だけが待ち先の入力を閉じる");
+  // 画面の外のクリック（キャプチャ段階）は、待ち先・Done の確認に触れない
+  const outside = src.slice(src.indexOf('document.addEventListener("click", (e) => {'));
+  assert.ok(!outside.slice(0, outside.indexOf("}, true);")).includes("pending"));
+  // 行の並べ替え（ドラッグ）は、data-mvrow の行だけを対象にする（askrow には data-mvrow を付けない）
+  assert.match(src, /s\.dataset\.mvrow/);
+});
+
 test("app.js: 日付の欄（data-date）は、キャプチャ段階の change で parseDateInput により YYYY-MM-DD に直し、読めないときは元の値に戻して通知し、ほかの処理に渡さない。Enter の確定も先に直す。「📅」は showPicker（使えないときは focus・click）", () => {
   const fn = src.slice(src.indexOf("function normalizeDateField(el)"), src.indexOf("function normalizeDateField(el)") + 600);
   assert.ok(fn.includes("parseDateInput(v)") && fn.includes("el.value = iso") && fn.includes("el.value = el.defaultValue") && fn.includes("日付は 2026/10/20 の形で入力してください"), fn);

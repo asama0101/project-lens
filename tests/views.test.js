@@ -79,15 +79,68 @@ test("空データでも例外を出さず、空状態を表示する", () => {
   assert.ok(renderProjects(d, TODAY, { filter: "all", view: "list" }).includes("プロジェクトがありません"));
 });
 
-test("renderProjects(list): 状態（英語表記）・待ち先・日程変更の履歴・実績", () => {
+test("renderProjects(list): 状態（英語表記）・待ち先・日程変更の履歴。実績の列は無い", () => {
   const html = renderProjects(load(), TODAY, { filter: "AA", view: "list" });
   for (const s of ["To Do", "In Progress", "Waiting", "Done", "Cancelled"]) assert.ok(html.includes(`>${s}</option>`), s);
   assert.ok(html.includes('value="ベンダーX"'));
   assert.ok(html.includes("ベンダーX の納期回答が遅れたため"));
-  assert.ok(html.includes("3.5h・初回 10/14・3回"), "AA-0005 の実績");
+  const thead = html.match(/<table class="tbl edit"><thead>[\s\S]*?<\/thead>/)[0];
+  assert.ok(!thead.includes("<th>実績</th>"), "見出しに実績が無い");
+  assert.ok(!html.includes('data-l="実績"') && !html.includes("3.5h・初回 10/14・3回"), "行にも実績のセルが無い");
   assert.ok(html.includes("前のタスクから"), "前のタスクがあり、開始日の指定がないときは、決まる日と『前のタスクから』を添える");
   assert.ok(html.includes('data-date="1" data-f="start" data-id="AA-0005"'), "前のタスクなしは開始日を入力できる");
   assert.ok(html.includes('data-f="start" data-id="AA-0006"'), "前のタスクありでも開始日を入力できる");
+});
+
+// リストの Done の確認・待ち先の入力は、狭い状態の欄ではなく、行の直下の全幅の行（askrow）に出す
+const listAA = (d, opts) => renderProjects(d, TODAY, { filter: "AA", view: "list", showPrio: false, ...opts });
+const headCols = (html) => count(html.match(/<table class="tbl edit"><thead>[\s\S]*?<\/thead>/)[0], /<th>/g);
+const rowAndNext = (html, id) => html.match(new RegExp(`<tr[^>]*data-row="${id}"[\\s\\S]*?</tr>(<tr[\\s\\S]*?</tr>)?`));
+const statusTd = (row) => row.match(/<td data-l="状態">[\s\S]*?<\/td>/)[0];
+
+test("renderProjects(list): pendingDone のとき、その行の直下に全幅の askrow を出す。状態のセルには select だけ", () => {
+  for (const pd of [{ id: "AA-0001", status: "Done", n: 1, future: ["S3"], open: [], stage: "future" }, { id: "AA-0001", status: "Done", n: 0, future: [], open: ["x"], stage: "check" }]) {
+    const html = listAA(load(), { pendingDone: pd });
+    const [, next] = rowAndNext(html, "AA-0001");
+    assert.ok(next?.startsWith(`<tr class="askrow"><td colspan="${headCols(html)}">`), next);
+    assert.ok(next.includes(pd.stage === "check" ? 'data-ckall="AA-0001"' : 'data-doneok="AA-0001"'), next);
+    assert.ok(next.includes('style="max-width:none"'), ".ask の幅の上限（190px）を外して、全幅に広げる");
+    const st = statusTd(rowAndNext(html, "AA-0001")[0]);
+    assert.ok(!st.includes('class="ask') && st.includes('data-f="status"'), st);
+    assert.equal(count(html, /class="askrow"/g), 1);
+  }
+});
+
+test("renderProjects(list): pendingWait のとき、待ち先の入力（data-waitparty）は行の直下の askrow の中", () => {
+  const html = listAA(load(), { pendingWait: "AA-0001" });
+  const [row, next] = rowAndNext(html, "AA-0001");
+  assert.ok(next?.startsWith(`<tr class="askrow"><td colspan="${headCols(html)}">`), next);
+  assert.ok(next.includes('data-waitparty="AA-0001"') && next.includes('data-waitok="AA-0001"') && next.includes("data-waitno"), next);
+  assert.ok(!statusTd(row).includes("data-waitparty") && statusTd(row).includes('data-f="status"'));
+  assert.equal(count(html, /data-waitparty=/g), 1);
+});
+
+test("renderProjects(list): pendingDone・pendingWait が無いとき、askrow は出ない。今日のタスクの行の pendingDone も、リストには出さない", () => {
+  assert.ok(!listAA(load(), {}).includes("askrow"));
+  const { d } = withToday();
+  const html = renderProjects(d, TODAY, { filter: "all", view: "list", pendingDone: { id: "AA-0005", status: "Done", n: 1, future: ["S3"] } });
+  assert.ok(!html.includes("askrow"), "今日のタスクの行（右の列）に出すので、リストには出さない");
+});
+
+test("renderProjects(list): 見出しの列数と、グループの行・チェックリストの展開行の colspan がそろう", () => {
+  const html = listAA(load(), { checkOpen: new Set(["AA-0001"]) });
+  const n = headCols(html);
+  const spans = [...html.matchAll(/<tr class="(?:grp-tr|ck-tr)"[^>]*><td colspan="(\d+)"/g)].map((m) => Number(m[1]));
+  assert.ok(spans.length >= 2 && spans.every((x) => x === n), `${n}: ${spans}`);
+});
+
+test("ガントの編集の窓では、待ち先の入力・Done の確認は、今までどおり窓の中（状態の欄）に出る", () => {
+  const pop = (o) => renderProjects(load(), TODAY, { filter: "AA", view: "gantt", showPrio: false, tpop: { id: "AA-0001", x: 0, y: 0 }, ...o });
+  const w = pop({ pendingWait: "AA-0001" });
+  assert.ok(w.includes('data-waitparty="AA-0001"') && !w.includes("askrow"));
+  assert.ok(w.slice(w.indexOf('class="tpop"')).includes('data-waitparty="AA-0001"'));
+  const dn = pop({ pendingDone: { id: "AA-0001", status: "Done", n: 1, future: ["S3"], open: [], stage: "future" } });
+  assert.ok(dn.slice(dn.indexOf('class="tpop"')).includes('data-doneok="AA-0001"') && !dn.includes("askrow"));
 });
 
 test("renderGantt: 行数＝タスク数、今日の線、マイルストーン、実績の線は実績のあるタスクだけ", () => {
