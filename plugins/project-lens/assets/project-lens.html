@@ -5276,7 +5276,7 @@ const S = {
   prefs: loadPrefs(), settingsClosed: loadSettingsClosed(), tpop: null, addAt: null, last: null, ruleError: "",
   ib: { open: false, text: loadInboxDraft(), projectId: "", replies: {}, reasons: {}, causes: {} },
   wperiod: "day", wdate: clock().date,
-  todoWeek: mondayOf(clock().date), tdOpen: null, tdCol: null, tdDraft: null, tdPlan: null, tdChase: null, askDelSess: null, // 実績つきの枠の削除の確認を出している枠の id（メモリのみ）。ToDo 画面の週（月曜日）・完了の入力欄を開いているタスクと、開いた列（"today" か "week"）と、その下書き・「今日へ」の入力欄（{ key: タスクの id, start, minutes }。完了の入力欄とは同時に開かない）
+  todoWeek: mondayOf(clock().date), tdOpen: null, tdCol: null, tdDraft: null, tdPlan: null, tdChase: null, askDelSess: null, // 実績つきの枠の削除の確認を出している枠の id（メモリのみ）。ToDo 画面の週（月曜日）・完了の入力欄を開いているタスクと、開いた列（"today" か "week"）と、その下書き・「今日へ」の入力欄（{ key: タスクの id, start, minutes }。完了の入力欄とは同時に開かない）・催促の入力欄 tdChase（{ key, mode, days, party, expected }。完了・「今日へ」とは同時に開かない）
 };
 const $ = (id) => document.getElementById(id);
 const view = $("view");
@@ -6018,7 +6018,7 @@ view.addEventListener("click", (e) => {
 
 /** ToDo 画面の週を動かす（完了の入力欄は閉じる） */
 function moveTodoWeek(week) {
-  S.todoWeek = week; S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.tdPlan = null; S.tdChase = null; S.tdChase = null;
+  S.todoWeek = week; S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.tdPlan = null; S.tdChase = null;
   render();
 }
 
