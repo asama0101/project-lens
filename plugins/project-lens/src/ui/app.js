@@ -175,7 +175,7 @@ function focusSelector(el) {
   if (d.rnewpj !== undefined) return "[data-rnewpj]";
   if (d.waitparty) return q("data-waitparty", d.waitparty);
   if (d.ug) return q("data-ug", d.ug); // 突発タスクの欄（読み直しで待たせた描き直しが、欄を移ったときに走る）
-  for (const k of ["tdnote", "tf", "tdckadd", "tp"]) if (d[k] !== undefined) return q(`data-${k}`, d[k]); // ToDo 画面の欄
+  for (const k of ["tdnote", "tf", "tdckadd", "tp"]) if (d[k] !== undefined) return q(`data-${k}`, d[k]); // ToDo 画面の欄（tf・tdckadd・tp）と、稼働画面の週の見返しの気づき（tdnote）
   return null;
 }
 
@@ -771,6 +771,7 @@ function submitUrgent() {
 
 /** 状態の変更（リストの select・編集の窓・スケジュールの編集欄）。待ち先・未来の予定枠の確認が要るときは、確認待ちにする */
 function changeStatus(id, status) {
+  S.pendingDone = null; S.pendingWait = null; // 選び直したら、前の確認（Done の警告・待ち先の入力）を外す。要るときは下で立て直す
   const t = S.data.tasks.find((x) => x.id === id);
   if (status === "Waiting" && !t.waitingOn?.party) { S.pendingWait = id; S.focusSel = `[data-waitparty="${id}"]`; render(); return; }
   const { open, future } = planDone(S.data, id, status, clock());

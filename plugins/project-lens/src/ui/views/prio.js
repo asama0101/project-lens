@@ -18,7 +18,7 @@ export function slotHtml(s, now, actuals) {
   return `<span class="ts"><span class="ktag ${cls}">${label}</span>${esc(`${s.start}–${s.end}`)}</span>`;
 }
 
-/** Done・Cancelled にする前の確認（今日のタスクの行と、リストの状態の欄が使う）。
+/** Done・Cancelled にする前の確認（今日のタスクの行・リストの確認の行・ガントの編集の窓とスケジュールの編集欄の状態の欄が使う）。
  *  stage が "check" なら、未完了のチェック項目の警告（残りをすべてチェックして Done／やめる。不要な項目は削除してから Done にする）。
  *  それ以外（"future"、または stage なし）は、未来の予定の枠を解除する確認 */
 export function doneAskHtml(pd) {

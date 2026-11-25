@@ -401,7 +401,7 @@ const COMPLETE_STATUSES = ["To Do", "In Progress", "Done", "Cancelled"];
 /**
  * タスクの完了を、実績・状態・チェックでまとめて保存する。失敗は Error（純関数なので、入力のデータは変わらない）。
  * actual: { date, start, end }（3 つとも空・undefined なら実績なし）。status は To Do／In Progress／Done／Cancelled（選んだ状態が優先で、実績による In Progress への自動変更は上書きする）。
- * checks: { 項目 ID: done }。Done・Cancelled は、未来の予定の枠を解除する（released は件数）。Done は定例の次回を作る（spawned）。
+ * checks: { 項目 ID: done }。Done は、checks を当てたあとに未完了の項目が残っていれば Error（チェックするか、削除してから）。Done・Cancelled は、未来の予定の枠を解除する（released は件数）。Done は定例の次回を作る（spawned）。
  */
 export function completeTask(data, taskId, { actual, status, checks = {} }, now) {
   const orig = data.tasks.find((t) => t.id === taskId);
@@ -417,6 +417,7 @@ export function completeTask(data, taskId, { actual, status, checks = {} }, now)
   }
   d = updateTask(d, taskId, { status }, now.date);
   for (const [id, done] of Object.entries(checks)) d = updateChecklistItem(d, taskId, id, { done });
+  if (status === "Done" && (d.tasks.find((t) => t.id === taskId).checklist ?? []).some((c) => !c.done)) throw new Error("未完了の項目があります。チェックするか、削除してください");
   let released = 0;
   if (status === "Done" || status === "Cancelled") {
     const ids = futurePlanned(d, taskId, now);

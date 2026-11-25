@@ -2612,7 +2612,10 @@ test("完了の保存: 予定の枠が無いタスクで、初期値のまま保
   const dr = formDraft(tdRow(tdHtml(d, { open: "AA-0001" }), "AA-0001"), "AA-0001");
   assert.deepEqual([dr.date, dr.start, dr.end, dr.status], [TODAY, "", "", "Done"]);
   assert.equal(completeInput(dr).actual, undefined);
-  const r = completeTask(d, "AA-0001", completeInput(dr), TD_NOW);
+  assert.ok(Object.values(dr.checks).includes(false), "初期値は、未完了の項目が残る");
+  assert.throws(() => completeTask(d, "AA-0001", completeInput(dr), TD_NOW), /未完了の項目があります/, "未完了の項目があれば Done にしない");
+  const all = { ...dr, checks: Object.fromEntries(Object.keys(dr.checks).map((k) => [k, true])) }; // 「残りをすべてチェック」
+  const r = completeTask(d, "AA-0001", completeInput(all), TD_NOW);
   const t = r.data.tasks.find((x) => x.id === "AA-0001");
   assert.equal(t.status, "Done");
   assert.deepEqual(t.sessions, [], "実績は足さない");

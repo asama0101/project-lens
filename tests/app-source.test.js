@@ -21,6 +21,13 @@ test("app.js: 状態の変更は changeStatus に集める（リストの select
   assert.match(src, /const scheduleOpts = \(\) => \(\{[^\n]*pendingDone: S\.pendingDone/);
 });
 
+// リストでは select が確認の行の横に残るので、選び直したときに前の確認（Done の警告・待ち先の入力）が残ると、古い選択で Done・Waiting にできてしまう
+test("app.js: changeStatus は、最初に pendingDone と pendingWait を外す（要るときだけ立て直す）", () => {
+  const body = src.slice(src.indexOf("function changeStatus("), src.indexOf("function setStatus("));
+  const first = body.split(/\r?\n/)[1].trim();
+  assert.match(first, /^S\.pendingDone = null; S\.pendingWait = null;/);
+});
+
 test("app.js・index.html: 開始画面の案内、帯の対象の引き継ぎ、#toast の role", () => {
   assert.ok(!src.includes("data/sample.json"));
   assert.ok(src.includes("/project-lens:init") && src.includes(".project-lens/data.json"));

@@ -3200,7 +3200,7 @@ const COMPLETE_STATUSES = ["To Do", "In Progress", "Done", "Cancelled"];
 /**
  * タスクの完了を、実績・状態・チェックでまとめて保存する。失敗は Error（純関数なので、入力のデータは変わらない）。
  * actual: { date, start, end }（3 つとも空・undefined なら実績なし）。status は To Do／In Progress／Done／Cancelled（選んだ状態が優先で、実績による In Progress への自動変更は上書きする）。
- * checks: { 項目 ID: done }。Done・Cancelled は、未来の予定の枠を解除する（released は件数）。Done は定例の次回を作る（spawned）。
+ * checks: { 項目 ID: done }。Done は、checks を当てたあとに未完了の項目が残っていれば Error（チェックするか、削除してから）。Done・Cancelled は、未来の予定の枠を解除する（released は件数）。Done は定例の次回を作る（spawned）。
  */
 function completeTask(data, taskId, { actual, status, checks = {} }, now) {
   const orig = data.tasks.find((t) => t.id === taskId);
@@ -3216,6 +3216,7 @@ function completeTask(data, taskId, { actual, status, checks = {} }, now) {
   }
   d = updateTask(d, taskId, { status }, now.date);
   for (const [id, done] of Object.entries(checks)) d = updateChecklistItem(d, taskId, id, { done });
+  if (status === "Done" && (d.tasks.find((t) => t.id === taskId).checklist ?? []).some((c) => !c.done)) throw new Error("未完了の項目があります。チェックするか、削除してください");
   let released = 0;
   if (status === "Done" || status === "Cancelled") {
     const ids = futurePlanned(d, taskId, now);
@@ -3629,7 +3630,7 @@ function slotHtml(s, now, actuals) {
   return `<span class="ts"><span class="ktag ${cls}">${label}</span>${esc(`${s.start}–${s.end}`)}</span>`;
 }
 
-/** Done・Cancelled にする前の確認（今日のタスクの行と、リストの状態の欄が使う）。
+/** Done・Cancelled にする前の確認（今日のタスクの行・リストの確認の行・ガントの編集の窓とスケジュールの編集欄の状態の欄が使う）。
  *  stage が "check" なら、未完了のチェック項目の警告（残りをすべてチェックして Done／やめる。不要な項目は削除してから Done にする）。
  *  それ以外（"future"、または stage なし）は、未来の予定の枠を解除する確認 */
 function doneAskHtml(pd) {
@@ -5312,7 +5313,7 @@ function focusSelector(el) {
   if (d.rnewpj !== undefined) return "[data-rnewpj]";
   if (d.waitparty) return q("data-waitparty", d.waitparty);
   if (d.ug) return q("data-ug", d.ug); // 突発タスクの欄（読み直しで待たせた描き直しが、欄を移ったときに走る）
-  for (const k of ["tdnote", "tf", "tdckadd", "tp"]) if (d[k] !== undefined) return q(`data-${k}`, d[k]); // ToDo 画面の欄
+  for (const k of ["tdnote", "tf", "tdckadd", "tp"]) if (d[k] !== undefined) return q(`data-${k}`, d[k]); // ToDo 画面の欄（tf・tdckadd・tp）と、稼働画面の週の見返しの気づき（tdnote）
   return null;
 }
 
@@ -5908,6 +5909,7 @@ function submitUrgent() {
 
 /** 状態の変更（リストの select・編集の窓・スケジュールの編集欄）。待ち先・未来の予定枠の確認が要るときは、確認待ちにする */
 function changeStatus(id, status) {
+  S.pendingDone = null; S.pendingWait = null; // 選び直したら、前の確認（Done の警告・待ち先の入力）を外す。要るときは下で立て直す
   const t = S.data.tasks.find((x) => x.id === id);
   if (status === "Waiting" && !t.waitingOn?.party) { S.pendingWait = id; S.focusSel = `[data-waitparty="${id}"]`; render(); return; }
   const { open, future } = planDone(S.data, id, status, clock());
