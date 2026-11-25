@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { weekTasks, rangeTasks, progressByProject, mondayOf, todayTasks } from "../plugins/project-lens/src/core/week.js";
+import { weekTasks, rangeTasks, progressByProject, mondayOf, todayTasks, chaseTasks } from "../plugins/project-lens/src/core/week.js";
 
 const WS = "2026-11-23"; // 月曜。日曜は 2026-11-29
 const TODAY = "2026-11-25";
@@ -260,4 +260,58 @@ test("progressByProject: data.projects に無い projectId も、その id の�
   const d = mk([task("A", { projectId: "ZZ", due: "2026-11-25" })]);
   const m = progressByProject(rangeTasks(d, { start: WS, end: "2026-11-29" }, TODAY));
   assert.deepEqual(m.get("ZZ"), { done: 0, total: 1 });
+});
+
+// ---- chaseTasks（催促の対象） ----
+const wt = (id, w, o = {}) => task(id, { status: "Waiting", waitingOn: w, ...o });
+const chase = (tasks, settings = {}) => chaseTasks(mk(tasks, { settings }), TODAY);
+const chaseIds = (rows) => rows.map((r) => r.task.id);
+
+test("chaseTasks: 予定日が昨日は入り（lapsedDays 1）、今日・明日は入らない", () => {
+  const rows = chase([wt("A", { party: "X", since: "2026-11-20", expected: "2026-11-24" }), wt("B", { party: "X", since: "2026-11-20", expected: TODAY }), wt("C", { party: "X", since: "2026-10-01", expected: "2026-11-26" })]);
+  assert.deepEqual(chaseIds(rows), ["A"]);
+  assert.deepEqual([rows[0].party, rows[0].since, rows[0].expected, rows[0].lapsedDays, rows[0].waitedDays], ["X", "2026-11-20", "2026-11-24", 1, 5]);
+});
+test("chaseTasks: 予定日なしは、待ち始めから 7 日で入り、6 日では入らない。待ち始めなしは入らない", () => {
+  const rows = chase([wt("A", { party: "X", since: "2026-11-18" }), wt("B", { party: "X", since: "2026-11-19" }), wt("C", { party: "X" })]);
+  assert.deepEqual(chaseIds(rows), ["A"]);
+  assert.deepEqual([rows[0].lapsedDays, rows[0].waitedDays], [null, 7]);
+});
+test("chaseTasks: Waiting 以外は入らない", () => {
+  assert.deepEqual(chase([task("A", { status: "In Progress", waitingOn: { party: "X", since: "2026-01-01" } })]), []);
+});
+test("chaseTasks: 並びは、超過日数の多い順、予定日なしの待ち日数の多い順、ID", () => {
+  const rows = chase([
+    wt("D", { party: "X", since: "2026-11-10" }),
+    wt("C", { party: "X", since: "2026-11-01" }),
+    wt("B", { party: "X", since: "2026-11-01", expected: "2026-11-23" }),
+    wt("A", { party: "X", since: "2026-11-01", expected: "2026-11-24" }),
+    wt("E", { party: "X", since: "2026-11-10" }),
+    wt("F", { party: "X", since: "2026-11-01", expected: "2026-11-23" }),
+  ]);
+  assert.deepEqual(chaseIds(rows), ["B", "F", "A", "C", "D", "E"]);
+});
+test("chaseTasks: waitingLongDays で境界が変わる", () => {
+  const t = [wt("A", { party: "X", since: "2026-11-22" })];
+  assert.deepEqual(chase(t), []);
+  assert.deepEqual(chaseIds(chase(t, { waitingLongDays: 3 })), ["A"]);
+});
+test("chaseTasks: 超過日数が同じなら、待ち始めに関わらず ID の順", () => {
+  const rows = chase([wt("B", { party: "X", since: "2026-11-20", expected: "2026-11-23" }), wt("A", { party: "X", since: "2026-11-01", expected: "2026-11-23" })]);
+  assert.deepEqual(chaseIds(rows), ["A", "B"]);
+  const rev = chase([wt("A", { party: "X", since: "2026-11-24", expected: "2026-11-23" }), wt("B", { party: "X", since: "2026-11-01", expected: "2026-11-23" })]);
+  assert.deepEqual(chaseIds(rev), ["A", "B"]);
+});
+test("chaseTasks: 不正な since・expected は無いものとして扱い、例外にしない", () => {
+  const rows = chase([
+    wt("A", { party: "X", since: "2026-11-01", expected: "abc" }),
+    wt("B", { party: "X", since: "xx", expected: "2026-11-20" }),
+    wt("C", { party: "X", since: "xx" }),
+  ]);
+  assert.deepEqual(chaseIds(rows), ["B", "A"]);
+  assert.equal(rows[0].waitedDays, null);
+  assert.equal(rows[1].expected, null);
+});
+test("chaseTasks: waitingOn が null・無しの Waiting は入れず、例外にしない", () => {
+  assert.deepEqual(chase([wt("A", null), task("B", { status: "Waiting" })]), []);
 });

@@ -276,3 +276,28 @@ test("reload: 読み直したファイルの形が違えば例外（画面のデ
   a.modified += 1;
   await assert.rejects(s.reload(), /tasks がありません/);
 });
+
+test("info: 何も開いていないと name と at が null。choose・restore のあとは、ファイル名と更新日時が入る", async () => {
+  const h = fakeHandle({ projects: [], tasks: [], events: [], changeLog: [] });
+  const { first, second } = twice(h);
+  assert.deepEqual(first.info(), { name: null, at: null });
+  await first.choose();
+  assert.deepEqual(first.info(), { name: "data.json", at: 1000 });
+  const s2 = second();
+  assert.deepEqual(s2.info(), { name: null, at: null });
+  await s2.restore();
+  assert.deepEqual(s2.info(), { name: "data.json", at: 1000 });
+});
+
+test("info: 呼んでも、changed と save の動きは変わらない。保存すると at が進む", async () => {
+  const h = fakeHandle({ projects: [], tasks: [], events: [], changeLog: [] });
+  const s = mk(h);
+  const d = await s.choose();
+  for (let i = 0; i < 3; i++) s.info();
+  assert.equal(await s.changed(), false);
+  assert.deepEqual(await s.save(d), { ok: true });
+  assert.equal(s.info().at, 1001);
+  h.modified += 5;
+  assert.equal(await s.changed(), true);
+  assert.equal((await s.save(d)).reason, "conflict");
+});

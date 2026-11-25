@@ -103,6 +103,17 @@ export function updateTask(data, taskId, patch, today = nowLocal().date) {
   });
 }
 
+/** 催促を記録する: 待ち始めを today、回答予定日を today + days 日にする（待ち先は変えない）。days は 1〜30 の整数 */
+export function markChased(data, taskId, days, today = nowLocal().date) {
+  return mapTask(data, taskId, (t) => {
+    if (t.status !== "Waiting") throw new Error("Waiting のタスクだけ、催促を記録できます");
+    const party = String(t.waitingOn?.party ?? "").trim();
+    if (!party) throw new Error("待ち先が空です。先に待ち先を入力してください");
+    if (!Number.isInteger(days) || days < 1 || days > 30) throw new Error("次の回答予定日は、1〜30 日後の整数で指定してください");
+    return { ...t, waitingOn: { party, since: today, expected: addDays(today, days) } };
+  });
+}
+
 // ---- チェックリスト（task.checklist = [{ id, text, done }]） ----
 const itemText = (text) => {
   const s = String(text ?? "").trim();
