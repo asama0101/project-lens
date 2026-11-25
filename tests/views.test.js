@@ -2966,3 +2966,22 @@ test("renderGantt: Waiting の印を足しても、バー（data-gt・つまみ�
   assert.equal(waited, plain);
   assert.ok(plain.includes('<b class="gh l"') && plain.includes('<b class="gh r"'));
 });
+
+test("renderPrio: 未完了の行に「今日へ」（data-prioplan）。スケジュール画面には出ない。今日のタスクにある行・完了の行には出ない", async () => {
+  const { rankTasks } = await import("../plugins/project-lens/src/core/schedule.js");
+  const { d } = withToday();
+  const inToday = new Set(todayTaskIds(d, TODAY));
+  const ids = rankTasks(d, TODAY).map((r) => r.taskId).filter((id) => !inToday.has(id));
+  assert.ok(ids.length > 0, "検査: 優先の行がある");
+  const html = renderPrio(d, TODAY, { sched: false });
+  const shown = [...html.matchAll(/data-prioplan="([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(shown.length > 0, "検査: ボタンが出る");
+  assert.deepEqual(shown, ids.slice(0, shown.length));
+  assert.equal(shown.length, count(html, /<li/g), "全行に出る");
+  assert.ok(html.includes('<button class="btn" data-prioplan="') && html.includes(">今日へ</button>"));
+  for (const id of inToday) assert.ok(!html.includes(`data-prioplan="${id}"`), `今日のタスク ${id}`);
+  assert.ok(!renderPrio(d, TODAY, { sched: true }).includes("data-prioplan"), "スケジュール画面には出さない");
+  assert.ok(renderSide(d, TODAY, { sched: false }).includes("data-prioplan"), "右の列にも出る");
+  for (const t of d.tasks) if (t.status !== "Done") t.status = "Done";
+  assert.ok(!renderPrio(d, TODAY, { sched: false }).includes("data-prioplan"), "完了の行には出ない");
+});

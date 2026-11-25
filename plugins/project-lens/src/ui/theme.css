@@ -84,6 +84,7 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 .rank .pj:empty{display:none}
 .rank .t{font-weight:700;line-height:1.4;overflow-wrap:anywhere}
 .rank .why{grid-column:2;color:var(--muted);font-size:12px;line-height:1.5}
+.rank [data-prioplan]{grid-column:2;justify-self:start}
 .rank .act{display:inline-block;font-size:11px;padding:0 6px;border-radius:4px;background:var(--warn-soft);color:var(--warn);margin-right:6px}
 .rank li[data-dragtask]{cursor:grab;border-radius:6px}
 .rank .t .pill{vertical-align:1px}

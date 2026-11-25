@@ -1024,3 +1024,13 @@ test("チェックの警告: 「未完了のまま」の選択肢（ckkeep）は
   const i = src.indexOf('q("[data-ckall]")'), a = src.slice(i, i + 500);
   assert.ok(i > 0 && a.includes("checkAll: true") && a.includes("setStatus(pd.id, pd.status, [], true)"), a);
 });
+
+test("今日の優先の「今日へ」（data-prioplan）は、ToDo タブへ移り、S.todoWeek を今週にして、そのあと openPlan を呼ぶ", () => {
+  const i = src.indexOf('const pp = q("[data-prioplan]")');
+  assert.ok(i > 0, "ハンドラ");
+  const h = src.slice(i, src.indexOf("return; }", i));
+  const a = h.indexOf('S.screen = "todo"'), b = h.indexOf("S.todoWeek = mondayOf(today)"), c = h.indexOf("openPlan(");
+  assert.ok(a > 0 && b > a && c > b, h);
+  assert.ok(h.includes("clearSel()") && h.indexOf("clearSel()") < c, "画面の移動で、ほかの入力欄を閉じてから開く");
+  assert.ok(h.includes("S.resetScroll = true"), h);
+});

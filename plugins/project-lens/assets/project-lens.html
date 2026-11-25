@@ -91,6 +91,7 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 .rank .pj:empty{display:none}
 .rank .t{font-weight:700;line-height:1.4;overflow-wrap:anywhere}
 .rank .why{grid-column:2;color:var(--muted);font-size:12px;line-height:1.5}
+.rank [data-prioplan]{grid-column:2;justify-self:start}
 .rank .act{display:inline-block;font-size:11px;padding:0 6px;border-radius:4px;background:var(--warn-soft);color:var(--warn);margin-right:6px}
 .rank li[data-dragtask]{cursor:grab;border-radius:6px}
 .rank .t .pill{vertical-align:1px}
@@ -3725,7 +3726,8 @@ function renderPrio(data, today, opts = {}) {
     const pill = a.count ? ` <span class="pill ok">${a.count}回・実績 ${a.hours.toFixed(1)}h</span>` : "";
     const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? (t.projectId == null ? "プロジェクトなし" : ""));
     const drag = sched ? ` draggable="true" data-dragtask="${esc(t.id)}"` : "";
-    return `<li${drag}><span class="n">${i + 1}</span><span class="pj">${proj}</span><span class="t">${r.action === "chase" ? `<span class="act">${r.reasons.some((x) => x.includes("催促")) ? "催促" : "確認"}</span>` : ""}${esc(t.title)} ${statusPill(t)}${pill}</span>${checkMeterHtml(t, { remain: true })}<span class="why">${isImportantMark(t) ? IMP_BADGE : ""}${esc(r.reasons.filter((x) => x !== "重要").join("。"))}</span></li>`;
+    const plan = sched ? "" : `<button class="btn" data-prioplan="${esc(t.id)}">今日へ</button>`;
+    return `<li${drag}><span class="n">${i + 1}</span><span class="pj">${proj}</span><span class="t">${r.action === "chase" ? `<span class="act">${r.reasons.some((x) => x.includes("催促")) ? "催促" : "確認"}</span>` : ""}${esc(t.title)} ${statusPill(t)}${pill}</span>${checkMeterHtml(t, { remain: true })}<span class="why">${isImportantMark(t) ? IMP_BADGE : ""}${esc(r.reasons.filter((x) => x !== "重要").join("。"))}</span>${plan}</li>`;
   }).join("");
   const note = sched
     ? "タスクをカレンダーへドラッグして配置します(15分刻み・長さ1時間)。今日のタスクの行からも、同じタスクをもう 1 つ置けます。配置済みの枠もドラッグで移動できます。"
@@ -5854,6 +5856,8 @@ view.addEventListener("click", (e) => {
     return;
   }
   if (q("[data-tdcancel]")) { S.tdOpen = null; S.tdCol = null; S.tdDraft = null; render(); return; }
+  const pp = q("[data-prioplan]"); // 今日の優先の行の「今日へ」。ToDo タブの今週へ移り、その行の入力欄を開く（画面の移動なので、ほかの入力欄は閉じる）
+  if (pp) { S.screen = "todo"; S.tpop = null; S.pendingDone = null; clearSel(); S.todoWeek = mondayOf(today); S.resetScroll = true; openPlan(pp.dataset.prioplan); return; }
   const tdp = q("[data-tdplan]"); // 今日へ（右の列の行）。開閉。完了の入力欄は閉じる
   if (tdp) { const id = tdp.dataset.tdplan; if (S.tdPlan?.key === id) { S.tdPlan = null; S.focusSel = null; render(); } else openPlan(id); return; }
   const tps = q("[data-tdplansave]"); // 今日に入れる（今日の予定の枠を足す）。欄の値は、押したときに読む。失敗しても打った値が消えないよう、先に S.tdPlan へ写す
