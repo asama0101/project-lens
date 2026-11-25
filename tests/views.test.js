@@ -496,6 +496,25 @@ test("実績の欄: 並びは「実績」のラベル・日付・開始・終了
   assert.match(sBox, /<label>開始<input[^>]*data-ac="start"/);
   assert.match(mBox, /<label>開始<input[^>]*data-ma="start"/);
   assert.match(mBox, /<label>終了<input[^>]*data-ma="end"/);
+  // ボタンの文言: 実績を持つ（会議は確認済み）なら「実績を更新」、無ければ「実績を保存」。枠と会議で同じ
+  assert.ok(sBox.includes('data-actsave="S9">実績を更新</button>') && mBox.includes('data-mtgact="m1">実績を更新</button>'), mBox);
+  const sNew = actBoxOf(mtgslotOf(sched(withPlan({ id: "S9", date: TODAY, start: "08:00", end: "09:00" }), { selSess: "S9" })));
+  const d = noSessions(); d.events.find((e) => e.id === "m1").confirmed = false;
+  const mNew = actBoxOf(mtgslotOf(mtgSel("m1", d)));
+  assert.ok(sNew.includes('data-actsave="S9">実績を保存</button>') && mNew.includes('data-mtgact="m1">実績を保存</button>'), mNew);
+  assert.ok(!sNew.includes("data-actclear") && !mNew.includes("data-mtgactclear"));
+});
+
+test("実績の欄: 説明の行（.note）が、枠と会議の両方で、ラベルの行の前にある。件名はエスケープし、実績の有無で「入れます」「更新します」", () => {
+  const d = noSessions(); Object.assign(d.events.find((e) => e.id === "m1"), { title: "定例<b>&", confirmed: false });
+  const mBox = actBoxOf(mtgslotOf(mtgSel("m1", d)));
+  const sBox = actBoxOf(mtgslotOf(slotWithAct()));
+  for (const box of [sBox, mBox]) {
+    const n = box.indexOf('<span class="note" style="flex-basis:100%;margin:0">');
+    assert.ok(n >= 0 && n < box.indexOf('class="aclb"'), box);
+  }
+  assert.ok(mBox.includes("「定例&lt;b&gt;&amp;」の実績を入れます") && !mBox.includes("<b>&"), mBox);
+  assert.ok(actBoxOf(mtgslotOf(mtgSel("m1"))).includes("「NW運用定例」の実績を更新します"), "確認済みの会議");
 });
 
 test("実績の欄: 会議の日付は文字（入力欄でない）。枠の日付は入力欄（data-ac=\"date\"）", () => {
@@ -833,7 +852,7 @@ test("会議フォーム: 選んだ会議（mcp・manual）に、実績の開始
   const m1 = renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15, selMtg: "m1" });
   assert.match(m1, /<input[^>]*data-ma="start"[^>]*value="09:30"/);
   assert.match(m1, /<input[^>]*data-ma="end"[^>]*value="10:30"/);
-  assert.ok(m1.includes('data-mtgact="m1"') && m1.includes(">実績を保存</button>"));
+  assert.ok(m1.includes('data-mtgact="m1">実績を更新</button>'), "確認済みの会議は「実績を更新」");
   assert.ok(!/<input[^>]*data-ma="start"[^>]*disabled/.test(m1), "予定表から取得した会議でも、実績は入れられる");
   d.events.find((e) => e.id === "m2").actual = { start: "13:15", end: "14:30" };
   const m2 = renderSchedule(d, TODAY, { view: "day", date: TODAY, now: NOW15, selMtg: "m2" });

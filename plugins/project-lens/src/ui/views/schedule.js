@@ -188,8 +188,9 @@ function meetingActualBox(data, ctx) {
   if (!m || m.skip || !started(m, ctx.now)) return "";
   const span = meetingActualSpan(m);
   const act = ctx.actDraft?.key === `m:${m.id}` ? { start: ctx.actDraft.start, end: ctx.actDraft.end } : span;
-  const buttons = [[`data-mtgact="${esc(m.id)}"`, "実績を保存"], ...(m.confirmed === true ? [[`data-mtgactclear="${esc(m.id)}"`, "実績を消す"]] : [])];
-  return actualBox({ date: { value: m.date, editable: false }, start: act.start, end: act.end, attr: "ma", buttons });
+  const has = m.confirmed === true; // 確認済み = 実績を持つ（枠の actual と同じ扱い）
+  const buttons = [[`data-mtgact="${esc(m.id)}"`, has ? "実績を更新" : "実績を保存"], ...(has ? [[`data-mtgactclear="${esc(m.id)}"`, "実績を消す"]] : [])];
+  return actualBox({ note: `「${esc(m.title)}」の実績を${has ? "更新します" : "入れます"}`, date: { value: m.date, editable: false }, start: act.start, end: act.end, attr: "ma", buttons });
 }
 
 function meetingForm(data, ctx) {

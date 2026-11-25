@@ -723,7 +723,7 @@ test("app.js: 会議の実績の保存（data-mtgact）は、入力欄（data-ma
   const i = src.indexOf('q("[data-mtgact]")');
   assert.ok(i > 0);
   const a = src.slice(i, i + 500);
-  assert.ok(a.includes('view.querySelector(`[data-ma="${k}"]`)') && a.includes("setMeetingActual(d, id, span, now)") && a.includes("会議の実績を入れました"), a);
+  assert.ok(a.includes('view.querySelector(`[data-ma="${k}"]`)') && a.includes("setMeetingActual(d, id, span, now)") && a.includes('upd = S.data.events.find((m) => m.id === id)?.confirmed === true') && a.includes('upd ? "会議の実績を更新しました" : "会議の実績を入れました"'), a);
 });
 
 test("app.js: 読み直しなどで選択中の枠が無くなったら、選択と編集欄を外す", () => {
@@ -785,7 +785,7 @@ test("app.js: 実績の入力欄（data-ac・data-ma）は、change で S.actDra
   const a = src.slice(i, src.indexOf('q("[data-actcancel]")'));
   assert.ok(a.includes("clearSel(); render();"), "枠・追加の保存の成功は clearSel で消す");
   assert.ok(!a.slice(0, a.indexOf("if (apply(")).includes("S.actDraft = null"), "失敗の経路では消さない");
-  assert.ok(src.includes('if (apply((d) => setMeetingActual(d, id, span, now), "会議の実績を入れました")) S.actDraft = null;'), "会議は成功したときだけ消す");
+  assert.ok(src.includes('if (apply((d) => setMeetingActual(d, id, span, now), upd ? "会議の実績を更新しました" : "会議の実績を入れました")) S.actDraft = null;'), "会議は成功したときだけ消す");
 });
 
 test("app.js: 実績の下書きは、入力欄を囲む実績の欄（.actform。枠と会議で共通）から、会議（data-mtgact）か枠（data-actsave）かを読む。会議の実績の欄は会議の編集欄（.mtgform）の外にある", () => {

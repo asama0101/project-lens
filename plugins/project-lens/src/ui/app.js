@@ -695,7 +695,7 @@ view.addEventListener("click", (e) => {
   }
   if (q("[data-actcancel]")) { S.actAdd = null; S.actDraft = null; render(); return; }
   const mact = q("[data-mtgact]"); // 会議の実績の保存（confirmed と actual を書く）
-  if (mact) { const id = mact.dataset.mtgact, f = (k) => view.querySelector(`[data-ma="${k}"]`)?.value ?? "", span = { start: f("start"), end: f("end") }; if (apply((d) => setMeetingActual(d, id, span, now), "会議の実績を入れました")) S.actDraft = null; return; }
+  if (mact) { const id = mact.dataset.mtgact, f = (k) => view.querySelector(`[data-ma="${k}"]`)?.value ?? "", span = { start: f("start"), end: f("end") }, upd = S.data.events.find((m) => m.id === id)?.confirmed === true; if (apply((d) => setMeetingActual(d, id, span, now), upd ? "会議の実績を更新しました" : "会議の実績を入れました")) S.actDraft = null; return; }
   const mclr = q("[data-mtgactclear]"); // 会議の実績を消す（actual を外し、confirmed を false に戻す）
   if (mclr) { if (apply((d) => clearMeetingActual(d, mclr.dataset.mtgactclear), "会議の実績を消しました")) S.actDraft = null; return; }
   if (q("[data-delsel]")) { deleteSelected(); return; }
