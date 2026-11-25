@@ -2826,3 +2826,29 @@ test("planDefault: 開始は今を 15 分刻みに切り上げ（最大 23:45）
   assert.deepEqual(at("10:16"), { start: "10:30", minutes: 60 });
   assert.deepEqual(at("23:50"), { start: "23:45", minutes: 60 });
 });
+
+test("taskFieldHtml / 窓とスケジュールの編集欄: Waiting のときだけ待ち先・回答予定日が出る。待ち先が空なら回答予定日は disabled", () => {
+  const mk = (status, waitingOn) => { const d = load(); const t = d.tasks.find((x) => x.id === "AA-0007"); t.status = status; if (waitingOn) t.waitingOn = waitingOn; else delete t.waitingOn; return d; };
+  const show = (d) => [renderTaskPop(d, { id: "AA-0007", x: 0, y: 0 }, ""), renderTaskEditPanel(d, { id: "AA-0007", full: false }, "")];
+  for (const s of ["To Do", "In Progress"]) for (const h of show(mk(s))) assert.ok(!h.includes('data-f="party"') && !h.includes('data-f="expected"'), s);
+  for (const h of show(mk("Waiting", { party: "ベンダー<A>", expected: "2026-12-01" }))) {
+    assert.ok(/data-f="party" data-id="AA-0007"[^>]*value="ベンダー&lt;A&gt;"/.test(h), "待ち先の値");
+    assert.ok(/data-f="expected" data-id="AA-0007"[^>]*title="回答予定日"/.test(h) && h.includes("2026"), "回答予定日");
+    assert.ok(!/data-f="expected"[^>]*disabled/.test(h), "待ち先があれば有効");
+    assert.ok(h.indexOf('data-f="party"') > h.indexOf("状態") && h.indexOf('data-f="party"') < h.indexOf('data-f="memo"'), "状態の次");
+  }
+  for (const h of show(mk("Waiting"))) assert.ok(/data-f="expected"[^>]*disabled/.test(h), "待ち先が空なら disabled");
+  const panel = renderTaskEditPanel(mk("Waiting", { party: "X" }), { id: "AA-0007", full: false }, "");
+  const wait = panel.slice(panel.indexOf('data-f="party"') - 40, panel.indexOf('class="chk"')).replace(/data-id="AA-0007"/g, "");
+  assert.ok(wait.includes("回答予定日") && !wait.includes("AA-0007"), "新しい欄に ID が出ない");
+});
+
+test("renderTaskPop: 窓の項目の入力は、今までと同じ属性・値", () => {
+  const h = renderTaskPop(load(), { id: "AA-0007", x: 0, y: 0 }, "");
+  assert.ok(/<input class="in" data-f="title" data-id="AA-0007" value="[^"]*">/.test(h));
+  assert.ok(/<select class="in sm" data-f="projectId" data-id="AA-0007">/.test(h));
+  assert.ok(/<input type="checkbox" data-f="important" data-id="AA-0007" >|<input type="checkbox" data-f="important" data-id="AA-0007" checked>/.test(h));
+  assert.ok(/<input class="in" data-f="memo" data-id="AA-0007" value="[^"]*" placeholder="メモ">/.test(h));
+  assert.ok(/<select class="in sm" data-f="repeat" data-id="AA-0007"><option value="">なし<\/option>/.test(h));
+  assert.ok(/data-f="due" data-id="AA-0007"/.test(h) && /data-f="start" data-id="AA-0007"/.test(h));
+});

@@ -4226,7 +4226,7 @@ return { checklistEditorHtml };
 })();
 
 /* src/ui/views/taskpop.js */
-const { predEditHtml, startInputHtml, renderTaskPop, renderTaskEditPanel } = (() => {
+const { predEditHtml, startInputHtml, taskFieldHtml, renderTaskPop, renderTaskEditPanel } = (() => {
 // ガントチャートでタスク名・バーをクリックしたときに開く、編集の小さな窓。
 // 入力の属性（data-f・data-id・data-addpre・data-rmpre）は、リストの編集欄と同じ。保存と描き直しは、リストと同じ処理が受け持つ。
 // 窓を閉じる ×: data-tpopclose / 窓: data-tpop。「リストで開く」は data-goto、削除は data-del（どちらも既存の処理）
@@ -4252,23 +4252,47 @@ function startInputHtml(data, t) {
 }
 
 /**
+ * 編集の項目 1 つの入力部分（ラベルは含まない）。窓とスケジュールの編集欄が共用する。
+ * name = title|projectId|start|due|important|memo|party|expected|repeat。party・expected は状態が Waiting のときだけ（expected は待ち先が空なら disabled）。
+ * ids が false なら、aria-label に ID を出さない（スケジュールの編集欄）
+ */
+function taskFieldHtml(data, t, name, { ids = true } = {}) {
+  const id = esc(t.id);
+  const attrs = `data-f="${name}" data-id="${id}"`;
+  switch (name) {
+    case "title": return `<input class="in" ${attrs} value="${esc(t.title)}">`;
+    case "projectId": {
+      const opts = [["", "プロジェクトなし"], ...data.projects.map((p) => [p.id, p.name])].map(([v, l]) => `<option value="${esc(v)}" ${(t.projectId ?? "") === v ? "selected" : ""}>${esc(l)}</option>`).join("");
+      return `<select class="in sm" ${attrs}>${opts}</select>`;
+    }
+    case "start": return startInputHtml(data, t);
+    case "due": return dateInputHtml({ value: t.due, attrs, label: "期限" });
+    case "important": return `<input type="checkbox" ${attrs} ${t.important === true ? "checked" : ""}>`;
+    case "memo": return `<input class="in" ${attrs} value="${esc(t.memo ?? "")}" placeholder="メモ">`;
+    case "party": return t.status === "Waiting" ? `<input class="in" ${attrs} value="${esc(t.waitingOn?.party ?? "")}" placeholder="ベンダー・部署名"${ids ? ` aria-label="${id} の待ち先"` : ""}>` : "";
+    case "expected": return t.status === "Waiting" ? dateInputHtml({ value: t.waitingOn?.expected ?? "", cls: "in sm", attrs: `${attrs} title="回答予定日" ${t.waitingOn?.party ? "" : "disabled"}${ids ? ` aria-label="${id} の回答予定日"` : ""}`, label: "回答予定日" }) : "";
+    case "repeat": return `<select class="in sm" ${attrs}><option value="">なし</option><option value="week" ${t.repeat?.unit === "week" ? "selected" : ""}>毎週</option><option value="month" ${t.repeat?.unit === "month" ? "selected" : ""}>毎月${t.repeat?.unit === "month" ? `（${esc(t.repeat.day)} 日）` : ""}</option></select>`;
+  }
+  throw new Error(`taskFieldHtml: 知らない項目 ${name}`);
+}
+
+/**
  * 窓の編集の項目の HTML（縦に並べる。窓は常に full: true）。スケジュールの編集欄は別の並べ方（taskRowFieldsHtml）。
- * 軽い欄 = 件名・プロジェクト・状態・開始・期限・重要・メモ。full で、チェックリスト・前のタスク・繰り返しを足す
+ * 軽い欄 = 件名・プロジェクト・状態・（Waiting なら待ち先・回答予定日）・開始・期限・重要・メモ。full で、チェックリスト・前のタスク・繰り返しを足す
  */
 function taskFieldsHtml(data, t, { full, statusHtml }) {
-  const id = esc(t.id);
+  const f = (name) => taskFieldHtml(data, t, name);
   const field = (label, inner) => `<label class="tp-f"><span class="muted">${label}</span>${inner}</label>`;
-  const projects = [["", "プロジェクトなし"], ...data.projects.map((p) => [p.id, p.name])].map(([v, l]) => `<option value="${esc(v)}" ${(t.projectId ?? "") === v ? "selected" : ""}>${esc(l)}</option>`).join("");
-  const imp = field("重要", `<input type="checkbox" data-f="important" data-id="${id}" ${t.important === true ? "checked" : ""}>`);
-  const repeat = field("繰り返し", `<select class="in sm" data-f="repeat" data-id="${id}"><option value="">なし</option><option value="week" ${t.repeat?.unit === "week" ? "selected" : ""}>毎週</option><option value="month" ${t.repeat?.unit === "month" ? "selected" : ""}>毎月${t.repeat?.unit === "month" ? `（${esc(t.repeat.day)} 日）` : ""}</option></select>`);
-  return `${field("件名", `<input class="in" data-f="title" data-id="${id}" value="${esc(t.title)}">`)}
-    ${field("プロジェクト", `<select class="in sm" data-f="projectId" data-id="${id}">${projects}</select>`)}
+  const waiting = t.status === "Waiting" ? `<div class="tp-r">${field("待ち先", f("party"))}${field("回答予定日", f("expected"))}</div>` : "";
+  return `${field("件名", f("title"))}
+    ${field("プロジェクト", f("projectId"))}
     <div class="tp-f"><span class="muted">状態</span><div>${statusHtml}</div></div>
-    <div class="tp-r">${field("開始", startInputHtml(data, t))}${field("期限", dateInputHtml({ value: t.due, attrs: `data-f="due" data-id="${id}"`, label: "期限" }))}</div>
+    ${waiting}
+    <div class="tp-r">${field("開始", f("start"))}${field("期限", f("due"))}</div>
     ${full ? checklistEditorHtml(t) : ""}
     ${full ? `<div class="tp-f"><span class="muted">前のタスク</span>${predEditHtml(data, t)}</div>` : ""}
-    <div class="tp-r">${imp}${full ? repeat : ""}</div>
-    ${field("メモ", `<input class="in" data-f="memo" data-id="${id}" value="${esc(t.memo ?? "")}" placeholder="メモ">`)}`;
+    <div class="tp-r">${field("重要", f("important"))}${full ? field("繰り返し", f("repeat")) : ""}</div>
+    ${field("メモ", f("memo"))}`;
 }
 
 /**
@@ -4291,20 +4315,19 @@ function renderTaskPop(data, pop, statusHtml) {
  * fields = 軽い欄（1 行に折り返して並べる項目）、repeatField・wide = 詳細の入れ物に出す繰り返しと、全幅の行にする編集欄（full のときだけ）
  */
 function taskRowFieldsHtml(data, t, { full, statusHtml }) {
-  const id = esc(t.id);
+  const f = (name) => taskFieldHtml(data, t, name, { ids: false });
   const field = (cls, label, inner) => `<label${cls ? ` class="${cls}"` : ""}><span>${label}</span>${inner}</label>`;
-  const projects = [["", "プロジェクトなし"], ...data.projects.map((p) => [p.id, p.name])].map(([v, l]) => `<option value="${esc(v)}" ${(t.projectId ?? "") === v ? "selected" : ""}>${esc(l)}</option>`).join("");
-  const repeat = `<option value="">なし</option><option value="week" ${t.repeat?.unit === "week" ? "selected" : ""}>毎週</option><option value="month" ${t.repeat?.unit === "month" ? "selected" : ""}>毎月${t.repeat?.unit === "month" ? `（${esc(t.repeat.day)} 日）` : ""}</option>`;
   const fields = [
-    field("tp-title", "件名", `<input class="in" data-f="title" data-id="${id}" value="${esc(t.title)}">`),
-    field("", "開始", startInputHtml(data, t)),
-    field("", "期限", dateInputHtml({ value: t.due, attrs: `data-f="due" data-id="${id}"`, label: "期限" })),
+    field("tp-title", "件名", f("title")),
+    field("", "開始", f("start")),
+    field("", "期限", f("due")),
     `<div class="tp-st"><span>状態</span><div>${statusHtml}</div></div>`,
-    `<label class="chk"><input type="checkbox" data-f="important" data-id="${id}" ${t.important === true ? "checked" : ""}>重要</label>`,
-    field("", "プロジェクト", `<select class="in sm" data-f="projectId" data-id="${id}">${projects}</select>`),
-    field("tp-memo", "メモ", `<input class="in" data-f="memo" data-id="${id}" value="${esc(t.memo ?? "")}" placeholder="メモ">`),
+    ...(t.status === "Waiting" ? [field("", "待ち先", f("party")), field("", "回答予定日", f("expected"))] : []),
+    `<label class="chk">${f("important")}重要</label>`,
+    field("", "プロジェクト", f("projectId")),
+    field("tp-memo", "メモ", f("memo")),
   ].join("\n    ");
-  const repeatField = full ? field("", "繰り返し", `<select class="in sm" data-f="repeat" data-id="${id}">${repeat}</select>`) : "";
+  const repeatField = full ? field("", "繰り返し", f("repeat")) : "";
   const wide = full ? `${checklistEditorHtml(t)}<div class="tp-wide"><span>前のタスク</span>${predEditHtml(data, t, { ids: false })}</div>` : "";
   return { fields, repeatField, wide };
 }
@@ -4329,7 +4352,7 @@ function renderTaskEditPanel(data, edit, statusHtml) {
   </div>`;
 }
 
-return { predEditHtml, startInputHtml, renderTaskPop, renderTaskEditPanel };
+return { predEditHtml, startInputHtml, taskFieldHtml, renderTaskPop, renderTaskEditPanel };
 })();
 
 /* src/ui/views/project.js */
