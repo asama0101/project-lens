@@ -2165,12 +2165,11 @@ return { MAX_REQUESTS, MAX_TEXT, WATCH_FRESH_MS, getRequest, pruneRequests, subm
 })();
 
 /* src/core/split.js */
-const { PERSONAL_SETTINGS, SHARED_SETTINGS, splitData, mergeData, removeOrphanSessions, emptyPersonal, isOldShared, checkSharedShape, checkPersonalShape, exportFiles, dataFromTexts } = (() => {
+const { PERSONAL_SETTINGS, splitData, mergeData, removeOrphanSessions, emptyPersonal, isOldShared, checkSharedShape, checkPersonalShape, exportFiles, dataFromTexts } = (() => {
 // 1 つのデータ（メモリ上の形）と、共有ファイル（data.json）・個人ファイル（personal.json）の間の変換。純関数。
 // 入力は変えず、新しいオブジェクトを返す。
 
 const PERSONAL_SETTINGS = ["holidays", "workdays", "selfEmails", "selfNames"];
-const SHARED_SETTINGS = ["countWeekendsAndHolidays", "nationalHolidays", "waitingLongDays", "projectRules", "labels", "wbsMappings", "wbsImports"];
 
 const pick = (obj, keys) => Object.fromEntries(keys.filter((k) => k in obj).map((k) => [k, obj[k]]));
 
@@ -2255,7 +2254,7 @@ function dataFromTexts(texts, names = []) {
   return mergeData(shared[0], personal[0]);
 }
 
-return { PERSONAL_SETTINGS, SHARED_SETTINGS, splitData, mergeData, removeOrphanSessions, emptyPersonal, isOldShared, checkSharedShape, checkPersonalShape, exportFiles, dataFromTexts };
+return { PERSONAL_SETTINGS, splitData, mergeData, removeOrphanSessions, emptyPersonal, isOldShared, checkSharedShape, checkPersonalShape, exportFiles, dataFromTexts };
 })();
 
 /* src/ui/store.js */

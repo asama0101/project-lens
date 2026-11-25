@@ -2,7 +2,6 @@
 // 入力は変えず、新しいオブジェクトを返す。
 
 export const PERSONAL_SETTINGS = ["holidays", "workdays", "selfEmails", "selfNames"];
-export const SHARED_SETTINGS = ["countWeekendsAndHolidays", "nationalHolidays", "waitingLongDays", "projectRules", "labels", "wbsMappings", "wbsImports"];
 
 const pick = (obj, keys) => Object.fromEntries(keys.filter((k) => k in obj).map((k) => [k, obj[k]]));
 
