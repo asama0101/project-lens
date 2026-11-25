@@ -845,7 +845,7 @@ test("ToDo タブ: index.html のタブ（スケジュールと稼働の間）�
 
 test("ToDo タブ: 古い ToDo の状態・ハンドラ・関数は無い", () => {
   for (const s of ["todoDay", "tdAct", "tdAskDel", "renderTodayTodos", "setTodoDay", "submitTodoInput", "deleteTodoNow", "data-tdnew", "data-tdday", "data-tdassign", "data-tdcarry", "data-tddel", "data-tdactsave", "dataset.tdone", "dataset.tdtitle", "dataset.tdcktoggle", "dataset.ta ", "addTodo(", "assignToDay(", "carryTodo(", "deleteTodo(", "ToDo）"]) assert.ok(!src.includes(s), s);
-  assert.ok(src.includes('for (const k of ["tdnote", "tf", "tdckadd", "tp"])'), "入力中の欄（読み直しで描き直さない・フォーカスを保つ）");
+  assert.ok(src.includes('for (const k of ["tf", "tdckadd", "tp"])'), "入力中の欄（読み直しで描き直さない・フォーカスを保つ）");
 });
 
 test("ToDo タブ: 入力欄の項目の追加（data-tdckadd の Enter。isComposing を除く）・削除（data-tdckdel）は、先に S.tdDraft へ写してから apply ですぐ保存する", () => {
@@ -885,16 +885,12 @@ test("ToDo タブ: 保存（data-tdsave）は、欄の値を先に S.tdDraft へ
   assert.match(a, /apply\(\(d\) => \{ r = completeTask\(d, id, completeInput\(draft\), now\); return r\.data; \}, null, \{ quiet: true \}\)/); // 入力の変換は views.test.js の completeInput
   assert.match(a, /S\.tdOpen = null; S\.tdCol = null; S\.tdDraft = null; render\(\);/);
   for (const s of ["にしました", "未来の予定の枠 ${r.released} 件を解除しました", "次回（期限"]) assert.ok(a.includes(s), s);
-  assert.ok(src.includes("if (el.dataset.tdnote !== undefined) {") && src.includes("setReview(d, wk, text)"), "気づきは change で setReview");
 });
 
-test("週の見返しの気づき（data-tdnote）: 稼働タブでも保存する。change の処理は画面で限らない。フォーカス・打ちかけの保護も画面によらない", () => {
-  const fn = src.slice(src.indexOf("function onChange("), src.indexOf("if (el.dataset.tdnote !== undefined) {"));
-  assert.ok(fn.length > 0 && !fn.includes("S.screen"), "気づきの処理の前に、画面の条件で return しない");
-  assert.ok(src.includes('if (el.dataset.tdnote !== undefined) { const wk = el.dataset.tdnote, text = el.value.trim(); apply((d) => setReview(d, wk, text), "気づきを保存しました"); return; }'));
-  assert.ok(src.includes('view.addEventListener("change", (e) => { const el = e.target; setTimeout(() => onChange(el), 0); });'), "change はどの画面でも onChange へ");
+test("稼働タブ: 気づきの処理は無く、フォーカス・打ちかけの保護は画面によらない", () => {
+  assert.ok(!src.includes("気づきを保存"));
   const fs = src.slice(src.indexOf("function focusSelector("), src.indexOf("/** カレンダー部分だけを描き直す"));
-  assert.ok(fs.includes('"tdnote"') && !fs.includes("S.screen"), "focusSelector は画面によらず tdnote を扱う");
+  assert.ok(fs.length > 0 && !fs.includes('"tdnote"'));
   const ed = src.slice(src.indexOf("function isEditing("), src.indexOf("function isEditing(") + 400);
   assert.ok(ed.includes('el.tagName === "TEXTAREA"') && !ed.includes("S.screen"), "打ちかけの textarea は画面によらず守る");
   assert.ok(src.includes('if (S.screen === "workload") return renderWorkload(S.data, today, { period: S.wperiod, date: S.wdate, now: clock() });'), "稼働は表示中の日（S.wdate）を渡す");
@@ -1004,7 +1000,7 @@ test("ToDo タブ: S.tdPlan は clearSel・週の移動・render() の検証（�
   assert.match(src, /function moveTodoWeek\(week\) \{[^}]*S\.tdPlan = null;/);
   assert.ok(src.includes("if (S.tdPlan && !S.data?.tasks.some((t) => t.id === S.tdPlan.key)) S.tdPlan = null;"));
   assert.ok(src.includes('if (el.dataset.tp !== undefined) {') && /key && key === S\.tdPlan\?\.key\) S\.tdPlan = tdPlanDraft\(form, key\)/.test(src));
-  assert.ok(src.includes('for (const k of ["tdnote", "tf", "tdckadd", "tp"])'));
+  assert.ok(src.includes('for (const k of ["tf", "tdckadd", "tp"])'));
 });
 
 test("app.js: 画面の中の「＋ 突発タスク」は、開くだけで、欄外クリックの下書き外しに消されない", () => {

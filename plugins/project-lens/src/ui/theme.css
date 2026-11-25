@@ -175,6 +175,9 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 .wl-bar .t,.sw.wl-t{background:var(--ok)}
 .wl-bar .m,.sw.wl-m{background:var(--meeting-edge)}
 .wl-bar.un{opacity:.6}
+.wl-prog{height:12px;min-width:60px;background:var(--line)}
+.wl-prog i{display:block;height:100%;background:var(--ok)}
+.wl h2{margin:16px 0 8px}
 .wl .banner{margin-top:14px}
 .tbl.edit td[data-l="件名"] .in{min-width:13em}
 .tbl.edit td[data-l="状態"] select{min-width:9.5em} /* In Progress・Cancelled が切れない幅（select の矢印の分を含む） */
@@ -487,10 +490,6 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .tf-ckitem{display:inline-flex;align-items:center}
 .tf-ckitem .gx{opacity:1;min-width:28px;min-height:28px}
 .tf-cks [data-tdckadd]{flex:1 1 180px;min-width:0}
-.wl + .tdreview{margin-top:16px}
-.tdreview .td-sum{margin:0 0 10px}
-.tdreview .td-note{display:flex;flex-direction:column;gap:4px;margin-top:12px;font-size:12px;color:var(--muted)}
-.tdreview .td-note textarea{resize:vertical;font-size:13px}
 
 /* 固定表示（ガント・リスト）: 画面のスクロールに対して、CSS の sticky で付ける */
 #view{overflow-anchor:none} /* 描き直しのたびに、ブラウザのスクロール位置の補正(スクロールアンカー)で縦の位置が数 px ずれるのを防ぐ。位置は render が戻す */

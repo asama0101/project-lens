@@ -19,11 +19,6 @@ const ORDER = ["overdue", "scheduled", "due", "done"];
 /** その日を含む週の月曜日 */
 export const mondayOf = (date) => addDays(date, -((weekday(date) + 6) % 7));
 
-/** 週（月曜日のキー）の気づき。空文字ならキーを消す */
-export function setReview(data, weekStart, text) {
-  const { [weekStart]: _, ...rest } = data.reviews ?? {};
-  return { ...data, reviews: text ? { ...rest, [weekStart]: text } : rest };
-}
 const minutes = (x) => toMin(x.end) - toMin(x.start);
 
 /** 今週の行（task・group・waiting・planned・actual・checked）。組の順・期限・ID の順 */
@@ -110,18 +105,4 @@ export function todayTasks(data, today) {
   }
   const isDone = (r) => (r.task.status === "Done" ? 1 : 0);
   return rows.sort((a, b) => isDone(a) - isDone(b) || shownStart(a.slots[0], today).localeCompare(shownStart(b.slots[0], today)) || a.task.id.localeCompare(b.task.id));
-}
-
-/** 週の見返し。done はそのうち Done の数、planned・actual は行の合計、note は reviews の気づき */
-export function weekSummary(data, weekStart, today) {
-  const rows = weekTasks(data, weekStart, today);
-  const sum = (k) => rows.reduce((n, r) => n + r[k], 0);
-  return {
-    done: rows.filter((r) => r.task.status === "Done").length,
-    total: rows.length,
-    planned: sum("planned"),
-    actual: sum("actual"),
-    note: data.reviews?.[weekStart] ?? "",
-    rows,
-  };
 }

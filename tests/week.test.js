@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { weekTasks, rangeTasks, progressByProject, weekSummary, mondayOf, setReview, todayTasks } from "../plugins/project-lens/src/core/week.js";
+import { weekTasks, rangeTasks, progressByProject, mondayOf, todayTasks } from "../plugins/project-lens/src/core/week.js";
 
 const WS = "2026-11-23"; // 月曜。日曜は 2026-11-29
 const TODAY = "2026-11-25";
@@ -103,28 +103,11 @@ test("planned・actual は週の日付の分。actual を持つ予定の枠も p
   assert.deepEqual(a.checked, { done: 1, total: 2 });
   assert.equal(rowOf(d, "B").checked, null);
 });
-test("weekSummary: done / total / planned / actual / note", () => {
-  const d = mk([
-    task("A", { status: "Done", doneAt: "2026-11-24", sessions: [plan("S1", "2026-11-24", "10:00", "11:00", { date: "2026-11-24", start: "10:00", end: "10:30" })] }),
-    task("B", { due: "2026-11-27", sessions: [plan("S2", "2026-11-25", "10:00", "10:30")] }),
-  ], { reviews: { [WS]: "気づき" } });
-  const s = weekSummary(d, WS, TODAY);
-  assert.deepEqual({ done: s.done, total: s.total, planned: s.planned, actual: s.actual, note: s.note }, { done: 1, total: 2, planned: 90, actual: 30, note: "気づき" });
-  assert.equal(s.rows.length, 2);
-  assert.equal(weekSummary(mk([]), WS, TODAY).note, "");
-});
-
 test("mondayOf: 月〜日は、その週の月曜日（日曜は前の月曜日）", () => {
   assert.equal(mondayOf("2026-10-19"), "2026-10-19");
   assert.equal(mondayOf("2026-10-20"), "2026-10-19");
   assert.equal(mondayOf("2026-10-25"), "2026-10-19");
   assert.equal(mondayOf("2026-10-26"), "2026-10-26");
-});
-
-test("setReview: 保存し、空文字でキーが消える", () => {
-  const a = setReview(mk([]), "2026-10-19", "気づき");
-  assert.deepEqual(a.reviews, { "2026-10-19": "気づき" });
-  assert.deepEqual(setReview(a, "2026-10-19", "").reviews, {});
 });
 
 /* ---------- todayTasks（今日の ToDo） ---------- */
@@ -261,4 +244,20 @@ test("progressByProject: プロジェクトごとの done / total。projectId �
 });
 test("progressByProject: 空の行は空の Map", () => {
   assert.equal(progressByProject([]).size, 0);
+});
+test("rangeTasks: Done で doneAt が範囲の外でも、範囲の日付の実績の区間があれば done の組に残る", () => {
+  const d = mk([task("A", { status: "Done", doneAt: "2026-10-01", sessions: [act("S1", "2026-11-10", "10:00", "11:00")] })]);
+  const rows = rangeTasks(d, { start: "2026-11-01", end: "2026-11-30" }, TODAY);
+  assert.deepEqual(rows.map((r) => [r.task.id, r.group, r.actual]), [["A", "done", 60]]);
+});
+test("rangeTasks: 期限の無いタスクも、枠があれば行になる（期限は並びの最後）", () => {
+  const d = mk([task("A", { sessions: [plan("S1", "2026-11-26", "10:00", "11:00")] }), task("B", { due: "2026-12-10", sessions: [plan("S2", "2026-11-26", "10:00", "11:00")] })]);
+  const rows = rangeTasks(d, { start: "2026-11-26", end: "2026-11-26" }, TODAY);
+  assert.deepEqual(rows.map((r) => [r.task.id, r.group]), [["B", "scheduled"], ["A", "scheduled"]]);
+  assert.equal(rows[1].task.due, null);
+});
+test("progressByProject: data.projects に無い projectId も、その id のキーで数える（表示側で未設定へ寄せる）", () => {
+  const d = mk([task("A", { projectId: "ZZ", due: "2026-11-25" })]);
+  const m = progressByProject(rangeTasks(d, { start: WS, end: "2026-11-29" }, TODAY));
+  assert.deepEqual(m.get("ZZ"), { done: 0, total: 1 });
 });
