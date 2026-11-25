@@ -56,7 +56,7 @@ function renderBody() {
     return renderProjects(S.data, today, { filter: S.filter, view: S.screen, window: S.gwin, hideDone: S.hideDone, askDel: S.askDel, askDelProject: S.askDelProject, pendingWait: S.pendingWait, pendingDone: S.pendingDone, checkOpen: S.checkOpen, addAt: S.addAt, tpop: S.screen === "gantt" ? S.tpop : null, showPrio: S.prefs.showPrio, showActual: S.prefs.showActual, now: clock() });
   }
   if (S.screen === "settings") return renderSettings(S.data, today, { ruleError: S.ruleError, closed: S.settingsClosed });
-  if (S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, col: S.tdCol, draft: S.tdDraft });
+  if (S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, col: S.tdCol, draft: S.tdDraft, urgentDraft: S.urgentDraft });
   if (S.screen === "workload") return renderWorkload(S.data, today, { period: S.wperiod, date: S.wdate, now: clock() });
   return renderSchedule(S.data, today, scheduleOpts());
 }
@@ -451,7 +451,7 @@ $("filebar").addEventListener("click", async (e) => {
   if (e.target.closest("[data-urgent-open]")) {
     clearSel(); S.tpop = null; S.pendingDone = null; S.ruleError = "";
     const date = S.screen === "schedule" ? S.sdate : clock().date;
-    S.screen = "schedule"; S.sdate = date; S.resetScroll = true;
+    if (S.screen !== "todo") { S.screen = "schedule"; S.sdate = date; S.resetScroll = true; } // ToDo タブでは、その場で開く
     S.urgentDraft = { date, start: urgentDefaultStart(date, clock()), title: "", projectId: "", minutes: 30 };
     render(); view.querySelector('[data-ug="title"]')?.focus();
     return;
@@ -730,7 +730,7 @@ function submitUrgent() {
   const { input } = r, title = input.title;
   let warning;
   if (apply((d) => { const r = addUrgentTask(d, input); warning = r.warning; return r.data; }, null, { quiet: true })) {
-    S.urgentDraft = null; S.sdate = input.date; render();
+    S.urgentDraft = null; if (S.screen !== "todo") S.sdate = input.date; render();
     toast(`${title} を ${input.start} に ${input.minutes} 分で登録しました${warning ? `(${warning})` : ""}`);
   }
 }
@@ -1218,7 +1218,7 @@ document.addEventListener("keydown", (e) => {
   const typing = e.target.matches?.("input,select,textarea") || !!e.target.closest?.("[data-tedit], .mtgform, .actform"); // 編集欄・入力欄のボタンでも、枠を消さない
   if ((e.key === "Delete" || e.key === "Backspace") && S.screen === "schedule" && (S.selSess || S.selMtg) && !typing) { e.preventDefault(); deleteSelected(); }
   if (e.key === "Escape" && S.tpop) { S.tpop = null; render(); return; }
-  if (e.key === "Escape" && S.screen === "schedule" && (S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.actAdd || S.taskEdit)) { clearSel(); render(); }
+  if (e.key === "Escape" && (S.screen === "schedule" || S.screen === "todo") && (S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.actAdd || S.taskEdit)) { clearSel(); render(); }
 });
 view.addEventListener("keydown", (e) => {
   // 日本語入力の変換確定の Enter(isComposing)では追加しない

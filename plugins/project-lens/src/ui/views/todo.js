@@ -4,6 +4,7 @@ import { weekTasks, weekSummary, todayTasks } from "../../core/week.js";
 import { futurePlanned, actualSlots } from "../../core/sessions.js";
 import { esc, fmtMD, dateInputHtml } from "../common.js";
 import { statusPill, slotHtml } from "./prio.js";
+import { urgentForm } from "./schedule.js";
 
 const GROUP_JA = { overdue: "期限超過", scheduled: "今週に予定あり", due: "今週の期限", done: "完了" };
 /** 完了の入力欄で選べる状態（completeTask と同じ。Waiting は選べない） */
@@ -61,7 +62,7 @@ export const completeInput = (dr) => ({ actual: dr.start || dr.end ? { date: dr.
  * @param opts.draft 完了の入力欄の下書き（{ key: タスクの ID, date, start, end, status, checks: { 項目 ID: 済みか } }）か null
  */
 export function renderTodo(data, today, opts) {
-  const { week, now, open = null, col = "week", draft = null } = opts;
+  const { week, now, open = null, col = "week", draft = null, urgentDraft = null } = opts;
   const weekEnd = addDays(week, 6);
   const base = { open, openCol: col, draft, now, actuals: actualSlots(data) };
   const ctx = { ...base, col: "week", day: today >= week && today <= weekEnd ? today : week };
@@ -79,7 +80,7 @@ export function renderTodo(data, today, opts) {
   const trs = rv.rows.map((r) => `<tr><td>${esc(r.task.title)}</td><td class="num mono">${progress(r)}</td><td class="num mono">${r.planned} 分</td><td class="num mono">${r.actual} 分</td></tr>`).join("");
   return `<div class="tdpage">
     <div class="tdcols">
-      <section class="panel tdtoday" aria-label="今日の ToDo"><h2>今日の ToDo（${fmtMD(today)}）</h2>${tlist}</section>
+      <section class="panel tdtoday" aria-label="今日の ToDo"><div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap"><h2>今日の ToDo（${fmtMD(today)}）</h2><button class="btn" data-urgent-open title="突発タスクの入力欄を開きます">＋ 突発タスク</button></div>${urgentForm(data, urgentDraft)}${tlist}</section>
       <section class="panel tdweek" aria-label="この週のタスク候補"><h2>この週のタスク候補</h2>
         <div class="toolbar"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn" data-tdweek="-1" aria-label="前の週">←</button><button class="btn" data-tdweek="1" aria-label="次の週">→</button><button class="btn" data-tdweek-today>今週</button><strong style="margin-left:6px">${fmtMD(week)}〜${fmtMD(weekEnd)} の週</strong></div></div>
         ${list}</section>

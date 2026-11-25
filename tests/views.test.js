@@ -2580,3 +2580,15 @@ test("今日の強調: 週表示は今日の見出しだけ .dh.t・今日の列
   assert.ok(!dayv(noSessions(), nowD("10:15"), { date: "2026-10-21" }).includes("dtt"));
   assert.ok(!wk(noSessions(), nowD("10:15"), { date: "2026-10-27" }).includes('class="dh t"'));
 });
+
+test("renderTodo: urgentDraft を渡すと左の列に突発タスクの入力欄が出る。渡さないと出ない。見出しの横に「＋ 突発タスク」", () => {
+  const d = load();
+  const draft = { date: TODAY, start: "13:00", title: "", projectId: "", minutes: 30 };
+  const html = tdHtml(d, { urgentDraft: draft });
+  const left = html.slice(html.indexOf('class="panel tdtoday"'), html.indexOf('class="panel tdweek"'));
+  assert.ok(left.includes('data-ug="title"') && left.includes("data-urgsave") && left.includes("data-urgcancel"));
+  assert.ok(!tdHtml(d, { urgentDraft: null }).includes("data-ug="));
+  assert.ok(!tdHtml(d).includes("data-ug="));
+  assert.ok(tdHtml(d).slice(0, tdHtml(d).indexOf('class="panel tdweek"')).includes("data-urgent-open"));
+  assert.ok(tdHtml(d).includes("＋ 突発タスク"));
+});

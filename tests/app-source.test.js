@@ -434,7 +434,7 @@ test("app.js: 突発タスクの入力欄は、ヘッダーのボタンからだ
   for (const s of ["data-free", "freedate", "snapFreeStart"]) assert.ok(!src.includes(s), s);
   assert.ok(src.includes("addUrgentTask(d,"));
   assert.ok(src.includes('e.key === "Enter" && !e.isComposing && e.target.matches("[data-ug=\\"title\\"]")'));
-  assert.match(src, /e\.key === "Escape" && S\.screen === "schedule" && \([^)]*S\.urgentDraft/);
+  assert.match(src, /e\.key === "Escape" && \(S\.screen === "schedule" \|\| S\.screen === "todo"\) && \([^)]*S\.urgentDraft/);
 });
 
 test("app.js: タスクを押して選ぶ状態（S.picked・data-pick・body.picking）を持たない。右の列の行は data-dragtask でドラッグする", () => {
@@ -788,7 +788,7 @@ test("ToDo タブ: index.html のタブ（スケジュールと稼働の間）�
   assert.ok(html.indexOf('id="tab-schedule"') < html.indexOf('id="tab-todo"') && html.indexOf('id="tab-todo"') < html.indexOf('id="tab-workload"'));
   assert.ok(src.includes("S.screen = b.id.slice(4)"), "tab-todo のクリックで S.screen が todo になる");
   const body = src.slice(src.indexOf("function renderBody()"), src.indexOf("function placeTaskPop"));
-  assert.ok(body.includes('S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, col: S.tdCol, draft: S.tdDraft });'), body);
+  assert.ok(body.includes('S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, col: S.tdCol, draft: S.tdDraft, urgentDraft: S.urgentDraft });'), body);
   const build = readFileSync(new URL("../plugins/project-lens/tools/build.js", import.meta.url), "utf8");
   assert.ok(build.indexOf('"src/ui/views/schedule.js"') < build.indexOf('"src/ui/views/todo.js"'));
 });
@@ -870,4 +870,19 @@ test("app.js: 会議の実績を消す（data-mtgactclear）は clearMeetingActu
   const a = src.slice(i, i + 400);
   assert.ok(a.includes("apply((d) => clearMeetingActual(d, ") && a.includes("会議の実績を消しました") && a.includes("S.actDraft = null"), a);
   assert.ok(src.slice(src.indexOf("// 欄外のクリックで"), src.indexOf("// 欄外のクリックで") + 400).includes("[data-mtgactclear]"));
+});
+
+test("app.js: 突発タスクは ToDo タブで画面を移さずに登録できる", () => {
+  const i = src.indexOf('closest("[data-urgent-open]")');
+  assert.ok(i > 0);
+  const h = src.slice(i, src.indexOf("return;", i));
+  assert.ok(/S\.screen !== "todo"/.test(h) || /S\.screen === "todo"/.test(h), "ToDo タブの分岐");
+  assert.match(h, /if \(S\.screen !== "todo"\) \{[^}]*S\.screen = "schedule"/, "移すのは ToDo タブ以外だけ");
+  const j = src.indexOf("function submitUrgent");
+  const s = src.slice(j, src.indexOf("\n}\n", j));
+  assert.match(s, /S\.screen !== "todo"/, "保存の成功は ToDo タブで S.sdate を変えない");
+  assert.ok(!/S\.screen = /.test(s), "保存は画面を移さない");
+  assert.match(src, /e\.key === "Escape" && \(S\.screen === "schedule" \|\| S\.screen === "todo"\)/);
+  const calls = [...src.matchAll(/renderTodo\([^\n]*/g)].map((m) => m[0]);
+  assert.ok(calls.length && calls.every((c) => c.includes("urgentDraft: S.urgentDraft")), calls.join("\n"));
 });
