@@ -1,4 +1,4 @@
-// CLI（tools/*.js）で共有する data.json の読み書き。save は検証に通ったときだけ書く。
+// CLI（tools/*.js）で共有する data.json の読み書き。saveData は検証に通ったときだけ書く。
 import { readFileSync, writeFileSync, renameSync, rmSync, statSync, copyFileSync, existsSync } from "node:fs";
 import { resolve, join, dirname, basename } from "node:path";
 import { validate } from "../src/core/schema.js";
@@ -28,22 +28,6 @@ export function renameWithRetry(from, to, rename = renameSync, sleep = (ms) => A
   }
 }
 
-/**
- * 検証に通ったときだけ書く。通らなければ例外（errors を連結した文言）で、何も書かない。
- * 書き込みの途中で止まっても元のファイルが壊れないよう、同じフォルダの一時ファイルに書いてから置き換える。
- * readJson で読んだあとに他（ブラウザ・別のコマンド）がファイルを書き換えていたら、上書きせず例外にする（もう一度読み直して実行する）。
- * 直前の版は、先に `<path>.bak.tmp` へコピーしておき、置き換えに成功したあとで `<path>.bak` にする（1 世代。backup: false で省く。置き換えに失敗したときは、`.bak` を変えない）。
- * 置き換えに 3 回失敗したときは、直接上書きせず例外にする（上書きの途中で止まると、ファイルが壊れるため）。rename は、テストで置き換えを失敗させるための差し込み口。
- */
-export function save(path, data, rename = renameSync, { backup = true, validate: check = true } = {}) {
-  if (check) {
-    const { errors } = validate(data);
-    if (errors.length) throw new Error(errors.join(" / "));
-  }
-  assertFresh(path);
-  writeText(path, JSON.stringify(data, null, 2) + "\n", rename, backup);
-}
-
 /** readJson で読んだあとに他が書き換えていたら例外 */
 function assertFresh(path) {
   const read = seen.get(resolve(path));
@@ -53,7 +37,11 @@ function assertFresh(path) {
   if (read !== now) throw new Error(STALE);
 }
 
-/** 一時ファイルに書いて置き換える（.bak の扱いは save の説明のとおり）。成功したら、いまの印を覚える */
+/**
+ * 一時ファイルに書いて置き換える。書き込みの途中で止まっても元のファイルが壊れないよう、同じフォルダの一時ファイルに書いてから置き換える。
+ * 直前の版は、先に `<path>.bak.tmp` へコピーしておき、置き換えに成功したあとで `<path>.bak` にする（1 世代。backup: false で省く。置き換えに失敗したときは、`.bak` を変えない）。
+ * 置き換えに 3 回失敗したときは、直接上書きせず例外にする（上書きの途中で止まると、ファイルが壊れるため）。rename は、テストで置き換えを失敗させるための差し込み口。成功したら、いまの印を覚える
+ */
 function writeText(path, text, rename, backup) {
   const tmp = `${path}.${process.pid}.tmp`, bakTmp = `${path}.bak.tmp`;
   try {
