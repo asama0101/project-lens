@@ -229,3 +229,10 @@ test("intake スキル: calendar は、エージェントを呼ぶ前に会話�
   assert.ok(sec.length > 0, "## calendar の取得の節がある");
   for (const w of ["mcpconf.js", "/project-lens:mcp", "listTool", "fetched.json", "読むだけのデータ", "取得に失敗", "project-lens:intake-calendar", "project-lens-fetched-"]) assert.ok(sec.includes(w), w);
 });
+
+test("intake: wbs-apply の手順は --plan-key を渡す（CLI は省いても動くので、手順書から消えると、承認していない変更案を書きうる）", () => {
+  const t = read("agents/intake.md");
+  const line = t.split("\n").find((l) => l.includes("`wbs-apply "));
+  assert.ok(line, "wbs-apply の実行行がある");
+  assert.ok(line.includes("--plan-key"), "wbs-apply の実行行に --plan-key がある");
+});
