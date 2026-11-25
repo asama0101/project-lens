@@ -97,6 +97,7 @@ function render() {
   $("todaylabel").textContent = `${c.date.replace(/-/g, "/")}(${wdJa(c.date)})`;
   document.querySelectorAll("nav [role=tab]").forEach((b) => b.setAttribute("aria-selected", String(b.id === "tab-" + S.screen)));
   $("filebar").innerHTML = S.data ? `<button class="chip-btn pref" data-pref="actual" aria-pressed="${S.prefs.showActual}" title="ガントの実績の線を出したり隠したりします">ガント実績</button><span class="fsep" aria-hidden="true"></span><button class="btn primary" data-urgent-open title="突発タスクの入力欄を開きます">＋ 突発タスク</button><button class="btn" data-actadd title="予定の無い作業の実績を入れる欄を開きます">＋ 実績を追加</button><button class="btn" data-refresh title="ファイルを読み直します(Claude Code などが更新した内容を反映)">更新</button>${renderFileChips(S.data, fileInfo(), S.fileInfo)}${typeof window.showOpenFilePicker === "function" ? "" : `<button class="btn" data-download>JSON を書き出す</button>`}` : "";
+  placeFileInfo();
   renderBar();
   // ガントの横スクロール位置(全プロジェクトで同じ)とページの縦の位置は、編集で描き直しても保つ(表示期間・絞り込みなどを変えたときだけ今日の位置へ戻す)。
   // 描き直しの間、ページが縮んで scrollY が飛ばないよう、#view の高さを保つ
@@ -246,6 +247,17 @@ function fileInfo() {
   const i = store.info(), picker = typeof window.showOpenFilePicker === "function";
   return Object.fromEntries(["shared", "personal"].map((w) => [w, { ...(i[w].name != null ? i[w] : S.chosenFiles?.[w] ?? i[w]), writable: picker && i[w].name != null }]));
 }
+/** 開いている札の詳細を、押した札の真下に置く（左端をそろえる）。画面の左右 16px の余白からはみ出すときは内側へ寄せ、幅の狭い画面では幅も縮める */
+function placeFileInfo() {
+  const bar = $("filebar"), pop = bar.querySelector(".fileinfo"), chip = pop?.parentElement.querySelector("[data-fileinfo]");
+  if (!pop || !chip) return;
+  const vw = document.documentElement.clientWidth, w = Math.min(360, vw - 32);
+  pop.style.width = w + "px";
+  const b = bar.getBoundingClientRect(), c = chip.getBoundingClientRect();
+  pop.style.left = Math.max(16, Math.min(c.left, vw - 16 - w)) - b.left + "px";
+  pop.style.top = c.bottom - b.top + 6 + "px";
+}
+
 /** 札の詳細を閉じる。描き直さない（打ちかけの入力を消さないため。外を押した直後の描き直しは、押したものの処理に任せる） */
 function closeFileInfo() {
   if (!S.fileInfo) return;
@@ -1484,6 +1496,7 @@ let depsQueued = false;
 window.addEventListener("resize", () => {
   syncSticky();
   if (!depsQueued) { depsQueued = true; requestAnimationFrame(() => { depsQueued = false; drawAllDeps(); }); } // ウィンドウを引っ張る間、線は 1 フレームに 1 回だけ引き直す
+  placeFileInfo();
 });
 
 render();
