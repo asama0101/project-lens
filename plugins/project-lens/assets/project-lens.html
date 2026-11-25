@@ -160,6 +160,11 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 .b-done{background:var(--ok);opacity:.5}
 .b-cancel{background:var(--todo);opacity:.35}
 .g-due{position:absolute;top:10px;margin-left:8px;font-size:11px;color:var(--muted)}
+.g-lane .gwait-mk{position:absolute;top:13px;width:9px;height:9px;margin-left:-4.5px;transform:rotate(45deg);background:var(--warn);pointer-events:none;z-index:2}
+.g-lane .gwait-lab{position:absolute;top:10px;margin-left:50px;max-width:14em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--warn);pointer-events:none}
+.g-lane .gwait-lab.left{margin-left:0;margin-right:8px}
+.g-lane .gwait-mk.late{background:var(--bad)}
+.g-lane .gwait-lab.late{color:var(--bad);font-weight:700}
 .g-lane .mk{position:absolute;top:13px;transform:translateX(-50%)}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
 .seg button{font:inherit;font-size:13px;background:var(--surface);color:var(--muted);border:0;padding:4px 14px;cursor:pointer}
@@ -183,6 +188,7 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 /* リストの確認の行は表の全幅なので、横にスクロールしても見えるよう、中身を表示中の範囲の左端に付け、リストの表の横スクロールの枠の幅に収める */
 #view .twrap > .tscroll{container-type:inline-size}
 .tbl.edit tr.askrow .askwrap{position:sticky;left:0;width:max-content;max-width:min(60em,100cqw - 16px)}
+.tbl.edit tr[data-detailpanel] .askwrap{position:sticky;left:0;width:max-content;max-width:min(60em,100cqw - 16px)} /* 「詳細」の行も、横にスクロールしても見える位置に留める */
 .tbl.edit td[data-l="待ち先"] .in{min-width:6em}
 .tbl.edit td[data-l="メモ"] .in{min-width:16em} /* メモ欄が列の幅に潰されないよう最小幅を持たせる。表は .tscroll の中で横にスクロールする */
 .in:disabled{background:transparent;border-color:transparent;color:var(--muted)}
@@ -3852,6 +3858,18 @@ function renderGantt(data, projectIds, today, opts = {}) {
       const act = r.actual && showActual
         ? `<i class="gact" style="left:${x(r.actual.start)};width:${((Math.max(diffDays(r.actual.end, r.actual.start), 0) + 1) / total * 100).toFixed(3)}%;min-width:4px" title="実績 ${fmtMD(r.actual.start)}〜${fmtMD(r.actual.end)}"></i>`
         : "";
+      // Waiting で待ち先があれば、回答予定日に ◆、バーの横に「待ち: 待ち先 ・ 回答予定日」。回答予定日が今日より前なら赤（超過）。ポイントの行には出さない
+      const wo = t.status === "Waiting" && !r.point && t.waitingOn?.party ? t.waitingOn : null;
+      let wait = "";
+      if (wo) {
+        const exp = wo.expected;
+        const over = exp && exp < today;
+        const ed = exp ? diffDays(exp, s0) : -1;
+        const mk = exp && ed >= 0 && ed < total ? `<i class="gwait-mk${over ? " late" : ""}" data-gwait="${esc(t.id)}" style="left:calc(${x(exp)} + ${(50 / total).toFixed(3)}%)"></i>` : "";
+        const onLeft = ((diffDays(r.end, s0) + 1) / total) > 0.7; // バーの右端が 70% を超えたら、文字はバーの左に置く（右に収まらない）
+        const pos = onLeft ? `right:calc(100% - ${x(r.start)})` : `left:${x(addDays(r.end, 1))}`;
+        wait = `${mk}<span class="gwait-lab${onLeft ? " left" : ""}${over ? " late" : ""}" data-gwait-lab style="${pos}">待ち: ${esc(wo.party)}${exp ? ` ・ ${fmtMD(exp)}` : ""}${over ? " 超過" : ""}</span>`;
+      }
       const dependents = data.tasks.filter((o) => (o.predecessors ?? []).includes(t.id)).map((o) => o.id);
       let lab;
       if (askDel === t.id) {
@@ -3862,7 +3880,7 @@ function renderGantt(data, projectIds, today, opts = {}) {
         const imp = isImportantMark(t) ? " imp-high" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
         lab = `<div class="g-label${imp}" data-mvrow="${esc(t.id)}"><span class="mv" draggable="true" data-mvh="${esc(t.id)}" title="ドラッグで並べ替え" aria-label="${esc(t.id)} を並べ替え">⠿</span><span class="id">${esc(t.id)}</span>${name}${del}<span class="g-pre">${hasPre ? "← " + esc(t.predecessors.join(", ")) : ""}</span>${checkMeterHtml(t)}</div>`;
       }
-      return `<div class="g-row">${lab}<div class="g-lane" ${laneStyle}>${bar}${act}<span class="g-due mono" style="left:${x(addDays(r.end, 1))}">${fmtMD(t.due)}</span></div></div>`;
+      return `<div class="g-row">${lab}<div class="g-lane" ${laneStyle}>${bar}${act}<span class="g-due mono" style="left:${x(addDays(r.end, 1))}">${fmtMD(t.due)}</span>${wait}</div></div>`;
     };
     // (大項目, 中項目) ごとに見出し行を入れて並べる。追加の入口になるので、大項目がなくても「（なし）」の見出しを常に出す。
     // 見出しは完了を隠していても残す（そのグループへ追加できるように）
@@ -4226,7 +4244,7 @@ return { checklistEditorHtml };
 })();
 
 /* src/ui/views/taskpop.js */
-const { predEditHtml, startInputHtml, renderTaskPop, renderTaskEditPanel } = (() => {
+const { predEditHtml, startInputHtml, taskFieldHtml, renderTaskPop, renderTaskEditPanel } = (() => {
 // ガントチャートでタスク名・バーをクリックしたときに開く、編集の小さな窓。
 // 入力の属性（data-f・data-id・data-addpre・data-rmpre）は、リストの編集欄と同じ。保存と描き直しは、リストと同じ処理が受け持つ。
 // 窓を閉じる ×: data-tpopclose / 窓: data-tpop。「リストで開く」は data-goto、削除は data-del（どちらも既存の処理）
@@ -4252,23 +4270,47 @@ function startInputHtml(data, t) {
 }
 
 /**
+ * 編集の項目 1 つの入力部分（ラベルは含まない）。窓とスケジュールの編集欄が共用する。リストの「詳細」の行も、繰り返しに使う。
+ * name = title|projectId|start|due|important|memo|party|expected|repeat。party・expected は状態が Waiting のときだけ（expected は待ち先が空なら disabled）。
+ * ids が false なら、aria-label に ID を出さない（スケジュールの編集欄）
+ */
+function taskFieldHtml(data, t, name, { ids = true } = {}) {
+  const id = esc(t.id);
+  const attrs = `data-f="${name}" data-id="${id}"`;
+  switch (name) {
+    case "title": return `<input class="in" ${attrs} value="${esc(t.title)}">`;
+    case "projectId": {
+      const opts = [["", "プロジェクトなし"], ...data.projects.map((p) => [p.id, p.name])].map(([v, l]) => `<option value="${esc(v)}" ${(t.projectId ?? "") === v ? "selected" : ""}>${esc(l)}</option>`).join("");
+      return `<select class="in sm" ${attrs}>${opts}</select>`;
+    }
+    case "start": return startInputHtml(data, t);
+    case "due": return dateInputHtml({ value: t.due, attrs, label: "期限" });
+    case "important": return `<input type="checkbox" ${attrs} ${t.important === true ? "checked" : ""}>`;
+    case "memo": return `<input class="in" ${attrs} value="${esc(t.memo ?? "")}" placeholder="メモ">`;
+    case "party": return t.status === "Waiting" ? `<input class="in" ${attrs} value="${esc(t.waitingOn?.party ?? "")}" placeholder="ベンダー・部署名"${ids ? ` aria-label="${id} の待ち先"` : ""}>` : "";
+    case "expected": return t.status === "Waiting" ? dateInputHtml({ value: t.waitingOn?.expected ?? "", cls: "in sm", attrs: `${attrs} title="回答予定日" ${t.waitingOn?.party ? "" : "disabled"}${ids ? ` aria-label="${id} の回答予定日"` : ""}`, label: "回答予定日" }) : "";
+    case "repeat": return `<select class="in sm" ${attrs}><option value="">なし</option><option value="week" ${t.repeat?.unit === "week" ? "selected" : ""}>毎週</option><option value="month" ${t.repeat?.unit === "month" ? "selected" : ""}>毎月${t.repeat?.unit === "month" ? `（${esc(t.repeat.day)} 日）` : ""}</option></select>`;
+  }
+  throw new Error(`taskFieldHtml: 知らない項目 ${name}`);
+}
+
+/**
  * 窓の編集の項目の HTML（縦に並べる。窓は常に full: true）。スケジュールの編集欄は別の並べ方（taskRowFieldsHtml）。
- * 軽い欄 = 件名・プロジェクト・状態・開始・期限・重要・メモ。full で、チェックリスト・前のタスク・繰り返しを足す
+ * 軽い欄 = 件名・プロジェクト・状態・（Waiting なら待ち先・回答予定日）・開始・期限・重要・メモ。full で、チェックリスト・前のタスク・繰り返しを足す
  */
 function taskFieldsHtml(data, t, { full, statusHtml }) {
-  const id = esc(t.id);
+  const f = (name) => taskFieldHtml(data, t, name);
   const field = (label, inner) => `<label class="tp-f"><span class="muted">${label}</span>${inner}</label>`;
-  const projects = [["", "プロジェクトなし"], ...data.projects.map((p) => [p.id, p.name])].map(([v, l]) => `<option value="${esc(v)}" ${(t.projectId ?? "") === v ? "selected" : ""}>${esc(l)}</option>`).join("");
-  const imp = field("重要", `<input type="checkbox" data-f="important" data-id="${id}" ${t.important === true ? "checked" : ""}>`);
-  const repeat = field("繰り返し", `<select class="in sm" data-f="repeat" data-id="${id}"><option value="">なし</option><option value="week" ${t.repeat?.unit === "week" ? "selected" : ""}>毎週</option><option value="month" ${t.repeat?.unit === "month" ? "selected" : ""}>毎月${t.repeat?.unit === "month" ? `（${esc(t.repeat.day)} 日）` : ""}</option></select>`);
-  return `${field("件名", `<input class="in" data-f="title" data-id="${id}" value="${esc(t.title)}">`)}
-    ${field("プロジェクト", `<select class="in sm" data-f="projectId" data-id="${id}">${projects}</select>`)}
+  const waiting = t.status === "Waiting" ? `<div class="tp-r">${field("待ち先", f("party"))}${field("回答予定日", f("expected"))}</div>` : "";
+  return `${field("件名", f("title"))}
+    ${field("プロジェクト", f("projectId"))}
     <div class="tp-f"><span class="muted">状態</span><div>${statusHtml}</div></div>
-    <div class="tp-r">${field("開始", startInputHtml(data, t))}${field("期限", dateInputHtml({ value: t.due, attrs: `data-f="due" data-id="${id}"`, label: "期限" }))}</div>
+    ${waiting}
+    <div class="tp-r">${field("開始", f("start"))}${field("期限", f("due"))}</div>
     ${full ? checklistEditorHtml(t) : ""}
     ${full ? `<div class="tp-f"><span class="muted">前のタスク</span>${predEditHtml(data, t)}</div>` : ""}
-    <div class="tp-r">${imp}${full ? repeat : ""}</div>
-    ${field("メモ", `<input class="in" data-f="memo" data-id="${id}" value="${esc(t.memo ?? "")}" placeholder="メモ">`)}`;
+    <div class="tp-r">${field("重要", f("important"))}${full ? field("繰り返し", f("repeat")) : ""}</div>
+    ${field("メモ", f("memo"))}`;
 }
 
 /**
@@ -4291,20 +4333,19 @@ function renderTaskPop(data, pop, statusHtml) {
  * fields = 軽い欄（1 行に折り返して並べる項目）、repeatField・wide = 詳細の入れ物に出す繰り返しと、全幅の行にする編集欄（full のときだけ）
  */
 function taskRowFieldsHtml(data, t, { full, statusHtml }) {
-  const id = esc(t.id);
+  const f = (name) => taskFieldHtml(data, t, name, { ids: false });
   const field = (cls, label, inner) => `<label${cls ? ` class="${cls}"` : ""}><span>${label}</span>${inner}</label>`;
-  const projects = [["", "プロジェクトなし"], ...data.projects.map((p) => [p.id, p.name])].map(([v, l]) => `<option value="${esc(v)}" ${(t.projectId ?? "") === v ? "selected" : ""}>${esc(l)}</option>`).join("");
-  const repeat = `<option value="">なし</option><option value="week" ${t.repeat?.unit === "week" ? "selected" : ""}>毎週</option><option value="month" ${t.repeat?.unit === "month" ? "selected" : ""}>毎月${t.repeat?.unit === "month" ? `（${esc(t.repeat.day)} 日）` : ""}</option>`;
   const fields = [
-    field("tp-title", "件名", `<input class="in" data-f="title" data-id="${id}" value="${esc(t.title)}">`),
-    field("", "開始", startInputHtml(data, t)),
-    field("", "期限", dateInputHtml({ value: t.due, attrs: `data-f="due" data-id="${id}"`, label: "期限" })),
+    field("tp-title", "件名", f("title")),
+    field("", "開始", f("start")),
+    field("", "期限", f("due")),
     `<div class="tp-st"><span>状態</span><div>${statusHtml}</div></div>`,
-    `<label class="chk"><input type="checkbox" data-f="important" data-id="${id}" ${t.important === true ? "checked" : ""}>重要</label>`,
-    field("", "プロジェクト", `<select class="in sm" data-f="projectId" data-id="${id}">${projects}</select>`),
-    field("tp-memo", "メモ", `<input class="in" data-f="memo" data-id="${id}" value="${esc(t.memo ?? "")}" placeholder="メモ">`),
+    ...(t.status === "Waiting" ? [field("", "待ち先", f("party")), field("", "回答予定日", f("expected"))] : []),
+    `<label class="chk">${f("important")}重要</label>`,
+    field("", "プロジェクト", f("projectId")),
+    field("tp-memo", "メモ", f("memo")),
   ].join("\n    ");
-  const repeatField = full ? field("", "繰り返し", `<select class="in sm" data-f="repeat" data-id="${id}">${repeat}</select>`) : "";
+  const repeatField = full ? field("", "繰り返し", f("repeat")) : "";
   const wide = full ? `${checklistEditorHtml(t)}<div class="tp-wide"><span>前のタスク</span>${predEditHtml(data, t, { ids: false })}</div>` : "";
   return { fields, repeatField, wide };
 }
@@ -4329,7 +4370,7 @@ function renderTaskEditPanel(data, edit, statusHtml) {
   </div>`;
 }
 
-return { predEditHtml, startInputHtml, renderTaskPop, renderTaskEditPanel };
+return { predEditHtml, startInputHtml, taskFieldHtml, renderTaskPop, renderTaskEditPanel };
 })();
 
 /* src/ui/views/project.js */
@@ -4370,7 +4411,8 @@ function checkCell(t, opts) {
   const { total, done } = checklistCount(t);
   const open = !!opts.checkOpen?.has(t.id);
   const label = total ? `${open ? "▾" : "▸"} ${done}/${total}` : "＋ 追加";
-  return `<button class="ck-toggle${total ? "" : " ck-empty"}" data-cktoggle="${esc(t.id)}" aria-expanded="${open}" aria-label="${esc(t.id)} のチェックリスト">${label}</button>`;
+  const detailOpen = !!opts.detailOpen?.has(t.id);
+  return `<button class="ck-toggle${total ? "" : " ck-empty"}" data-cktoggle="${esc(t.id)}" aria-expanded="${open}" aria-label="${esc(t.id)} のチェックリスト">${label}</button> <button class="ck-toggle ck-empty" data-detailtoggle="${esc(t.id)}" aria-expanded="${detailOpen}" aria-label="${esc(t.id)} の詳細">${detailOpen ? "▾" : "▸"} 詳細</button>`;
 }
 
 function renderList(data, p, today, opts) {
@@ -4400,7 +4442,7 @@ function renderList(data, p, today, opts) {
       <td data-l="重要"><input type="checkbox" data-f="important" data-id="${esc(t.id)}" ${t.important === true ? "checked" : ""} aria-label="${esc(t.id)} を重要にする"></td>
       <td data-l="メモ"><input class="in" data-f="memo" data-id="${esc(t.id)}" value="${esc(t.memo ?? "")}" placeholder="メモ" aria-label="${esc(t.id)} のメモ"></td>
       <td data-l="チェック">${checkCell(t, opts)}</td>
-      <td data-l="">${delCell}</td></tr>${(() => { const ask = askHtml(t, opts); return ask ? `<tr class="askrow"><td colspan="${cols}"><div class="askwrap">${ask}</div></td></tr>` : ""; })()}${opts.checkOpen?.has(t.id) ? `<tr class="ck-tr" data-ckpanel="${esc(t.id)}"><td colspan="${cols}">${checklistEditorHtml(t)}</td></tr>` : ""}`;
+      <td data-l="">${delCell}</td></tr>${(() => { const ask = askHtml(t, opts); return ask ? `<tr class="askrow"><td colspan="${cols}"><div class="askwrap">${ask}</div></td></tr>` : ""; })()}${opts.checkOpen?.has(t.id) ? `<tr class="ck-tr" data-ckpanel="${esc(t.id)}"><td colspan="${cols}">${checklistEditorHtml(t)}</td></tr>` : ""}${opts.detailOpen?.has(t.id) ? `<tr class="ck-tr" data-detailpanel="${esc(t.id)}"><td colspan="${cols}"><div class="askwrap"><label>繰り返し ${taskFieldHtml(data, t, "repeat")}</label> <span class="muted">完了すると、次回のタスクを作ります</span></div></td></tr>` : ""}`;
   };
   // (大項目, 中項目) ごとに見出し行を入れて並べる。「＋」はそのグループへ追加する入口なので、0 件でも「（なし）」を出す
   const secs = groupSections(tasks, { ensureNone: !none });
@@ -5146,7 +5188,7 @@ const S = {
   data: null, openError: "",
   screen: "gantt",
   filter: "all", gwin: "m6", hideDone: false,
-  askDel: null, askDelProject: null, pendingWait: null, pendingDone: null, checkOpen: new Set(),
+  askDel: null, askDelProject: null, pendingWait: null, pendingDone: null, checkOpen: new Set(), detailOpen: new Set(),
   sview: "week", sdate: clock().date, selSess: null, selMtg: null, mtgDraft: null, urgentDraft: null, actAdd: null, actDraft: null, taskEdit: null,
   prefs: loadPrefs(), settingsClosed: loadSettingsClosed(), tpop: null, addAt: null, last: null, ruleError: "",
   ib: { open: false, text: loadInboxDraft(), projectId: "", replies: {}, reasons: {}, causes: {} },
@@ -5191,7 +5233,7 @@ function renderBody() {
   const { date: today } = clock();
   if (!S.data) return startScreen();
   if (S.screen === "gantt" || S.screen === "list") {
-    return renderProjects(S.data, today, { filter: S.filter, view: S.screen, window: S.gwin, hideDone: S.hideDone, askDel: S.askDel, askDelProject: S.askDelProject, pendingWait: S.pendingWait, pendingDone: S.pendingDone, checkOpen: S.checkOpen, addAt: S.addAt, tpop: S.screen === "gantt" ? S.tpop : null, showPrio: S.prefs.showPrio, showActual: S.prefs.showActual, now: clock() });
+    return renderProjects(S.data, today, { filter: S.filter, view: S.screen, window: S.gwin, hideDone: S.hideDone, askDel: S.askDel, askDelProject: S.askDelProject, pendingWait: S.pendingWait, pendingDone: S.pendingDone, checkOpen: S.checkOpen, detailOpen: S.detailOpen, addAt: S.addAt, tpop: S.screen === "gantt" ? S.tpop : null, showPrio: S.prefs.showPrio, showActual: S.prefs.showActual, now: clock() });
   }
   if (S.screen === "settings") return renderSettings(S.data, today, { ruleError: S.ruleError, closed: S.settingsClosed });
   if (S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, col: S.tdCol, draft: S.tdDraft, plan: S.tdPlan, urgentDraft: S.urgentDraft });
@@ -5305,6 +5347,7 @@ function focusSelector(el) {
   if (d.pref) return `[data-pref="${CSS.escape(d.pref)}"]`; // 右の列の取っ手
   if (d.sdue !== undefined) return "[data-sdue]"; // 週表示の期限の行の開閉
   if (d.set) return q("data-set", d.set);
+  if (d.detailtoggle) return q("data-detailtoggle", d.detailtoggle);
   // 規則の欄は、書き換えるとキーワードが変わるので、行の位置（data-ri。書き換えても並びは変わらない）で探す
   if (d.rkw !== undefined) return `[data-rkw][data-ri="${CSS.escape(d.ri)}"]`;
   if (d.rpj !== undefined) return `[data-rpj][data-ri="${CSS.escape(d.ri)}"]`;
@@ -5408,6 +5451,7 @@ function loaded(data) {
   S.data = data;
   S.tpop = null;
   S.checkOpen = new Set();
+  S.detailOpen = new Set();
   sync.reset();
   S.ruleError = "";
   S.openError = "";
@@ -5647,6 +5691,8 @@ view.addEventListener("click", (e) => {
   if (q("[data-tpopclose]")) { S.tpop = null; render(); return; }
   const ckt = q("[data-cktoggle]");
   if (ckt) { const id = ckt.dataset.cktoggle; if (S.checkOpen.has(id)) S.checkOpen.delete(id); else S.checkOpen.add(id); render(); return; }
+  const dtl = q("[data-detailtoggle]");
+  if (dtl) { const id = dtl.dataset.detailtoggle; if (S.detailOpen.has(id)) S.detailOpen.delete(id); else S.detailOpen.add(id); render(); return; }
   const ckd = q("[data-ckdel]");
   if (ckd) { const [tid, iid] = ckd.dataset.ckdel.split("|"); apply((d) => removeChecklistItem(d, tid, iid)); return; }
   const ge = q("[data-gedit]");

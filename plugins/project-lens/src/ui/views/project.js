@@ -6,7 +6,7 @@ import { esc, fmtMD, flagPills, NO_PROJECT, dateInputHtml } from "../common.js";
 import { groupLabels, groupSections } from "../../core/groups.js";
 import { renderGantt } from "./gantt.js";
 import { renderSide, renderSideToggle, todayTaskIds, doneAskHtml } from "./prio.js";
-import { renderTaskPop, predEditHtml, startInputHtml } from "./taskpop.js";
+import { renderTaskPop, predEditHtml, startInputHtml, taskFieldHtml } from "./taskpop.js";
 import { checklistEditorHtml } from "./checklist.js";
 import { checklistCount } from "../../core/checklist.js";
 
@@ -34,7 +34,8 @@ function checkCell(t, opts) {
   const { total, done } = checklistCount(t);
   const open = !!opts.checkOpen?.has(t.id);
   const label = total ? `${open ? "▾" : "▸"} ${done}/${total}` : "＋ 追加";
-  return `<button class="ck-toggle${total ? "" : " ck-empty"}" data-cktoggle="${esc(t.id)}" aria-expanded="${open}" aria-label="${esc(t.id)} のチェックリスト">${label}</button>`;
+  const detailOpen = !!opts.detailOpen?.has(t.id);
+  return `<button class="ck-toggle${total ? "" : " ck-empty"}" data-cktoggle="${esc(t.id)}" aria-expanded="${open}" aria-label="${esc(t.id)} のチェックリスト">${label}</button> <button class="ck-toggle ck-empty" data-detailtoggle="${esc(t.id)}" aria-expanded="${detailOpen}" aria-label="${esc(t.id)} の詳細">${detailOpen ? "▾" : "▸"} 詳細</button>`;
 }
 
 function renderList(data, p, today, opts) {
@@ -64,7 +65,7 @@ function renderList(data, p, today, opts) {
       <td data-l="重要"><input type="checkbox" data-f="important" data-id="${esc(t.id)}" ${t.important === true ? "checked" : ""} aria-label="${esc(t.id)} を重要にする"></td>
       <td data-l="メモ"><input class="in" data-f="memo" data-id="${esc(t.id)}" value="${esc(t.memo ?? "")}" placeholder="メモ" aria-label="${esc(t.id)} のメモ"></td>
       <td data-l="チェック">${checkCell(t, opts)}</td>
-      <td data-l="">${delCell}</td></tr>${(() => { const ask = askHtml(t, opts); return ask ? `<tr class="askrow"><td colspan="${cols}"><div class="askwrap">${ask}</div></td></tr>` : ""; })()}${opts.checkOpen?.has(t.id) ? `<tr class="ck-tr" data-ckpanel="${esc(t.id)}"><td colspan="${cols}">${checklistEditorHtml(t)}</td></tr>` : ""}`;
+      <td data-l="">${delCell}</td></tr>${(() => { const ask = askHtml(t, opts); return ask ? `<tr class="askrow"><td colspan="${cols}"><div class="askwrap">${ask}</div></td></tr>` : ""; })()}${opts.checkOpen?.has(t.id) ? `<tr class="ck-tr" data-ckpanel="${esc(t.id)}"><td colspan="${cols}">${checklistEditorHtml(t)}</td></tr>` : ""}${opts.detailOpen?.has(t.id) ? `<tr class="ck-tr" data-detailpanel="${esc(t.id)}"><td colspan="${cols}"><div class="askwrap"><label>繰り返し ${taskFieldHtml(data, t, "repeat")}</label> <span class="muted">完了すると、次回のタスクを作ります</span></div></td></tr>` : ""}`;
   };
   // (大項目, 中項目) ごとに見出し行を入れて並べる。「＋」はそのグループへ追加する入口なので、0 件でも「（なし）」を出す
   const secs = groupSections(tasks, { ensureNone: !none });

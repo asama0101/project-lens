@@ -1779,6 +1779,29 @@ test("renderProjects(list): 列「チェック」。閉じていれば ▸ M/N�
   assert.equal(count(open, /data-ckpanel=/g), 1);
 });
 
+test("renderProjects(list): 「詳細」ボタン。閉じていれば詳細の行が無く、開くとその行の直後に繰り返しの select と説明が出る。チェックリストと同時に開ける", () => {
+  const d = load();
+  const html = renderProjects(d, TODAY, { view: "list", filter: "AA" });
+  assert.ok(/data-detailtoggle="AA-0005" aria-expanded="false"/.test(html));
+  assert.ok(!html.includes("data-detailpanel"));
+  const open = renderProjects(d, TODAY, { view: "list", filter: "AA", detailOpen: new Set(["AA-0005"]), checkOpen: new Set(["AA-0005"]) });
+  assert.ok(/data-detailtoggle="AA-0005" aria-expanded="true"/.test(open));
+  const i = open.indexOf('data-row="AA-0005"'), p = open.indexOf('data-detailpanel="AA-0005"'), nxt = open.indexOf('<tr data-row="', i + 1);
+  assert.ok(i >= 0 && p > i && p < nxt, "AA-0005 の行の直後");
+  assert.equal(count(open, /data-detailpanel=/g), 1);
+  assert.ok(open.includes('data-ckpanel="AA-0005"'), "チェックリストも同時に開く");
+  const panel = open.slice(p, open.indexOf("</tr>", p));
+  assert.ok(panel.includes('data-f="repeat" data-id="AA-0005"') && panel.includes("完了すると、次回のタスクを作ります"));
+});
+
+test("renderProjects(list): 詳細の行で、毎月の定例には「（N 日）」が出る", () => {
+  const d = load();
+  d.tasks.find((t) => t.id === "AA-0005").repeat = { unit: "month", day: 15 };
+  const open = renderProjects(d, TODAY, { view: "list", filter: "AA", detailOpen: new Set(["AA-0005"]) });
+  const p = open.indexOf('data-detailpanel="AA-0005"');
+  assert.ok(open.slice(p, open.indexOf("</tr>", p)).includes("毎月（15 日）"));
+});
+
 test("renderTaskPop: チェックリストの欄を、期限の下・前のタスクの上に置く", () => {
   const h = renderTaskPop(load(), { id: "AA-0005", x: 10, y: 10 }, "");
   const due = h.indexOf('data-f="due"'), ck = h.indexOf("ckedit"), pre = h.indexOf("前のタスク");
@@ -2825,4 +2848,91 @@ test("planDefault: 開始は今を 15 分刻みに切り上げ（最大 23:45）
   assert.deepEqual(at("10:15"), { start: "10:15", minutes: 60 });
   assert.deepEqual(at("10:16"), { start: "10:30", minutes: 60 });
   assert.deepEqual(at("23:50"), { start: "23:45", minutes: 60 });
+});
+
+test("taskFieldHtml / 窓とスケジュールの編集欄: Waiting のときだけ待ち先・回答予定日が出る。待ち先が空なら回答予定日は disabled", () => {
+  const mk = (status, waitingOn) => { const d = load(); const t = d.tasks.find((x) => x.id === "AA-0007"); t.status = status; if (waitingOn) t.waitingOn = waitingOn; else delete t.waitingOn; return d; };
+  const show = (d) => [renderTaskPop(d, { id: "AA-0007", x: 0, y: 0 }, ""), renderTaskEditPanel(d, { id: "AA-0007", full: false }, "")];
+  for (const s of ["To Do", "In Progress"]) for (const h of show(mk(s))) assert.ok(!h.includes('data-f="party"') && !h.includes('data-f="expected"'), s);
+  for (const h of show(mk("Waiting", { party: "ベンダー<A>", expected: "2026-12-01" }))) {
+    assert.ok(/data-f="party" data-id="AA-0007"[^>]*value="ベンダー&lt;A&gt;"/.test(h), "待ち先の値");
+    assert.ok(/data-f="expected" data-id="AA-0007"[^>]*title="回答予定日"/.test(h) && h.includes("2026"), "回答予定日");
+    assert.ok(!/data-f="expected"[^>]*disabled/.test(h), "待ち先があれば有効");
+    assert.ok(h.indexOf('data-f="party"') > h.indexOf("状態") && h.indexOf('data-f="party"') < h.indexOf('data-f="memo"'), "状態の次");
+  }
+  for (const h of show(mk("Waiting"))) assert.ok(/data-f="expected"[^>]*disabled/.test(h), "待ち先が空なら disabled");
+  const panel = renderTaskEditPanel(mk("Waiting", { party: "X" }), { id: "AA-0007", full: false }, "");
+  const wait = panel.slice(panel.indexOf('data-f="party"') - 40, panel.indexOf('class="chk"')).replace(/data-id="AA-0007"/g, "");
+  assert.ok(wait.includes("回答予定日") && !wait.includes("AA-0007"), "新しい欄に ID が出ない");
+});
+
+test("renderTaskPop: 窓の項目の入力は、今までと同じ属性・値", () => {
+  const h = renderTaskPop(load(), { id: "AA-0007", x: 0, y: 0 }, "");
+  assert.ok(/<input class="in" data-f="title" data-id="AA-0007" value="[^"]*">/.test(h));
+  assert.ok(/<select class="in sm" data-f="projectId" data-id="AA-0007">/.test(h));
+  assert.ok(/<input type="checkbox" data-f="important" data-id="AA-0007" >|<input type="checkbox" data-f="important" data-id="AA-0007" checked>/.test(h));
+  assert.ok(/<input class="in" data-f="memo" data-id="AA-0007" value="[^"]*" placeholder="メモ">/.test(h));
+  assert.ok(/<select class="in sm" data-f="repeat" data-id="AA-0007"><option value="">なし<\/option>/.test(h));
+  assert.ok(/data-f="due" data-id="AA-0007"/.test(h) && /data-f="start" data-id="AA-0007"/.test(h));
+});
+
+// ガント: Waiting のバーの待ち先・回答予定日（◆ と文字）
+const waitRow = (html, id) => html.split('<div class="g-row">').find((r) => r.includes(`data-gt="${id}"`));
+const withWait = (id, wo, status = "Waiting") => { const d = load(); const t = d.tasks.find((x) => x.id === id); t.status = status; t.waitingOn = wo; return d; };
+
+test("renderGantt: Waiting + 待ち先 + 回答予定日で、◆（回答予定日の日の中央）と『待ち: 待ち先 ・ M/D』が出る。ID は文字に出ない", () => {
+  const d = withWait("AA-0003", { party: "ベンダーX", since: "2026-10-09", expected: "2026-10-28" });
+  const html = gantt(d, ["AA"]);
+  const s0 = /data-s0="([^"]+)"/.exec(html)[1], span = +/data-span="(\d+)"/.exec(html)[1];
+  const row = waitRow(html, "AA-0003");
+  const mk = /<i class="gwait-mk"[^>]*data-gwait="AA-0003"[^>]*style="left:calc\(([\d.]+)% \+ ([\d.]+)%\)/.exec(row);
+  assert.ok(mk, "◆ が出る");
+  assert.ok(Math.abs(+mk[1] + +mk[2] - ((diffDays("2026-10-28", s0) + 0.5) / span) * 100) < 0.01, "日の中央");
+  const lab = /<span class="gwait-lab[^"]*" data-gwait-lab[^>]*>([^<]*)<\/span>/.exec(row);
+  assert.ok(lab && lab[1] === "待ち: ベンダーX ・ 10/28", lab?.[1]);
+  assert.ok(!lab[1].includes("AA-0003"));
+});
+
+test("renderGantt: 回答予定日なしの Waiting は、文字だけ（◆ なし）", () => {
+  const html = gantt(withWait("AA-0003", { party: "ベンダーX", since: "2026-10-09" }), ["AA"]);
+  const row = waitRow(html, "AA-0003");
+  assert.ok(!row.includes("gwait-mk"));
+  assert.ok(/data-gwait-lab[^>]*>待ち: ベンダーX<\/span>/.test(row));
+});
+
+test("renderGantt: 待ち先が空、または Waiting 以外（To Do・Done）には、◆ も文字も出ない", () => {
+  assert.ok(!/gwait/.test(waitRow(gantt(withWait("AA-0003", { party: "", since: "2026-10-09", expected: "2026-10-28" }), ["AA"]), "AA-0003")));
+  for (const st of ["To Do", "Done"]) assert.ok(!/gwait/.test(waitRow(gantt(withWait("AA-0003", { party: "ベンダーX", since: "2026-10-09", expected: "2026-10-28" }, st), ["AA"]), "AA-0003")), st);
+});
+
+test("renderGantt: 回答予定日が今日より前なら late と『超過』。今日の日は late でない", () => {
+  const row = (exp) => waitRow(gantt(withWait("AA-0003", { party: "ベンダーX", since: "2026-10-09", expected: exp }), ["AA"]), "AA-0003");
+  const over = row("2026-10-19");
+  assert.ok(/class="gwait-mk late"/.test(over) && /class="gwait-lab[^"]* late"[^>]*>待ち: ベンダーX ・ 10\/19 超過</.test(over), over);
+  const same = row(TODAY);
+  assert.ok(!/late"/.test(same.slice(same.indexOf("gwait"))) && !same.includes("超過"));
+});
+
+test("renderGantt: 回答予定日が表示の範囲の外なら、◆ は出ず、文字は出る", () => {
+  const row = waitRow(gantt(withWait("AA-0003", { party: "ベンダーX", since: "2026-10-09", expected: "2030-01-01" }), ["AA"]), "AA-0003");
+  assert.ok(!row.includes("gwait-mk"));
+  assert.ok(row.includes("待ち: ベンダーX ・ 1/1"));
+});
+
+test("renderGantt: バーの右端が 70% 以内なら文字は右、超えるなら左（class left）。ポイントの行には出ない", () => {
+  const wo = { party: "ベンダーX", since: "2026-10-09", expected: "2026-10-28" };
+  assert.ok(!/gwait-lab left/.test(waitRow(gantt(withWait("AA-0003", wo), ["AA"]), "AA-0003")), "右端が左寄り → 右置き");
+  const d5 = withWait("AA-0005", wo); d5.tasks.find((x) => x.id === "AA-0005").due = "2027-01-31"; // 範囲の終わり（2 月下旬）に近づける
+  const lr = waitRow(gantt(d5, ["AA"]), "AA-0005");
+  assert.ok(/gwait-lab left/.test(lr) && /style="right:/.test(lr.slice(lr.indexOf("gwait-lab"))), "右端が 70% 超 → 左置き");
+  const d = withWait("AA-0003", wo); const t = d.tasks.find((x) => x.id === "AA-0003"); t.start = null; t.predecessors = [];
+  assert.ok(!/gwait/.test(waitRow(gantt(d, ["AA"]), "AA-0003")), "点の行");
+});
+
+test("renderGantt: Waiting の印を足しても、バー（data-gt・つまみ）の HTML は変わらない", () => {
+  const bar = (h) => /<i class="gbar[^"]*"[^>]*data-gt="AA-0003".*?<\/i>/.exec(waitRow(h, "AA-0003"))[0];
+  const plain = bar(gantt(withWait("AA-0003", undefined), ["AA"]));
+  const waited = bar(gantt(withWait("AA-0003", { party: "ベンダーX", since: "2026-10-09", expected: "2026-10-28" }), ["AA"]));
+  assert.equal(waited, plain);
+  assert.ok(plain.includes('<b class="gh l"') && plain.includes('<b class="gh r"'));
 });
