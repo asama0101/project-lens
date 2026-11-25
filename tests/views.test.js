@@ -2972,7 +2972,7 @@ test("renderPrio: 未完了の行に「今日へ」（data-prioplan）。スケ�
   const { d } = withToday();
   const inToday = new Set(todayTaskIds(d, TODAY));
   const ids = rankTasks(d, TODAY).map((r) => r.taskId).filter((id) => !inToday.has(id));
-  assert.ok(ids.length > 0, "検査: 優先の行がある");
+  assert.ok(ids.length > 0 && inToday.size > 0, "検査: 優先の行があり、今日のタスクもある");
   const html = renderPrio(d, TODAY, { sched: false });
   const shown = [...html.matchAll(/data-prioplan="([^"]+)"/g)].map((m) => m[1]);
   assert.ok(shown.length > 0, "検査: ボタンが出る");
@@ -2982,6 +2982,26 @@ test("renderPrio: 未完了の行に「今日へ」（data-prioplan）。スケ�
   for (const id of inToday) assert.ok(!html.includes(`data-prioplan="${id}"`), `今日のタスク ${id}`);
   assert.ok(!renderPrio(d, TODAY, { sched: true }).includes("data-prioplan"), "スケジュール画面には出さない");
   assert.ok(renderSide(d, TODAY, { sched: false }).includes("data-prioplan"), "右の列にも出る");
-  for (const t of d.tasks) if (t.status !== "Done") t.status = "Done";
-  assert.ok(!renderPrio(d, TODAY, { sched: false }).includes("data-prioplan"), "完了の行には出ない");
+  const victim = shown[0];
+  d.tasks.find((t) => t.id === victim).status = "Done";
+  const after = renderPrio(d, TODAY, { sched: false });
+  assert.ok(!after.includes(`data-prioplan="${victim}"`), "完了の行には出ない");
+  assert.ok(count(after, /data-prioplan=/g) > 0, "ほかの未完了の行には出る");
+});
+
+test("renderTodo: plan のタスクが週の候補に無いとき、右の列の先頭に見出しつきの行を足して入力欄を出す。候補にあるときは足さない", () => {
+  const d = tdData();
+  d.tasks.push(tdTask("AA-0007", { title: "遠い期限", due: "2026-12-25" }));
+  const html = tdHtml(d, { plan: { key: "AA-0007", start: "10:00", minutes: 30 } });
+  assert.ok(!tdHtml(d).includes("今日へ入れるタスク"), "plan なしでは出ない");
+  assert.equal(count(html, /data-tdplansave="AA-0007"/g), 1, "入力欄は 1 つ");
+  assert.equal(count(html, /今日へ入れるタスク/g), 1);
+  const w = tdList(html);
+  assert.ok(w.indexOf("今日へ入れるタスク") < w.indexOf("data-tdplansave") && w.indexOf("data-tdplansave") < w.indexOf('data-tdrow="AA-0001"'), "先頭");
+  const inList = tdHtml(tdData(), { plan: { key: "AA-0001", start: "10:00", minutes: 30 } });
+  assert.equal(count(inList, /data-tdplansave=/g), 1);
+  assert.ok(!inList.includes("今日へ入れるタスク"), "候補にあるときは足さない");
+  d.tasks.find((t) => t.id === "AA-0007").status = "Done";
+  assert.ok(!tdHtml(d, { plan: { key: "AA-0007", start: "10:00", minutes: 30 } }).includes("data-tdplansave"), "完了は出さない");
+  assert.ok(!tdHtml(d, { plan: { key: "ZZ-9999", start: "10:00", minutes: 30 } }).includes("今日へ入れるタスク"), "無いタスク");
 });
