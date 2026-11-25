@@ -2852,3 +2852,64 @@ test("renderTaskPop: 窓の項目の入力は、今までと同じ属性・値",
   assert.ok(/<select class="in sm" data-f="repeat" data-id="AA-0007"><option value="">なし<\/option>/.test(h));
   assert.ok(/data-f="due" data-id="AA-0007"/.test(h) && /data-f="start" data-id="AA-0007"/.test(h));
 });
+
+// ガント: Waiting のバーの待ち先・回答予定日（◆ と文字）
+const waitRow = (html, id) => html.split('<div class="g-row">').find((r) => r.includes(`data-gt="${id}"`));
+const withWait = (id, wo, status = "Waiting") => { const d = load(); const t = d.tasks.find((x) => x.id === id); t.status = status; t.waitingOn = wo; return d; };
+
+test("renderGantt: Waiting + 待ち先 + 回答予定日で、◆（回答予定日の日の中央）と『待ち: 待ち先 ・ M/D』が出る。ID は文字に出ない", () => {
+  const d = withWait("AA-0003", { party: "ベンダーX", since: "2026-10-09", expected: "2026-10-28" });
+  const html = gantt(d, ["AA"]);
+  const s0 = /data-s0="([^"]+)"/.exec(html)[1], span = +/data-span="(\d+)"/.exec(html)[1];
+  const row = waitRow(html, "AA-0003");
+  const mk = /<i class="gwait-mk"[^>]*data-gwait="AA-0003"[^>]*style="left:calc\(([\d.]+)% \+ ([\d.]+)%\)/.exec(row);
+  assert.ok(mk, "◆ が出る");
+  assert.ok(Math.abs(+mk[1] + +mk[2] - ((diffDays("2026-10-28", s0) + 0.5) / span) * 100) < 0.01, "日の中央");
+  const lab = /<span class="gwait-lab[^"]*" data-gwait-lab[^>]*>([^<]*)<\/span>/.exec(row);
+  assert.ok(lab && lab[1] === "待ち: ベンダーX ・ 10/28", lab?.[1]);
+  assert.ok(!lab[1].includes("AA-0003"));
+});
+
+test("renderGantt: 回答予定日なしの Waiting は、文字だけ（◆ なし）", () => {
+  const html = gantt(withWait("AA-0003", { party: "ベンダーX", since: "2026-10-09" }), ["AA"]);
+  const row = waitRow(html, "AA-0003");
+  assert.ok(!row.includes("gwait-mk"));
+  assert.ok(/data-gwait-lab[^>]*>待ち: ベンダーX<\/span>/.test(row));
+});
+
+test("renderGantt: 待ち先が空、または Waiting 以外（To Do・Done）には、◆ も文字も出ない", () => {
+  assert.ok(!/gwait/.test(waitRow(gantt(withWait("AA-0003", { party: "", since: "2026-10-09", expected: "2026-10-28" }), ["AA"]), "AA-0003")));
+  for (const st of ["To Do", "Done"]) assert.ok(!/gwait/.test(waitRow(gantt(withWait("AA-0003", { party: "ベンダーX", since: "2026-10-09", expected: "2026-10-28" }, st), ["AA"]), "AA-0003")), st);
+});
+
+test("renderGantt: 回答予定日が今日より前なら late と『超過』。今日の日は late でない", () => {
+  const row = (exp) => waitRow(gantt(withWait("AA-0003", { party: "ベンダーX", since: "2026-10-09", expected: exp }), ["AA"]), "AA-0003");
+  const over = row("2026-10-19");
+  assert.ok(/class="gwait-mk late"/.test(over) && /class="gwait-lab[^"]* late"[^>]*>待ち: ベンダーX ・ 10\/19 超過</.test(over), over);
+  const same = row(TODAY);
+  assert.ok(!/late"/.test(same.slice(same.indexOf("gwait"))) && !same.includes("超過"));
+});
+
+test("renderGantt: 回答予定日が表示の範囲の外なら、◆ は出ず、文字は出る", () => {
+  const row = waitRow(gantt(withWait("AA-0003", { party: "ベンダーX", since: "2026-10-09", expected: "2030-01-01" }), ["AA"]), "AA-0003");
+  assert.ok(!row.includes("gwait-mk"));
+  assert.ok(row.includes("待ち: ベンダーX ・ 1/1"));
+});
+
+test("renderGantt: バーの右端が 70% 以内なら文字は右、超えるなら左（class left）。ポイントの行には出ない", () => {
+  const wo = { party: "ベンダーX", since: "2026-10-09", expected: "2026-10-28" };
+  assert.ok(!/gwait-lab left/.test(waitRow(gantt(withWait("AA-0003", wo), ["AA"]), "AA-0003")), "右端が左寄り → 右置き");
+  const d5 = withWait("AA-0005", wo); d5.tasks.find((x) => x.id === "AA-0005").due = "2027-01-31"; // 範囲の終わり（2 月下旬）に近づける
+  const lr = waitRow(gantt(d5, ["AA"]), "AA-0005");
+  assert.ok(/gwait-lab left/.test(lr) && /style="right:/.test(lr.slice(lr.indexOf("gwait-lab"))), "右端が 70% 超 → 左置き");
+  const d = withWait("AA-0003", wo); const t = d.tasks.find((x) => x.id === "AA-0003"); t.start = null; t.predecessors = [];
+  assert.ok(!/gwait/.test(waitRow(gantt(d, ["AA"]), "AA-0003")), "点の行");
+});
+
+test("renderGantt: Waiting の印を足しても、バー（data-gt・つまみ）の HTML は変わらない", () => {
+  const bar = (h) => /<i class="gbar[^"]*"[^>]*data-gt="AA-0003".*?<\/i>/.exec(waitRow(h, "AA-0003"))[0];
+  const plain = bar(gantt(withWait("AA-0003", undefined), ["AA"]));
+  const waited = bar(gantt(withWait("AA-0003", { party: "ベンダーX", since: "2026-10-09", expected: "2026-10-28" }), ["AA"]));
+  assert.equal(waited, plain);
+  assert.ok(plain.includes('<b class="gh l"') && plain.includes('<b class="gh r"'));
+});
