@@ -491,6 +491,10 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .td-why{font-size:12px;color:var(--muted)}
 .td-meta{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
 .tdlist .actform{margin:0}
+/* 催促の組: 黄色の背景と枠、見出しも黄色、行は白（面）。「催促した」は主ボタン（画面案どおり） */
+.tdchase{border-color:var(--warn);background:var(--warn-soft)}
+.tdchase h2{color:var(--warn)}
+.tdchase .tdlist>li{background:var(--surface);border-color:var(--warn)}
 .tf-cks{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;flex-basis:100%}
 .tdform label.tf-ck{flex-direction:row;align-items:center;gap:6px;font-size:13px;color:var(--ink)}
 .tf-ck input[type=checkbox]{width:18px;height:18px;margin:0;accent-color:var(--accent);flex:none}
@@ -4958,7 +4962,7 @@ function chaseRow(data, r, chase) {
   return `<li class="td-row" data-chaserow="${id}">
     <div class="td-main"><span class="pj">${proj}</span><span class="td-title">${esc(t.title)}</span></div>
     <div class="td-meta"><span>${who} ・ ${when}</span></div>
-    <div class="td-main"><button class="btn" data-chasedone="${id}">催促した</button><button class="btn" data-chaseedit="${id}">待ち先・予定日を直す</button></div>
+    <div class="td-main"><button class="btn primary" data-chasedone="${id}">催促した</button><button class="btn" data-chaseedit="${id}">待ち先・予定日を直す</button></div>
     ${chase?.key === t.id ? chaseForm(t, chase) : ""}
   </li>`;
 }
