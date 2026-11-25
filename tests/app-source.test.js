@@ -873,6 +873,18 @@ test("ToDo タブ: 保存（data-tdsave）は、欄の値を先に S.tdDraft へ
   assert.ok(src.includes("if (el.dataset.tdnote !== undefined) {") && src.includes("setReview(d, wk, text)"), "気づきは change で setReview");
 });
 
+test("週の見返しの気づき（data-tdnote）: 稼働タブでも保存する。change の処理は画面で限らない。フォーカス・打ちかけの保護も画面によらない", () => {
+  const fn = src.slice(src.indexOf("function onChange("), src.indexOf("if (el.dataset.tdnote !== undefined) {"));
+  assert.ok(fn.length > 0 && !fn.includes("S.screen"), "気づきの処理の前に、画面の条件で return しない");
+  assert.ok(src.includes('if (el.dataset.tdnote !== undefined) { const wk = el.dataset.tdnote, text = el.value.trim(); apply((d) => setReview(d, wk, text), "気づきを保存しました"); return; }'));
+  assert.ok(src.includes('view.addEventListener("change", (e) => { const el = e.target; setTimeout(() => onChange(el), 0); });'), "change はどの画面でも onChange へ");
+  const fs = src.slice(src.indexOf("function focusSelector("), src.indexOf("/** カレンダー部分だけを描き直す"));
+  assert.ok(fs.includes('"tdnote"') && !fs.includes("S.screen"), "focusSelector は画面によらず tdnote を扱う");
+  const ed = src.slice(src.indexOf("function isEditing("), src.indexOf("function isEditing(") + 400);
+  assert.ok(ed.includes('el.tagName === "TEXTAREA"') && !ed.includes("S.screen"), "打ちかけの textarea は画面によらず守る");
+  assert.ok(src.includes('if (S.screen === "workload") return renderWorkload(S.data, today, { period: S.wperiod, date: S.wdate, now: clock() });'), "稼働は表示中の日（S.wdate）を渡す");
+});
+
 test("枠の削除: actual を持つ予定の枠は S.askDelSess に入れて描き直し、すぐ消さない。data-delsessok で removeSession、data-delsessno で外す。ほかの枠は 1 回で削除", () => {
   const i = src.indexOf("function deleteSelected()");
   const f = src.slice(i, src.indexOf("/** 表示の好み", i));

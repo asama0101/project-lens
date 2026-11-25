@@ -2370,7 +2370,7 @@ const tdData = (reviews) => ({
 const tdHtml = (d, o = {}) => renderTodo(d, TODAY, { week: TD_WEEK, now: TD_NOW, open: null, draft: null, ...o });
 const rowIn = (html, id) => html.match(new RegExp(`<li[^>]*data-tdrow="${id}"[^]*?</li>`))?.[0] ?? "";
 /** 右の列（この週のタスク候補）と、左の列（今日の ToDo） */
-const tdList = (html) => html.slice(html.indexOf('class="panel tdweek'), html.indexOf('class="tdreview'));
+const tdList = (html) => html.slice(html.indexOf('class="panel tdweek'));
 const tdTodayCol = (html) => html.slice(html.indexOf('class="panel tdtoday'), html.indexOf('class="panel tdweek'));
 const tdRow = (html, id) => rowIn(tdList(html), id);
 const tdTodayRow = (html, id) => rowIn(tdTodayCol(html), id);
@@ -2456,21 +2456,51 @@ test("renderTodo: draft（key が同じ）があれば、入力欄がその値�
   assert.match(other, /<option value="Done" selected>/, "別のタスクの下書きは使わない");
 });
 
-test("renderTodo: 週の移動（data-tdweek・data-tdweek-today）と、見返し（完了 X / Y 件・予定 P 分に対して実績 A 分・タスクごとの進捗/予定/実績・気づき）。回した回数の列は無い", () => {
+/** 稼働タブ（週の見返しの領域を末尾に出す） */
+const wlHtml = (d, o = {}) => renderWorkload(d, TODAY, { period: "week", date: TODAY, now: TD_NOW, ...o });
+const reviewOf = (html) => html.slice(html.indexOf('<section class="tdreview panel" aria-label="週の見返し">'));
+
+test("renderTodo: 週の移動（data-tdweek・data-tdweek-today）は残り、週の見返しは出ない（稼働タブへ移した）", () => {
   const html = tdHtml(tdData({ [TD_WEEK]: "会議が多い週" }));
   for (const a of ['data-tdweek="-1"', 'data-tdweek="1"', "data-tdweek-today", "10/19〜10/25"]) assert.ok(html.includes(a), a);
-  const rv = html.slice(html.indexOf('class="tdreview'));
+  for (const s of ["週の見返し", "tdreview", "data-tdnote", "会議が多い週", "td-sum"]) assert.ok(!html.includes(s), s);
+});
+
+test("renderWorkload: 末尾に週の見返し（完了 X / Y 件・予定 P 分に対して実績 A 分・タスクごとの進捗/予定/実績・気づき）。回した回数の列は無い", () => {
+  const html = wlHtml(tdData({ [TD_WEEK]: "会議が多い週" }));
+  const i = html.indexOf('<section class="tdreview panel" aria-label="週の見返し">');
+  assert.ok(i > html.indexOf('<section class="panel wl"') && html.endsWith("</section>") && html.lastIndexOf('class="panel wl"') < i, "稼働の領域の後ろ（末尾）");
+  const rv = reviewOf(html);
+  assert.ok(rv.includes("<h2>週の見返し（10/19〜10/25）</h2>"), rv);
   assert.ok(rv.includes("完了 1 / 4 件"), rv);
   assert.ok(rv.includes("予定 120 分に対して実績 30 分"), rv);
   const tr = (t) => rv.split("<tr").find((x) => x.includes(t)) ?? "";
   assert.ok(tr("超過のタスク").includes("1/2") && tr("超過のタスク").includes("0 分"), tr("超過のタスク"));
   assert.ok(tr("予定のタスク").includes("—") && tr("予定のタスク").includes("120 分") && tr("予定のタスク").includes("30 分"), tr("予定のタスク"));
   assert.ok(!rv.includes("回した"));
-  assert.match(rv, /<textarea[^>]*data-tdnote="2026-10-19"[^>]*>会議が多い週<\/textarea>/);
+  assert.match(rv, /<label class="td-note">気づき<textarea class="in" rows="3" data-tdnote="2026-10-19">会議が多い週<\/textarea><\/label>/);
 });
 
-test("renderTodo: 件名・プロジェクト名・チェックの項目・気づきは esc() される", () => {
-  const d = tdData({ [TD_WEEK]: "<b>&" });
+test("renderWorkload: 週の見返しは、期間（日・週・月）によらず出て、例外にならない。週は opts.date を含む週", () => {
+  for (const period of ["day", "week", "month"]) {
+    const rv = reviewOf(wlHtml(tdData(), { period }));
+    assert.ok(rv.includes("<h2>週の見返し（10/19〜10/25）</h2>") && rv.includes('data-tdnote="2026-10-19"') && rv.includes("完了 1 / 4 件"), `${period}: ${rv}`);
+  }
+});
+
+test("renderWorkload: 週の見返しの週は、opts.date を含む月曜〜日曜。日曜日は前の月曜日の週。日を 1 週動かすと、見出しと気づきの週が変わる", () => {
+  const d = tdData({ "2026-10-19": "前の週の気づき", "2026-10-26": "次の週の気づき" });
+  const mon = reviewOf(wlHtml(d, { date: "2026-10-19" })), sun = reviewOf(wlHtml(d, { period: "day", date: "2026-10-25" }));
+  for (const rv of [mon, sun]) assert.ok(rv.includes("<h2>週の見返し（10/19〜10/25）</h2>") && rv.includes('data-tdnote="2026-10-19">前の週の気づき</textarea>'), rv);
+  const next = reviewOf(wlHtml(d, { period: "day", date: "2026-10-26" }));
+  assert.ok(next.includes("<h2>週の見返し（10/26〜11/1）</h2>") && next.includes('data-tdnote="2026-10-26">次の週の気づき</textarea>'), next);
+  assert.ok(!next.includes("前の週の気づき"));
+  const month = reviewOf(wlHtml(d, { period: "month", date: "2026-10-28" }));
+  assert.ok(month.includes("<h2>週の見返し（10/26〜11/1）</h2>"), "月の表示でも、日を含む週");
+});
+
+test("renderTodo: 件名・プロジェクト名・チェックの項目は esc() される", () => {
+  const d = tdData();
   d.projects[0].name = "<b>&";
   Object.assign(d.tasks[0], { title: "<b>&" });
   d.tasks[0].checklist[0].text = "<b>&";
@@ -2479,9 +2509,19 @@ test("renderTodo: 件名・プロジェクト名・チェックの項目・気�
   assert.ok(html.includes("&lt;b&gt;&amp;"));
 });
 
-test("renderTodo: 週にタスクが無ければ、一覧は案内だけ。見返しは 0 件", () => {
+test("renderWorkload: 週の見返しの件名・気づきは esc() される", () => {
+  const d = tdData({ [TD_WEEK]: "</textarea><b>&" });
+  Object.assign(d.tasks[0], { title: "<b>&" });
+  const rv = reviewOf(wlHtml(d));
+  assert.ok(!rv.includes("<b>&") && !rv.includes("</textarea><b>"), "生のタグが無い");
+  assert.ok(rv.includes("<td>&lt;b&gt;&amp;</td>") && rv.includes(">&lt;/textarea&gt;&lt;b&gt;&amp;</textarea>"), rv);
+});
+
+test("renderTodo: 週にタスクが無ければ、一覧は案内だけ。稼働タブの週の見返しは 0 件で、例外にならない", () => {
   const html = tdHtml({ ...tdData(), tasks: [] });
-  assert.ok(!html.includes("data-tdrow=") && html.includes("この週のタスクはありません") && html.includes("完了 0 / 0 件"));
+  assert.ok(!html.includes("data-tdrow=") && html.includes("この週のタスクはありません"));
+  const rv = reviewOf(wlHtml({ ...tdData(), tasks: [] }));
+  assert.ok(rv.includes("完了 0 / 0 件") && rv.includes("予定 0 分に対して実績 0 分") && rv.includes("<tbody></tbody>"), rv);
 });
 
 test("renderTodo: 左に『今日の ToDo（M/D）』、右に『この週のタスク候補』の見出しが、この順に出る。古い見出し「この週のタスク」だけの見出しは無い", () => {
