@@ -1710,11 +1710,14 @@ test("renderTaskPop: チェックリストの欄を、期限の下・前のタ�
 });
 
 // ---- Done にするときの警告 ----
-test("doneAskHtml: stage が check なら、未完了の項目の一覧と 3 つのボタン。文言はエスケープする", () => {
+test("doneAskHtml: stage が check なら、未完了の項目の一覧と 2 つのボタン（残りをチェック・やめる）。文言はエスケープする", () => {
   const h = doneAskHtml({ id: "AA-0005", status: "Done", n: 0, future: [], open: ["a<b>", "b"], stage: "check", checkAll: false });
   assert.ok(h.includes("未完了の項目が 2 件あります") && h.includes('role="alert"'));
   assert.ok(h.includes("<li>a&lt;b&gt;</li>") && !h.includes("<li>a<b>"));
-  for (const a of ['data-ckall="AA-0005"', 'data-ckkeep="AA-0005"', "data-doneno"]) assert.ok(h.includes(a), a);
+  for (const a of ['data-ckall="AA-0005"', "data-doneno"]) assert.ok(h.includes(a), a);
+  assert.equal((h.match(/<button/g) || []).length, 2, "ボタンは 2 つだけ");
+  assert.ok(!h.includes("data-ckkeep") && !h.includes("未完了のまま"));
+  assert.ok(h.includes("不要な項目は、削除してから"));
   assert.ok(!h.includes("data-doneok"));
 });
 

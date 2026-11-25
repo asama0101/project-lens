@@ -984,3 +984,9 @@ test("app.js: ヘッダーの「＋ 突発タスク」は、画面の外のク�
   const c = src.slice(src.indexOf('document.addEventListener("click"'));
   assert.ok(c.slice(0, c.indexOf("}, true);")).includes('if (e.target.closest("[data-delsel],[data-urgent-open]")) return;'), "キャプチャ段階の除外に入っている（ToDo タブで、打った入力を残すため）");
 });
+
+test("チェックの警告: 「未完了のまま」の選択肢（ckkeep）は無い。data-ckall だけが checkAll を立てる", () => {
+  assert.ok(!src.includes("ckkeep"));
+  const i = src.indexOf('q("[data-ckall]")'), a = src.slice(i, i + 500);
+  assert.ok(i > 0 && a.includes("checkAll: true") && a.includes("setStatus(pd.id, pd.status, [], true)"), a);
+});

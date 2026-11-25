@@ -588,12 +588,12 @@ view.addEventListener("click", (e) => {
   if (wk) { submitWait(wk.dataset.waitok); return; }
   if (q("[data-waitno]")) { S.pendingWait = null; render(); return; }
   if (q("[data-doneno]")) { S.pendingDone = null; render(); return; }
-  const ck = q("[data-ckall],[data-ckkeep]"); // チェックの警告の「残りをチェックして Done」「そのまま Done」
+  const ck = q("[data-ckall]"); // チェックの警告の「残りをチェックして Done」（「未完了のまま」は無い）
   if (ck && S.pendingDone) {
-    const pd = S.pendingDone, checkAll = ck.matches("[data-ckall]");
-    if (pd.future.length) { S.pendingDone = { ...pd, stage: "future", checkAll }; render(); return; } // 続けて予定枠の確認
+    const pd = S.pendingDone;
+    if (pd.future.length) { S.pendingDone = { ...pd, stage: "future", checkAll: true }; render(); return; } // 続けて予定枠の確認
     S.pendingDone = null;
-    setStatus(pd.id, pd.status, [], checkAll);
+    setStatus(pd.id, pd.status, [], true);
     return;
   }
   const dk = q("[data-doneok]");
