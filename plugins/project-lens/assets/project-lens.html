@@ -495,6 +495,10 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .td-why{font-size:12px;color:var(--muted)}
 .td-meta{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
 .tdlist .actform{margin:0}
+/* 催促の組: 黄色の背景と枠、見出しも黄色、行は白（面）。「催促した」は主ボタン（画面案どおり） */
+.tdchase{border-color:var(--warn);background:var(--warn-soft)}
+.tdchase h2{color:var(--warn)}
+.tdchase .tdlist>li{background:var(--surface);border-color:var(--warn)}
 .tf-cks{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;flex-basis:100%}
 .tdform label.tf-ck{flex-direction:row;align-items:center;gap:6px;font-size:13px;color:var(--ink)}
 .tf-ck input[type=checkbox]{width:18px;height:18px;margin:0;accent-color:var(--accent);flex:none}
@@ -538,10 +542,10 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .blk.now{z-index:3}
 .blk .nw{color:var(--bad);font-weight:700;margin-right:2px}
 /* ヘッダーの、読み込み中のファイルの札と詳細（views/filechips.js） */
-.filechip{position:static;display:inline-block} /* 詳細は札ではなく .filebar を基準に置く（札が折り返しても、幅の狭いときも、画面の外へはみ出さない） */
+.filechip{position:static;display:inline-block} /* 詳細は .filebar を基準に絶対配置する。位置（札の真下・画面の内側）と幅は、placeFileInfo（app.js）が決める */
 .filechip .dot{width:8px;height:8px;background:var(--ok)}
 .filechip .dot.warn{background:var(--warn)}
-.fileinfo{position:absolute;left:0;top:100%;margin-top:6px;z-index:30;box-sizing:border-box;width:min(360px,100%);max-width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;box-shadow:0 4px 14px rgba(0,0,0,.15)}
+.fileinfo{position:absolute;left:0;top:100%;z-index:30;box-sizing:border-box;width:360px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;box-shadow:0 4px 14px rgba(0,0,0,.15)}
 .fileinfo dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0 0 10px}
 .fileinfo dt{color:var(--muted)}
 .fileinfo dd{margin:0;overflow-wrap:anywhere}
@@ -5016,7 +5020,7 @@ function chaseRow(data, r, chase) {
   return `<li class="td-row" data-chaserow="${id}">
     <div class="td-main"><span class="pj">${proj}</span><span class="td-title">${esc(t.title)}</span></div>
     <div class="td-meta"><span>${who} ・ ${when}</span></div>
-    <div class="td-main"><button class="btn" data-chasedone="${id}">催促した</button><button class="btn" data-chaseedit="${id}">待ち先・予定日を直す</button></div>
+    <div class="td-main"><button class="btn primary" data-chasedone="${id}">催促した</button><button class="btn" data-chaseedit="${id}">待ち先・予定日を直す</button></div>
     ${chase?.key === t.id ? chaseForm(t, chase) : ""}
   </li>`;
 }
@@ -5418,6 +5422,7 @@ function render() {
   $("todaylabel").textContent = `${c.date.replace(/-/g, "/")}(${wdJa(c.date)})`;
   document.querySelectorAll("nav [role=tab]").forEach((b) => b.setAttribute("aria-selected", String(b.id === "tab-" + S.screen)));
   $("filebar").innerHTML = S.data ? `<button class="chip-btn pref" data-pref="actual" aria-pressed="${S.prefs.showActual}" title="ガントの実績の線を出したり隠したりします">ガント実績</button><span class="fsep" aria-hidden="true"></span><button class="btn primary" data-urgent-open title="突発タスクの入力欄を開きます">＋ 突発タスク</button><button class="btn" data-actadd title="予定の無い作業の実績を入れる欄を開きます">＋ 実績を追加</button><button class="btn" data-refresh title="ファイルを読み直します(Claude Code などが更新した内容を反映)">更新</button>${renderFileChips(S.data, fileInfo(), S.fileInfo)}${typeof window.showOpenFilePicker === "function" ? "" : `<button class="btn" data-download>JSON を書き出す</button>`}` : "";
+  placeFileInfo();
   renderBar();
   // ガントの横スクロール位置(全プロジェクトで同じ)とページの縦の位置は、編集で描き直しても保つ(表示期間・絞り込みなどを変えたときだけ今日の位置へ戻す)。
   // 描き直しの間、ページが縮んで scrollY が飛ばないよう、#view の高さを保つ
@@ -5566,6 +5571,17 @@ function fileInfo() {
   const i = store.info(), picker = typeof window.showOpenFilePicker === "function";
   return Object.fromEntries(["shared", "personal"].map((w) => [w, { ...(i[w].name != null ? i[w] : S.chosenFiles?.[w] ?? i[w]), writable: picker && i[w].name != null }]));
 }
+/** 開いている札の詳細を、押した札の真下に置く（左端をそろえる）。画面の左右 16px の余白からはみ出すときは内側へ寄せ、幅の狭い画面では幅も縮める */
+function placeFileInfo() {
+  const bar = $("filebar"), pop = bar.querySelector(".fileinfo"), chip = pop?.parentElement.querySelector("[data-fileinfo]");
+  if (!pop || !chip) return;
+  const vw = document.documentElement.clientWidth, w = Math.min(360, vw - 32);
+  pop.style.width = w + "px";
+  const b = bar.getBoundingClientRect(), c = chip.getBoundingClientRect();
+  pop.style.left = Math.max(16, Math.min(c.left, vw - 16 - w)) - b.left + "px";
+  pop.style.top = c.bottom - b.top + 6 + "px";
+}
+
 /** 札の詳細を閉じる。描き直さない（打ちかけの入力を消さないため。外を押した直後の描き直しは、押したものの処理に任せる） */
 function closeFileInfo() {
   if (!S.fileInfo) return;
@@ -6800,6 +6816,7 @@ let depsQueued = false;
 window.addEventListener("resize", () => {
   syncSticky();
   if (!depsQueued) { depsQueued = true; requestAnimationFrame(() => { depsQueued = false; drawAllDeps(); }); } // ウィンドウを引っ張る間、線は 1 フレームに 1 回だけ引き直す
+  placeFileInfo();
 });
 
 render();

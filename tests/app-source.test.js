@@ -19,6 +19,17 @@ test("fnSource: focusSelector を、固定の文字数でなく、関数の終�
   assert.ok(!f.includes("function render("), "次の関数まで食い込まない");
 });
 
+test("ヘッダーの札の詳細: placeFileInfo が、押した札の真下（左端をそろえ、画面の内側に収める）に置き、幅も決める。描画のあとと resize で呼ぶ", () => {
+  const f = src.slice(src.indexOf("function placeFileInfo("), src.indexOf("/** 札の詳細を閉じる")); // 次の関数の直前の説明コメントまで
+  assert.match(f, /Math\.min\(c\.left, vw - 16 - w\)/, "札の左端に合わせ、右へはみ出さない");
+  assert.match(f, /Math\.max\(16,/, "左へはみ出さない");
+  assert.match(f, /c\.bottom - b\.top/, "札の真下（折り返した 2 行目の札でも）");
+  assert.match(f, /Math\.min\(360, vw - 32\)/, "幅の狭い画面では幅を縮める");
+  assert.ok(/placeFileInfo\(\);\s*renderBar\(\);/.test(src), "描画のあとに呼ぶ");
+  const rz = src.slice(src.indexOf("addEventListener(\"resize\""));
+  assert.ok(rz.slice(0, 500).includes("placeFileInfo();"), "resize で呼ぶ");
+});
+
 const stk = readFileSync(new URL("../plugins/project-lens/src/ui/sticky.js", import.meta.url), "utf8"); // 固定表示（日付軸・列見出しの複製、横スクロールのそろえ）
 
 // 編集は、いまのデータへの差分として書く。決まった結果を返す編集（() => data）は、保存の競合のとき、最新のファイルに当て直すと、
@@ -1065,14 +1076,14 @@ test("app.js: 外を押したら閉じる。詳細の中・札は外として扱
   assert.ok(!fn.includes("render()"));
 });
 
-test("theme.css: ファイル情報の詳細は .filebar を基準に置く（札の右端に合わせると、幅の狭いとき画面の外へはみ出す）", () => {
+test("theme.css: ファイル情報の詳細は .filebar を基準に絶対配置し、位置と幅は placeFileInfo が決める", () => {
   const css = readFileSync(new URL("../plugins/project-lens/src/ui/theme.css", import.meta.url), "utf8");
   assert.match(css, /.filebar{[^}]*position:relative/);
   assert.match(css, /.filechip{position:static/);
   const info = css.match(/.fileinfo{[^}]*}/);
   assert.ok(info, ".fileinfo の規則");
   assert.match(info[0], /position:absolute;left:0;top:100%/);
-  assert.match(info[0], /width:min\(360px,100%\);max-width:100%/);
+  assert.match(info[0], /width:360px/);
   assert.doesNotMatch(info[0], /right:0|100vw/);
 });
 
@@ -1084,6 +1095,15 @@ test("今日の優先の「今日へ」（data-prioplan）は、ToDo タブへ�
   assert.ok(a > 0 && b > a && c > b, h);
   assert.ok(h.includes("clearSel()") && h.indexOf("clearSel()") < c, "画面の移動で、ほかの入力欄を閉じてから開く");
   assert.ok(h.includes("S.resetScroll = true"), h);
+});
+
+test("theme.css: 催促の組は、黄色の背景と枠・黄色の見出し・白い行（画面案どおり）。「催促した」は主ボタン", () => {
+  const css = readFileSync(new URL("../plugins/project-lens/src/ui/theme.css", import.meta.url), "utf8");
+  assert.match(css, /\.tdchase\{border-color:var\(--warn\);background:var\(--warn-soft\)\}/);
+  assert.match(css, /\.tdchase h2\{color:var\(--warn\)\}/);
+  assert.match(css, /\.tdchase \.tdlist>li\{background:var\(--surface\);border-color:var\(--warn\)\}/);
+  const todo = readFileSync(new URL("../plugins/project-lens/src/ui/views/todo.js", import.meta.url), "utf8");
+  assert.ok(todo.includes("<button class=\"btn primary\" data-chasedone="), "「催促した」は主ボタン");
 });
 
 test("ToDo タブ: 催促（data-chasedone・data-chaseedit）は S.tdChase を開き、S.tdOpen・S.tdPlan・S.urgentDraft を外す。逆に、ほかを開くと S.tdChase を外す", () => {
