@@ -464,6 +464,8 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .tdlist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
 .tdlist>li{border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:6px}
 .tdlist>li.closed{opacity:.55}
+.tdlist>li[draggable=true]{cursor:grab}
+.tdtoday.drop{outline:2px dashed var(--accent);outline-offset:-2px;background:var(--accent-soft)}
 .tdlist>li.closed .td-title{text-decoration:line-through}
 .td-main{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .td-main .pj{font-size:11px;font-weight:700;color:var(--accent);overflow-wrap:anywhere}
@@ -4833,14 +4835,15 @@ function completeForm(data, t, day, now, draft) {
   </div>`;
 }
 
-/** 一覧の 1 行（左右の列で共通）。r.slots があれば（今日の ToDo）、今日の枠の時刻と札を足す。完了の入力欄は、開いた列（ctx.col）の行にだけ出す。「今日へ」とその入力欄は、右の列（week）の未完了の行にだけ出す */
+/** 一覧の 1 行（左右の列で共通）。r.slots があれば（今日の ToDo）、今日の枠の時刻と札を足す。完了の入力欄は、開いた列（ctx.col）の行にだけ出す。「今日へ」とその入力欄、ドラッグ（data-tdrag）は、右の列（week）の未完了の行にだけ出す */
 function row(data, r, ctx) {
   const t = r.task, id = esc(t.id);
   const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? "プロジェクトなし");
   const done = t.status === "Done";
   const open = ctx.open === t.id && ctx.openCol === ctx.col;
   const canPlan = ctx.col === "week" && !isClosed(t), planOpen = canPlan && ctx.plan?.key === t.id;
-  return `<li class="td-row${done ? " closed" : ""}" data-tdrow="${id}">
+  const drag = canPlan && !open && !planOpen ? ` draggable="true" data-tdrag="${id}"` : ""; // 左の列へドラッグして「今日へ」。入力欄を開いた行は、欄の文字を選べるよう動かさない
+  return `<li class="td-row${done ? " closed" : ""}"${drag} data-tdrow="${id}">
     <div class="td-main"><span class="pj">${proj}</span><span class="td-title">${esc(t.title)}</span>${statusPill(t)}${r.waiting ? `<span class="pill wait">前のタスク待ち</span>` : ""}${done ? "" : `<button class="btn" data-tdopen="${id}" data-tdcol="${ctx.col}" aria-expanded="${open}">完了</button>`}${canPlan ? `<button class="btn" data-tdplan="${id}" aria-expanded="${planOpen}">今日へ</button>` : ""}</div>
     ${r.slots ? `<div class="td-slots mono">${r.slots.map((s) => slotHtml(s, ctx.now, ctx.actuals)).join("")}</div>` : ""}
     <div class="td-meta">${t.due ? `<span>期限 <b class="mono">${fmtMD(t.due)}</b></span>` : ""}${r.checked ? `<span>チェック <b class="mono">${progress(r)}</b></span>` : ""}<span>予定 <b class="mono">${r.planned}</b> 分</span><span>実績 <b class="mono">${r.actual}</b> 分</span></div>
@@ -4878,7 +4881,7 @@ function renderTodo(data, today, opts) {
   const trs = rv.rows.map((r) => `<tr><td>${esc(r.task.title)}</td><td class="num mono">${progress(r)}</td><td class="num mono">${r.planned} 分</td><td class="num mono">${r.actual} 分</td></tr>`).join("");
   return `<div class="tdpage">
     <div class="tdcols">
-      <section class="panel tdtoday" aria-label="今日の ToDo"><div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap"><h2>今日の ToDo（${fmtMD(today)}）</h2><button class="btn" data-urgent-open title="突発タスクの入力欄を開きます">＋ 突発タスク</button></div>${urgentForm(data, urgentDraft)}${tlist}</section>
+      <section class="panel tdtoday" data-tddrop aria-label="今日の ToDo"><div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap"><h2>今日の ToDo（${fmtMD(today)}）</h2><button class="btn" data-urgent-open title="突発タスクの入力欄を開きます">＋ 突発タスク</button></div>${urgentForm(data, urgentDraft)}${tlist}</section>
       <section class="panel tdweek" aria-label="この週のタスク候補"><h2>この週のタスク候補</h2>
         <div class="toolbar"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn" data-tdweek="-1" aria-label="前の週">←</button><button class="btn" data-tdweek="1" aria-label="次の週">→</button><button class="btn" data-tdweek-today>今週</button><strong style="margin-left:6px">${fmtMD(week)}〜${fmtMD(weekEnd)} の週</strong></div></div>
         ${list}</section>
@@ -5723,7 +5726,7 @@ view.addEventListener("click", (e) => {
   }
   if (q("[data-tdcancel]")) { S.tdOpen = null; S.tdCol = null; S.tdDraft = null; render(); return; }
   const tdp = q("[data-tdplan]"); // 今日へ（右の列の行）。開閉。完了の入力欄は閉じる
-  if (tdp) { const id = tdp.dataset.tdplan; S.tdPlan = S.tdPlan?.key === id ? null : { key: id, ...planDefault(clock()) }; S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.focusSel = S.tdPlan ? '[data-tp="start"]' : null; render(); return; }
+  if (tdp) { const id = tdp.dataset.tdplan; if (S.tdPlan?.key === id) { S.tdPlan = null; S.focusSel = null; render(); } else openPlan(id); return; }
   const tps = q("[data-tdplansave]"); // 今日に入れる（今日の予定の枠を足す）。欄の値は、押したときに読む。失敗しても打った値が消えないよう、先に S.tdPlan へ写す
   if (tps) {
     const id = tps.dataset.tdplansave;
@@ -5823,6 +5826,12 @@ view.addEventListener("click", (e) => {
 /** ToDo 画面の週を動かす（完了の入力欄は閉じる） */
 function moveTodoWeek(week) {
   S.todoWeek = week; S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.tdPlan = null;
+  render();
+}
+
+/** 「今日へ」の入力欄を、そのタスクの行の下に開く（「今日へ」のボタンと、左の列へのドロップで共通）。完了の入力欄は閉じる */
+function openPlan(id) {
+  S.tdPlan = { key: id, ...planDefault(clock()) }; S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.focusSel = '[data-tp="start"]';
   render();
 }
 
@@ -6120,6 +6129,8 @@ function showTip(text, x, y) {
 function hideTip() { document.getElementById("dragtip")?.remove(); }
 
 view.addEventListener("dragstart", (e) => {
+  const tr = e.target.closest("[data-tdrag]"); // ToDo タブの候補の行 → 左の列へ落として「今日へ」。スケジュール画面のドラッグの判定には進まない
+  if (tr) { drag = { kind: "today", id: tr.dataset.tdrag }; e.dataTransfer.setData("text/plain", drag.id); e.dataTransfer.effectAllowed = "copy"; return; }
   const ckm = e.target.closest("[data-ckmv]");
   if (ckm) { // チェックリストの項目の並べ替え（同じタスクの中だけ）
     drag = { kind: "ckorder", id: ckm.dataset.ckmv };
@@ -6157,7 +6168,14 @@ function planCkOrder(e) {
   return plan && { tid, iid, ...plan, row };
 }
 const clearOrderLine = () => view.querySelectorAll(".drop-before,.drop-after").forEach((r) => r.classList.remove("drop-before", "drop-after"));
+const clearTdDrop = () => view.querySelector("[data-tddrop].drop")?.classList.remove("drop");
 view.addEventListener("dragover", (e) => {
+  if (drag?.kind === "today") { // 左の列（今日の ToDo の列）の上だけ落とせる。上にいる間だけ強調する
+    const z = e.target.closest("[data-tddrop]");
+    view.querySelector("[data-tddrop]")?.classList.toggle("drop", !!z);
+    if (z) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }
+    return;
+  }
   if (drag?.kind === "ckorder") {
     const p = planCkOrder(e);
     clearOrderLine();
@@ -6186,6 +6204,14 @@ view.addEventListener("dragover", (e) => {
   if (p.error) hideTip(); else showTip(`${hm(p.st)}–${hm(p.end)}`, e.clientX, e.clientY);
 });
 view.addEventListener("drop", (e) => {
+  if (drag?.kind === "today") {
+    e.preventDefault();
+    const id = drag.id;
+    clearTdDrop();
+    drag = null;
+    if (e.target.closest("[data-tddrop]")) openPlan(id);
+    return;
+  }
   if (drag?.kind === "ckorder") {
     e.preventDefault();
     const p = planCkOrder(e);
@@ -6212,7 +6238,7 @@ view.addEventListener("drop", (e) => {
   if (p.error) { toast(p.error); return; }
   apply((d) => p.next(d), `${p.msg}${p.warning ? `(${p.warning})` : ""}`);
 });
-view.addEventListener("dragend", () => { clearOrderLine(); drag = null; ghost?.remove(); ghost = null; hideTip(); });
+view.addEventListener("dragend", () => { clearOrderLine(); clearTdDrop(); drag = null; ghost?.remove(); ghost = null; hideTip(); });
 
 /* ---------- 枠・手入力の会議の下端ドラッグ(終了時刻を変える) ---------- */
 view.addEventListener("mousedown", (e) => {

@@ -53,14 +53,15 @@ function completeForm(data, t, day, now, draft) {
   </div>`;
 }
 
-/** 一覧の 1 行（左右の列で共通）。r.slots があれば（今日の ToDo）、今日の枠の時刻と札を足す。完了の入力欄は、開いた列（ctx.col）の行にだけ出す。「今日へ」とその入力欄は、右の列（week）の未完了の行にだけ出す */
+/** 一覧の 1 行（左右の列で共通）。r.slots があれば（今日の ToDo）、今日の枠の時刻と札を足す。完了の入力欄は、開いた列（ctx.col）の行にだけ出す。「今日へ」とその入力欄、ドラッグ（data-tdrag）は、右の列（week）の未完了の行にだけ出す */
 function row(data, r, ctx) {
   const t = r.task, id = esc(t.id);
   const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? "プロジェクトなし");
   const done = t.status === "Done";
   const open = ctx.open === t.id && ctx.openCol === ctx.col;
   const canPlan = ctx.col === "week" && !isClosed(t), planOpen = canPlan && ctx.plan?.key === t.id;
-  return `<li class="td-row${done ? " closed" : ""}" data-tdrow="${id}">
+  const drag = canPlan && !open && !planOpen ? ` draggable="true" data-tdrag="${id}"` : ""; // 左の列へドラッグして「今日へ」。入力欄を開いた行は、欄の文字を選べるよう動かさない
+  return `<li class="td-row${done ? " closed" : ""}"${drag} data-tdrow="${id}">
     <div class="td-main"><span class="pj">${proj}</span><span class="td-title">${esc(t.title)}</span>${statusPill(t)}${r.waiting ? `<span class="pill wait">前のタスク待ち</span>` : ""}${done ? "" : `<button class="btn" data-tdopen="${id}" data-tdcol="${ctx.col}" aria-expanded="${open}">完了</button>`}${canPlan ? `<button class="btn" data-tdplan="${id}" aria-expanded="${planOpen}">今日へ</button>` : ""}</div>
     ${r.slots ? `<div class="td-slots mono">${r.slots.map((s) => slotHtml(s, ctx.now, ctx.actuals)).join("")}</div>` : ""}
     <div class="td-meta">${t.due ? `<span>期限 <b class="mono">${fmtMD(t.due)}</b></span>` : ""}${r.checked ? `<span>チェック <b class="mono">${progress(r)}</b></span>` : ""}<span>予定 <b class="mono">${r.planned}</b> 分</span><span>実績 <b class="mono">${r.actual}</b> 分</span></div>
@@ -98,7 +99,7 @@ export function renderTodo(data, today, opts) {
   const trs = rv.rows.map((r) => `<tr><td>${esc(r.task.title)}</td><td class="num mono">${progress(r)}</td><td class="num mono">${r.planned} 分</td><td class="num mono">${r.actual} 分</td></tr>`).join("");
   return `<div class="tdpage">
     <div class="tdcols">
-      <section class="panel tdtoday" aria-label="今日の ToDo"><div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap"><h2>今日の ToDo（${fmtMD(today)}）</h2><button class="btn" data-urgent-open title="突発タスクの入力欄を開きます">＋ 突発タスク</button></div>${urgentForm(data, urgentDraft)}${tlist}</section>
+      <section class="panel tdtoday" data-tddrop aria-label="今日の ToDo"><div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap"><h2>今日の ToDo（${fmtMD(today)}）</h2><button class="btn" data-urgent-open title="突発タスクの入力欄を開きます">＋ 突発タスク</button></div>${urgentForm(data, urgentDraft)}${tlist}</section>
       <section class="panel tdweek" aria-label="この週のタスク候補"><h2>この週のタスク候補</h2>
         <div class="toolbar"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn" data-tdweek="-1" aria-label="前の週">←</button><button class="btn" data-tdweek="1" aria-label="次の週">→</button><button class="btn" data-tdweek-today>今週</button><strong style="margin-left:6px">${fmtMD(week)}〜${fmtMD(weekEnd)} の週</strong></div></div>
         ${list}</section>

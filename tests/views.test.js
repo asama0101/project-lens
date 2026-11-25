@@ -2622,6 +2622,23 @@ test("renderTodo: 左の『今日の ToDo』の行には「今日へ」も、そ
   assert.equal(html.split('data-tdplansave="AA-0002"').length, 2, "入力欄は 1 つだけ");
 });
 
+test("renderTodo: 未完了の候補の行に draggable と data-tdrag。完了・中止の行、左の列の行、入力欄を開いた行には付かない。左の列がドロップ先（data-tddrop）", () => {
+  const d = tdData();
+  d.tasks.push(tdTask("AA-0006", { title: "中止の今週", status: "Cancelled", sessions: [{ id: "S6", date: "2026-10-21", start: "09:00", end: "10:00", kind: "planned" }] }));
+  const html = tdHtml(d);
+  for (const id of ["AA-0001", "AA-0002", "AA-0003"]) assert.ok(tdRow(html, id).startsWith(`<li class="td-row" draggable="true" data-tdrag="${id}"`), id);
+  assert.ok(!tdRow(html, "AA-0004").includes("draggable") && !tdRow(html, "AA-0004").includes("data-tdrag"), "Done");
+  assert.ok(!html.includes('data-tdrag="AA-0006"'), "Cancelled");
+  assert.ok(tdTodayRow(html, "AA-0002") && !tdTodayRow(html, "AA-0002").includes("draggable") && !tdTodayRow(html, "AA-0002").includes("data-tdrag"), "左の列");
+  const plan = tdHtml(tdData(), { plan: { key: "AA-0001", start: "10:30", minutes: 45 } });
+  assert.ok(!tdRow(plan, "AA-0001").includes("data-tdrag") && tdRow(plan, "AA-0002").includes("data-tdrag"), "今日への入力欄を開いた行は動かさない（欄の文字を選べるように）");
+  const comp = tdHtml(tdData(), { open: "AA-0001", col: "week" });
+  assert.ok(!tdRow(comp, "AA-0001").includes("data-tdrag"), "完了の入力欄を開いた行");
+  assert.ok(html.includes('<section class="panel tdtoday" data-tddrop'), "左の列");
+  assert.equal(html.split("data-tddrop").length, 2, "ドロップ先は左の列だけ");
+  assert.ok(!/data-drag(task|sess|mtg)|data-mvh|data-ckmv|class="[^"]*\bdz\b/.test(html), "スケジュール画面のドラッグの属性・落とし先は出さない");
+});
+
 test("planDefault: 開始は今を 15 分刻みに切り上げ（最大 23:45）、長さ 60 分", () => {
   const at = (time) => planDefault({ date: TODAY, time });
   assert.deepEqual(at("10:15"), { start: "10:15", minutes: 60 });

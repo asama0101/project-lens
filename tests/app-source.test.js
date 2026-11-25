@@ -889,13 +889,40 @@ test("app.js: 突発タスクは ToDo タブで画面を移さずに登録でき
 
 test("ToDo タブ: 今日へ（data-tdplan）は S.tdPlan を開き（planDefault の初期値）、S.tdOpen を外す。完了（data-tdopen）は S.tdPlan を外す", () => {
   assert.match(src, /tdDraft: null, tdPlan: null/);
-  const i = src.indexOf('const tdp = q("[data-tdplan]")'), a = src.slice(i, src.indexOf("return; }", i));
+  const i = src.indexOf('const tdp = q("[data-tdplan]")'), h = src.slice(i, src.indexOf("return; }", i));
   assert.ok(i > 0, "ハンドラ");
+  assert.match(h, /if \(S\.tdPlan\?\.key === id\) \{ S\.tdPlan = null; S\.focusSel = null; render\(\); \} else openPlan\(id\);/, "同じ行をもう一度押すと閉じる");
+  const j = src.indexOf("function openPlan(id)"), a = src.slice(j, src.indexOf("\n}", j));
+  assert.ok(j > 0, "開く処理（ボタンとドロップで共通）");
   assert.ok(a.includes("planDefault(clock())") && a.includes("key: id"), a);
   assert.ok(a.includes("S.tdOpen = null; S.tdCol = null; S.tdDraft = null;"), "完了の入力欄を閉じる");
-  assert.ok(a.includes(`S.focusSel = S.tdPlan ? '[data-tp="start"]' : null;`), a);
+  assert.ok(a.includes(`S.focusSel = '[data-tp="start"]';`) && a.includes("render();"), a);
   assert.match(src, /const tdo = q\("\[data-tdopen\]"\);\s*if \(tdo\) \{[^\n]*S\.tdDraft = null; S\.tdPlan = null;/);
   assert.match(src, /q\("\[data-tdplancancel\]"\)\) \{ S\.tdPlan = null; render\(\); return; \}/);
+});
+
+test("ToDo タブ: 候補の行（data-tdrag）のドラッグ。dragstart で kind \"today\"、dragover は左の列（data-tddrop）の上だけ preventDefault と強調、drop で openPlan、dragend で強調を外す", () => {
+  const body = (ev) => { const i = src.indexOf(`view.addEventListener("${ev}"`); return src.slice(i, src.indexOf("\n});", i) + 4); };
+  const ds = body("dragstart");
+  assert.match(ds, /const tr = e\.target\.closest\("\[data-tdrag\]"\);[^\n]*\s*if \(tr\) \{ drag = \{ kind: "today", id: tr\.dataset\.tdrag \}; e\.dataTransfer\.setData\("text\/plain", drag\.id\); e\.dataTransfer\.effectAllowed = "copy"; return; \}/);
+  assert.ok(ds.indexOf("[data-tdrag]") < ds.indexOf("[data-ckmv]"), "既存の判定より先に抜ける");
+  const ov = body("dragover"), ot = ov.slice(ov.indexOf('if (drag?.kind === "today")'), ov.indexOf("return;", ov.indexOf('if (drag?.kind === "today")')));
+  assert.ok(ov.indexOf('drag?.kind === "today"') >= 0 && ov.indexOf('drag?.kind === "today"') < ov.indexOf('drag?.kind === "ckorder"'), "先に抜ける（.dz・ghost・showTip に進まない）");
+  assert.match(ot, /const z = e\.target\.closest\("\[data-tddrop\]"\);/);
+  assert.match(ot, /if \(z\) \{ e\.preventDefault\(\); e\.dataTransfer\.dropEffect = "copy"; \}/);
+  assert.match(ot, /classList\.toggle\("drop", !!z\)/);
+  const dr = body("drop"), dt = dr.slice(dr.indexOf('if (drag?.kind === "today")'), dr.indexOf("return;", dr.indexOf('if (drag?.kind === "today")')));
+  assert.ok(dr.indexOf('drag?.kind === "today"') >= 0 && dr.indexOf('drag?.kind === "today"') < dr.indexOf('drag?.kind === "ckorder"'), "先に抜ける");
+  assert.ok(dt.includes("clearTdDrop();") && dt.includes("drag = null;") && /if \(e\.target\.closest\("\[data-tddrop\]"\)\) openPlan\(id\);/.test(dt), dt);
+  assert.ok(body("dragend").includes("clearTdDrop();"));
+  assert.match(src, /const clearTdDrop = \(\) => view\.querySelector\("\[data-tddrop\]\.drop"\)\?\.classList\.remove\("drop"\);/);
+  assert.equal(src.split(" openPlan(id);").length, 3, "openPlan を使うのは、ボタンとドロップの 2 か所");
+});
+
+test("ToDo タブ: 既存のドラッグ（data-dragtask・data-dragsess・data-dragmtg・data-mvh・data-ckmv）の判定は data-tdrag に当たらない", () => {
+  const i = src.indexOf('view.addEventListener("dragstart"'), ds = src.slice(i, src.indexOf("\n});", i));
+  const sels = [...ds.matchAll(/closest\("([^"]+)"\)/g)].map((m) => m[1]).filter((s) => s !== "[data-tdrag]");
+  assert.ok(sels.length >= 5 && sels.every((s) => !s.includes("tdrag")), sels.join(" "));
 });
 
 test("ToDo タブ: 今日に入れる（data-tdplansave）は、先に S.tdPlan へ写してから addSession を apply する。成功のときだけ S.tdPlan を外して通知する", () => {

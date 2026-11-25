@@ -628,7 +628,7 @@ view.addEventListener("click", (e) => {
   }
   if (q("[data-tdcancel]")) { S.tdOpen = null; S.tdCol = null; S.tdDraft = null; render(); return; }
   const tdp = q("[data-tdplan]"); // 今日へ（右の列の行）。開閉。完了の入力欄は閉じる
-  if (tdp) { const id = tdp.dataset.tdplan; S.tdPlan = S.tdPlan?.key === id ? null : { key: id, ...planDefault(clock()) }; S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.focusSel = S.tdPlan ? '[data-tp="start"]' : null; render(); return; }
+  if (tdp) { const id = tdp.dataset.tdplan; if (S.tdPlan?.key === id) { S.tdPlan = null; S.focusSel = null; render(); } else openPlan(id); return; }
   const tps = q("[data-tdplansave]"); // 今日に入れる（今日の予定の枠を足す）。欄の値は、押したときに読む。失敗しても打った値が消えないよう、先に S.tdPlan へ写す
   if (tps) {
     const id = tps.dataset.tdplansave;
@@ -728,6 +728,12 @@ view.addEventListener("click", (e) => {
 /** ToDo 画面の週を動かす（完了の入力欄は閉じる） */
 function moveTodoWeek(week) {
   S.todoWeek = week; S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.tdPlan = null;
+  render();
+}
+
+/** 「今日へ」の入力欄を、そのタスクの行の下に開く（「今日へ」のボタンと、左の列へのドロップで共通）。完了の入力欄は閉じる */
+function openPlan(id) {
+  S.tdPlan = { key: id, ...planDefault(clock()) }; S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.focusSel = '[data-tp="start"]';
   render();
 }
 
@@ -1025,6 +1031,8 @@ function showTip(text, x, y) {
 function hideTip() { document.getElementById("dragtip")?.remove(); }
 
 view.addEventListener("dragstart", (e) => {
+  const tr = e.target.closest("[data-tdrag]"); // ToDo タブの候補の行 → 左の列へ落として「今日へ」。スケジュール画面のドラッグの判定には進まない
+  if (tr) { drag = { kind: "today", id: tr.dataset.tdrag }; e.dataTransfer.setData("text/plain", drag.id); e.dataTransfer.effectAllowed = "copy"; return; }
   const ckm = e.target.closest("[data-ckmv]");
   if (ckm) { // チェックリストの項目の並べ替え（同じタスクの中だけ）
     drag = { kind: "ckorder", id: ckm.dataset.ckmv };
@@ -1062,7 +1070,14 @@ function planCkOrder(e) {
   return plan && { tid, iid, ...plan, row };
 }
 const clearOrderLine = () => view.querySelectorAll(".drop-before,.drop-after").forEach((r) => r.classList.remove("drop-before", "drop-after"));
+const clearTdDrop = () => view.querySelector("[data-tddrop].drop")?.classList.remove("drop");
 view.addEventListener("dragover", (e) => {
+  if (drag?.kind === "today") { // 左の列（今日の ToDo の列）の上だけ落とせる。上にいる間だけ強調する
+    const z = e.target.closest("[data-tddrop]");
+    view.querySelector("[data-tddrop]")?.classList.toggle("drop", !!z);
+    if (z) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }
+    return;
+  }
   if (drag?.kind === "ckorder") {
     const p = planCkOrder(e);
     clearOrderLine();
@@ -1091,6 +1106,14 @@ view.addEventListener("dragover", (e) => {
   if (p.error) hideTip(); else showTip(`${hm(p.st)}–${hm(p.end)}`, e.clientX, e.clientY);
 });
 view.addEventListener("drop", (e) => {
+  if (drag?.kind === "today") {
+    e.preventDefault();
+    const id = drag.id;
+    clearTdDrop();
+    drag = null;
+    if (e.target.closest("[data-tddrop]")) openPlan(id);
+    return;
+  }
   if (drag?.kind === "ckorder") {
     e.preventDefault();
     const p = planCkOrder(e);
@@ -1117,7 +1140,7 @@ view.addEventListener("drop", (e) => {
   if (p.error) { toast(p.error); return; }
   apply((d) => p.next(d), `${p.msg}${p.warning ? `(${p.warning})` : ""}`);
 });
-view.addEventListener("dragend", () => { clearOrderLine(); drag = null; ghost?.remove(); ghost = null; hideTip(); });
+view.addEventListener("dragend", () => { clearOrderLine(); clearTdDrop(); drag = null; ghost?.remove(); ghost = null; hideTip(); });
 
 /* ---------- 枠・手入力の会議の下端ドラッグ(終了時刻を変える) ---------- */
 view.addEventListener("mousedown", (e) => {
