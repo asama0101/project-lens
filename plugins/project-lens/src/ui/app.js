@@ -1298,7 +1298,7 @@ view.addEventListener("mousedown", (e) => {
 document.addEventListener("keydown", (e) => {
   const typing = e.target.matches?.("input,select,textarea") || !!e.target.closest?.("[data-tedit], .mtgform, .actform"); // 編集欄・入力欄のボタンでも、枠を消さない
   if ((e.key === "Delete" || e.key === "Backspace") && S.screen === "schedule" && (S.selSess || S.selMtg) && !typing) { e.preventDefault(); deleteSelected(); }
-  if (e.key === "Escape" && S.fileInfo) closeFileInfo();
+  if (e.key === "Escape" && S.fileInfo) { closeFileInfo(); return; } // 札の詳細だけを閉じる（開いている入力欄の下書きは、次の Escape まで残す）
   if (e.key === "Escape" && S.tpop) { S.tpop = null; render(); return; }
   if (e.key === "Escape" && (S.screen === "schedule" || S.screen === "todo") && (S.selSess || S.selMtg || S.mtgDraft || S.urgentDraft || S.actAdd || S.taskEdit)) { clearSel(); render(); }
 });

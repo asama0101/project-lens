@@ -1045,7 +1045,7 @@ test("app.js: data-fileinfo のクリックで S.fileInfo を開閉する（同�
 
 test("app.js: Escape・画面の移動・data-open（ファイルを選ぶ）で S.fileInfo を閉じる", () => {
   const esc = src.slice(src.indexOf("/* ---------- キーボード"));
-  assert.match(esc.slice(0, 800), /Escape" && S\.fileInfo/);
+  assert.match(esc.slice(0, 800), /Escape" && S\.fileInfo\) \{ closeFileInfo\(\); return; \}/, "札の詳細を閉じたら return する（下書きを消す clearSel へ続けない）");
   const nav = src.slice(src.indexOf('document.querySelector("nav").addEventListener'), src.indexOf("function openUrgent"));
   assert.match(nav, /closeFileInfo\(\)/);
   const bar = src.slice(src.indexOf('$("filebar").addEventListener'), src.indexOf('$("banner").addEventListener'));
