@@ -821,3 +821,8 @@ test("markChased: Waiting 以外・待ち先が空・days が範囲外はエラ�
   assert.throws(() => markChased(empty, "AA-0004", 3, TODAY), /待ち先/);
   for (const days of [0, 31, 1.5]) assert.throws(() => markChased(d, "AA-0004", days, TODAY), /1〜30/);
 });
+test("markChased: Waiting で waitingOn が無いときはエラー", () => {
+  const d = load();
+  const w = { ...d, tasks: d.tasks.map((t) => (t.id === "AA-0004" ? { ...t, status: "Waiting", waitingOn: null } : t)) };
+  assert.throws(() => markChased(w, "AA-0004", 3, TODAY), /待ち先/);
+});

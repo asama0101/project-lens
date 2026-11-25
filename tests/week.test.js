@@ -241,3 +241,22 @@ test("chaseTasks: waitingLongDays で境界が変わる", () => {
   assert.deepEqual(chase(t), []);
   assert.deepEqual(ids(chase(t, { waitingLongDays: 3 })), ["A"]);
 });
+test("chaseTasks: 超過日数が同じなら、待ち始めに関わらず ID の順", () => {
+  const rows = chase([wt("B", { party: "X", since: "2026-11-20", expected: "2026-11-23" }), wt("A", { party: "X", since: "2026-11-01", expected: "2026-11-23" })]);
+  assert.deepEqual(ids(rows), ["A", "B"]);
+  const rev = chase([wt("A", { party: "X", since: "2026-11-24", expected: "2026-11-23" }), wt("B", { party: "X", since: "2026-11-01", expected: "2026-11-23" })]);
+  assert.deepEqual(ids(rev), ["A", "B"]);
+});
+test("chaseTasks: 不正な since・expected は無いものとして扱い、例外にしない", () => {
+  const rows = chase([
+    wt("A", { party: "X", since: "2026-11-01", expected: "abc" }),
+    wt("B", { party: "X", since: "xx", expected: "2026-11-20" }),
+    wt("C", { party: "X", since: "xx" }),
+  ]);
+  assert.deepEqual(ids(rows), ["B", "A"]);
+  assert.equal(rows[0].waitedDays, null);
+  assert.equal(rows[1].expected, null);
+});
+test("chaseTasks: waitingOn が null・無しの Waiting は入れず、例外にしない", () => {
+  assert.deepEqual(chase([wt("A", null), task("B", { status: "Waiting" })]), []);
+});

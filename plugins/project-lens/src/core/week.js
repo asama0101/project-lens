@@ -12,7 +12,7 @@
 import { isClosed } from "./schema.js";
 import { checklistCount } from "./checklist.js";
 import { actualSpans } from "./sessions.js";
-import { addDays, diffDays, toMin, weekday } from "./dates.js";
+import { addDays, diffDays, isDate, toMin, weekday } from "./dates.js";
 
 const ORDER = ["overdue", "scheduled", "due", "done"];
 
@@ -114,7 +114,7 @@ export function weekSummary(data, weekStart, today) {
 /**
  * 催促の対象（task・party・since・expected・lapsedDays・waitedDays）。Waiting で、回答予定日が today より前、
  * または回答予定日が無く待ち始めから settings.waitingLongDays（既定 7）日以上のもの。待ち始めが無く予定日も無いものは入れない。
- * 並び: 予定日を過ぎた日数の多い順 → 予定日なしの待った日数の多い順 → ID
+ * 並び: 予定日を過ぎた日数の多い順 → 予定日なしの待った日数の多い順（予定日ありの同点は ID）。不正な日付は無いものとして扱う
  */
 export function chaseTasks(data, today) {
   const long = data.settings?.waitingLongDays ?? 7;
@@ -122,11 +122,13 @@ export function chaseTasks(data, today) {
   for (const task of data.tasks) {
     const w = task.waitingOn;
     if (task.status !== "Waiting" || !w) continue;
-    const lapsedDays = w.expected && w.expected < today ? diffDays(today, w.expected) : null;
-    const waitedDays = w.since ? diffDays(today, w.since) : null;
-    const due = lapsedDays != null || (!w.expected && waitedDays != null && waitedDays >= long);
+    const expected = isDate(w.expected) ? w.expected : null; // 不正な日付は、無いものとして扱う
+    const since = isDate(w.since) ? w.since : null;
+    const lapsedDays = expected && expected < today ? diffDays(today, expected) : null;
+    const waitedDays = since ? diffDays(today, since) : null;
+    const due = lapsedDays != null || (!expected && waitedDays != null && waitedDays >= long);
     if (!due) continue;
-    rows.push({ task, party: w.party ?? "", since: w.since ?? null, expected: w.expected ?? null, lapsedDays, waitedDays });
+    rows.push({ task, party: w.party ?? "", since, expected, lapsedDays, waitedDays });
   }
-  return rows.sort((a, b) => (b.lapsedDays ?? -1) - (a.lapsedDays ?? -1) || (b.waitedDays ?? 0) - (a.waitedDays ?? 0) || a.task.id.localeCompare(b.task.id));
+  return rows.sort((a, b) => (b.lapsedDays ?? -1) - (a.lapsedDays ?? -1) || (a.lapsedDays == null ? b.waitedDays - a.waitedDays : 0) || a.task.id.localeCompare(b.task.id));
 }
