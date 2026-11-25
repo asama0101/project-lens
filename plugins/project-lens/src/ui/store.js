@@ -173,7 +173,10 @@ export function createStore(deps = {}) {
     return { ...second, data };
   }
 
-  return { restore, reopen, choose, lastFile, changed, reload, read, save, saveMerged, get hasFile() { return !!handle; }, get rememberFailed() { return rememberFailed; } };
+  /** 今のファイルの名前と、読み込み（または直近の保存）時点の更新日時。画面の表示用で、何も変えない */
+  const info = () => ({ name: handle?.name ?? null, at: loadedAt });
+
+  return { restore, reopen, choose, lastFile, changed, reload, read, save, saveMerged, info, get hasFile() { return !!handle; }, get rememberFailed() { return rememberFailed; } };
 }
 
 const PAIR = ["shared", "personal"];
@@ -280,6 +283,7 @@ export function createPairStore(deps = {}) {
 
   return {
     restore, reopen, choose, missing, lastFile, changed, reload, save,
+    info: () => ({ shared: stores.shared.info(), personal: stores.personal.info() }),
     saveMerged: (edit, data) => write(data, edit),
     get hasFile() { return hasFile(); },
     get rememberFailed() { return stores.shared.rememberFailed || stores.personal.rememberFailed; },

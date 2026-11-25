@@ -534,6 +534,14 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .dtt{background:var(--accent);color:var(--on-accent);border-radius:999px;padding:2px 10px}
 .blk.now{z-index:3}
 .blk .nw{color:var(--bad);font-weight:700;margin-right:2px}
+/* ヘッダーの、読み込み中のファイルの札と詳細（views/filechips.js） */
+.filechip{position:relative;display:inline-block}
+.filechip .dot{width:8px;height:8px;background:var(--ok)}
+.filechip .dot.warn{background:var(--warn)}
+.fileinfo{position:absolute;right:0;top:calc(100% + 6px);z-index:30;min-width:260px;max-width:min(360px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;box-shadow:0 4px 14px rgba(0,0,0,.15)}
+.fileinfo dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0 0 10px}
+.fileinfo dt{color:var(--muted)}
+.fileinfo dd{margin:0;overflow-wrap:anywhere}
 /* ページの先頭でも、固定の行が、固定したときと同じ位置にあるようにする（スクロールの始めに、固定の行が数 px 動かない）。ヘッダーの上の余白（body の 8px。ヘッダーの負の margin で上端 0）は、依頼の帯の節の body の規則で、どの画面にも当てる。下は、ガント・リスト（.ptool がある画面）とスケジュール（.stop がある画面）の、ヘッダーとフィルタ行・カードの間と、カードの上の余白 */
 .wrap:has(.ptool),.wrap:has(.stop){gap:0}
 #banner:not(:empty){margin-block:8px}
@@ -2401,7 +2409,10 @@ function createStore(deps = {}) {
     return { ...second, data };
   }
 
-  return { restore, reopen, choose, lastFile, changed, reload, read, save, saveMerged, get hasFile() { return !!handle; }, get rememberFailed() { return rememberFailed; } };
+  /** 今のファイルの名前と、読み込み（または直近の保存）時点の更新日時。画面の表示用で、何も変えない */
+  const info = () => ({ name: handle?.name ?? null, at: loadedAt });
+
+  return { restore, reopen, choose, lastFile, changed, reload, read, save, saveMerged, info, get hasFile() { return !!handle; }, get rememberFailed() { return rememberFailed; } };
 }
 
 const PAIR = ["shared", "personal"];
@@ -2508,6 +2519,7 @@ function createPairStore(deps = {}) {
 
   return {
     restore, reopen, choose, missing, lastFile, changed, reload, save,
+    info: () => ({ shared: stores.shared.info(), personal: stores.personal.info() }),
     saveMerged: (edit, data) => write(data, edit),
     get hasFile() { return hasFile(); },
     get rememberFailed() { return stores.shared.rememberFailed || stores.personal.rememberFailed; },
@@ -4221,6 +4233,53 @@ function inboxBarHtml(data, ui) {
 }
 
 return { ibExamples, renderInboxBar };
+})();
+
+/* src/ui/views/filechips.js */
+const { renderFileChips } = (() => {
+// ヘッダーの、読み込み中のファイルの札（共有・個人）と、押したときに開く詳細。純関数。
+// info は { shared: { name, at, writable }, personal: {...} }、open は詳細を開いている札（"shared" | "personal" | null）。
+
+
+const KINDS = {
+  shared: { label: "共有", choose: "別の共有ファイルを選ぶ" },
+  personal: { label: "個人", choose: "別の個人ファイルを選ぶ" },
+};
+
+const p2 = (n) => String(n).padStart(2, "0");
+/** ファイルの更新日時（epoch ms）をローカル時刻の「YYYY/MM/DD HH:MM」で。分からなければ「—」 */
+const fmtAt = (at) => {
+  if (!Number.isFinite(at)) return "—";
+  const d = new Date(at);
+  return `${d.getFullYear()}/${p2(d.getMonth() + 1)}/${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+};
+
+/** 詳細の中身（dt・dd の組）。ファイルの中身の手がかりは、種類ごとに違う */
+function rows(which, data, f) {
+  const row = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
+  const head = row("ファイル名", esc(f.name ?? "選んだファイル"));
+  const tail = row("更新日時", fmtAt(f.at)) + row("保存", f.writable ? "書き込めます" : "読み込み専用");
+  if (which === "shared") {
+    const names = (data.projects ?? []).map((p) => p.name);
+    const more = names.length > 3 ? `、ほか ${names.length - 3} 件` : "";
+    const tasks = data.tasks ?? [];
+    const done = tasks.filter((t) => t.status === "Done").length;
+    return head + row("プロジェクト", (names.slice(0, 3).map(esc).join("、") || "なし") + more) + row("タスク", `${tasks.length} 件（うち Done ${done} 件）`) + tail;
+  }
+  const sessions = (data.tasks ?? []).reduce((n, t) => n + (t.sessions?.length ?? 0), 0) + (data.orphanSessions?.length ?? 0);
+  return head + row("作業枠・実績", `${sessions} 件`) + row("会議", `${(data.events ?? []).length} 件`) + tail;
+}
+
+function renderFileChips(data, info, open) {
+  return ["shared", "personal"].map((which) => {
+    const f = info[which], k = KINDS[which], on = open === which;
+    const chip = `<button class="chip-btn" data-fileinfo="${which}" aria-expanded="${on}" title="読み込み中のファイルの詳細を開きます"><i class="dot ${f.writable ? "ok" : "warn"}" aria-hidden="true"></i> ${k.label} ${esc(f.name ?? "選んだファイル")}</button>`;
+    const detail = on ? `<div class="fileinfo" role="group" aria-label="${k.label}ファイルの詳細"><dl>${rows(which, data, f)}</dl><button class="btn" data-open="${which}">${k.choose}</button></div>` : "";
+    return `<span class="filechip">${chip}${detail}</span>`;
+  }).join("");
+}
+
+return { renderFileChips };
 })();
 
 /* src/ui/views/checklist.js */
