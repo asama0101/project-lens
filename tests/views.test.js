@@ -2374,7 +2374,7 @@ test("sessionSelection: タスクの枠は選択と編集欄（full を引き継
 /* ---------- ToDo タブ（今週のタスク） ---------- */
 const TD_WEEK = "2026-10-19";
 const TD_NOW = { date: TODAY, time: "10:20" };
-const tdTask = (id, o = {}) => ({ id, title: id, projectId: "PX", status: "To Do", due: null, predecessors: [], sessions: [], ...o });
+const tdTask = (id, o = {}) => ({ id, title: id, projectId: "PX", status: "To Do", due: "2026-12-31", predecessors: [], sessions: [], ...o });
 // AA-0001 期限超過（チェック 1/2）・AA-0002 今週に予定あり（未来の予定の枠 2 件・実績 30 分）・AA-0003 今週の期限（前のタスク待ち）・AA-0004 完了・AA-0005 Cancelled
 const tdData = (reviews) => ({
   projects: [{ id: "PX", name: "案件X" }], events: [], settings: {}, ...(reviews && { reviews }),
@@ -2398,10 +2398,17 @@ const tdTodayCol = (html) => html.slice(html.indexOf('class="panel tdtoday'), ht
 const tdRow = (html, id) => rowIn(tdList(html), id);
 const tdTodayRow = (html, id) => rowIn(tdTodayCol(html), id);
 
-test("renderTodo: 一覧に、組の見出し（期限超過・今週に予定あり・今週の期限・完了）の順で、件名・プロジェクト名・状態・期限・進捗・予定と実績の分が出る。Cancelled と ID は出ない", () => {
+test("renderTodo: 未完了の候補は見出しなしの 1 つの一覧で rankTasks の順、完了は見出し「完了」の下で末尾。件名・プロジェクト名・状態・期限・進捗・予定と実績の分が出る。Cancelled と ID は出ない", () => {
   const html = tdHtml(tdData()), list = tdList(html);
-  const heads = ["期限超過", "今週に予定あり", "今週の期限", "完了"].map((h) => list.indexOf(`<h3>${h}</h3>`));
-  assert.ok(heads.every((i) => i >= 0) && heads.every((x, i) => i === 0 || heads[i - 1] < x), heads.join(","));
+  for (const h of ["期限超過", "今週の期限"]) assert.ok(!list.includes(`<h3>${h}</h3>`), h);
+  assert.ok(!list.includes("<h3>今週に予定あり</h3>"));
+  assert.equal(list.match(/<h3>/g)?.length, 1);
+  assert.ok(list.includes("<h3>完了</h3>"));
+  const pos = (id) => list.indexOf(`data-tdrow="${id}"`);
+  const order = rankTasks(tdData(), TODAY).map((r) => r.taskId).filter((id) => pos(id) >= 0);
+  assert.deepEqual(order, ["AA-0001", "AA-0003", "AA-0002"]);
+  assert.ok(order.every((id, i) => i === 0 || pos(order[i - 1]) < pos(id)), "rankTasks の順");
+  assert.ok(pos("AA-0004") > list.indexOf("<h3>完了</h3>") && list.indexOf("<h3>完了</h3>") > pos("AA-0002"), "完了は末尾");
   const r1 = tdRow(html, "AA-0001"), r2 = tdRow(html, "AA-0002");
   for (const s of ["超過のタスク", "案件X", "To Do", "10/15", "1/2"]) assert.ok(r1.includes(s), s);
   for (const s of ["予定のタスク", "In Progress", "11/10", "予定 <b class=\"mono\">120</b> 分", "実績 <b class=\"mono\">30</b> 分"]) assert.ok(r2.includes(s), `${s}: ${r2}`);
@@ -2409,6 +2416,28 @@ test("renderTodo: 一覧に、組の見出し（期限超過・今週に予定�
   assert.ok(!html.includes("中止のタスク"), "Cancelled は出ない");
   assert.ok(!TASK_ID.test(visibleText(html)), visibleText(html).match(TASK_ID)?.[0]);
   assert.ok(!TASK_ID.test(visibleText(tdHtml(tdData(), { open: "AA-0001" }))), "入力欄にも ID は出ない");
+});
+
+test("renderTodo: 各候補の行に理由（td-why）が「・」でつないで出る。予定ありの組の行は先頭に「今週に予定あり」。完了の行と左の列には出ない", () => {
+  const html = tdHtml(tdData());
+  const why = (id) => tdRow(html, id).match(/<div class="td-why">([^]*?)<\/div>/)?.[1];
+  assert.ok(why("AA-0001").startsWith("期限超過 5日"), why("AA-0001"));
+  assert.ok(why("AA-0003").startsWith("前のタスク待ち・"), why("AA-0003"));
+  assert.ok(why("AA-0002").startsWith("今週に予定あり・"), why("AA-0002"));
+  assert.ok(tdRow(html, "AA-0002").indexOf("td-why") < tdRow(html, "AA-0002").indexOf("td-meta"), "td-meta の上");
+  assert.ok(!tdRow(html, "AA-0004").includes("td-why"));
+  assert.ok(!tdTodayCol(html).includes("td-why"));
+  assert.ok(!TASK_ID.test(visibleText(html)));
+});
+
+test("renderTodo: 別の週を見ても、候補の並びは今日の点数の順", () => {
+  const d = tdData();
+  d.tasks.push(tdTask("AA-0006", { title: "来週のタスク", due: "2026-10-27" }));
+  const html = tdHtml(d, { week: "2026-10-26" }), list = tdList(html);
+  assert.ok(list.includes('data-tdrow="AA-0006"') && !list.includes("<h3>期限超過</h3>"));
+  const ids = [...list.matchAll(/data-tdrow="(AA-d+)"/g)].map((m) => m[1]);
+  const rank = rankTasks(d, TODAY).map((r) => r.taskId);
+  assert.deepEqual(ids, rank.filter((id) => ids.includes(id)));
 });
 
 test("renderTodo: 前のタスク待ちの行に「前のタスク待ち」。完了していない行に「完了」ボタン（data-tdopen）、完了した行には出ない", () => {

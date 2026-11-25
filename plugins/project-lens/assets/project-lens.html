@@ -486,6 +486,7 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .td-main .pj{font-size:11px;font-weight:700;color:var(--accent);overflow-wrap:anywhere}
 .td-main .td-title{flex:1 1 12em;min-width:0;overflow-wrap:anywhere}
 .td-main .btn{font-size:12px;padding:3px 9px}
+.td-why{font-size:12px;color:var(--muted)}
 .td-meta{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
 .tdlist .actform{margin:0}
 .tf-cks{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;flex-basis:100%}
@@ -4902,7 +4903,7 @@ return { snapStart, selectionKey, sessionSelection, revealSelection, weekStartOf
 
 /* src/ui/views/todo.js */
 const { planDefault, completeInput, renderTodo } = (() => {
-// 「ToDo」画面: 左に今日の ToDo（todayTasks。今日の枠の時刻と札）、右に表示中の週のタスク候補（weekTasks。組ごと）、行の完了の入力欄、右の行の「今日へ」の入力欄。週の見返しは稼働画面（views/workload.js）。操作の結線は app.js（data-td*・data-tf*・data-tp*）。
+// 「ToDo」画面: 左に今日の ToDo（todayTasks。今日の枠の時刻と札）、右に表示中の週のタスク候補（weekTasks のうち未完了を、今日の優先 rankTasks の順に 1 つの一覧で、理由つき。完了は見出し「完了」の下で末尾）、行の完了の入力欄、右の行の「今日へ」の入力欄。週の見返しは稼働画面（views/workload.js）。操作の結線は app.js（data-td*・data-tf*・data-tp*）。
 
 
 
@@ -4911,7 +4912,7 @@ const { planDefault, completeInput, renderTodo } = (() => {
 
 
 
-const GROUP_JA = { overdue: "期限超過", scheduled: "今週に予定あり", due: "今週の期限", done: "完了" };
+
 /** 完了の入力欄で選べる状態（completeTask と同じ。Waiting は選べない） */
 const FORM_STATUSES = ["To Do", "In Progress", "Done", "Cancelled"];
 
@@ -4958,7 +4959,7 @@ function completeForm(data, t, day, now, draft) {
 }
 
 /** 一覧の 1 行（左右の列で共通）。r.slots があれば（今日の ToDo）、今日の枠の時刻と札を足す。完了の入力欄は、開いた列（ctx.col）の行にだけ出す。「今日へ」とその入力欄、ドラッグ（data-tdrag）は、右の列（week）の未完了の行にだけ出す */
-function row(data, r, ctx) {
+function row(data, r, ctx, why = []) {
   const t = r.task, id = esc(t.id);
   const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? "プロジェクトなし");
   const done = t.status === "Done";
@@ -4968,6 +4969,7 @@ function row(data, r, ctx) {
   return `<li class="td-row${done ? " closed" : ""}"${drag} data-tdrow="${id}">
     <div class="td-main"><span class="pj">${proj}</span><span class="td-title">${esc(t.title)}</span>${statusPill(t)}${r.waiting ? `<span class="pill wait">前のタスク待ち</span>` : ""}${done ? "" : `<button class="btn" data-tdopen="${id}" data-tdcol="${ctx.col}" aria-expanded="${open}">完了</button>`}${canPlan ? `<button class="btn" data-tdplan="${id}" aria-expanded="${planOpen}">今日へ</button>` : ""}</div>
     ${r.slots ? `<div class="td-slots mono">${r.slots.map((s) => slotHtml(s, ctx.now, ctx.actuals)).join("")}</div>` : ""}
+    ${why.length ? `<div class="td-why">${why.map(esc).join("・")}</div>` : ""}
     <div class="td-meta">${t.due ? `<span>期限 <b class="mono">${fmtMD(t.due)}</b></span>` : ""}${r.checked ? `<span>チェック <b class="mono">${progress(r)}</b></span>` : ""}<span>予定 <b class="mono">${r.planned}</b> 分</span><span>実績 <b class="mono">${r.actual}</b> 分</span></div>
     ${open ? completeForm(data, t, ctx.day, ctx.now, ctx.draft) : planOpen ? planForm(t, ctx.plan) : ""}
   </li>`;
@@ -4991,9 +4993,13 @@ function renderTodo(data, today, opts) {
   const ctx = { ...base, col: "week", day: today >= week && today <= weekEnd ? today : week };
   const todayCtx = { ...base, col: "today", day: today };
   const rows = weekTasks(data, week, today);
-  const groups = Object.keys(GROUP_JA).map((g) => [g, rows.filter((r) => r.group === g)]).filter(([, rs]) => rs.length);
-  const list = groups.length
-    ? groups.map(([g, rs]) => `<h3>${GROUP_JA[g]}</h3><ul class="tdlist">${rs.map((r) => row(data, r, ctx)).join("")}</ul>`).join("")
+  const ranked = rankTasks(data, today);
+  const rank = new Map(ranked.map((k, i) => [k.taskId, i]));
+  const todo = rows.filter((r) => r.group !== "done").sort((a, b) => (rank.get(a.task.id) ?? Infinity) - (rank.get(b.task.id) ?? Infinity)); // 順位に無い行は、元の順のまま末尾
+  const closed = rows.filter((r) => r.group === "done");
+  const whyOf = (r) => [...(r.group === "scheduled" ? ["今週に予定あり"] : []), ...(ranked[rank.get(r.task.id)]?.reasons ?? [])];
+  const list = rows.length
+    ? (todo.length ? `<ul class="tdlist">${todo.map((r) => row(data, r, ctx, whyOf(r))).join("")}</ul>` : "") + (closed.length ? `<h3>完了</h3><ul class="tdlist">${closed.map((r) => row(data, r, ctx)).join("")}</ul>` : "")
     : `<p class="muted">この週のタスクはありません。</p>`;
   const trows = todayTasks(data, today);
   const tlist = trows.length

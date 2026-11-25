@@ -479,6 +479,7 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .td-main .pj{font-size:11px;font-weight:700;color:var(--accent);overflow-wrap:anywhere}
 .td-main .td-title{flex:1 1 12em;min-width:0;overflow-wrap:anywhere}
 .td-main .btn{font-size:12px;padding:3px 9px}
+.td-why{font-size:12px;color:var(--muted)}
 .td-meta{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
 .tdlist .actform{margin:0}
 .tf-cks{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;flex-basis:100%}
