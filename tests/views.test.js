@@ -9,7 +9,7 @@ import * as prioModule from "../plugins/project-lens/src/ui/views/prio.js";
 import { renderSettings } from "../plugins/project-lens/src/ui/views/settings.js";
 import { checkMeterHtml, dateInputHtml } from "../plugins/project-lens/src/ui/common.js";
 import { checklistEditorHtml } from "../plugins/project-lens/src/ui/views/checklist.js";
-import { renderTaskPop, renderTaskEditPanel } from "../plugins/project-lens/src/ui/views/taskpop.js";
+import { renderTaskPop, renderTaskEditPanel, predEditHtml } from "../plugins/project-lens/src/ui/views/taskpop.js";
 import { renderInboxBar, ibExamples } from "../plugins/project-lens/src/ui/views/inboxpanel.js";
 import { ruleMeetingCounts } from "../plugins/project-lens/src/core/rules.js";
 import { renderSchedule, renderCalendar, selectionKey, sessionSelection, revealSelection, snapStart, calendarGeometry, urgentDefaultStart, urgentInput } from "../plugins/project-lens/src/ui/views/schedule.js";
@@ -3088,4 +3088,21 @@ test("renderTodo: chase（edit）を渡すと、待ち先の入力欄と回答�
   for (const s of ['data-chasesave="AA-0010"', "data-chasecancel"]) assert.ok(a.includes(s), s);
   assert.ok(!a.includes('data-ch="days"'));
   assert.ok(!TASK_ID.test(visibleText(html)));
+});
+
+test("predEditHtml: 前のタスクは、選ぶ欄が上、選んだ札が下（札が無いときは、札の入れ物を出さない）", () => {
+  const data = { projects: [{ id: "AA", name: "案件" }], tasks: [
+    { id: "AA-0001", title: "一", projectId: "AA", status: "To Do", due: "2026-12-01", predecessors: [] },
+    { id: "AA-0002", title: "二", projectId: "AA", status: "To Do", due: "2026-12-02", predecessors: ["AA-0001"] },
+    { id: "AA-0003", title: "三", projectId: "AA", status: "To Do", due: "2026-12-03", predecessors: [] },
+  ] };
+  const t = data.tasks[1];
+  const h = predEditHtml(data, t);
+  const iSel = h.indexOf("data-addpre="), iChip = h.indexOf("data-rmpre=");
+  assert.ok(iSel > 0 && iChip > 0, "選ぶ欄と札がある");
+  assert.ok(iSel < iChip, "選ぶ欄が上、選んだ札が下");
+  assert.ok(h.startsWith('<div class="chips pred">'), "縦に並べる入れ物");
+  assert.ok(h.includes('<div class="chips"><span class="chip">AA-0001'), "札は、その下の入れ物の中");
+  const none = predEditHtml(data, data.tasks[2]);
+  assert.ok(!none.includes('<div class="chips">'), "札が無ければ、札の入れ物は出さない");
 });

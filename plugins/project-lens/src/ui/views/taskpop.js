@@ -6,13 +6,13 @@ import { taskStart } from "../../core/metrics.js";
 import { predecessorCandidates } from "../edit.js";
 import { checklistEditorHtml } from "./checklist.js";
 
-/** 前のタスクの外し方（×）と足し方（選択）。リストの編集欄と共用。ids が false なら ID を出さず件名で出す（スケジュールの編集欄） */
+/** 前のタスクの足し方（選択。上）と外し方（選んだ札の ×。下）。リストの編集欄と共用。ids が false なら ID を出さず件名で出す（スケジュールの編集欄） */
 export function predEditHtml(data, t, { ids = true } = {}) {
   const label = (id) => (ids ? id : data.tasks.find((u) => u.id === id)?.title ?? id);
   const chips = (t.predecessors ?? []).map((id) => `<span class="chip">${esc(label(id))}<button data-rmpre="${esc(t.id)}|${esc(id)}" aria-label="${esc(id)} を前のタスクから外す">×</button></span>`).join("");
   const cand = predecessorCandidates(data, t.id).map((id) => data.tasks.find((u) => u.id === id));
   const add = cand.length ? `<select class="in sm" data-addpre="${esc(t.id)}" aria-label="前のタスクを追加"><option value="">＋前のタスク</option>${cand.map((u) => `<option value="${esc(u.id)}">${ids ? `${esc(u.id)} ` : ""}${esc(u.title)}</option>`).join("")}</select>` : "";
-  return `<div class="chips">${chips}${add}</div>`;
+  return `<div class="chips pred">${add}${chips ? `<div class="chips">${chips}</div>` : ""}</div>`; // 選ぶ欄が上、選んだ前のタスクの札は、その下
 }
 
 /** 開始日の入力。指定がなく前のタスクがあるときは、前のタスクの期限から決まる日を入れて「前のタスクから」と添える（空にすると指定を外す） */
