@@ -1472,7 +1472,7 @@ return { LAST_END, ownerOf, allSessions, actualSpans, actualSlots, sessionKind, 
 })();
 
 /* src/core/week.js */
-const { mondayOf, setReview, weekTasks, todayTasks, weekSummary } = (() => {
+const { mondayOf, setReview, weekTasks, todayTasks, weekSummary, chaseTasks } = (() => {
 // 週のタスクの一覧と見返しの計算。保存せず、タスクと枠から、その場で求める純関数。
 // 週は weekStart（月曜）〜 weekStart + 6 日（日曜）。日付は文字列のまま比べる。
 // - Cancelled は、どの週にも出さない。1 つのタスクは 1 行だけで、組の優先は overdue > scheduled > due > done。
@@ -1586,7 +1586,27 @@ function weekSummary(data, weekStart, today) {
   };
 }
 
-return { mondayOf, setReview, weekTasks, todayTasks, weekSummary };
+/**
+ * 催促の対象（task・party・since・expected・lapsedDays・waitedDays）。Waiting で、回答予定日が today より前、
+ * または回答予定日が無く待ち始めから settings.waitingLongDays（既定 7）日以上のもの。待ち始めが無く予定日も無いものは入れない。
+ * 並び: 予定日を過ぎた日数の多い順 → 予定日なしの待った日数の多い順 → ID
+ */
+function chaseTasks(data, today) {
+  const long = data.settings?.waitingLongDays ?? 7;
+  const rows = [];
+  for (const task of data.tasks) {
+    const w = task.waitingOn;
+    if (task.status !== "Waiting" || !w) continue;
+    const lapsedDays = w.expected && w.expected < today ? diffDays(today, w.expected) : null;
+    const waitedDays = w.since ? diffDays(today, w.since) : null;
+    const due = lapsedDays != null || (!w.expected && waitedDays != null && waitedDays >= long);
+    if (!due) continue;
+    rows.push({ task, party: w.party ?? "", since: w.since ?? null, expected: w.expected ?? null, lapsedDays, waitedDays });
+  }
+  return rows.sort((a, b) => (b.lapsedDays ?? -1) - (a.lapsedDays ?? -1) || (b.waitedDays ?? 0) - (a.waitedDays ?? 0) || a.task.id.localeCompare(b.task.id));
+}
+
+return { mondayOf, setReview, weekTasks, todayTasks, weekSummary, chaseTasks };
 })();
 
 /* src/core/impact.js */
@@ -2802,7 +2822,7 @@ return { depPath, depMarkup, drawDeps, focusDeps };
 })();
 
 /* src/ui/edit.js */
-const { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, recordActual, recordSlotActual, completeTask, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject } = (() => {
+const { predecessorCandidates, updateTask, markChased, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, recordActual, recordSlotActual, completeTask, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject } = (() => {
 // 画面からの編集（追加・削除・更新）。すべて不変更新で、不正な入力は例外にする（呼び出し側が理由を表示する）。
 
 
@@ -2905,6 +2925,17 @@ function updateTask(data, taskId, patch, today = nowLocal().date) {
     }
     if (n.start && n.start > n.due) throw new Error("開始日は期限以前にしてください");
     return n;
+  });
+}
+
+/** 催促を記録する: 待ち始めを today、回答予定日を today + days 日にする（待ち先は変えない）。days は 1〜30 の整数 */
+function markChased(data, taskId, days, today = nowLocal().date) {
+  return mapTask(data, taskId, (t) => {
+    if (t.status !== "Waiting") throw new Error("Waiting のタスクだけ、催促を記録できます");
+    const party = String(t.waitingOn?.party ?? "").trim();
+    if (!party) throw new Error("待ち先が空です。先に待ち先を入力してください");
+    if (!Number.isInteger(days) || days < 1 || days > 30) throw new Error("次の回答予定日は、1〜30 日後の整数で指定してください");
+    return { ...t, waitingOn: { party, since: today, expected: addDays(today, days) } };
   });
 }
 
@@ -3360,7 +3391,7 @@ function deleteProject(data, projectId) {
   return { ...data, settings, events, ...(inbox ? { inbox } : {}), projects: data.projects.filter((p) => p.id !== projectId), tasks: data.tasks.filter((t) => t.projectId !== projectId) };
 }
 
-return { predecessorCandidates, updateTask, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, recordActual, recordSlotActual, completeTask, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject };
+return { predecessorCandidates, updateTask, markChased, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, recordActual, recordSlotActual, completeTask, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject };
 })();
 
 /* src/ui/donecheck.js */
