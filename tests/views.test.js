@@ -3005,3 +3005,54 @@ test("renderTodo: plan のタスクが週の候補に無いとき、右の列の
   assert.ok(!tdHtml(d, { plan: { key: "AA-0007", start: "10:00", minutes: 30 } }).includes("data-tdplansave"), "完了は出さない");
   assert.ok(!tdHtml(d, { plan: { key: "ZZ-9999", start: "10:00", minutes: 30 } }).includes("今日へ入れるタスク"), "無いタスク");
 });
+
+// 催促の組（Waiting で、回答予定日を過ぎた・長く待っている）
+const chData = () => {
+  const d = tdData();
+  d.tasks.push(
+    tdTask("AA-0010", { title: "見積の返事", status: "Waiting", waitingOn: { party: "取引先A", since: "2026-10-10", expected: "2026-10-17" } }),
+    tdTask("AA-0011", { title: "仕様の確認", status: "Waiting", waitingOn: { party: "", since: "2026-10-10" } }),
+  );
+  return d;
+};
+const chRow = (html, id) => html.match(new RegExp(`<li[^>]*data-chaserow="${id}"[^]*?</li>`))?.[0] ?? "";
+const chPanel = (html) => html.match(/<section class="panel tdchase"[^]*?<\/section>/)?.[0] ?? "";
+
+test("renderTodo: 催促の対象があるとき、『今日の ToDo』の下に『催促（N 件）』が出る。0 件なら出ない。左の列は div.tdleft", () => {
+  const html = tdHtml(chData()), p = chPanel(html);
+  assert.ok(p.includes('aria-label="催促"') && p.includes("<h2>催促（2 件）</h2>"), p);
+  assert.ok(html.includes('<div class="tdleft">') && html.indexOf('class="panel tdtoday') < html.indexOf('class="panel tdchase"') && html.indexOf('class="panel tdchase"') < html.indexOf('class="panel tdweek'));
+  assert.ok(!tdHtml(tdData()).includes("tdchase"), "0 件");
+  assert.equal(html.split("data-tddrop").length, 2, "ドロップ先は 1 つ");
+  assert.ok(html.slice(html.indexOf('class="panel tdtoday'), html.indexOf('class="panel tdchase"')).includes("data-tddrop"), "今日の ToDo だけ");
+});
+
+test("renderTodo: 催促の行に、プロジェクト名・件名・待ち先と『N 日超過』／『回答待ち N 日』・2 つのボタン。待ち先が空は『待ち先: 未設定』。ID は出ない", () => {
+  const html = tdHtml(chData()), a = chRow(html, "AA-0010"), b = chRow(html, "AA-0011");
+  assert.ok(a && b, "行がある");
+  for (const s of ["案件X", "見積の返事", "待ち先: 取引先A", "回答予定 10/17", "3 日超過", 'data-chasedone="AA-0010"', "催促した", 'data-chaseedit="AA-0010"', "待ち先・予定日を直す"]) assert.ok(a.includes(s), s);
+  for (const s of ["待ち先: 未設定", "回答待ち 10 日", 'data-chasedone="AA-0011"']) assert.ok(b.includes(s), s);
+  assert.ok(!TASK_ID.test(visibleText(html)), visibleText(html).match(TASK_ID)?.[0]);
+  assert.ok(!a.includes("data-ch="), "chase が null");
+});
+
+test("renderTodo: chase（done）を渡すと、その行の下に日数の選択（1・2・3・5・7、初期 3）・記録する・キャンセルが出る。ほかの行には出ない", () => {
+  const html = tdHtml(chData(), { chase: { key: "AA-0010", mode: "done", days: 3, party: "", expected: "" } }), a = chRow(html, "AA-0010");
+  const opts = [...a.matchAll(/<option value="(\d+)"( selected)?/g)].map((m) => m[1] + (m[2] ? "*" : ""));
+  assert.deepEqual(opts, ["1", "2", "3*", "5", "7"]);
+  for (const s of ['data-ch="days"', 'data-chasesave="AA-0010"', "data-chasecancel", "記録する", "日後"]) assert.ok(a.includes(s), s);
+  assert.ok(!a.includes('data-ch="party"'));
+  assert.ok(!chRow(html, "AA-0011").includes("data-ch="), "ほかの行");
+  const h5 = chRow(tdHtml(chData(), { chase: { key: "AA-0010", mode: "done", days: 5, party: "", expected: "" } }), "AA-0010");
+  assert.ok(h5.includes('<option value="5" selected>'), "days が初期値");
+  assert.ok(!TASK_ID.test(visibleText(html)));
+});
+
+test("renderTodo: chase（edit）を渡すと、待ち先の入力欄と回答予定日の欄に今の値が入り、保存・キャンセルが出る", () => {
+  const html = tdHtml(chData(), { chase: { key: "AA-0010", mode: "edit", days: 3, party: "取引先A", expected: "2026-10-17" } }), a = chRow(html, "AA-0010");
+  assert.match(a, /data-ch="party"[^>]*value="取引先A"/);
+  assert.ok(/data-ch="expected"/.test(a) && a.includes("2026-10-17"), a);
+  for (const s of ['data-chasesave="AA-0010"', "data-chasecancel"]) assert.ok(a.includes(s), s);
+  assert.ok(!a.includes('data-ch="days"'));
+  assert.ok(!TASK_ID.test(visibleText(html)));
+});

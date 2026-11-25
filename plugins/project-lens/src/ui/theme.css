@@ -466,6 +466,7 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .tdpage .toolbar{margin-bottom:12px}
 .tdcols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start;margin-bottom:16px}
 @media(max-width:700px){.tdcols{grid-template-columns:minmax(0,1fr)}}
+.tdleft{display:flex;flex-direction:column;gap:16px;min-width:0}
 .td-slots{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px}
 .td-slots .ts{display:inline-flex;align-items:center;gap:6px}
 .tdweek h3{margin:14px 0 6px;font-size:13px;color:var(--muted)}
