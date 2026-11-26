@@ -4484,7 +4484,7 @@ function renderTaskEditPanel(data, edit, statusHtml) {
   return `<div class="mtgform tedit" role="group" aria-label="${id} を編集" data-tedit>
     <span class="tp-h"><span class="muted">${fmtMD(taskStart(data, t.id))}〜${fmtMD(t.due)}</span></span>
     ${fields}
-    <div class="tp-a"><button class="btn" data-tedit-full aria-expanded="${edit.full}">${edit.full ? "詳細を閉じる" : "詳細を開く"}</button><button class="btn" data-tedit-close>閉じる</button></div>${detail}
+    <div class="tp-a"><button class="btn" data-tedit-full aria-expanded="${edit.full}">${edit.full ? "詳細を閉じる" : "詳細を開く"}</button><button class="btn" data-goto="${id}">リストで開く</button><button class="btn" data-tedit-close>閉じる</button></div>${detail}
   </div>`;
 }
 
