@@ -773,8 +773,8 @@ test("app.js: 一括の「実績にする」（data-confirmall）は持たない
   assert.ok(!src.includes("data-confirmall"));
 });
 
-test("theme.css: スケジュールの重要の枠は、件名の赤い太字だけ（左の赤い線は付けない）", () => {
-  assert.ok(css.includes("#view .blk.imp .ttl{color:var(--bad);font-weight:700}"));
+test("theme.css: スケジュールの重要の枠は、件名の紫の太字だけ（左の線は付けない）", () => {
+  assert.ok(css.includes("#view .blk.imp .ttl{color:var(--imp);font-weight:700}"));
   assert.ok(!/\.blk\.imp\{[^}]*box-shadow/.test(css), "左の線（box-shadow）は持たない");
 });
 
@@ -1134,4 +1134,12 @@ test("ToDo タブ: S.tdChase は clearSel・週の移動・render() の検証（
   assert.ok(src.includes("if (S.tdChase && !chaseTasks(S.data, clock().date).some((r) => r.task.id === S.tdChase.key)) S.tdChase = null;"));
   assert.ok(src.includes("if (el.dataset.ch !== undefined) {") && /key === S\.tdChase\?\.key\) S\.tdChase = tdChaseDraft\(form, key, S\.tdChase\.mode\)/.test(src));
   assert.ok(src.includes('for (const k of ["tf", "tdckadd", "tp", "ch"])'));
+});
+
+test("theme.css: 「重要」は紫（--imp・--imp-soft）で、期限超過の赤（--bad）と区別する。3 つのテーマ定義すべてに変数がある。重要の印に --bad を使わない", () => {
+  assert.equal((css.match(/--imp:#[0-9A-Fa-f]{6}; --imp-soft:#[0-9A-Fa-f]{6};/g) ?? []).length, 3, "ライト・ダーク（自動）・ダーク（指定）");
+  for (const sel of [".g-label.imp-high::before", ".g-label.imp-high{", ".g-row:has(>.g-label.imp-high)", ".imp-key.hi", "#view .tbl tr.imp", "#view .impbadge", "#view .blk.imp .ttl", "#view .impt"]) {
+    const line = css.split("\n").find((l) => l.includes(sel));
+    assert.ok(line && /var\(--imp(-soft)?\)/.test(line) && !line.includes("var(--bad"), `${sel}: ${line}`);
+  }
 });
