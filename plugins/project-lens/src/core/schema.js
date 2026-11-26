@@ -200,7 +200,7 @@ export function validate(data, now = nowLocal()) {
   const st = data.settings ?? {};
   // 形の違う設定は、注意にとどめる（読む側は、既定値で動く）
   if (st.waitingLongDays != null && !(Number.isInteger(st.waitingLongDays) && st.waitingLongDays >= 1)) {
-    warn("settings.waitingLongDays: 1 以上の整数にしてください（直すまで、遅延バッジと「今日の優先」の待ち長期化が正しく出ません）");
+    warn("settings.waitingLongDays: 1 以上の整数にしてください（直すまで、遅延バッジと「この週のタスク候補」の待ち長期化が正しく出ません）");
   }
   const lb = st.labels;
   if (lb != null && !(typeof lb === "object" && !Array.isArray(lb) && ["group", "subgroup"].every((k) => lb[k] === undefined || typeof lb[k] === "string"))) {

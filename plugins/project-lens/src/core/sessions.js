@@ -128,14 +128,6 @@ export function removeSession(data, sessionId) {
   return mapOwners(data, (t) => ((t.sessions ?? []).some((s) => s.id === sessionId) ? { ...t, sessions: t.sessions.filter((s) => s.id !== sessionId) } : t));
 }
 
-/** タスクの実績の時間（実績の区間から）。count は枠の数 */
-export function taskActual(data, taskId) {
-  const ss = data.tasks.find((x) => x.id === taskId).sessions ?? [];
-  const actual = ss.map(spanOf).filter(Boolean);
-  const minutes = actual.reduce((sum, s) => sum + toMin(s.end) - toMin(s.start), 0);
-  return { hours: minutes / 60, firstDate: actual.length ? actual.map((s) => s.date).sort()[0] : null, count: ss.length };
-}
-
 /** 進行中（開始済みで未終了）の予定枠の ID。タスクを完了にしても残す枠（futurePlanned に含めない） */
 export function runningPlanned(data, taskId, now) {
   const t = data.tasks.find((x) => x.id === taskId);

@@ -1,6 +1,6 @@
 // ガントチャート。位置と幅はすべて範囲全体に対する % で表し、画面幅に追従させる。
 import { addDays, diffDays } from "../../core/dates.js";
-import { ganttRows, ganttLayout, timeTicks, projectProgress, projectFlags, taskFlags } from "../../core/metrics.js";
+import { ganttRows, ganttLayout, timeTicks, projectProgress, projectFlags, taskFlags, lateInfo } from "../../core/metrics.js";
 import { projectHours } from "../../core/workload.js";
 import { restDayChecker } from "../../core/holidays.js";
 import { groupSections } from "../../core/groups.js";
@@ -10,7 +10,7 @@ import { esc, fmtMD, wdJa, STATUS_UI, flagPills, checkMeterHtml, NO_PROJECT } fr
 
 const GANTT_WINDOWS = [["m1", "1か月"], ["m3", "3か月"], ["m6", "6か月"], ["y1", "1年"], ["all", "全期間"]];
 
-const legend = (showActual) => `<div class="legend"><span><i class="gbar b-todo" style="position:static;display:inline-block;width:22px;height:10px"></i>To Do</span><span><i class="gbar b-prog" style="position:static;display:inline-block;width:22px;height:10px"></i>In Progress</span><span><i class="gbar b-wait" style="position:static;display:inline-block;width:22px;height:10px"></i>Waiting</span><span><i class="gbar b-done" style="position:static;display:inline-block;width:22px;height:10px"></i>Done</span><span><i class="gbar gsum" style="position:static;display:inline-block;width:22px;height:8px"></i>プロジェクト全体</span><span><i class="ms" style="position:static;display:inline-block;transform:rotate(45deg);width:9px;height:9px"></i>マイルストーン</span>${showActual ? `<span><i class="gact" style="position:static;display:inline-block;width:22px;height:5px"></i>実績(最初の作業日〜完了日・今日)</span>` : ""}<span><i class="imp-key hi"></i>重要（行を薄い赤で塗る）</span><span>開始日は、未入力なら前のタスクの期限から</span></div>`;
+const legend = () => `<div class="legend"><span><i class="gbar b-todo" style="position:static;display:inline-block;width:22px;height:10px"></i>To Do</span><span><i class="gbar b-prog" style="position:static;display:inline-block;width:22px;height:10px"></i>In Progress</span><span><i class="gbar b-wait" style="position:static;display:inline-block;width:22px;height:10px"></i>Waiting</span><span><i class="gbar b-done" style="position:static;display:inline-block;width:22px;height:10px"></i>Done</span><span><i class="gbar gsum" style="position:static;display:inline-block;width:22px;height:8px"></i>プロジェクト全体</span><span><i class="ms" style="position:static;display:inline-block;transform:rotate(45deg);width:9px;height:9px"></i>マイルストーン</span><span><i class="imp-key hi"></i>重要（行を薄い紫で塗る）</span><span>開始日は、未入力なら前のタスクの期限から</span></div>`;
 
 function tools(win, hideDone) {
   const seg = GANTT_WINDOWS.map(([k, l]) => `<button data-gwin="${k}" aria-pressed="${win === k}">${l}</button>`).join("");
@@ -56,20 +56,19 @@ export function layoutMilestones(gbodies) {
  * @param opts.window    "m1" | "m3" | "m6" | "y1" | "all"
  * @param opts.hideDone  Done の行を隠す（全体バーの進捗には影響しない）
  * @param opts.askDel    削除確認を出すタスク ID
- * @param opts.showActual false なら実績の線と凡例を出さない
  * @param opts.addAt     名前入力を開いている見出し { pid, group, subgroup }（なければ null）
  */
 export function renderGantt(data, projectIds, today, opts = {}) {
-  const { window: win = "m6", hideDone = false, askDel = null, showActual = true, addAt = null } = opts;
+  const { window: win = "m6", hideDone = false, askDel = null, addAt = null } = opts;
   const all = projectIds.map((id) => (id === null ? NO_PROJECT : data.projects.find((p) => p.id === id))); // null は「プロジェクトなし」
   // 完了を隠すは、複数のプロジェクトを出しているとき、完了したプロジェクト（状態が「完了」、またはタスクが 1 件以上あって全部 Done）も隠す。1 つを選んでいるときは隠さない
   const closed = (p) => { const ts = data.tasks.filter((t) => t.projectId === p.id); return p.status === "完了" || (ts.length > 0 && ts.every((t) => t.status === "Done")); };
   const ps = hideDone && all.length > 1 ? all.filter((p) => !closed(p)) : all;
   // 編集画面は、道具と凡例を上端の固定の帯に置く（タスクが多くても、スクロール中に色の意味を見失わない）
-  const top = `<div class="gtop">${tools(win, hideDone)}${legend(showActual)}</div>`;
+  const top = `<div class="gtop">${tools(win, hideDone)}${legend()}</div>`;
   if (!ps.length) return `${top}<p class="muted">完了したプロジェクトを隠しています。「完了を隠す」を押すと、また出ます。</p>`;
 
-  const geo = new Map(ps.map((p) => [p.id, ganttRows(data, p.id, today)]));
+  const geo = new Map(ps.map((p) => [p.id, ganttRows(data, p.id)]));
   const starts = [...geo.values()].map((g) => g.range.start);
   const ends = [...geo.values()].map((g) => g.range.end);
   const s0 = [addDays(today, -10), ...starts].reduce((a, b) => (a < b ? a : b));
@@ -140,9 +139,6 @@ export function renderGantt(data, projectIds, today, opts = {}) {
       const bar = r.point
         ? `<i class="dot mk${drag} ${ui.dot}${late ? " is-late" : ""}"${gt} style="left:calc(${x(r.end)} + ${(50 / total).toFixed(3)}%)" title="${label}(ドラッグで期限を変更)"></i>`
         : `<i class="gbar${drag} ${ui.bar}${ckFill ? " ck" : ""}${late ? " is-late" : ""}"${gt} style="left:${x(r.start)};width:${(((diffDays(r.end, r.start) + 1) / total) * 100).toFixed(3)}%;min-width:5px" title="${label}(クリックで編集、ドラッグで移動、両端で開始・期限を変更)">${ckFill}<b class="gh l" data-gh="l"></b><b class="gh r" data-gh="r"></b></i>`;
-      const act = r.actual && showActual
-        ? `<i class="gact" style="left:${x(r.actual.start)};width:${((Math.max(diffDays(r.actual.end, r.actual.start), 0) + 1) / total * 100).toFixed(3)}%;min-width:4px" title="実績 ${fmtMD(r.actual.start)}〜${fmtMD(r.actual.end)}"></i>`
-        : "";
       // Waiting で待ち先があれば、回答予定日に ◆、バーの横に「待ち: 待ち先 ・ 回答予定日」。回答予定日が今日より前なら赤（超過）。ポイントの行には出さない
       const wo = t.status === "Waiting" && !r.point && t.waitingOn?.party ? t.waitingOn : null;
       let wait = "";
@@ -153,7 +149,7 @@ export function renderGantt(data, projectIds, today, opts = {}) {
         const mk = exp && ed >= 0 && ed < total ? `<i class="gwait-mk${over ? " late" : ""}" data-gwait="${esc(t.id)}" style="left:calc(${x(exp)} + ${(50 / total).toFixed(3)}%)"></i>` : "";
         const onLeft = ((diffDays(r.end, s0) + 1) / total) > 0.7; // バーの右端が 70% を超えたら、文字はバーの左に置く（右に収まらない）
         const pos = onLeft ? `right:calc(100% - ${x(r.start)})` : `left:${x(addDays(r.end, 1))}`;
-        wait = `${mk}<span class="gwait-lab${onLeft ? " left" : ""}${over ? " late" : ""}" data-gwait-lab style="${pos}">待ち: ${esc(wo.party)}${exp ? ` ・ ${fmtMD(exp)}` : ""}${over ? " 超過" : ""}</span>`;
+        wait = `${mk}<span class="gwait-lab${onLeft ? " left" : ""}${!onLeft && lateInfo(t, today).overdue ? " afterdue" : ""}${over ? " late" : ""}" data-gwait-lab style="${pos}">待ち: ${esc(wo.party)}${exp ? ` ・ ${fmtMD(exp)}` : ""}${over ? " 超過" : ""}</span>`;
       }
       const dependents = data.tasks.filter((o) => (o.predecessors ?? []).includes(t.id)).map((o) => o.id);
       let lab;
@@ -162,10 +158,10 @@ export function renderGantt(data, projectIds, today, opts = {}) {
       } else {
         const name = `<button class="g-name" data-gedit="${esc(t.id)}" title="クリックで編集">${esc(t.title)}</button>`;
         const del = `<button class="gx" data-del="${esc(t.id)}" aria-label="${esc(t.id)} を削除">×</button>`;
-        const imp = isImportantMark(t) ? " imp-high" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
+        const li = lateInfo(t, today), imp = (isImportantMark(t) ? " imp-high" : "") + (li.overdue || li.lapsed ? " late-lab" : ""); // 重要は紫の帯、遅れ（期限超過・回答予定日の超過）は赤の帯と背景。完了したタスクには付けない // 重要の印。完了したタスクには付けない（isImportantMark）
         lab = `<div class="g-label${imp}" data-mvrow="${esc(t.id)}"><span class="mv" draggable="true" data-mvh="${esc(t.id)}" title="ドラッグで並べ替え" aria-label="${esc(t.id)} を並べ替え">⠿</span><span class="id">${esc(t.id)}</span>${name}${del}<span class="g-pre">${hasPre ? "← " + esc(t.predecessors.join(", ")) : ""}</span>${checkMeterHtml(t)}</div>`;
       }
-      return `<div class="g-row">${lab}<div class="g-lane" ${laneStyle}>${bar}${act}<span class="g-due mono" style="left:${x(addDays(r.end, 1))}">${fmtMD(t.due)}</span>${wait}</div></div>`;
+      return `<div class="g-row">${lab}<div class="g-lane" ${laneStyle}>${bar}<span class="g-due mono${lateInfo(t, today).overdue ? " lt" : ""}" style="left:${x(addDays(r.end, 1))}">${fmtMD(t.due)}${lateInfo(t, today).overdue ? ` ▲ ${lateInfo(t, today).overdue} 日超過` : ""}</span>${wait}</div></div>`;
     };
     // (大項目, 中項目) ごとに見出し行を入れて並べる。追加の入口になるので、大項目がなくても「（なし）」の見出しを常に出す。
     // 見出しは完了を隠していても残す（そのグループへ追加できるように）

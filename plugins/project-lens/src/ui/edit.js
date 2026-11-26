@@ -6,7 +6,7 @@ import { groupSections } from "../core/groups.js";
 import { addSession, addActual, setActual, allSessions, futurePlanned, removeSession } from "../core/sessions.js";
 import { nextChecklistId } from "../core/checklist.js";
 import { isRepeat, nextRepeatDue } from "../core/repeat.js";
-import { HOLIDAY_KINDS } from "../core/schema.js";
+import { HOLIDAY_KINDS, isClosed } from "../core/schema.js";
 
 const mapTask = (data, id, fn) => {
   if (!data.tasks.some((t) => t.id === id)) throw new Error(`タスク ${id} がありません`);
@@ -409,6 +409,24 @@ export function recordSlotActual(data, sessionId, slot, now) {
 
 const COMPLETE_STATUSES = ["To Do", "In Progress", "Done", "Cancelled"];
 
+/** その日の実績を書く。その日の、実績のない予定の枠があれば、最初の枠の実績にする。なければ、実績の枠を足す */
+function recordDayActual(d, task, slot, now) {
+  const planned = (task.sessions ?? []).filter((s) => s.kind === "planned" && s.date === slot.date && !s.actual).sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0))[0];
+  return (planned ? recordSlotActual(d, planned.id, slot, now) : recordActual(d, task.id, slot, now)).data;
+}
+
+/**
+ * 「今日の分を完了」: 実績（{ date, start, end }。3 つとも必須）だけを書く。状態・チェック・未来の予定の枠は変えない
+ * （To Do・Waiting は、実績の規則で In Progress になる）。完了したタスクは断る。失敗は Error（入力のデータは変わらない）
+ */
+export function completeToday(data, taskId, actual, now) {
+  const orig = data.tasks.find((t) => t.id === taskId);
+  if (!orig) throw new Error(`タスク ${taskId} がありません`);
+  if (isClosed(orig)) throw new Error("完了したタスクには、今日の分を記録できません");
+  if (!actual?.date || !actual?.start || !actual?.end) throw new Error("実績の日付と開始・終了の時刻を、すべて入れてください");
+  return { data: recordDayActual(data, orig, { date: actual.date, start: actual.start, end: actual.end }, now) };
+}
+
 /**
  * タスクの完了を、実績・状態・チェックでまとめて保存する。失敗は Error（純関数なので、入力のデータは変わらない）。
  * actual: { date, start, end }（3 つとも空・undefined なら実績なし）。status は To Do／In Progress／Done／Cancelled（選んだ状態が優先で、実績による In Progress への自動変更は上書きする）。
@@ -422,10 +440,7 @@ export function completeTask(data, taskId, { actual, status, checks = {} }, now)
   const filled = Object.values(slot).filter(Boolean).length;
   if (filled !== 0 && filled !== 3) throw new Error("実績の日付と開始・終了の時刻は、すべて入れるか、すべて空にしてください");
   let d = data;
-  if (filled === 3) {
-    const planned = (orig.sessions ?? []).filter((s) => s.kind === "planned" && s.date === slot.date && !s.actual).sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0))[0];
-    d = (planned ? recordSlotActual(d, planned.id, slot, now) : recordActual(d, taskId, slot, now)).data;
-  }
+  if (filled === 3) d = recordDayActual(d, orig, slot, now);
   d = updateTask(d, taskId, { status }, now.date);
   for (const [id, done] of Object.entries(checks)) d = updateChecklistItem(d, taskId, id, { done });
   if (status === "Done" && (d.tasks.find((t) => t.id === taskId).checklist ?? []).some((c) => !c.done)) throw new Error("未完了の項目があります。チェックするか、削除してください");

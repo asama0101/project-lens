@@ -1,12 +1,24 @@
-// 「今日のタスク」「今日の優先」パネル（プロジェクト画面・スケジュール画面で共通。右の列に並ぶ）
+// 「今日のタスク」「この週のタスク候補」パネル（プロジェクト画面・スケジュール画面で共通。右の列に並ぶ）
 import { rankTasks } from "../../core/schedule.js";
-import { taskActual, sessionKind, actualSlots } from "../../core/sessions.js";
+import { weekTasks, mondayOf } from "../../core/week.js";
+import { lateInfo } from "../../core/metrics.js";
+import { sessionKind, actualSlots } from "../../core/sessions.js";
 import { isClosed, isImportantMark } from "../../core/schema.js";
 import { esc, checkMeterHtml, fmtMD } from "../common.js";
 
 const PILL = { "To Do": "off", "In Progress": "ok", Waiting: "wait", Done: "done", Cancelled: "off" };
 const IMP_BADGE = `<span class="impbadge">重要</span>`;
 export const statusPill = (t) => `<span class="pill ${PILL[t.status] ?? "off"}">${esc(t.status)}</span>`;
+
+/** 遅れの札（件名の横・下に置く）。期限超過・回答予定日の超過。色だけでなく文字と日数でも伝える。遅れが無ければ空文字 */
+export const lateBadgesHtml = (info) =>
+  (info.lapsed ? `<span class="latebadge">回答予定を ${info.lapsed} 日超過</span>` : "") + (info.overdue ? `<span class="latebadge">期限超過 ${info.overdue}日</span>` : "");
+
+/** 期限の表示。期限を過ぎていれば、赤の太字で日数を添える（`<b>` の中身は呼び出し側の日付） */
+export const dueLateHtml = (dueText, info) => (info.overdue ? `<span class="duelate">期限 <b class="mono">${dueText}</b>（${info.overdue} 日超過）</span>` : `<span>期限 <b class="mono">${dueText}</b></span>`);
+
+/** 理由の文章から、札にした理由（期限超過・回答予定日の超過）を除く */
+export const restReasons = (reasons) => reasons.filter((x) => !x.startsWith("期限超過 ") && !x.startsWith("回答予定日を過ぎています"));
 
 /** 枠の種類の札（カレンダーの凡例と同じ色の class。文字でも出す） */
 const KIND_TAG = { planned: ["plan", "予定"], actual: ["act", "実績"], unconfirmed: ["unconf", "未確認"] };
@@ -53,40 +65,40 @@ export function renderTodayTasks(data, today, opts = {}) {
     const times = slots.map((s) => slotHtml(s, now, actuals)).join("");
     const ask = opts.pendingDone?.id === t.id ? doneAskHtml(opts.pendingDone) : "";
     const drag = opts.sched && !isClosed(t) ? ` draggable="true" data-dragtask="${esc(t.id)}"` : "";
-    return `<li data-today="${esc(t.id)}"${isClosed(t) ? ' class="closed"' : ""}${drag}><span class="pj">${proj}</span><span class="t">${esc(t.title)} ${statusPill(t)}${isImportantMark(t) ? IMP_BADGE : ""}</span><span class="why mono tss">${times}</span>${isClosed(t) ? "" : checkMeterHtml(t, { remain: true })}${ask}</li>`;
+    const late = lateInfo(t, today), isLate = late.overdue || late.lapsed;
+    return `<li data-today="${esc(t.id)}"${isClosed(t) ? ' class="closed"' : isLate ? ' class="late"' : ""}${drag}><span class="pj">${proj}</span><span class="t">${esc(t.title)} ${statusPill(t)}${isImportantMark(t) ? IMP_BADGE : ""}${lateBadgesHtml(late)}</span><span class="why mono tss">${times}</span>${isClosed(t) ? "" : checkMeterHtml(t, { remain: true })}${ask}</li>`;
   }).join("");
   return `<section class="panel todaytasks" aria-labelledby="h-td"><h2 id="h-td">今日のタスク</h2><ul class="rank tl">${items}</ul></section>`;
 }
 
 /**
- * @param opts.sched   true ならスケジュール画面用（全件・ドラッグ可）。false なら上位 4 件
+ * 今週（today のある週）のタスク候補のうち未完了（weekTasks の完了の組を除く）を、優先順位（rankTasks の点数の順）に並べる。
  * 今日のタスクに入っているタスクは出さない（順位の計算は変えず、表示で除く）
+ * @param opts.sched   true ならスケジュール画面用（ドラッグ可。「今日へ」は出さない）
  */
 export function renderPrio(data, today, opts = {}) {
   const { sched = false } = opts;
   const inToday = new Set(todayTaskIds(data, today));
-  const ranked = rankTasks(data, today).filter((r) => !inToday.has(r.taskId));
-  const shown = sched ? ranked : ranked.slice(0, 4);
+  const cand = new Set(weekTasks(data, mondayOf(today), today).filter((r) => r.group !== "done").map((r) => r.task.id));
+  const shown = rankTasks(data, today).filter((r) => cand.has(r.taskId) && !inToday.has(r.taskId));
   const items = shown.map((r, i) => {
     const t = data.tasks.find((x) => x.id === r.taskId);
-    const a = taskActual(data, t.id);
-    const pill = a.count ? ` <span class="pill ok">${a.count}回・実績 ${a.hours.toFixed(1)}h</span>` : "";
     const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? (t.projectId == null ? "プロジェクトなし" : ""));
     const drag = sched ? ` draggable="true" data-dragtask="${esc(t.id)}"` : "";
-    const plan = sched ? "" : `<button class="btn" data-prioplan="${esc(t.id)}">今日へ</button>`;
-    return `<li${drag}><span class="n">${i + 1}</span><span class="pj">${proj}</span><span class="t">${r.action === "chase" ? `<span class="act">${r.reasons.some((x) => x.includes("催促")) ? "催促" : "確認"}</span>` : ""}${esc(t.title)} ${statusPill(t)}${pill}</span>${checkMeterHtml(t, { remain: true })}<span class="why">${isImportantMark(t) ? IMP_BADGE : ""}${esc(r.reasons.filter((x) => x !== "重要").join("。"))}</span>${plan}</li>`;
+    const late = lateInfo(t, today);
+    return `<li${drag}${late.overdue || late.lapsed ? ' class="late"' : ""}><span class="n">${i + 1}</span><span class="pj">${proj}</span><span class="t">${r.action === "chase" ? `<span class="act">${r.reasons.some((x) => x.includes("催促")) ? "催促" : "確認"}</span>` : ""}${esc(t.title)} ${statusPill(t)}${lateBadgesHtml(late)}</span>${checkMeterHtml(t, { remain: true })}<span class="why">${isImportantMark(t) ? IMP_BADGE : ""}${esc(restReasons(r.reasons).filter((x) => x !== "重要").join("。"))}${late.overdue ? `<br>${dueLateHtml(fmtMD(t.due), late)}` : ""}</span></li>`;
   }).join("");
   const note = sched
     ? "タスクをカレンダーへドラッグして配置します(15分刻み・長さ1時間)。今日のタスクの行からも、同じタスクをもう 1 つ置けます。配置済みの枠もドラッグで移動できます。"
     : "スケジュール画面で、時間枠に配置できます。";
-  return `<section class="panel prio" aria-labelledby="h-rk"><h2 id="h-rk">今日の優先</h2>${shown.length ? `<ol class="rank">${items}</ol>` : `<p class="muted">優先するタスクはありません。</p>`}<p class="note" style="margin:10px 0 0">${note}</p></section>`;
+  return `<section class="panel prio" aria-labelledby="h-rk"><h2 id="h-rk">この週のタスク候補</h2>${shown.length ? `<ol class="rank">${items}</ol>` : `<p class="muted">この週のタスクはありません。</p>`}<p class="note" style="margin:10px 0 0">${note}</p></section>`;
 }
 
-/** 右の列: 今日のタスク（あれば）＋今日の優先。列の直下の要素として固定表示（sticky）にするため、1 つの箱にまとめる */
+/** 右の列: 今日のタスク（あれば）＋この週のタスク候補。列の直下の要素として固定表示（sticky）にするため、1 つの箱にまとめる */
 export function renderSide(data, today, opts = {}) {
   return `<div class="side">${renderTodayTasks(data, today, opts)}${renderPrio(data, today, opts)}</div>`;
 }
 
-/** 本体と右の列の境界線の取っ手。押すと右の列（今日のタスク・今日の優先）を開け閉めする。閉じても、この取っ手は残る */
+/** 本体と右の列の境界線の取っ手。押すと右の列（今日のタスク・この週のタスク候補）を開け閉めする。閉じても、この取っ手は残る */
 export const renderSideToggle = (open) =>
-  `<button class="side-toggle" data-pref="prio" aria-expanded="${open}" aria-label="${open ? "今日の優先を閉じる" : "今日の優先を開く"}" title="${open ? "右の「今日のタスク」「今日の優先」を閉じます" : "右の「今日のタスク」「今日の優先」を開きます"}">${open ? "›" : "‹"}</button>`;
+  `<button class="side-toggle" data-pref="prio" aria-expanded="${open}" aria-label="${open ? "この週のタスク候補を閉じる" : "この週のタスク候補を開く"}" title="${open ? "右の「今日のタスク」「この週のタスク候補」を閉じます" : "右の「今日のタスク」「この週のタスク候補」を開きます"}">${open ? "›" : "‹"}</button>`;

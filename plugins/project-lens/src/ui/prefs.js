@@ -1,8 +1,8 @@
-// 画面の表示の好み（今日の優先・ガントの実績・スケジュールの参加しない会議・週表示の期限の行を出す／隠す）。データではないので、ブラウザ（localStorage）に保存する。
+// 画面の表示の好み（この週のタスク候補・スケジュールの参加しない会議・週表示の期限の行を出す／隠す）。データではないので、ブラウザ（localStorage）に保存する。
 // localStorage が使えない・壊れているときは、既定のまま動く。
 
 const KEY = "project-lens.prefs";
-export const DEFAULT_PREFS = { showPrio: true, showActual: true, showSkipped: false, showDue: true };
+export const DEFAULT_PREFS = { showPrio: true, showSkipped: false, showDue: true };
 
 /** localStorage。サイトのデータが止められているなど、使えないときは null */
 const browserStorage = () => {

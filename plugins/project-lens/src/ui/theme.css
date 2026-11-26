@@ -1,22 +1,22 @@
 /* 承認済みデザインのスタイル。Web フォントは使わない */
 body{margin:0}
-/* Layout: 上部に画面切替、俯瞰はプロジェクト別のタイムライン（機器ラックのように1案件=1段）＋右に今日の優先 */
+/* Layout: 上部に画面切替、俯瞰はプロジェクト別のタイムライン（機器ラックのように1案件=1段）＋右にこの週のタスク候補 */
 :root{
   --bg:#F0F3F7; --surface:#FFFFFF; --ink:#16202E; --muted:#5A6678; --line:#D6DDE8; --line-soft:#E8ECF3;
   --accent:#0B6E8A; --accent-soft:#DCEEF4; --pre:#C2670A; --next:#2E7D32;
-  --ok:#2E7D5B; --warn:#B26B00; --warn-soft:#FBEBD0; --bad:#C23A3A; --bad-soft:#F9DEDE;
+  --ok:#2E7D5B; --warn:#B26B00; --warn-soft:#FBEBD0; --bad:#C23A3A; --bad-soft:#F9DEDE; --imp:#6D3FC9; --imp-soft:#EFE8FB;
   --todo:#8794A8; --meeting:#EBE4F7; --meeting-ink:#43346F; --meeting-edge:#7B5CC4; --free:#E9F4EC; --on-accent:#FFFFFF;
   --f-body:"BIZ UDPGothic","Yu Gothic UI","Meiryo",sans-serif; --f-mono:ui-monospace,Consolas,monospace;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#0E1520; --surface:#162030; --ink:#E5EBF3; --muted:#9AA7B9; --line:#2A3850; --line-soft:#1F2C40;
   --accent:#55B8D4; --accent-soft:#17323D; --pre:#E8963F; --next:#6CC070;
-  --ok:#5CC08F; --warn:#E3A94B; --warn-soft:#3A2D14; --bad:#EE7B7B; --bad-soft:#3B1D1F;
+  --ok:#5CC08F; --warn:#E3A94B; --warn-soft:#3A2D14; --bad:#EE7B7B; --bad-soft:#3B1D1F; --imp:#B79BF2; --imp-soft:#2A2145;
   --todo:#7B889C; --meeting:#2D2548; --meeting-ink:#D3C9F0; --meeting-edge:#9C84E0; --free:#14301F; --on-accent:#0E1520; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0E1520; --surface:#162030; --ink:#E5EBF3; --muted:#9AA7B9; --line:#2A3850; --line-soft:#1F2C40;
   --accent:#55B8D4; --accent-soft:#17323D; --pre:#E8963F; --next:#6CC070;
-  --ok:#5CC08F; --warn:#E3A94B; --warn-soft:#3A2D14; --bad:#EE7B7B; --bad-soft:#3B1D1F;
+  --ok:#5CC08F; --warn:#E3A94B; --warn-soft:#3A2D14; --bad:#EE7B7B; --bad-soft:#3B1D1F; --imp:#B79BF2; --imp-soft:#2A2145;
   --todo:#7B889C; --meeting:#2D2548; --meeting-ink:#D3C9F0; --meeting-edge:#9C84E0; --free:#14301F; --on-accent:#0E1520; color-scheme:dark}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.6;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 40px}
@@ -24,7 +24,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:1
 .wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
 .mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
 header.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px;justify-content:space-between}
-/* ヘッダーと「今日の優先」は、スクロールしても上端に固定する。ヘッダーの高さは --hh（app.js が測る）で、固定の帯と「今日の優先」の位置に使う */
+/* ヘッダーと「この週のタスク候補」は、スクロールしても上端に固定する。ヘッダーの高さは --hh（app.js が測る）で、固定の帯と「この週のタスク候補」の位置に使う */
 header.top{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;margin-block:-8px 0}
 /* プロジェクト画面のフィルタ行は、ヘッダーの下に固定する。高さは --th（app.js が測る） */
 .toolbar.ptool{position:sticky;top:var(--hh,0px);z-index:9;background:var(--bg);padding:6px 0 10px;margin-bottom:0}
@@ -154,8 +154,8 @@ details.subfold{border-top:1px solid var(--line-soft);padding-top:10px}
 .b-done{background:var(--ok);opacity:.5}
 .b-cancel{background:var(--todo);opacity:.35}
 .g-due{position:absolute;top:10px;margin-left:8px;font-size:11px;color:var(--muted)}
-.g-lane .gwait-mk{position:absolute;top:8.5px;width:9px;height:9px;margin-left:-4.5px;transform:rotate(45deg);background:var(--warn);pointer-events:none;z-index:2}
-.g-lane .gwait-lab{position:absolute;top:4px;line-height:18px;margin-left:50px;max-width:14em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--warn);pointer-events:none}
+.g-lane .gwait-mk{position:absolute;top:13.5px;width:9px;height:9px;margin-left:-4.5px;transform:rotate(45deg);background:var(--warn);pointer-events:none;z-index:2}
+.g-lane .gwait-lab{position:absolute;top:9px;line-height:18px;margin-left:50px;max-width:14em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--warn);pointer-events:none}
 .g-lane .gwait-lab.left{margin-left:0;margin-right:8px}
 .g-lane .gwait-mk.late{background:var(--bad)}
 .g-lane .gwait-lab.late{color:var(--bad);font-weight:700}
@@ -216,17 +216,17 @@ label{font-size:13px}
 .g-row{display:flex;gap:12px;align-items:stretch;border-bottom:1px solid var(--line-soft)}
 .g-label{position:sticky;left:0;z-index:4;flex:none;width:230px;background:var(--surface)}
 .g-lane{flex:none}
-/* 重要: 左端に太い赤の縦線と、行の薄い赤の背景。縦線は横スクロールで流れないよう、固定のラベルに付ける */
+/* 重要: 左端に太い紫の縦線と、行の薄い紫の背景（期限超過の赤と区別する）。縦線は横スクロールで流れないよう、固定のラベルに付ける */
 .g-row>.g-label{padding-left:9px}
 .mv{cursor:grab;color:var(--muted);user-select:none;margin-right:4px}
 .mv:hover{color:var(--ink)}
 tr.drop-before>td,.g-row.drop-before>.g-label,.g-row.drop-before>.g-lane{box-shadow:inset 0 2px 0 var(--accent)}
 tr.drop-after>td,.g-row.drop-after>.g-label,.g-row.drop-after>.g-lane{box-shadow:inset 0 -2px 0 var(--accent)}
-.g-label.imp-high::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--bad)}
-.g-label.imp-high{background:var(--bad-soft)}
-.g-row:has(>.g-label.imp-high){background:var(--bad-soft)} /* :has() 非対応のブラウザでも、上の規則（ラベル）が捨てられないよう、分ける */
+.g-label.imp-high::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--imp)}
+.g-label.imp-high{background:var(--imp-soft)}
+.g-row:has(>.g-label.imp-high){background:var(--imp-soft)} /* :has() 非対応のブラウザでも、上の規則（ラベル）が捨てられないよう、分ける */
 .imp-key{display:inline-block;height:12px;margin-right:6px;vertical-align:middle}
-.imp-key.hi{width:5px;background:var(--bad)}
+.imp-key.hi{width:5px;background:var(--imp)}
 .g-head{border-bottom:1px solid var(--line);position:relative;z-index:6;background:var(--surface)} /* 日付軸は、下の「固定表示」の節で、枠の外の複製（.gstrip）を sticky にして固定する */
 .g-axis{height:24px;position:relative}
 .g-axis span.yr{font-weight:700;color:var(--ink);border-left-color:var(--ink)}
@@ -270,9 +270,8 @@ tr.drop-after>td,.g-row.drop-after>.g-label,.g-row.drop-after>.g-lane{box-shadow
   .tbl.edit tr.askrow>td{grid-column:1/-1}
 }
 
-.g-lane .gbar{top:6px;height:14px}
+.g-lane .gbar{top:11px;height:14px}
 .g-lane .gbar.gsum{top:8px;height:12px}
-.gact{position:absolute;top:23px;height:5px;border-radius:3px;background:var(--ok)}
 .mslist{display:flex;flex-direction:column;gap:6px}
 .msrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .msrow .in:first-child{flex:1 1 200px;width:auto}
@@ -472,7 +471,7 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .tdcols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start;margin-bottom:16px}
 @media(max-width:700px){.tdcols{grid-template-columns:minmax(0,1fr)}}
 .tdleft{display:flex;flex-direction:column;gap:16px;min-width:0}
-.td-slots{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px}
+.td-slots{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;font-size:12px}
 .td-slots .ts{display:inline-flex;align-items:center;gap:6px}
 .tdweek h3{margin:14px 0 6px;font-size:13px;color:var(--muted)}
 .tdweek h3:first-of-type{margin-top:0}
@@ -489,16 +488,20 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .td-why{font-size:12px;color:var(--muted)}
 .td-meta{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
 .tdlist .actform{margin:0}
+.tdactclear{min-height:22px;padding:0 8px;font-size:11px}
 /* 催促の組: 黄色の背景と枠、見出しも黄色、行は白（面）。「催促した」は主ボタン（画面案どおり） */
 .tdchase{border-color:var(--warn);background:var(--warn-soft)}
 .tdchase h2{color:var(--warn)}
 .tdchase .tdlist>li{background:var(--surface);border-color:var(--warn)}
 .tf-cks{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;flex-basis:100%}
-.tdform label.tf-ck{flex-direction:row;align-items:center;gap:6px;font-size:13px;color:var(--ink)}
-.tf-ck input[type=checkbox]{width:18px;height:18px;margin:0;accent-color:var(--accent);flex:none}
-.tf-ckitem{display:inline-flex;align-items:center}
-.tf-ckitem .gx{opacity:1;min-width:28px;min-height:28px}
-.tf-cks [data-tdckadd]{flex:1 1 180px;min-width:0}
+.tf-cks .ckedit{flex:1 1 100%}
+.tdform .seg{display:inline-flex;gap:0;flex-basis:100%}
+.tdform .seg .btn{border-radius:0}
+.tdform .seg .btn:first-child{border-radius:6px 0 0 6px}
+.tdform .seg .btn:last-child{border-radius:0 6px 6px 0}
+.tdform .seg .btn.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+.tdlist>li.part{background:var(--accent-soft)}
+.pill.tdone{background:var(--ok);color:#fff;border-color:transparent;font-weight:700}
 
 /* 固定表示（ガント・リスト）: 画面のスクロールに対して、CSS の sticky で付ける */
 #view{overflow-anchor:none} /* 描き直しのたびに、ブラウザのスクロール位置の補正(スクロールアンカー)で縦の位置が数 px ずれるのを防ぐ。位置は render が戻す */
@@ -551,7 +554,7 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 #view section.panel > .gtop{padding-top:22px}
 #view section.panel > .stop{padding-top:16px}
 #view .cols>.side,#view .side-toggle{margin-top:8px}
-/* チェックリストの進み具合（細い線と「済み/全体」）。今日の優先・今日のタスク・ガントのラベルが使う */
+/* チェックリストの進み具合（細い線と「済み/全体」）。この週のタスク候補・今日のタスク・ガントのラベルが使う */
 #view .ck-meter{display:flex;align-items:center;gap:6px}
 #view .ck-bar{display:block;width:72px;height:4px;border-radius:2px;background:var(--line);overflow:hidden;flex:none}
 #view .ck-bar i{display:block;height:100%;background:var(--accent)}
@@ -590,16 +593,16 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 #view .ask.warn-ck ul{margin:6px 0;padding-left:18px}
 #view .ck-row .gx{opacity:1;position:static;min-width:32px;min-height:32px;color:var(--muted)}
 
-/* リストの重要の印: ガントの imp-high と同じ（左端に太い赤の線と、薄い赤の背景） */
-#view .tbl tr.imp td:first-child{box-shadow:inset 5px 0 0 var(--bad)}
-#view .tbl tr.imp{background:var(--bad-soft)}
+/* リストの重要の印: ガントの imp-high と同じ（左端に太い紫の線と、薄い紫の背景） */
+#view .tbl tr.imp td:first-child{box-shadow:inset 5px 0 0 var(--imp)}
+#view .tbl tr.imp{background:var(--imp-soft)}
 
-/* 今日の優先・今日のタスクの「重要」バッジ */
-#view .impbadge{display:inline-block;background:var(--bad);color:#fff;font-size:12px;font-weight:700;line-height:1.4;border-radius:999px;padding:2px 9px;margin-left:4px;white-space:nowrap}
+/* この週のタスク候補・今日のタスクの「重要」バッジ */
+#view .impbadge{display:inline-block;background:var(--imp);color:var(--surface);font-size:12px;font-weight:700;line-height:1.4;border-radius:999px;padding:2px 9px;margin-left:4px;white-space:nowrap}
 
-/* スケジュールの重要の印: 枠も期限の行も、赤い太字の件名だけ（線は付けない） */
-#view .blk.imp .ttl{color:var(--bad);font-weight:700}
-#view .impt{color:var(--bad);font-weight:700}
+/* スケジュールの重要の印: 枠も期限の行も、紫の太字の件名だけ（線は付けない） */
+#view .blk.imp .ttl{color:var(--imp);font-weight:700}
+#view .impt{color:var(--imp);font-weight:700}
 
 /* スケジュールのタスク編集欄（#mtgslot）。会議の入力欄（.mtgform）と同じ、ラベル付きの項目が折り返して並ぶ形。窓（.tpop）は縦のまま */
 #view .tedit .tp-h{display:flex;align-items:baseline;gap:6px;font-size:13px;color:var(--ink);align-self:flex-end}
@@ -663,3 +666,25 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 #view .tedit .tedit-detail{flex-basis:100%;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:flex-end;border-top:1px dashed var(--line);padding-top:8px}
 #view .tedit [data-tedit-full]{min-width:calc(6em + 26px)}
 #view #mtgslot:not(:empty){scrollbar-gutter:stable} /* 詳細を開いて欄の中のスクロールバーが出ても、軽い欄の幅が変わらない（出ると 15px 狭まった。実測） */
+
+/* 遅れの札・帯（期限超過・回答予定日の超過）。色だけでなく、文字と日数でも伝える */
+#view .latebadge{display:inline-block;font-size:12px;font-weight:700;line-height:1.5;padding:0 7px;border-radius:4px;background:var(--bad);color:var(--surface);white-space:nowrap}
+#view .duelate{color:var(--bad);font-weight:700}
+#view .rank li.late,#view .tdlist>li.late{border-left:6px solid var(--bad);background:color-mix(in srgb,var(--bad-soft) 55%,var(--surface));padding-left:8px}
+#view .tdlist>li.late.part{background:color-mix(in srgb,var(--bad-soft) 55%,var(--surface))}
+#view .g-due.lt{color:var(--bad);font-weight:700;font-size:12px}
+#view .latenote{display:block;color:var(--bad);font-weight:700;font-size:11px;white-space:nowrap}
+#view .g-lane .gwait-lab.afterdue{margin-left:130px} /* 期限の日付が「▲ N 日超過」で長くなる分、待ち先の文字を右へずらす */
+/* 遅れ（期限超過・回答予定日の超過）の行: ガントはラベルの左に赤の帯、リストは行頭に赤の帯と、行の薄い赤の背景。重要（紫）と重なるときは、紫の帯の内側に赤の帯を並べる。赤の背景を優先する */
+#view .g-label.late-lab{background:var(--bad-soft)}
+#view .g-row:has(>.g-label.late-lab){background:var(--bad-soft)}
+#view .g-label.late-lab::after{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--bad)}
+#view .g-label.imp-high.late-lab::after{left:5px}
+#view .tbl tr.late{background:var(--bad-soft)}
+#view .tbl tr.late td:first-child{box-shadow:inset 5px 0 0 var(--bad)}
+#view .tbl tr.imp.late td:first-child{box-shadow:inset 5px 0 0 var(--imp),inset 10px 0 0 var(--bad)}
+/* 今日の ToDo に登録済みの候補: 末尾の組にまとめ、背景を沈ませて、✓ と今日の枠の時刻を出す */
+#view .tdlist>li.regd{background:var(--line-soft)}
+#view .tdlist>li.regd .td-title{color:var(--muted)}
+#view .regchk{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--accent);color:var(--on-accent);font-size:12px;font-weight:700;flex:none}
+#view .tdweek h3{margin:14px 0 6px}
