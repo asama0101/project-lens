@@ -143,14 +143,14 @@ test("ガントの編集の窓では、待ち先の入力・Done の確認は、
   assert.ok(dn.slice(dn.indexOf('class="tpop"')).includes('data-doneok="AA-0001"') && !dn.includes("askrow"));
 });
 
-test("renderGantt: 行数＝タスク数、今日の線、マイルストーン、実績の線は実績のあるタスクだけ", () => {
+test("renderGantt: 行数＝タスク数、今日の線、マイルストーン。実績の線は無い", () => {
   const d = load();
   const html = gantt(d, ["AA"]);
   const tasks = d.tasks.filter((t) => t.projectId === "AA");
   assert.equal(count(html, /data-gt="/g), tasks.length);
   assert.equal(count(html, /class="todayline"/g), 1);
   assert.ok(html.includes("機器発注") && html.includes("8/31"));
-  assert.equal(count(html, /class="gact" style="left/g), 1, "実績があるのは AA-0005 だけ");
+  assert.ok(!html.includes("gact"), "ガント実績は廃止した");
 });
 
 test("renderGantt: 日表示で、手動の休みと祝日の列にも土日と同じ着色（class=\"gwk\"）が付く。土日祝を営業日に数える設定がオンでも付く", () => {
@@ -662,16 +662,6 @@ test("リスト: 「重要」のチェックボックスとメモを編集でき
 });
 
 // ---- 表示スイッチ（Task 12） ----
-test("renderGantt: showActual:false で .gact と凡例の実績が消える（true では従来どおり）", () => {
-  const d = load();
-  const on = gantt(d, ["AA", "AB"]);
-  assert.ok(count(on, /class="gact"/g) > 0 && on.includes("実績(最初の作業日"));
-  const off = gantt(d, ["AA", "AB"], { showActual: false });
-  assert.equal(count(off, /class="gact"/g), 0);
-  assert.ok(!off.includes("実績(最初の作業日"));
-  assert.equal(count(gantt(d, ["AA", "AB"], { showActual: true }), /class="gact"/g), count(on, /class="gact"/g));
-});
-
 test("renderProjects/renderSchedule: showPrio:false で『この週のタスク候補』が出ず、cols に one が付く", () => {
   const d = load();
   const p = renderProjects(d, TODAY, { filter: "all", view: "gantt", window: "m6", showPrio: false });
@@ -1393,7 +1383,7 @@ test("renderSchedule(day): 土日祝を営業日に数える設定がオンな�
 });
 
 // ---- ガントのバーは、開始日のマスから期限日のマスの右端まで（期限の日を含む） ----
-test("renderGantt: タスクのバー・プロジェクト全体のバー・実績のバーの右端は、期限（終了）日のマスの右端。期限の表示はその右に付く", () => {
+test("renderGantt: タスクのバー・プロジェクト全体のバーの右端は、期限（終了）日のマスの右端。期限の表示はその右に付く", () => {
   const d = load();
   const html = gantt(d, ["AA"]);
   const s0 = /data-s0="([^"]+)"/.exec(html)[1], span = +/data-span="(\d+)"/.exec(html)[1];
@@ -1405,8 +1395,6 @@ test("renderGantt: タスクのバー・プロジェクト全体のバー・実�
   near(right(bar), edge(A5.due), "タスクのバー");
   const sum = /<i class="gbar gsum"[^>]*style="left:([\d.]+)%;width:([\d.]+)%/.exec(html);
   near(right(sum), edge(P.due), "プロジェクト全体のバー");
-  const act = /<i class="gact" style="left:([\d.]+)%;width:([\d.]+)%;[^>]*title="実績 10\/14〜10\/20"/.exec(html);
-  near(right(act), edge("2026-10-20"), "実績のバー");
   const row = html.split('<div class="g-row">').find((r) => r.includes('data-gt="AA-0005"'));
   near(+/class="g-due mono" style="left:([\d.]+)%/.exec(row)[1], edge(A5.due), "タスクの期限の表示");
   const sumRow = html.split('<div class="g-row g-sumrow">')[1];

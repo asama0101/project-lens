@@ -1,7 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { setActual } from "../plugins/project-lens/src/core/sessions.js";
 import { addDays, weekday } from "../plugins/project-lens/src/core/dates.js";
 import { taskStart, ganttRows, ganttLayout, timeTicks, projectProgress, taskFlags, projectFlags } from "../plugins/project-lens/src/core/metrics.js";
 
@@ -59,30 +58,21 @@ test("taskStart: start があればそれ／なければ前のタスクの期限
   assert.equal(taskStart(d, "AA-0005"), "2026-10-30");
 });
 
-test("ganttRows: 行・point・actual・マイルストーン", () => {
+test("ganttRows: 行・point・マイルストーン", () => {
   const d = load();
-  const g = ganttRows(d, "AA", TODAY);
+  const g = ganttRows(d, "AA");
   assert.equal(g.rows.length, d.tasks.filter((t) => t.projectId === "AA").length);
   const a2 = g.rows.find((r) => r.taskId === "AA-0002");
   assert.deepEqual([a2.start, a2.end, a2.point], ["2026-07-31", "2026-08-20", false]);
-  const a5 = g.rows.find((r) => r.taskId === "AA-0005");
-  assert.deepEqual(a5.actual, { start: "2026-10-14", end: TODAY }); // 未完了 → 今日まで
-  assert.equal(g.rows.find((r) => r.taskId === "AA-0004").actual, null);
   assert.deepEqual(g.milestones.map((m) => m.name), ["機器発注", "本番切替"]);
   assert.ok(g.range.start <= "2026-06-01" && g.range.end >= "2027-03-31");
   // 点は、開始も前のタスクもない（期限だけの）タスクに限る。開始が期限以後のタスク・前のタスクがあるタスクは、期限の 1 日分の棒
-  const rowOf = (t) => ganttRows(mk([{ id: "AA-0009", due: "2026-10-01" }, t]), "AA", TODAY).rows.find((r) => r.taskId === t.id);
+  const rowOf = (t) => ganttRows(mk([{ id: "AA-0009", due: "2026-10-01" }, t]), "AA").rows.find((r) => r.taskId === t.id);
   assert.deepEqual([rowOf({ id: "AA-0001", due: "2026-10-05" })].map((r) => [r.start, r.end, r.point]), [["2026-10-05", "2026-10-05", true]]);
   assert.deepEqual([rowOf({ id: "AA-0001", due: "2026-10-05", start: "2026-10-05" })].map((r) => [r.start, r.end, r.point]), [["2026-10-05", "2026-10-05", false]]);
   assert.deepEqual([rowOf({ id: "AA-0001", due: "2026-10-05", start: "2026-10-20" })].map((r) => [r.start, r.end, r.point]), [["2026-10-05", "2026-10-05", false]]);
   assert.deepEqual([rowOf({ id: "AA-0001", due: "2026-10-01", predecessors: ["AA-0009"] })].map((r) => [r.start, r.end, r.point]), [["2026-10-01", "2026-10-01", false]], "前のタスクの期限と同じ日");
-  assert.deepEqual(ganttRows(mk([]), "AA", TODAY).rows, []);
-});
-
-test("ganttRows: 完了したタスクの実績は完了日まで", () => {
-  const d = mk([{ id: "AA-0001", due: "2026-10-10", status: "Done", doneAt: "2026-10-09",
-    sessions: [{ id: "S1", date: "2026-10-05", start: "10:00", end: "11:00", kind: "actual" }] }]);
-  assert.deepEqual(ganttRows(d, "AA", TODAY).rows[0].actual, { start: "2026-10-05", end: "2026-10-09" });
+  assert.deepEqual(ganttRows(mk([]), "AA").rows, []);
 });
 
 test("projectProgress: Cancelled を除いた Done の割合", () => {
@@ -125,18 +115,9 @@ test("プロジェクトなしのタスク（ZZ-0001）は、プロジェクト�
   const d = load();
   assert.ok(d.tasks.some((t) => t.id === "ZZ-0001" && t.projectId === null));
   assert.equal(projectProgress(d, "AA").total, d.tasks.filter((t) => t.projectId === "AA" && t.status !== "Cancelled").length);
-  for (const p of d.projects) assert.ok(!ganttRows(d, p.id, TODAY).rows.some((r) => r.taskId === "ZZ-0001"));
-  const g = ganttRows(d, null, TODAY);
+  for (const p of d.projects) assert.ok(!ganttRows(d, p.id).rows.some((r) => r.taskId === "ZZ-0001"));
+  const g = ganttRows(d, null);
   assert.deepEqual(g.rows.map((r) => r.taskId), ["ZZ-0001"]);
   assert.deepEqual(g.milestones, []);
 });
 
-test("ganttRows: 実績の線の開始は、予定の枠の actual.date（実績だけの枠と合わせた最小の日付）", () => {
-  const d = load();
-  const line = (x) => ganttRows(x, "AC", TODAY).rows.find((r) => r.taskId === "AC-0001").actual;
-  assert.deepEqual(line(d), { start: "2026-10-15", end: TODAY });
-  const moved = setActual(d, "S8", { date: "2026-10-16", start: "09:00", end: "10:00" }, { date: TODAY, time: "12:00" }).data;
-  assert.equal(line(moved).start, "2026-10-16");
-  const both = mk([{ id: "AA-0001", sessions: [{ id: "S1", date: "2026-10-12", start: "09:00", end: "10:00", kind: "actual" }, { id: "S2", date: "2026-10-14", start: "09:00", end: "10:00", kind: "planned", actual: { date: "2026-10-10", start: "09:00", end: "10:00" } }] }]);
-  assert.equal(ganttRows(both, "AA", TODAY).rows[0].actual.start, "2026-10-10");
-});

@@ -109,15 +109,15 @@ test("app.js: 画面（タブ）を切り替えるとき、未来の予定枠の
   assert.match(tab, /S\.pendingDone = null/);
 });
 
-test("app.js: 「この週のタスク候補」の取っ手を押すとき、パネル内にしか出ない確認待ち（pendingDone）を捨てる。取っ手は view のクリックで扱い、上部のバー（filebar）には prio のボタンがない（actual は残る）", () => {
+test("app.js: 「この週のタスク候補」の取っ手を押すとき、パネル内にしか出ない確認待ち（pendingDone）を捨てる。取っ手は view のクリックで扱い、上部のバー（filebar）には data-pref のボタンがない", () => {
   const pf = src.slice(src.indexOf("function togglePref"), src.indexOf("function togglePref") + 400);
   assert.match(pf, /S\.pendingDone = null/);
   assert.match(src, /view\.addEventListener\("click"[\s\S]*data-pref/);
   assert.doesNotMatch(src, /data-pref="prio" aria-pressed/);
-  assert.match(src, /data-pref="actual" aria-pressed/);
+  assert.doesNotMatch(src, /data-pref="actual"|showActual/, "ガント実績は廃止した");
 });
 
-test("app.js: 「参加しない会議」のボタン（data-sskip）は showSkipped を反転し、scheduleOpts に渡す。data-pref は持たない（右の列の取っ手・ガント実績と干渉しない）", () => {
+test("app.js: 「参加しない会議」のボタン（data-sskip）は showSkipped を反転し、scheduleOpts に渡す。data-pref は持たない（右の列の取っ手と干渉しない）", () => {
   assert.match(src, /q\("\[data-sskip\]"\)\) \{ togglePref\("showSkipped"\)/);
   assert.match(src, /const scheduleOpts = \(\) => \(\{[^\n]*showSkipped: S\.prefs\.showSkipped/);
   const sc = readFileSync(new URL("../plugins/project-lens/src/ui/views/schedule.js", import.meta.url), "utf8");
@@ -223,10 +223,9 @@ test("app.js: 描き直しのあとに drawDeps を呼び、バーへの mouseov
   assert.match(src, /window\.addEventListener\("resize"[\s\S]{0,120}drawAllDeps/);
 });
 
-test("app.js: resize は requestAnimationFrame で間引いて線を引き直す。取っ手は focusSelector で描き直しのあとも戻る。filebar は actual だけを扱う", () => {
+test("app.js: resize は requestAnimationFrame で間引いて線を引き直す。取っ手は focusSelector で描き直しのあとも戻る", () => {
   assert.match(src, /window\.addEventListener\("resize"[\s\S]{0,260}requestAnimationFrame/);
   assert.match(src, /function focusSelector[\s\S]*d\.pref[\s\S]*return `\[data-pref=/);
-  assert.match(src, /if \(pf\) \{ togglePref\("showActual"\); return; \}/);
 });
 
 test("画面の文言: 「プロジェクト」タブはないので、稼働・ガントチャートの案内に「プロジェクト画面」「リスト表示で」を使わない", () => {

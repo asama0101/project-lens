@@ -1,6 +1,5 @@
 // 進捗率・遅延判定・ガント用の算出（純関数）
 import { addDays, diffDays, weekday, isDate } from "./dates.js";
-import { isClosed } from "./schema.js";
 
 const WINDOW_DAYS = { m1: 31, m3: 92, m6: 183, y1: 365 };
 const MARGIN_DAYS = 7;
@@ -17,17 +16,7 @@ export function taskStart(data, taskId) {
   return preds.length ? maxDate(preds.map((p) => p.due)) : t.due;
 }
 
-/** 実績の線: 最初の実績の日（実績だけの枠の日と、予定の枠の actual の日）→ 完了日（未完了なら today） */
-function actualSpan(t, today) {
-  const days = (t.sessions ?? []).flatMap((s) => (s.kind === "actual" ? [s.date] : s.actual ? [s.actual.date] : [])).sort();
-  if (!days.length) return null;
-  const finished = isClosed(t);
-  let end = finished ? (t.doneAt ?? days[days.length - 1]) : today;
-  if (end < days[0]) end = days[0];
-  return { start: days[0], end };
-}
-
-export function ganttRows(data, projectId, today) {
+export function ganttRows(data, projectId) {
   const p = data.projects.find((x) => x.id === projectId);
   const tasks = data.tasks.filter((t) => t.projectId === projectId);
   const milestones = [...(p?.milestones ?? [])].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
@@ -39,10 +28,9 @@ export function ganttRows(data, projectId, today) {
       start: s >= t.due ? t.due : s,
       end: t.due,
       point,
-      actual: actualSpan(t, today),
     };
   });
-  const dates = [...(p ? [p.start, p.due] : []), ...milestones.map((m) => m.date), ...rows.flatMap((r) => [r.start, r.end, ...(r.actual ? [r.actual.start, r.actual.end] : [])])];
+  const dates = [...(p ? [p.start, p.due] : []), ...milestones.map((m) => m.date), ...rows.flatMap((r) => [r.start, r.end])];
   return {
     range: { start: addDays(minDate(dates), -MARGIN_DAYS), end: addDays(maxDate(dates), MARGIN_DAYS) },
     rows,

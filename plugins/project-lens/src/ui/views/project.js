@@ -108,10 +108,10 @@ function renderList(data, p, today, opts) {
  * @param opts.view    "gantt" | "list"
  * @param opts.window  ガントの表示期間
  * @param opts.tpop    ガントの編集の窓({ id, x, y })。なければ出さない
- * @param opts.showPrio / opts.showActual  この週のタスク候補・ガントの実績を出すか(既定は出す)
+ * @param opts.showPrio  この週のタスク候補を出すか(既定は出す)
  */
 export function renderProjects(data, today, opts = {}) {
-  const { view = "gantt", hideDone = false, showPrio = true, showActual = true } = opts;
+  const { view = "gantt", hideDone = false, showPrio = true } = opts;
   const addBtn = `<button class="btn" data-addproject>＋ プロジェクトを追加</button>`;
   const hasNone = data.tasks.some((t) => t.projectId == null);
   if (!data.projects.length && !hasNone) {
@@ -125,7 +125,7 @@ export function renderProjects(data, today, opts = {}) {
   const pick = `<label class="pfilter">プロジェクト <select class="in sm" data-projectpick aria-label="プロジェクト名で絞り込み"><option value="all"${filter === "all" ? " selected" : ""}>すべて</option>${data.projects.map((p) => `<option value="${esc(p.id)}"${p.id === filter ? " selected" : ""}>${esc(p.name)}</option>`).join("")}${hasNone ? `<option value="none"${filter === "none" ? " selected" : ""}>${NO_PROJECT.name}</option>` : ""}</select></label>`;
   const todayIds = showPrio ? new Set(todayTaskIds(data, today)) : new Set();
   const body = view === "gantt"
-    ? `<section class="panel"><h2 class="sr">ガントチャート</h2>${renderGantt(data, ids, today, { window: opts.window, hideDone, askDel: opts.askDel, showActual, addAt: opts.addAt })}</section>`
+    ? `<section class="panel"><h2 class="sr">ガントチャート</h2>${renderGantt(data, ids, today, { window: opts.window, hideDone, askDel: opts.askDel, addAt: opts.addAt })}</section>`
     : `<div style="display:flex;flex-direction:column;gap:16px">${ids.map((id) => renderList(data, id === null ? NO_PROJECT : data.projects.find((p) => p.id === id), today, { ...opts, todayIds })).join("")}</div>`;
   const pt = view === "gantt" && opts.tpop ? data.tasks.find((t) => t.id === opts.tpop.id) : null;
   const pop = pt ? renderTaskPop(data, opts.tpop, statusCellHtml(pt, { ...opts, todayIds }, taskFlags(pt, today, data.settings).includes("overdue"))) : "";

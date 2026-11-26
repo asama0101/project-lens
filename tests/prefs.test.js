@@ -13,19 +13,19 @@ test("loadPrefs: 保存が無い／壊れたJSON／getItem が例外を投げる
   assert.deepEqual(loadPrefs(fake({ "project-lens.prefs": "{oops" })), DEFAULT_PREFS);
   assert.deepEqual(loadPrefs(boom), DEFAULT_PREFS);
   assert.deepEqual(loadPrefs(null), DEFAULT_PREFS);
-  assert.deepEqual(DEFAULT_PREFS, { showPrio: true, showActual: true, showSkipped: false, showDue: true }); // スケジュールの期限の行は、初めは開いている
+  assert.deepEqual(DEFAULT_PREFS, { showPrio: true, showSkipped: false, showDue: true }); // スケジュールの期限の行は、初めは開いている
 });
 
 test("loadPrefs: 保存された値だけを使い、真偽値以外や未知のキーは無視する", () => {
-  const s = fake({ "project-lens.prefs": JSON.stringify({ showPrio: false, showActual: "no", other: 1 }) });
-  assert.deepEqual(loadPrefs(s), { showPrio: false, showActual: true, showSkipped: false, showDue: true });
+  const s = fake({ "project-lens.prefs": JSON.stringify({ showPrio: false, showActual: false, other: 1 }) });
+  assert.deepEqual(loadPrefs(s), { showPrio: false, showSkipped: false, showDue: true });
 });
 
 test("savePrefs→loadPrefs で往復でき、setItem が例外を投げても落ちない", () => {
   const s = fake();
-  savePrefs({ showPrio: false, showActual: false, showSkipped: true, showDue: false }, s);
-  assert.deepEqual(loadPrefs(s), { showPrio: false, showActual: false, showSkipped: true, showDue: false });
-  assert.doesNotThrow(() => savePrefs({ showPrio: true, showActual: true, showSkipped: false }, boom));
+  savePrefs({ showPrio: false, showSkipped: true, showDue: false }, s);
+  assert.deepEqual(loadPrefs(s), { showPrio: false, showSkipped: true, showDue: false });
+  assert.doesNotThrow(() => savePrefs({ showPrio: true, showSkipped: false }, boom));
 });
 
 test("loadInboxDraft / saveInboxDraft: 依頼の下書きを往復でき、無い・壊れた・storage が使えないときは空。保存の失敗で落ちない", () => {

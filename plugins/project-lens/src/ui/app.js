@@ -53,7 +53,7 @@ function renderBody() {
   const { date: today } = clock();
   if (!S.data) return startScreen();
   if (S.screen === "gantt" || S.screen === "list") {
-    return renderProjects(S.data, today, { filter: S.filter, view: S.screen, window: S.gwin, hideDone: S.hideDone, askDel: S.askDel, askDelProject: S.askDelProject, pendingWait: S.pendingWait, pendingDone: S.pendingDone, checkOpen: S.checkOpen, addAt: S.addAt, tpop: S.screen === "gantt" ? S.tpop : null, showPrio: S.prefs.showPrio, showActual: S.prefs.showActual, now: clock() });
+    return renderProjects(S.data, today, { filter: S.filter, view: S.screen, window: S.gwin, hideDone: S.hideDone, askDel: S.askDel, askDelProject: S.askDelProject, pendingWait: S.pendingWait, pendingDone: S.pendingDone, checkOpen: S.checkOpen, addAt: S.addAt, tpop: S.screen === "gantt" ? S.tpop : null, showPrio: S.prefs.showPrio, now: clock() });
   }
   if (S.screen === "settings") return renderSettings(S.data, today, { ruleError: S.ruleError, closed: S.settingsClosed });
   if (S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, col: S.tdCol, draft: S.tdDraft, mode: S.tdMode, plan: S.tdPlan, chase: S.tdChase, urgentDraft: S.urgentDraft, edit: S.taskEdit, editCol: S.tdEditCol, pendingWait: S.pendingWait, pendingDone: S.pendingDone });
@@ -96,7 +96,7 @@ function render() {
   const c = clock();
   $("todaylabel").textContent = `${c.date.replace(/-/g, "/")}(${wdJa(c.date)})`;
   document.querySelectorAll("nav [role=tab]").forEach((b) => b.setAttribute("aria-selected", String(b.id === "tab-" + S.screen)));
-  $("filebar").innerHTML = S.data ? `<button class="chip-btn pref" data-pref="actual" aria-pressed="${S.prefs.showActual}" title="ガントの実績の線を出したり隠したりします">ガント実績</button><span class="fsep" aria-hidden="true"></span><button class="btn primary" data-urgent-open title="突発タスクの入力欄を開きます">＋ 突発タスク</button><button class="btn" data-actadd title="予定の無い作業の実績を入れる欄を開きます">＋ 実績を追加</button><button class="btn" data-refresh title="ファイルを読み直します(Claude Code などが更新した内容を反映)">更新</button>${renderFileChips(S.data, fileInfo(), S.fileInfo)}${typeof window.showOpenFilePicker === "function" ? "" : `<button class="btn" data-download>JSON を書き出す</button>`}` : "";
+  $("filebar").innerHTML = S.data ? `<button class="btn primary" data-urgent-open title="突発タスクの入力欄を開きます">＋ 突発タスク</button><button class="btn" data-actadd title="予定の無い作業の実績を入れる欄を開きます">＋ 実績を追加</button><button class="btn" data-refresh title="ファイルを読み直します(Claude Code などが更新した内容を反映)">更新</button>${renderFileChips(S.data, fileInfo(), S.fileInfo)}${typeof window.showOpenFilePicker === "function" ? "" : `<button class="btn" data-download>JSON を書き出す</button>`}` : "";
   placeFileInfo();
   renderBar();
   // ガントの横スクロール位置(全プロジェクトで同じ)とページの縦の位置は、編集で描き直しても保つ(表示期間・絞り込みなどを変えたときだけ今日の位置へ戻す)。
@@ -443,7 +443,7 @@ function removeSelectedSession(s) {
   apply((d) => removeSession(d, s.id), `${s.title} の${s.kind === "actual" ? "実績の枠" : s.actual ? "枠（実績つき）" : "予定の枠"}を削除しました`);
 }
 
-/** 表示の好み（この週のタスク候補・ガント実績）を反転して保存する。この週のタスク候補を閉じると、パネル内にしか出ない確認待ちは出す場所がなくなるので捨てる */
+/** 表示の好み（この週のタスク候補）を反転して保存する。この週のタスク候補を閉じると、パネル内にしか出ない確認待ちは出す場所がなくなるので捨てる */
 function togglePref(key) {
   S.pendingDone = null;
   if (key === "showPrio" && S.screen === "gantt") S.resetScroll = true; // 右の列の開け閉めでガントの幅が変わるので、横スクロールを今日の位置へ戻す（スケジュールでは戻さない。scrollToMorning でページが跳ぶため）
@@ -490,8 +490,6 @@ function openUrgent() {
 $("filebar").addEventListener("click", async (e) => {
   const fi = e.target.closest("[data-fileinfo]");
   if (fi) { S.fileInfo = S.fileInfo === fi.dataset.fileinfo ? null : fi.dataset.fileinfo; render(); return; }
-  const pf = e.target.closest("[data-pref]");
-  if (pf) { togglePref("showActual"); return; }
   if (e.target.closest("[data-urgent-open]")) { openUrgent(); return; }
   if (e.target.closest("[data-actadd]")) { // 予定の無い作業の実績を入れる欄。開いている日（スケジュール以外からは今日）を初期値にする
     clearSel(); S.tpop = null; S.pendingDone = null; S.ruleError = "";

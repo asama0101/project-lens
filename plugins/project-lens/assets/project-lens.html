@@ -279,7 +279,6 @@ tr.drop-after>td,.g-row.drop-after>.g-label,.g-row.drop-after>.g-lane{box-shadow
 
 .g-lane .gbar{top:6px;height:14px}
 .g-lane .gbar.gsum{top:8px;height:12px}
-.gact{position:absolute;top:23px;height:5px;border-radius:3px;background:var(--ok)}
 .mslist{display:flex;flex-direction:column;gap:6px}
 .msrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .msrow .in:first-child{flex:1 1 200px;width:auto}
@@ -1214,7 +1213,6 @@ const { taskStart, ganttRows, ganttLayout, timeTicks, projectProgress, taskFlags
 // 進捗率・遅延判定・ガント用の算出（純関数）
 
 
-
 const WINDOW_DAYS = { m1: 31, m3: 92, m6: 183, y1: 365 };
 const MARGIN_DAYS = 7;
 
@@ -1230,17 +1228,7 @@ function taskStart(data, taskId) {
   return preds.length ? maxDate(preds.map((p) => p.due)) : t.due;
 }
 
-/** 実績の線: 最初の実績の日（実績だけの枠の日と、予定の枠の actual の日）→ 完了日（未完了なら today） */
-function actualSpan(t, today) {
-  const days = (t.sessions ?? []).flatMap((s) => (s.kind === "actual" ? [s.date] : s.actual ? [s.actual.date] : [])).sort();
-  if (!days.length) return null;
-  const finished = isClosed(t);
-  let end = finished ? (t.doneAt ?? days[days.length - 1]) : today;
-  if (end < days[0]) end = days[0];
-  return { start: days[0], end };
-}
-
-function ganttRows(data, projectId, today) {
+function ganttRows(data, projectId) {
   const p = data.projects.find((x) => x.id === projectId);
   const tasks = data.tasks.filter((t) => t.projectId === projectId);
   const milestones = [...(p?.milestones ?? [])].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
@@ -1252,10 +1240,9 @@ function ganttRows(data, projectId, today) {
       start: s >= t.due ? t.due : s,
       end: t.due,
       point,
-      actual: actualSpan(t, today),
     };
   });
-  const dates = [...(p ? [p.start, p.due] : []), ...milestones.map((m) => m.date), ...rows.flatMap((r) => [r.start, r.end, ...(r.actual ? [r.actual.start, r.actual.end] : [])])];
+  const dates = [...(p ? [p.start, p.due] : []), ...milestones.map((m) => m.date), ...rows.flatMap((r) => [r.start, r.end])];
   return {
     range: { start: addDays(minDate(dates), -MARGIN_DAYS), end: addDays(maxDate(dates), MARGIN_DAYS) },
     rows,
@@ -2647,11 +2634,11 @@ return { createSync };
 
 /* src/ui/prefs.js */
 const { DEFAULT_PREFS, loadPrefs, savePrefs, loadInboxDraft, saveInboxDraft, SETTINGS_FOLDS, loadSettingsClosed, saveSettingsClosed } = (() => {
-// 画面の表示の好み（この週のタスク候補・ガントの実績・スケジュールの参加しない会議・週表示の期限の行を出す／隠す）。データではないので、ブラウザ（localStorage）に保存する。
+// 画面の表示の好み（この週のタスク候補・スケジュールの参加しない会議・週表示の期限の行を出す／隠す）。データではないので、ブラウザ（localStorage）に保存する。
 // localStorage が使えない・壊れているときは、既定のまま動く。
 
 const KEY = "project-lens.prefs";
-const DEFAULT_PREFS = { showPrio: true, showActual: true, showSkipped: false, showDue: true };
+const DEFAULT_PREFS = { showPrio: true, showSkipped: false, showDue: true };
 
 /** localStorage。サイトのデータが止められているなど、使えないときは null */
 const browserStorage = () => {
@@ -3794,7 +3781,7 @@ const { assignLevels, layoutMilestones, renderGantt } = (() => {
 
 const GANTT_WINDOWS = [["m1", "1か月"], ["m3", "3か月"], ["m6", "6か月"], ["y1", "1年"], ["all", "全期間"]];
 
-const legend = (showActual) => `<div class="legend"><span><i class="gbar b-todo" style="position:static;display:inline-block;width:22px;height:10px"></i>To Do</span><span><i class="gbar b-prog" style="position:static;display:inline-block;width:22px;height:10px"></i>In Progress</span><span><i class="gbar b-wait" style="position:static;display:inline-block;width:22px;height:10px"></i>Waiting</span><span><i class="gbar b-done" style="position:static;display:inline-block;width:22px;height:10px"></i>Done</span><span><i class="gbar gsum" style="position:static;display:inline-block;width:22px;height:8px"></i>プロジェクト全体</span><span><i class="ms" style="position:static;display:inline-block;transform:rotate(45deg);width:9px;height:9px"></i>マイルストーン</span>${showActual ? `<span><i class="gact" style="position:static;display:inline-block;width:22px;height:5px"></i>実績(最初の作業日〜完了日・今日)</span>` : ""}<span><i class="imp-key hi"></i>重要（行を薄い赤で塗る）</span><span>開始日は、未入力なら前のタスクの期限から</span></div>`;
+const legend = () => `<div class="legend"><span><i class="gbar b-todo" style="position:static;display:inline-block;width:22px;height:10px"></i>To Do</span><span><i class="gbar b-prog" style="position:static;display:inline-block;width:22px;height:10px"></i>In Progress</span><span><i class="gbar b-wait" style="position:static;display:inline-block;width:22px;height:10px"></i>Waiting</span><span><i class="gbar b-done" style="position:static;display:inline-block;width:22px;height:10px"></i>Done</span><span><i class="gbar gsum" style="position:static;display:inline-block;width:22px;height:8px"></i>プロジェクト全体</span><span><i class="ms" style="position:static;display:inline-block;transform:rotate(45deg);width:9px;height:9px"></i>マイルストーン</span><span><i class="imp-key hi"></i>重要（行を薄い赤で塗る）</span><span>開始日は、未入力なら前のタスクの期限から</span></div>`;
 
 function tools(win, hideDone) {
   const seg = GANTT_WINDOWS.map(([k, l]) => `<button data-gwin="${k}" aria-pressed="${win === k}">${l}</button>`).join("");
@@ -3840,20 +3827,19 @@ function layoutMilestones(gbodies) {
  * @param opts.window    "m1" | "m3" | "m6" | "y1" | "all"
  * @param opts.hideDone  Done の行を隠す（全体バーの進捗には影響しない）
  * @param opts.askDel    削除確認を出すタスク ID
- * @param opts.showActual false なら実績の線と凡例を出さない
  * @param opts.addAt     名前入力を開いている見出し { pid, group, subgroup }（なければ null）
  */
 function renderGantt(data, projectIds, today, opts = {}) {
-  const { window: win = "m6", hideDone = false, askDel = null, showActual = true, addAt = null } = opts;
+  const { window: win = "m6", hideDone = false, askDel = null, addAt = null } = opts;
   const all = projectIds.map((id) => (id === null ? NO_PROJECT : data.projects.find((p) => p.id === id))); // null は「プロジェクトなし」
   // 完了を隠すは、複数のプロジェクトを出しているとき、完了したプロジェクト（状態が「完了」、またはタスクが 1 件以上あって全部 Done）も隠す。1 つを選んでいるときは隠さない
   const closed = (p) => { const ts = data.tasks.filter((t) => t.projectId === p.id); return p.status === "完了" || (ts.length > 0 && ts.every((t) => t.status === "Done")); };
   const ps = hideDone && all.length > 1 ? all.filter((p) => !closed(p)) : all;
   // 編集画面は、道具と凡例を上端の固定の帯に置く（タスクが多くても、スクロール中に色の意味を見失わない）
-  const top = `<div class="gtop">${tools(win, hideDone)}${legend(showActual)}</div>`;
+  const top = `<div class="gtop">${tools(win, hideDone)}${legend()}</div>`;
   if (!ps.length) return `${top}<p class="muted">完了したプロジェクトを隠しています。「完了を隠す」を押すと、また出ます。</p>`;
 
-  const geo = new Map(ps.map((p) => [p.id, ganttRows(data, p.id, today)]));
+  const geo = new Map(ps.map((p) => [p.id, ganttRows(data, p.id)]));
   const starts = [...geo.values()].map((g) => g.range.start);
   const ends = [...geo.values()].map((g) => g.range.end);
   const s0 = [addDays(today, -10), ...starts].reduce((a, b) => (a < b ? a : b));
@@ -3924,9 +3910,6 @@ function renderGantt(data, projectIds, today, opts = {}) {
       const bar = r.point
         ? `<i class="dot mk${drag} ${ui.dot}${late ? " is-late" : ""}"${gt} style="left:calc(${x(r.end)} + ${(50 / total).toFixed(3)}%)" title="${label}(ドラッグで期限を変更)"></i>`
         : `<i class="gbar${drag} ${ui.bar}${ckFill ? " ck" : ""}${late ? " is-late" : ""}"${gt} style="left:${x(r.start)};width:${(((diffDays(r.end, r.start) + 1) / total) * 100).toFixed(3)}%;min-width:5px" title="${label}(クリックで編集、ドラッグで移動、両端で開始・期限を変更)">${ckFill}<b class="gh l" data-gh="l"></b><b class="gh r" data-gh="r"></b></i>`;
-      const act = r.actual && showActual
-        ? `<i class="gact" style="left:${x(r.actual.start)};width:${((Math.max(diffDays(r.actual.end, r.actual.start), 0) + 1) / total * 100).toFixed(3)}%;min-width:4px" title="実績 ${fmtMD(r.actual.start)}〜${fmtMD(r.actual.end)}"></i>`
-        : "";
       // Waiting で待ち先があれば、回答予定日に ◆、バーの横に「待ち: 待ち先 ・ 回答予定日」。回答予定日が今日より前なら赤（超過）。ポイントの行には出さない
       const wo = t.status === "Waiting" && !r.point && t.waitingOn?.party ? t.waitingOn : null;
       let wait = "";
@@ -3949,7 +3932,7 @@ function renderGantt(data, projectIds, today, opts = {}) {
         const imp = isImportantMark(t) ? " imp-high" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
         lab = `<div class="g-label${imp}" data-mvrow="${esc(t.id)}"><span class="mv" draggable="true" data-mvh="${esc(t.id)}" title="ドラッグで並べ替え" aria-label="${esc(t.id)} を並べ替え">⠿</span><span class="id">${esc(t.id)}</span>${name}${del}<span class="g-pre">${hasPre ? "← " + esc(t.predecessors.join(", ")) : ""}</span>${checkMeterHtml(t)}</div>`;
       }
-      return `<div class="g-row">${lab}<div class="g-lane" ${laneStyle}>${bar}${act}<span class="g-due mono" style="left:${x(addDays(r.end, 1))}">${fmtMD(t.due)}</span>${wait}</div></div>`;
+      return `<div class="g-row">${lab}<div class="g-lane" ${laneStyle}>${bar}<span class="g-due mono" style="left:${x(addDays(r.end, 1))}">${fmtMD(t.due)}</span>${wait}</div></div>`;
     };
     // (大項目, 中項目) ごとに見出し行を入れて並べる。追加の入口になるので、大項目がなくても「（なし）」の見出しを常に出す。
     // 見出しは完了を隠していても残す（そのグループへ追加できるように）
@@ -4603,10 +4586,10 @@ function renderList(data, p, today, opts) {
  * @param opts.view    "gantt" | "list"
  * @param opts.window  ガントの表示期間
  * @param opts.tpop    ガントの編集の窓({ id, x, y })。なければ出さない
- * @param opts.showPrio / opts.showActual  この週のタスク候補・ガントの実績を出すか(既定は出す)
+ * @param opts.showPrio  この週のタスク候補を出すか(既定は出す)
  */
 function renderProjects(data, today, opts = {}) {
-  const { view = "gantt", hideDone = false, showPrio = true, showActual = true } = opts;
+  const { view = "gantt", hideDone = false, showPrio = true } = opts;
   const addBtn = `<button class="btn" data-addproject>＋ プロジェクトを追加</button>`;
   const hasNone = data.tasks.some((t) => t.projectId == null);
   if (!data.projects.length && !hasNone) {
@@ -4620,7 +4603,7 @@ function renderProjects(data, today, opts = {}) {
   const pick = `<label class="pfilter">プロジェクト <select class="in sm" data-projectpick aria-label="プロジェクト名で絞り込み"><option value="all"${filter === "all" ? " selected" : ""}>すべて</option>${data.projects.map((p) => `<option value="${esc(p.id)}"${p.id === filter ? " selected" : ""}>${esc(p.name)}</option>`).join("")}${hasNone ? `<option value="none"${filter === "none" ? " selected" : ""}>${NO_PROJECT.name}</option>` : ""}</select></label>`;
   const todayIds = showPrio ? new Set(todayTaskIds(data, today)) : new Set();
   const body = view === "gantt"
-    ? `<section class="panel"><h2 class="sr">ガントチャート</h2>${renderGantt(data, ids, today, { window: opts.window, hideDone, askDel: opts.askDel, showActual, addAt: opts.addAt })}</section>`
+    ? `<section class="panel"><h2 class="sr">ガントチャート</h2>${renderGantt(data, ids, today, { window: opts.window, hideDone, askDel: opts.askDel, addAt: opts.addAt })}</section>`
     : `<div style="display:flex;flex-direction:column;gap:16px">${ids.map((id) => renderList(data, id === null ? NO_PROJECT : data.projects.find((p) => p.id === id), today, { ...opts, todayIds })).join("")}</div>`;
   const pt = view === "gantt" && opts.tpop ? data.tasks.find((t) => t.id === opts.tpop.id) : null;
   const pop = pt ? renderTaskPop(data, opts.tpop, statusCellHtml(pt, { ...opts, todayIds }, taskFlags(pt, today, data.settings).includes("overdue"))) : "";
@@ -5409,7 +5392,7 @@ function renderBody() {
   const { date: today } = clock();
   if (!S.data) return startScreen();
   if (S.screen === "gantt" || S.screen === "list") {
-    return renderProjects(S.data, today, { filter: S.filter, view: S.screen, window: S.gwin, hideDone: S.hideDone, askDel: S.askDel, askDelProject: S.askDelProject, pendingWait: S.pendingWait, pendingDone: S.pendingDone, checkOpen: S.checkOpen, addAt: S.addAt, tpop: S.screen === "gantt" ? S.tpop : null, showPrio: S.prefs.showPrio, showActual: S.prefs.showActual, now: clock() });
+    return renderProjects(S.data, today, { filter: S.filter, view: S.screen, window: S.gwin, hideDone: S.hideDone, askDel: S.askDel, askDelProject: S.askDelProject, pendingWait: S.pendingWait, pendingDone: S.pendingDone, checkOpen: S.checkOpen, addAt: S.addAt, tpop: S.screen === "gantt" ? S.tpop : null, showPrio: S.prefs.showPrio, now: clock() });
   }
   if (S.screen === "settings") return renderSettings(S.data, today, { ruleError: S.ruleError, closed: S.settingsClosed });
   if (S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, col: S.tdCol, draft: S.tdDraft, mode: S.tdMode, plan: S.tdPlan, chase: S.tdChase, urgentDraft: S.urgentDraft, edit: S.taskEdit, editCol: S.tdEditCol, pendingWait: S.pendingWait, pendingDone: S.pendingDone });
@@ -5452,7 +5435,7 @@ function render() {
   const c = clock();
   $("todaylabel").textContent = `${c.date.replace(/-/g, "/")}(${wdJa(c.date)})`;
   document.querySelectorAll("nav [role=tab]").forEach((b) => b.setAttribute("aria-selected", String(b.id === "tab-" + S.screen)));
-  $("filebar").innerHTML = S.data ? `<button class="chip-btn pref" data-pref="actual" aria-pressed="${S.prefs.showActual}" title="ガントの実績の線を出したり隠したりします">ガント実績</button><span class="fsep" aria-hidden="true"></span><button class="btn primary" data-urgent-open title="突発タスクの入力欄を開きます">＋ 突発タスク</button><button class="btn" data-actadd title="予定の無い作業の実績を入れる欄を開きます">＋ 実績を追加</button><button class="btn" data-refresh title="ファイルを読み直します(Claude Code などが更新した内容を反映)">更新</button>${renderFileChips(S.data, fileInfo(), S.fileInfo)}${typeof window.showOpenFilePicker === "function" ? "" : `<button class="btn" data-download>JSON を書き出す</button>`}` : "";
+  $("filebar").innerHTML = S.data ? `<button class="btn primary" data-urgent-open title="突発タスクの入力欄を開きます">＋ 突発タスク</button><button class="btn" data-actadd title="予定の無い作業の実績を入れる欄を開きます">＋ 実績を追加</button><button class="btn" data-refresh title="ファイルを読み直します(Claude Code などが更新した内容を反映)">更新</button>${renderFileChips(S.data, fileInfo(), S.fileInfo)}${typeof window.showOpenFilePicker === "function" ? "" : `<button class="btn" data-download>JSON を書き出す</button>`}` : "";
   placeFileInfo();
   renderBar();
   // ガントの横スクロール位置(全プロジェクトで同じ)とページの縦の位置は、編集で描き直しても保つ(表示期間・絞り込みなどを変えたときだけ今日の位置へ戻す)。
@@ -5799,7 +5782,7 @@ function removeSelectedSession(s) {
   apply((d) => removeSession(d, s.id), `${s.title} の${s.kind === "actual" ? "実績の枠" : s.actual ? "枠（実績つき）" : "予定の枠"}を削除しました`);
 }
 
-/** 表示の好み（この週のタスク候補・ガント実績）を反転して保存する。この週のタスク候補を閉じると、パネル内にしか出ない確認待ちは出す場所がなくなるので捨てる */
+/** 表示の好み（この週のタスク候補）を反転して保存する。この週のタスク候補を閉じると、パネル内にしか出ない確認待ちは出す場所がなくなるので捨てる */
 function togglePref(key) {
   S.pendingDone = null;
   if (key === "showPrio" && S.screen === "gantt") S.resetScroll = true; // 右の列の開け閉めでガントの幅が変わるので、横スクロールを今日の位置へ戻す（スケジュールでは戻さない。scrollToMorning でページが跳ぶため）
@@ -5846,8 +5829,6 @@ function openUrgent() {
 $("filebar").addEventListener("click", async (e) => {
   const fi = e.target.closest("[data-fileinfo]");
   if (fi) { S.fileInfo = S.fileInfo === fi.dataset.fileinfo ? null : fi.dataset.fileinfo; render(); return; }
-  const pf = e.target.closest("[data-pref]");
-  if (pf) { togglePref("showActual"); return; }
   if (e.target.closest("[data-urgent-open]")) { openUrgent(); return; }
   if (e.target.closest("[data-actadd]")) { // 予定の無い作業の実績を入れる欄。開いている日（スケジュール以外からは今日）を初期値にする
     clearSel(); S.tpop = null; S.pendingDone = null; S.ruleError = "";

@@ -272,7 +272,6 @@ tr.drop-after>td,.g-row.drop-after>.g-label,.g-row.drop-after>.g-lane{box-shadow
 
 .g-lane .gbar{top:6px;height:14px}
 .g-lane .gbar.gsum{top:8px;height:12px}
-.gact{position:absolute;top:23px;height:5px;border-radius:3px;background:var(--ok)}
 .mslist{display:flex;flex-direction:column;gap:6px}
 .msrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .msrow .in:first-child{flex:1 1 200px;width:auto}
