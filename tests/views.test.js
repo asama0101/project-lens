@@ -2432,7 +2432,8 @@ test("renderTodo: 未完了の候補は見出しなしの 1 つの一覧で rank
 test("renderTodo: 各候補の行に理由（td-why）が「・」でつないで出る。予定ありの組の行は先頭に「今週に予定あり」。完了の行と左の列には出ない", () => {
   const html = tdHtml(tdData());
   const why = (id) => tdRow(html, id).match(/<div class="td-why">([^]*?)<\/div>/)?.[1];
-  assert.ok(why("AA-0001").startsWith("期限超過 5日"), why("AA-0001"));
+  assert.ok(!why("AA-0001").includes("期限超過"), "期限超過は札にして、理由の文章からは除く");
+  assert.ok(tdRow(html, "AA-0001").includes('<span class="latebadge">期限超過 5日</span>') && tdRow(html, "AA-0001").includes("（5 日超過）"), "札と、期限の日数");
   assert.ok(why("AA-0003").startsWith("前のタスク待ち・"), why("AA-0003"));
   assert.ok(why("AA-0002").startsWith("今週に予定あり・"), why("AA-0002"));
   assert.ok(tdRow(html, "AA-0002").indexOf("td-why") < tdRow(html, "AA-0002").indexOf("td-meta"), "td-meta の上");
@@ -2515,6 +2516,26 @@ test("renderTodo: 左の行の、実績のある枠に「実績を外す」（da
   assert.ok(l.includes('data-tdactclear="S9"') && l.includes("実績を外す"), l);
   assert.ok(!tdRow(html, "AA-0002").includes("data-tdactclear"), "右の列には出ない");
   assert.ok(!tdTodayRow(tdHtml(tdData()), "AA-0002").includes("data-tdactclear"), "実績が無ければ出ない");
+});
+
+test("遅れの札: 期限超過・回答予定日の超過は、右の列・ToDo の行に札と帯（li.late）、ガントの期限に「▲ N 日超過」、リストの期限・待ち先の欄に注記。遅れが無い行には出ない", () => {
+  const d = tdData();
+  const t = d.tasks.find((x) => x.id === "AA-0002");
+  t.status = "Waiting"; t.waitingOn = { party: "ベンダーX", since: "2026-10-01", expected: "2026-10-15" };
+  const side = renderPrio(d, TODAY, { sched: true }); // AA-0001 は期限を 5 日過ぎている（AA-0002 は今日のタスクに入るので、右の列の候補には出ない）
+  assert.ok(side.includes('class="latebadge">期限超過 5日') && side.includes("（5 日超過）"), "期限超過の札と、期限の日数");
+  assert.match(side, /<li draggable="true" data-dragtask="AA-0001" class="late">/, "帯（li.late）");
+  assert.ok(!side.includes("期限超過 5日。") && !side.includes("回答予定日を過ぎています"), "札にした理由は、文章から除く");
+  assert.ok(/<li draggable="true" data-dragtask="AA-0003">/.test(side), "遅れの無い行に帯は付かない");
+  const html = tdHtml(d);
+  assert.ok(tdRow(html, "AA-0002").includes('class="latebadge">回答予定を 5 日超過'));
+  assert.ok(!tdRow(html, "AA-0003").includes("latebadge") && !tdRow(html, "AA-0003").includes('td-row late'), "遅れの無い行");
+  const w = withWait("AA-0003", { party: "ベンダーX", since: "2026-10-09", expected: "2026-10-15" });
+  const a3 = w.tasks.find((x) => x.id === "AA-0003"); a3.start = "2026-10-01"; a3.due = "2026-10-18"; // 期限を 2 日過ぎた Waiting
+  const g = gantt(w, ["AA"]);
+  assert.match(g, /class="g-due mono lt"[^>]*>[^<]*▲ 2 日超過/, "ガントの期限");
+  const l = renderProjects(w, TODAY, { filter: "AA", view: "list" });
+  assert.ok(l.includes("class=\"latenote\">▲") && l.includes("class=\"latenote\">回答予定を 5 日超過"), "リストの期限・待ち先の欄");
 });
 
 test("renderTodo: すべての行に「編集」（data-tdedit）。Done の行にも出る。edit を開いた行・列だけ、編集欄（スケジュールと同じ部品）が出る", () => {
@@ -2941,7 +2962,7 @@ test("renderTodo: 未完了の候補の行に draggable と data-tdrag。完了�
   const d = tdData();
   d.tasks.push(tdTask("AA-0006", { title: "中止の今週", status: "Cancelled", sessions: [{ id: "S6", date: "2026-10-21", start: "09:00", end: "10:00", kind: "planned" }] }));
   const html = tdHtml(d);
-  for (const id of ["AA-0001", "AA-0002", "AA-0003"]) assert.ok(tdRow(html, id).startsWith(`<li class="td-row" draggable="true" data-tdrag="${id}"`), id);
+  for (const id of ["AA-0001", "AA-0002", "AA-0003"]) assert.ok(tdRow(html, id).startsWith(`<li class="td-row${id === "AA-0001" ? " late" : ""}" draggable="true" data-tdrag="${id}"`), id);
   assert.ok(!tdRow(html, "AA-0004").includes("draggable") && !tdRow(html, "AA-0004").includes("data-tdrag"), "Done");
   assert.ok(!html.includes('data-tdrag="AA-0006"'), "Cancelled");
   assert.ok(tdTodayRow(html, "AA-0002") && !tdTodayRow(html, "AA-0002").includes("draggable") && !tdTodayRow(html, "AA-0002").includes("data-tdrag"), "左の列");
@@ -3021,7 +3042,7 @@ test("renderGantt: 回答予定日が今日より前なら late と『超過』�
   const over = row("2026-10-19");
   assert.ok(/class="gwait-mk late"/.test(over) && /class="gwait-lab[^"]* late"[^>]*>待ち: ベンダーX ・ 10\/19 超過</.test(over), over);
   const same = row(TODAY);
-  assert.ok(!/late"/.test(same.slice(same.indexOf("gwait"))) && !same.includes("超過"));
+  assert.ok(!/late"/.test(same.slice(same.indexOf("gwait"))) && !same.slice(same.indexOf("gwait-lab")).includes("超過"));
 });
 
 test("renderGantt: 回答予定日が表示の範囲の外なら、◆ は出ず、文字は出る", () => {

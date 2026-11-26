@@ -1,5 +1,6 @@
 // 進捗率・遅延判定・ガント用の算出（純関数）
 import { addDays, diffDays, weekday, isDate } from "./dates.js";
+import { isClosed } from "./schema.js";
 
 const WINDOW_DAYS = { m1: 31, m3: 92, m6: 183, y1: 365 };
 const MARGIN_DAYS = 7;
@@ -14,6 +15,19 @@ export function taskStart(data, taskId) {
   if (t.start) return t.start;
   const preds = (t.predecessors ?? []).map((id) => taskOf(data, id)).filter(Boolean);
   return preds.length ? maxDate(preds.map((p) => p.due)) : t.due;
+}
+
+/**
+ * 遅れの情報。overdue = 期限を過ぎた日数（完了していない、期限が today より前のとき。それ以外は 0）、
+ * lapsed = 回答予定日を過ぎた日数（Waiting で、回答予定日が today より前のとき。それ以外は 0）
+ */
+export function lateInfo(task, today) {
+  if (isClosed(task)) return { overdue: 0, lapsed: 0 };
+  const exp = task.waitingOn?.expected;
+  return {
+    overdue: isDate(task.due) && task.due < today ? diffDays(today, task.due) : 0,
+    lapsed: task.status === "Waiting" && isDate(exp) && exp < today ? diffDays(today, exp) : 0,
+  };
 }
 
 export function ganttRows(data, projectId) {

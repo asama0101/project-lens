@@ -673,6 +673,15 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 #view .tedit .tedit-detail{flex-basis:100%;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:flex-end;border-top:1px dashed var(--line);padding-top:8px}
 #view .tedit [data-tedit-full]{min-width:calc(6em + 26px)}
 #view #mtgslot:not(:empty){scrollbar-gutter:stable} /* 詳細を開いて欄の中のスクロールバーが出ても、軽い欄の幅が変わらない（出ると 15px 狭まった。実測） */
+
+/* 遅れの札・帯（期限超過・回答予定日の超過）。色だけでなく、文字と日数でも伝える */
+#view .latebadge{display:inline-block;font-size:12px;font-weight:700;line-height:1.5;padding:0 7px;border-radius:4px;background:var(--bad);color:var(--surface);white-space:nowrap}
+#view .duelate{color:var(--bad);font-weight:700}
+#view .rank li.late,#view .tdlist>li.late{border-left:6px solid var(--bad);background:color-mix(in srgb,var(--bad-soft) 55%,var(--surface));padding-left:8px}
+#view .tdlist>li.late.part{background:color-mix(in srgb,var(--bad-soft) 55%,var(--surface))}
+#view .g-due.lt{color:var(--bad);font-weight:700;font-size:12px}
+#view .latenote{display:block;color:var(--bad);font-weight:700;font-size:11px;white-space:nowrap}
+#view .g-lane .gwait-lab.afterdue{margin-left:130px} /* 期限の日付が「▲ N 日超過」で長くなる分、待ち先の文字を右へずらす */
 </style>
 </head>
 <body>
@@ -1210,8 +1219,9 @@ return { checklistOf, checklistCount, nextChecklistId };
 })();
 
 /* src/core/metrics.js */
-const { taskStart, ganttRows, ganttLayout, timeTicks, projectProgress, taskFlags, projectFlags } = (() => {
+const { taskStart, lateInfo, ganttRows, ganttLayout, timeTicks, projectProgress, taskFlags, projectFlags } = (() => {
 // 進捗率・遅延判定・ガント用の算出（純関数）
+
 
 
 const WINDOW_DAYS = { m1: 31, m3: 92, m6: 183, y1: 365 };
@@ -1227,6 +1237,19 @@ function taskStart(data, taskId) {
   if (t.start) return t.start;
   const preds = (t.predecessors ?? []).map((id) => taskOf(data, id)).filter(Boolean);
   return preds.length ? maxDate(preds.map((p) => p.due)) : t.due;
+}
+
+/**
+ * 遅れの情報。overdue = 期限を過ぎた日数（完了していない、期限が today より前のとき。それ以外は 0）、
+ * lapsed = 回答予定日を過ぎた日数（Waiting で、回答予定日が today より前のとき。それ以外は 0）
+ */
+function lateInfo(task, today) {
+  if (isClosed(task)) return { overdue: 0, lapsed: 0 };
+  const exp = task.waitingOn?.expected;
+  return {
+    overdue: isDate(task.due) && task.due < today ? diffDays(today, task.due) : 0,
+    lapsed: task.status === "Waiting" && isDate(exp) && exp < today ? diffDays(today, exp) : 0,
+  };
 }
 
 function ganttRows(data, projectId) {
@@ -1318,7 +1341,7 @@ function projectFlags(data, projectId, today) {
   return flags;
 }
 
-return { taskStart, ganttRows, ganttLayout, timeTicks, projectProgress, taskFlags, projectFlags };
+return { taskStart, lateInfo, ganttRows, ganttLayout, timeTicks, projectProgress, taskFlags, projectFlags };
 })();
 
 /* src/core/sessions.js */
@@ -3669,8 +3692,9 @@ return { summarizeSections, planOps, applyProposal, approveEdit };
 })();
 
 /* src/ui/views/prio.js */
-const { statusPill, slotHtml, doneAskHtml, todayTaskIds, renderTodayTasks, renderPrio, renderSide, renderSideToggle } = (() => {
+const { statusPill, lateBadgesHtml, dueLateHtml, restReasons, slotHtml, doneAskHtml, todayTaskIds, renderTodayTasks, renderPrio, renderSide, renderSideToggle } = (() => {
 // 「今日のタスク」「この週のタスク候補」パネル（プロジェクト画面・スケジュール画面で共通。右の列に並ぶ）
+
 
 
 
@@ -3680,6 +3704,16 @@ const { statusPill, slotHtml, doneAskHtml, todayTaskIds, renderTodayTasks, rende
 const PILL = { "To Do": "off", "In Progress": "ok", Waiting: "wait", Done: "done", Cancelled: "off" };
 const IMP_BADGE = `<span class="impbadge">重要</span>`;
 const statusPill = (t) => `<span class="pill ${PILL[t.status] ?? "off"}">${esc(t.status)}</span>`;
+
+/** 遅れの札（件名の横・下に置く）。期限超過・回答予定日の超過。色だけでなく文字と日数でも伝える。遅れが無ければ空文字 */
+const lateBadgesHtml = (info) =>
+  (info.lapsed ? `<span class="latebadge">回答予定を ${info.lapsed} 日超過</span>` : "") + (info.overdue ? `<span class="latebadge">期限超過 ${info.overdue}日</span>` : "");
+
+/** 期限の表示。期限を過ぎていれば、赤の太字で日数を添える（`<b>` の中身は呼び出し側の日付） */
+const dueLateHtml = (dueText, info) => (info.overdue ? `<span class="duelate">期限 <b class="mono">${dueText}</b>（${info.overdue} 日超過）</span>` : `<span>期限 <b class="mono">${dueText}</b></span>`);
+
+/** 理由の文章から、札にした理由（期限超過・回答予定日の超過）を除く */
+const restReasons = (reasons) => reasons.filter((x) => !x.startsWith("期限超過 ") && !x.startsWith("回答予定日を過ぎています"));
 
 /** 枠の種類の札（カレンダーの凡例と同じ色の class。文字でも出す） */
 const KIND_TAG = { planned: ["plan", "予定"], actual: ["act", "実績"], unconfirmed: ["unconf", "未確認"] };
@@ -3726,7 +3760,8 @@ function renderTodayTasks(data, today, opts = {}) {
     const times = slots.map((s) => slotHtml(s, now, actuals)).join("");
     const ask = opts.pendingDone?.id === t.id ? doneAskHtml(opts.pendingDone) : "";
     const drag = opts.sched && !isClosed(t) ? ` draggable="true" data-dragtask="${esc(t.id)}"` : "";
-    return `<li data-today="${esc(t.id)}"${isClosed(t) ? ' class="closed"' : ""}${drag}><span class="pj">${proj}</span><span class="t">${esc(t.title)} ${statusPill(t)}${isImportantMark(t) ? IMP_BADGE : ""}</span><span class="why mono tss">${times}</span>${isClosed(t) ? "" : checkMeterHtml(t, { remain: true })}${ask}</li>`;
+    const late = lateInfo(t, today), isLate = late.overdue || late.lapsed;
+    return `<li data-today="${esc(t.id)}"${isClosed(t) ? ' class="closed"' : isLate ? ' class="late"' : ""}${drag}><span class="pj">${proj}</span><span class="t">${esc(t.title)} ${statusPill(t)}${isImportantMark(t) ? IMP_BADGE : ""}${lateBadgesHtml(late)}</span><span class="why mono tss">${times}</span>${isClosed(t) ? "" : checkMeterHtml(t, { remain: true })}${ask}</li>`;
   }).join("");
   return `<section class="panel todaytasks" aria-labelledby="h-td"><h2 id="h-td">今日のタスク</h2><ul class="rank tl">${items}</ul></section>`;
 }
@@ -3748,7 +3783,8 @@ function renderPrio(data, today, opts = {}) {
     const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? (t.projectId == null ? "プロジェクトなし" : ""));
     const drag = sched ? ` draggable="true" data-dragtask="${esc(t.id)}"` : "";
     const plan = sched ? "" : `<button class="btn" data-prioplan="${esc(t.id)}">今日へ</button>`;
-    return `<li${drag}><span class="n">${i + 1}</span><span class="pj">${proj}</span><span class="t">${r.action === "chase" ? `<span class="act">${r.reasons.some((x) => x.includes("催促")) ? "催促" : "確認"}</span>` : ""}${esc(t.title)} ${statusPill(t)}${pill}</span>${checkMeterHtml(t, { remain: true })}<span class="why">${isImportantMark(t) ? IMP_BADGE : ""}${esc(r.reasons.filter((x) => x !== "重要").join("。"))}</span>${plan}</li>`;
+    const late = lateInfo(t, today);
+    return `<li${drag}${late.overdue || late.lapsed ? ' class="late"' : ""}><span class="n">${i + 1}</span><span class="pj">${proj}</span><span class="t">${r.action === "chase" ? `<span class="act">${r.reasons.some((x) => x.includes("催促")) ? "催促" : "確認"}</span>` : ""}${esc(t.title)} ${statusPill(t)}${pill}${lateBadgesHtml(late)}</span>${checkMeterHtml(t, { remain: true })}<span class="why">${isImportantMark(t) ? IMP_BADGE : ""}${esc(restReasons(r.reasons).filter((x) => x !== "重要").join("。"))}${late.overdue ? `<br>${dueLateHtml(fmtMD(t.due), late)}` : ""}</span>${plan}</li>`;
   }).join("");
   const note = sched
     ? "タスクをカレンダーへドラッグして配置します(15分刻み・長さ1時間)。今日のタスクの行からも、同じタスクをもう 1 つ置けます。配置済みの枠もドラッグで移動できます。"
@@ -3765,7 +3801,7 @@ function renderSide(data, today, opts = {}) {
 const renderSideToggle = (open) =>
   `<button class="side-toggle" data-pref="prio" aria-expanded="${open}" aria-label="${open ? "この週のタスク候補を閉じる" : "この週のタスク候補を開く"}" title="${open ? "右の「今日のタスク」「この週のタスク候補」を閉じます" : "右の「今日のタスク」「この週のタスク候補」を開きます"}">${open ? "›" : "‹"}</button>`;
 
-return { statusPill, slotHtml, doneAskHtml, todayTaskIds, renderTodayTasks, renderPrio, renderSide, renderSideToggle };
+return { statusPill, lateBadgesHtml, dueLateHtml, restReasons, slotHtml, doneAskHtml, todayTaskIds, renderTodayTasks, renderPrio, renderSide, renderSideToggle };
 })();
 
 /* src/ui/views/gantt.js */
@@ -3921,7 +3957,7 @@ function renderGantt(data, projectIds, today, opts = {}) {
         const mk = exp && ed >= 0 && ed < total ? `<i class="gwait-mk${over ? " late" : ""}" data-gwait="${esc(t.id)}" style="left:calc(${x(exp)} + ${(50 / total).toFixed(3)}%)"></i>` : "";
         const onLeft = ((diffDays(r.end, s0) + 1) / total) > 0.7; // バーの右端が 70% を超えたら、文字はバーの左に置く（右に収まらない）
         const pos = onLeft ? `right:calc(100% - ${x(r.start)})` : `left:${x(addDays(r.end, 1))}`;
-        wait = `${mk}<span class="gwait-lab${onLeft ? " left" : ""}${over ? " late" : ""}" data-gwait-lab style="${pos}">待ち: ${esc(wo.party)}${exp ? ` ・ ${fmtMD(exp)}` : ""}${over ? " 超過" : ""}</span>`;
+        wait = `${mk}<span class="gwait-lab${onLeft ? " left" : ""}${!onLeft && lateInfo(t, today).overdue ? " afterdue" : ""}${over ? " late" : ""}" data-gwait-lab style="${pos}">待ち: ${esc(wo.party)}${exp ? ` ・ ${fmtMD(exp)}` : ""}${over ? " 超過" : ""}</span>`;
       }
       const dependents = data.tasks.filter((o) => (o.predecessors ?? []).includes(t.id)).map((o) => o.id);
       let lab;
@@ -3933,7 +3969,7 @@ function renderGantt(data, projectIds, today, opts = {}) {
         const imp = isImportantMark(t) ? " imp-high" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
         lab = `<div class="g-label${imp}" data-mvrow="${esc(t.id)}"><span class="mv" draggable="true" data-mvh="${esc(t.id)}" title="ドラッグで並べ替え" aria-label="${esc(t.id)} を並べ替え">⠿</span><span class="id">${esc(t.id)}</span>${name}${del}<span class="g-pre">${hasPre ? "← " + esc(t.predecessors.join(", ")) : ""}</span>${checkMeterHtml(t)}</div>`;
       }
-      return `<div class="g-row">${lab}<div class="g-lane" ${laneStyle}>${bar}<span class="g-due mono" style="left:${x(addDays(r.end, 1))}">${fmtMD(t.due)}</span>${wait}</div></div>`;
+      return `<div class="g-row">${lab}<div class="g-lane" ${laneStyle}>${bar}<span class="g-due mono${lateInfo(t, today).overdue ? " lt" : ""}" style="left:${x(addDays(r.end, 1))}">${fmtMD(t.due)}${lateInfo(t, today).overdue ? ` ▲ ${lateInfo(t, today).overdue} 日超過` : ""}</span>${wait}</div></div>`;
     };
     // (大項目, 中項目) ごとに見出し行を入れて並べる。追加の入口になるので、大項目がなくても「（なし）」の見出しを常に出す。
     // 見出しは完了を隠していても残す（そのグループへ追加できるように）
@@ -4530,7 +4566,7 @@ function renderList(data, p, today, opts) {
       ? `<div class="ask" style="max-width:none">${dependents.length ? `次のタスク ${esc(dependents.join(", "))} の前のタスクから外れます。` : "このタスクを削除します。"}<div style="display:flex;gap:6px;margin-top:4px"><button class="btn danger" data-delyes="${esc(t.id)}">削除する</button><button class="btn" data-delno>やめる</button></div></div>`
       : "";
     const delCell = `<button class="btn" data-del="${esc(t.id)}" aria-label="${esc(t.id)} を削除">削除</button>`; // 確認は、狭い欄に入れず、全幅の行（askrow）に出す
-    const late = taskFlags(t, today, data.settings).includes("overdue");
+    const late = taskFlags(t, today, data.settings).includes("overdue"), li = lateInfo(t, today);
     return `<tr${isImportantMark(t) ? ' class="imp"' : ""} data-row="${esc(t.id)}" data-mvrow="${esc(t.id)}"><td class="id" data-l="ID"><span class="mv" draggable="true" data-mvh="${esc(t.id)}" title="ドラッグで並べ替え" aria-label="${esc(t.id)} を並べ替え">⠿</span>${esc(t.id)}${t.repeat ? ` <span class="muted" title="${t.repeat.unit === "week" ? "毎週" : `毎月 ${esc(t.repeat.day)} 日`}の定例（完了で次回を作ります）" aria-label="定例">↻</span>` : ""}</td>
       <td data-l="${esc(labels.group)}"><input class="in gi" data-f="group" data-id="${esc(t.id)}" value="${esc(t.group ?? "")}" aria-label="${esc(t.id)} の${esc(labels.group)}"></td>
       <td data-l="${esc(labels.subgroup)}"><input class="in gi" data-f="subgroup" data-id="${esc(t.id)}" value="${esc(t.subgroup ?? "")}" aria-label="${esc(t.id)} の${esc(labels.subgroup)}"></td>
@@ -4538,10 +4574,10 @@ function renderList(data, p, today, opts) {
       <td data-l="プロジェクト"><select class="in sm" data-f="projectId" data-id="${esc(t.id)}" aria-label="${esc(t.id)} のプロジェクト"><option value=""${t.projectId == null ? " selected" : ""}>プロジェクトなし</option>${data.projects.map((o) => `<option value="${esc(o.id)}"${o.id === t.projectId ? " selected" : ""}>${esc(o.name)}</option>`).join("")}</select></td>
       <td data-l="状態">${statusCellHtml(t, opts, late, { inline: false })}</td>
       <td data-l="開始">${startInputHtml(data, t)}</td>
-      <td data-l="期限">${dateInputHtml({ value: t.due, attrs: `data-f="due" data-id="${esc(t.id)}" aria-label="${esc(t.id)} の期限"`, label: "期限" })}</td>
+      <td data-l="期限">${dateInputHtml({ value: t.due, attrs: `data-f="due" data-id="${esc(t.id)}" aria-label="${esc(t.id)} の期限"`, label: "期限" })}${li.overdue ? `<span class="latenote">▲ ${li.overdue} 日超過</span>` : ""}</td>
       <td data-l="繰り返し">${taskFieldHtml(data, t, "repeat")}</td>
       <td data-l="前のタスク">${predEditHtml(data, t)}</td>
-      <td data-l="待ち先"><input class="in" data-f="party" data-id="${esc(t.id)}" value="${esc(t.waitingOn?.party ?? "")}" placeholder="${t.status === "Waiting" ? "ベンダー・部署名" : "—"}" ${t.status === "Waiting" ? "" : "disabled"} aria-label="${esc(t.id)} の待ち先">${needParty}${dateInputHtml({ value: t.waitingOn?.expected ?? "", cls: "in sm", attrs: `data-f="expected" data-id="${esc(t.id)}" title="回答予定日" ${t.status === "Waiting" && t.waitingOn?.party ? "" : "disabled"} aria-label="${esc(t.id)} の回答予定日"`, label: "回答予定日" })}</td>
+      <td data-l="待ち先"><input class="in" data-f="party" data-id="${esc(t.id)}" value="${esc(t.waitingOn?.party ?? "")}" placeholder="${t.status === "Waiting" ? "ベンダー・部署名" : "—"}" ${t.status === "Waiting" ? "" : "disabled"} aria-label="${esc(t.id)} の待ち先">${needParty}${dateInputHtml({ value: t.waitingOn?.expected ?? "", cls: "in sm", attrs: `data-f="expected" data-id="${esc(t.id)}" title="回答予定日" ${t.status === "Waiting" && t.waitingOn?.party ? "" : "disabled"} aria-label="${esc(t.id)} の回答予定日"`, label: "回答予定日" })}${li.lapsed ? `<span class="latenote">回答予定を ${li.lapsed} 日超過</span>` : ""}</td>
       <td data-l="重要"><input type="checkbox" data-f="important" data-id="${esc(t.id)}" ${t.important === true ? "checked" : ""} aria-label="${esc(t.id)} を重要にする"></td>
       <td data-l="メモ"><input class="in" data-f="memo" data-id="${esc(t.id)}" value="${esc(t.memo ?? "")}" placeholder="メモ" aria-label="${esc(t.id)} のメモ"></td>
       <td data-l="チェック">${checkCell(t, opts)}</td>
@@ -5073,12 +5109,13 @@ function row(data, r, ctx, why = []) {
   const mode = open ? ctx.mode : null;
   const todayDone = r.slots && !isClosed(t) && r.slots.some((s) => s.kind === "actual" || s.actual); // 今日の実績があれば「今日の分は完了」（保存する値は持たない）
   const openBtn = (m, label, cls = "") => `<button class="btn${cls}" data-tdopen="${id}" data-tdcol="${ctx.col}" data-tdmodeopen="${m}" aria-expanded="${open && mode === m}">${label}</button>`;
+  const late = lateInfo(t, ctx.today);
   const todayBtn = r.slots && !done && !isClosed(t) ? openBtn("today", "今日の分を完了", todayDone ? "" : " primary") : "";
-  return `<li class="td-row${done ? " closed" : ""}${todayDone ? " part" : ""}"${drag} data-tdrow="${id}">
-    <div class="td-main"><span class="pj">${proj}</span><span class="td-title">${esc(t.title)}</span>${statusPill(t)}${r.waiting ? `<span class="pill wait">前のタスク待ち</span>` : ""}${todayDone ? `<span class="pill tdone">今日の分は完了</span>` : ""}${todayBtn}${done ? "" : openBtn("done", "完了")}${canPlan ? `<button class="btn" data-tdplan="${id}" aria-expanded="${planOpen}">今日へ</button>` : ""}<button class="btn" data-tdedit="${id}" data-tdcol="${ctx.col}" aria-expanded="${editing}">編集</button></div>
+  return `<li class="td-row${done ? " closed" : ""}${todayDone ? " part" : ""}${late.overdue || late.lapsed ? " late" : ""}"${drag} data-tdrow="${id}">
+    <div class="td-main"><span class="pj">${proj}</span><span class="td-title">${esc(t.title)}</span>${statusPill(t)}${r.waiting ? `<span class="pill wait">前のタスク待ち</span>` : ""}${lateBadgesHtml(late)}${todayDone ? `<span class="pill tdone">今日の分は完了</span>` : ""}${todayBtn}${done ? "" : openBtn("done", "完了")}${canPlan ? `<button class="btn" data-tdplan="${id}" aria-expanded="${planOpen}">今日へ</button>` : ""}<button class="btn" data-tdedit="${id}" data-tdcol="${ctx.col}" aria-expanded="${editing}">編集</button></div>
     ${r.slots ? `<div class="td-slots mono">${r.slots.map((s) => slotHtml(s, ctx.now, ctx.actuals) + (s.kind === "actual" || s.actual ? `<button class="btn tdactclear" data-tdactclear="${esc(s.id)}" aria-label="${esc(s.actual?.start ?? s.start)} の実績を外す">実績を外す</button>` : "")).join("")}</div>` : ""}
     ${why.length ? `<div class="td-why">${why.map(esc).join("・")}</div>` : ""}
-    <div class="td-meta">${t.due ? `<span>期限 <b class="mono">${fmtMD(t.due)}</b></span>` : ""}${r.checked ? `<span>チェック <b class="mono">${progress(r)}</b></span>` : ""}<span>予定 <b class="mono">${r.planned}</b> 分</span><span>実績 <b class="mono">${r.actual}</b> 分</span></div>
+    <div class="td-meta">${t.due ? dueLateHtml(fmtMD(t.due), late) : ""}${r.checked ? `<span>チェック <b class="mono">${progress(r)}</b></span>` : ""}<span>予定 <b class="mono">${r.planned}</b> 分</span><span>実績 <b class="mono">${r.actual}</b> 分</span></div>
     ${open ? completeForm(data, t, ctx.day, ctx.now, ctx.draft, ctx.mode) : planOpen ? planForm(t, ctx.plan) : ""}
     ${editing ? renderTaskEditPanel(data, ctx.edit, statusCellHtml(t, ctx.statusOpts, taskFlags(t, ctx.day, data.settings).includes("overdue"))) : ""}
   </li>`;
@@ -5099,7 +5136,7 @@ const completeInput = (dr) => ({ actual: dr.start || dr.end ? { date: dr.date, s
 function renderTodo(data, today, opts) {
   const { week, now, open = null, col = "week", draft = null, plan = null, chase = null, urgentDraft = null, edit = null, editCol = null, pendingWait = null, pendingDone = null, mode = "done" } = opts;
   const weekEnd = addDays(week, 6);
-  const base = { open, openCol: col, draft, mode, plan, now, actuals: actualSlots(data), edit, editCol, statusOpts: { pendingWait, pendingDone, todayIds: new Set() } };
+  const base = { today, open, openCol: col, draft, mode, plan, now, actuals: actualSlots(data), edit, editCol, statusOpts: { pendingWait, pendingDone, todayIds: new Set() } };
   const ctx = { ...base, col: "week", day: today >= week && today <= weekEnd ? today : week };
   const todayCtx = { ...base, col: "today", day: today };
   const rows = weekTasks(data, week, today);
@@ -5107,7 +5144,7 @@ function renderTodo(data, today, opts) {
   const rank = new Map(ranked.map((k, i) => [k.taskId, i]));
   const todo = rows.filter((r) => r.group !== "done").sort((a, b) => (rank.get(a.task.id) ?? Infinity) - (rank.get(b.task.id) ?? Infinity)); // 順位に無い行は、元の順のまま末尾
   const closed = rows.filter((r) => r.group === "done");
-  const whyOf = (r) => [...(r.group === "scheduled" ? ["今週に予定あり"] : []), ...(ranked[rank.get(r.task.id)]?.reasons ?? [])];
+  const whyOf = (r) => [...(r.group === "scheduled" ? ["今週に予定あり"] : []), ...restReasons(ranked[rank.get(r.task.id)]?.reasons ?? [])];
   const list = rows.length
     ? (todo.length ? `<ul class="tdlist">${todo.map((r) => row(data, r, ctx, whyOf(r))).join("")}</ul>` : "") + (closed.length ? `<h3>完了</h3><ul class="tdlist">${closed.map((r) => row(data, r, ctx)).join("")}</ul>` : "")
     : `<p class="muted">この週のタスクはありません。</p>`;

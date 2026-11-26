@@ -666,3 +666,12 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 #view .tedit .tedit-detail{flex-basis:100%;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:flex-end;border-top:1px dashed var(--line);padding-top:8px}
 #view .tedit [data-tedit-full]{min-width:calc(6em + 26px)}
 #view #mtgslot:not(:empty){scrollbar-gutter:stable} /* 詳細を開いて欄の中のスクロールバーが出ても、軽い欄の幅が変わらない（出ると 15px 狭まった。実測） */
+
+/* 遅れの札・帯（期限超過・回答予定日の超過）。色だけでなく、文字と日数でも伝える */
+#view .latebadge{display:inline-block;font-size:12px;font-weight:700;line-height:1.5;padding:0 7px;border-radius:4px;background:var(--bad);color:var(--surface);white-space:nowrap}
+#view .duelate{color:var(--bad);font-weight:700}
+#view .rank li.late,#view .tdlist>li.late{border-left:6px solid var(--bad);background:color-mix(in srgb,var(--bad-soft) 55%,var(--surface));padding-left:8px}
+#view .tdlist>li.late.part{background:color-mix(in srgb,var(--bad-soft) 55%,var(--surface))}
+#view .g-due.lt{color:var(--bad);font-weight:700;font-size:12px}
+#view .latenote{display:block;color:var(--bad);font-weight:700;font-size:11px;white-space:nowrap}
+#view .g-lane .gwait-lab.afterdue{margin-left:130px} /* 期限の日付が「▲ N 日超過」で長くなる分、待ち先の文字を右へずらす */

@@ -5,12 +5,12 @@ import { weekTasks, todayTasks, chaseTasks } from "../../core/week.js";
 import { futurePlanned, actualSlots } from "../../core/sessions.js";
 import { isClosed } from "../../core/schema.js";
 import { esc, fmtMD, dateInputHtml } from "../common.js";
-import { statusPill, slotHtml } from "./prio.js";
+import { statusPill, slotHtml, lateBadgesHtml, dueLateHtml, restReasons } from "./prio.js";
 import { urgentForm, urgentDefaultStart } from "./schedule.js";
 import { checklistEditorHtml } from "./checklist.js";
 import { renderTaskEditPanel } from "./taskpop.js";
 import { statusCellHtml } from "./project.js";
-import { taskFlags } from "../../core/metrics.js";
+import { taskFlags, lateInfo } from "../../core/metrics.js";
 
 /** 完了の入力欄で選べる状態（completeTask と同じ。Waiting は選べない） */
 const FORM_STATUSES = ["To Do", "In Progress", "Done", "Cancelled"];
@@ -99,12 +99,13 @@ function row(data, r, ctx, why = []) {
   const mode = open ? ctx.mode : null;
   const todayDone = r.slots && !isClosed(t) && r.slots.some((s) => s.kind === "actual" || s.actual); // 今日の実績があれば「今日の分は完了」（保存する値は持たない）
   const openBtn = (m, label, cls = "") => `<button class="btn${cls}" data-tdopen="${id}" data-tdcol="${ctx.col}" data-tdmodeopen="${m}" aria-expanded="${open && mode === m}">${label}</button>`;
+  const late = lateInfo(t, ctx.today);
   const todayBtn = r.slots && !done && !isClosed(t) ? openBtn("today", "今日の分を完了", todayDone ? "" : " primary") : "";
-  return `<li class="td-row${done ? " closed" : ""}${todayDone ? " part" : ""}"${drag} data-tdrow="${id}">
-    <div class="td-main"><span class="pj">${proj}</span><span class="td-title">${esc(t.title)}</span>${statusPill(t)}${r.waiting ? `<span class="pill wait">前のタスク待ち</span>` : ""}${todayDone ? `<span class="pill tdone">今日の分は完了</span>` : ""}${todayBtn}${done ? "" : openBtn("done", "完了")}${canPlan ? `<button class="btn" data-tdplan="${id}" aria-expanded="${planOpen}">今日へ</button>` : ""}<button class="btn" data-tdedit="${id}" data-tdcol="${ctx.col}" aria-expanded="${editing}">編集</button></div>
+  return `<li class="td-row${done ? " closed" : ""}${todayDone ? " part" : ""}${late.overdue || late.lapsed ? " late" : ""}"${drag} data-tdrow="${id}">
+    <div class="td-main"><span class="pj">${proj}</span><span class="td-title">${esc(t.title)}</span>${statusPill(t)}${r.waiting ? `<span class="pill wait">前のタスク待ち</span>` : ""}${lateBadgesHtml(late)}${todayDone ? `<span class="pill tdone">今日の分は完了</span>` : ""}${todayBtn}${done ? "" : openBtn("done", "完了")}${canPlan ? `<button class="btn" data-tdplan="${id}" aria-expanded="${planOpen}">今日へ</button>` : ""}<button class="btn" data-tdedit="${id}" data-tdcol="${ctx.col}" aria-expanded="${editing}">編集</button></div>
     ${r.slots ? `<div class="td-slots mono">${r.slots.map((s) => slotHtml(s, ctx.now, ctx.actuals) + (s.kind === "actual" || s.actual ? `<button class="btn tdactclear" data-tdactclear="${esc(s.id)}" aria-label="${esc(s.actual?.start ?? s.start)} の実績を外す">実績を外す</button>` : "")).join("")}</div>` : ""}
     ${why.length ? `<div class="td-why">${why.map(esc).join("・")}</div>` : ""}
-    <div class="td-meta">${t.due ? `<span>期限 <b class="mono">${fmtMD(t.due)}</b></span>` : ""}${r.checked ? `<span>チェック <b class="mono">${progress(r)}</b></span>` : ""}<span>予定 <b class="mono">${r.planned}</b> 分</span><span>実績 <b class="mono">${r.actual}</b> 分</span></div>
+    <div class="td-meta">${t.due ? dueLateHtml(fmtMD(t.due), late) : ""}${r.checked ? `<span>チェック <b class="mono">${progress(r)}</b></span>` : ""}<span>予定 <b class="mono">${r.planned}</b> 分</span><span>実績 <b class="mono">${r.actual}</b> 分</span></div>
     ${open ? completeForm(data, t, ctx.day, ctx.now, ctx.draft, ctx.mode) : planOpen ? planForm(t, ctx.plan) : ""}
     ${editing ? renderTaskEditPanel(data, ctx.edit, statusCellHtml(t, ctx.statusOpts, taskFlags(t, ctx.day, data.settings).includes("overdue"))) : ""}
   </li>`;
@@ -125,7 +126,7 @@ export const completeInput = (dr) => ({ actual: dr.start || dr.end ? { date: dr.
 export function renderTodo(data, today, opts) {
   const { week, now, open = null, col = "week", draft = null, plan = null, chase = null, urgentDraft = null, edit = null, editCol = null, pendingWait = null, pendingDone = null, mode = "done" } = opts;
   const weekEnd = addDays(week, 6);
-  const base = { open, openCol: col, draft, mode, plan, now, actuals: actualSlots(data), edit, editCol, statusOpts: { pendingWait, pendingDone, todayIds: new Set() } };
+  const base = { today, open, openCol: col, draft, mode, plan, now, actuals: actualSlots(data), edit, editCol, statusOpts: { pendingWait, pendingDone, todayIds: new Set() } };
   const ctx = { ...base, col: "week", day: today >= week && today <= weekEnd ? today : week };
   const todayCtx = { ...base, col: "today", day: today };
   const rows = weekTasks(data, week, today);
@@ -133,7 +134,7 @@ export function renderTodo(data, today, opts) {
   const rank = new Map(ranked.map((k, i) => [k.taskId, i]));
   const todo = rows.filter((r) => r.group !== "done").sort((a, b) => (rank.get(a.task.id) ?? Infinity) - (rank.get(b.task.id) ?? Infinity)); // 順位に無い行は、元の順のまま末尾
   const closed = rows.filter((r) => r.group === "done");
-  const whyOf = (r) => [...(r.group === "scheduled" ? ["今週に予定あり"] : []), ...(ranked[rank.get(r.task.id)]?.reasons ?? [])];
+  const whyOf = (r) => [...(r.group === "scheduled" ? ["今週に予定あり"] : []), ...restReasons(ranked[rank.get(r.task.id)]?.reasons ?? [])];
   const list = rows.length
     ? (todo.length ? `<ul class="tdlist">${todo.map((r) => row(data, r, ctx, whyOf(r))).join("")}</ul>` : "") + (closed.length ? `<h3>完了</h3><ul class="tdlist">${closed.map((r) => row(data, r, ctx)).join("")}</ul>` : "")
     : `<p class="muted">この週のタスクはありません。</p>`;

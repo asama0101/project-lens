@@ -1,6 +1,6 @@
 // ガントチャート。位置と幅はすべて範囲全体に対する % で表し、画面幅に追従させる。
 import { addDays, diffDays } from "../../core/dates.js";
-import { ganttRows, ganttLayout, timeTicks, projectProgress, projectFlags, taskFlags } from "../../core/metrics.js";
+import { ganttRows, ganttLayout, timeTicks, projectProgress, projectFlags, taskFlags, lateInfo } from "../../core/metrics.js";
 import { projectHours } from "../../core/workload.js";
 import { restDayChecker } from "../../core/holidays.js";
 import { groupSections } from "../../core/groups.js";
@@ -149,7 +149,7 @@ export function renderGantt(data, projectIds, today, opts = {}) {
         const mk = exp && ed >= 0 && ed < total ? `<i class="gwait-mk${over ? " late" : ""}" data-gwait="${esc(t.id)}" style="left:calc(${x(exp)} + ${(50 / total).toFixed(3)}%)"></i>` : "";
         const onLeft = ((diffDays(r.end, s0) + 1) / total) > 0.7; // バーの右端が 70% を超えたら、文字はバーの左に置く（右に収まらない）
         const pos = onLeft ? `right:calc(100% - ${x(r.start)})` : `left:${x(addDays(r.end, 1))}`;
-        wait = `${mk}<span class="gwait-lab${onLeft ? " left" : ""}${over ? " late" : ""}" data-gwait-lab style="${pos}">待ち: ${esc(wo.party)}${exp ? ` ・ ${fmtMD(exp)}` : ""}${over ? " 超過" : ""}</span>`;
+        wait = `${mk}<span class="gwait-lab${onLeft ? " left" : ""}${!onLeft && lateInfo(t, today).overdue ? " afterdue" : ""}${over ? " late" : ""}" data-gwait-lab style="${pos}">待ち: ${esc(wo.party)}${exp ? ` ・ ${fmtMD(exp)}` : ""}${over ? " 超過" : ""}</span>`;
       }
       const dependents = data.tasks.filter((o) => (o.predecessors ?? []).includes(t.id)).map((o) => o.id);
       let lab;
@@ -161,7 +161,7 @@ export function renderGantt(data, projectIds, today, opts = {}) {
         const imp = isImportantMark(t) ? " imp-high" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
         lab = `<div class="g-label${imp}" data-mvrow="${esc(t.id)}"><span class="mv" draggable="true" data-mvh="${esc(t.id)}" title="ドラッグで並べ替え" aria-label="${esc(t.id)} を並べ替え">⠿</span><span class="id">${esc(t.id)}</span>${name}${del}<span class="g-pre">${hasPre ? "← " + esc(t.predecessors.join(", ")) : ""}</span>${checkMeterHtml(t)}</div>`;
       }
-      return `<div class="g-row">${lab}<div class="g-lane" ${laneStyle}>${bar}<span class="g-due mono" style="left:${x(addDays(r.end, 1))}">${fmtMD(t.due)}</span>${wait}</div></div>`;
+      return `<div class="g-row">${lab}<div class="g-lane" ${laneStyle}>${bar}<span class="g-due mono${lateInfo(t, today).overdue ? " lt" : ""}" style="left:${x(addDays(r.end, 1))}">${fmtMD(t.due)}${lateInfo(t, today).overdue ? ` ▲ ${lateInfo(t, today).overdue} 日超過` : ""}</span>${wait}</div></div>`;
     };
     // (大項目, 中項目) ごとに見出し行を入れて並べる。追加の入口になるので、大項目がなくても「（なし）」の見出しを常に出す。
     // 見出しは完了を隠していても残す（そのグループへ追加できるように）

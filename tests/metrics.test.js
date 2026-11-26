@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { addDays, weekday } from "../plugins/project-lens/src/core/dates.js";
-import { taskStart, ganttRows, ganttLayout, timeTicks, projectProgress, taskFlags, projectFlags } from "../plugins/project-lens/src/core/metrics.js";
+import { lateInfo, taskStart, ganttRows, ganttLayout, timeTicks, projectProgress, taskFlags, projectFlags } from "../plugins/project-lens/src/core/metrics.js";
 
 const load = () => JSON.parse(readFileSync(new URL("../plugins/project-lens/data/sample.json", import.meta.url), "utf8"));
 const TODAY = "2026-10-20";
@@ -121,3 +121,13 @@ test("プロジェクトなしのタスク（ZZ-0001）は、プロジェクト�
   assert.deepEqual(g.milestones, []);
 });
 
+
+test("lateInfo: 期限超過・回答予定日の超過の日数。完了したタスク・今日の日・Waiting 以外は 0", () => {
+  const t = (o) => ({ id: "A", status: "In Progress", due: "2026-10-15", ...o });
+  assert.deepEqual(lateInfo(t({}), "2026-10-20"), { overdue: 5, lapsed: 0 });
+  assert.deepEqual(lateInfo(t({ due: "2026-10-20" }), "2026-10-20"), { overdue: 0, lapsed: 0 }, "期限が今日は超過でない");
+  assert.deepEqual(lateInfo(t({ status: "Waiting", waitingOn: { party: "X", since: "2026-10-01", expected: "2026-10-08" } }), "2026-10-20"), { overdue: 5, lapsed: 12 });
+  assert.deepEqual(lateInfo(t({ status: "Waiting", due: "2026-12-01", waitingOn: { party: "X", expected: "2026-10-20" } }), "2026-10-20"), { overdue: 0, lapsed: 0 }, "回答予定日が今日は超過でない");
+  assert.deepEqual(lateInfo(t({ waitingOn: { party: "X", expected: "2026-10-01" } }), "2026-10-20"), { overdue: 5, lapsed: 0 }, "Waiting 以外は回答予定日を見ない");
+  for (const status of ["Done", "Cancelled"]) assert.deepEqual(lateInfo(t({ status }), "2026-10-20"), { overdue: 0, lapsed: 0 }, status);
+});
