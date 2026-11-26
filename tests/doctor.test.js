@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runChecks, render } from "../plugins/project-lens/tools/doctor.js";
+import { MARKER } from "../plugins/project-lens/tools/init.js";
 import { readPin } from "../plugins/project-lens/tools/xlsx.js";
 
 const DOCTOR = fileURLToPath(new URL("../plugins/project-lens/tools/doctor.js", import.meta.url));
@@ -36,19 +37,33 @@ const base = () => ({
   holidays: async () => ({ dates: [1, 2, 3] }),
   run: pyStub(),
   readMcp: () => ({ calendar: { server: "s", listTool: "t" } }),
+  readDashboard: () => ({ current: `${MARKER}new`, bundled: `${MARKER}new` }),
   readPlugin: () => ({ version: "2.0.0", repository: "https://github.com/o/project-lens" }),
   readMarketplace: () => ({ "project-lens": { source: { source: "github", repo: "o/project-lens" } } }),
   latest: async () => "2.0.0",
 });
 const find = (items, name) => items.find((i) => i.name.includes(name));
 
-test("すべて満たすとき: 全項目 OK、終了コード 0。項目は 7 つ（OS・実行環境・保存先・祝日・Excel・予定表・版）で、ブラウザは含まない", async () => {
+test("すべて満たすとき: 全項目 OK、終了コード 0。項目は 8 つ（OS・実行環境・保存先・祝日・Excel・予定表・ダッシュボード・版）で、ブラウザは含まない", async () => {
   const items = await runChecks(base());
-  assert.deepEqual(items.map((i) => i.name.split("（")[0]), ["OS", "実行環境", "保存先", "祝日一覧への接続", "Excel の読み取り", "予定表の MCP の指定", "プラグインのバージョン"]);
-  assert.deepEqual(items.map((i) => i.level), ["ok", "ok", "ok", "ok", "ok", "ok", "info"]);
+  assert.deepEqual(items.map((i) => i.name.split("（")[0]), ["OS", "実行環境", "保存先", "祝日一覧への接続", "Excel の読み取り", "予定表の MCP の指定", "ダッシュボード", "プラグインのバージョン"]);
+  assert.deepEqual(items.map((i) => i.level), ["ok", "ok", "ok", "ok", "ok", "ok", "ok", "info"]);
   const r = render(items);
   assert.equal(r.exitCode, 0);
   assert.ok(r.lines.every((l) => /^(\[(OK|NG|任意|情報)\] |  → )/.test(l)), "全行が項目の行か対処の行");
+});
+
+test("ダッシュボード: フォルダに無い・古い・project-lens のものでない・最新、の 4 状態。どれも任意で、終了コードは 0", async () => {
+  const at = async (d) => runChecks({ ...base(), readDashboard: () => d });
+  const none = find(await at({ current: null, bundled: `${MARKER}new` }), "ダッシュボード");
+  assert.equal(none.level, "opt"); assert.match(none.detail, /ありません/);
+  const old = await at({ current: `${MARKER}old`, bundled: `${MARKER}new` });
+  assert.equal(find(old, "ダッシュボード").level, "opt");
+  assert.match(find(old, "ダッシュボード").fix.join(" "), /\/project-lens:init/);
+  assert.equal(render(old).exitCode, 0);
+  const foreign = find(await at({ current: "<html>他のもの</html>", bundled: `${MARKER}new` }), "ダッシュボード");
+  assert.match(foreign.detail, /作ったものではない/); assert.deepEqual(foreign.fix, []);
+  assert.equal(find(await at({ current: `${MARKER}new`, bundled: `${MARKER}new` }), "ダッシュボード").level, "ok");
 });
 
 test("OS が Windows 以外: [NG]。Windows 専用であることを出し、終了コード 3", async () => {
@@ -107,7 +122,7 @@ test("保存先がフォルダでない(ファイル)・展開されていない
 
 test("予期しない例外: その項目だけ「確認できませんでした」になり、ほかの項目は出る", async () => {
   const items = await runChecks({ ...base(), run: () => { throw new Error("spawn 失敗"); } });
-  assert.equal(items.length, 7);
+  assert.equal(items.length, 8);
   assert.match(find(items, "Excel").detail, /確認できませんでした（spawn 失敗）/);
   assert.equal(find(items, "実行環境").level, "ok");
 });
