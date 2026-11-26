@@ -34,7 +34,7 @@ export function renderSettings(data, today, opts = {}) {
       <p class="note" style="margin:0 0 10px">変更はその場でファイルに保存されます。</p>
       <div class="tscroll"><table class="tbl edit"><tbody>
         <tr><td data-l="項目">営業日の数え方</td><td data-l="値"><label><input type="checkbox" data-set="countWeekendsAndHolidays" aria-label="土日祝を営業日に数える"${countOn ? " checked" : ""}> 土日祝を営業日に数える</label>${warnOf("countWeekendsAndHolidays")}</td><td class="muted" data-l="説明">日数の計算（営業日後の期限）とスケジュールの作業枠で、土日と日本の祝日を飛ばすかどうかを選びます。オンにしても、手動の休みは飛ばします。</td></tr>
-        <tr><td data-l="項目">待ち長期化の日数</td><td data-l="値"><input class="in" type="number" min="1" step="1" data-set="waitingLongDays" value="${iv.waitingLongDays}" aria-label="待ち長期化とみなす日数"> 日${warnOf("waitingLongDays")}</td><td class="muted" data-l="説明">Waiting がこの日数を超えると、「今日の優先」と遅延バッジに出ます。</td></tr>
+        <tr><td data-l="項目">待ち長期化の日数</td><td data-l="値"><input class="in" type="number" min="1" step="1" data-set="waitingLongDays" value="${iv.waitingLongDays}" aria-label="待ち長期化とみなす日数"> 日${warnOf("waitingLongDays")}</td><td class="muted" data-l="説明">Waiting がこの日数を超えると、「この週のタスク候補」と遅延バッジに出ます。</td></tr>
         <tr><td data-l="項目">見出しの呼び名</td><td data-l="値"><input class="in" data-set="label-group" value="${esc(iv.labelGroup)}" aria-label="大項目の呼び名"> <input class="in" data-set="label-subgroup" value="${esc(iv.labelSubgroup)}" aria-label="中項目の呼び名">${warnOf("labels")}</td><td class="muted" data-l="説明">ガント・リストの見出しの呼び名です。空にすると既定（大項目・中項目）に戻ります。</td></tr>
       </tbody></table></div>`, warnN("countWeekendsAndHolidays", "waitingLongDays", "labels"));
 

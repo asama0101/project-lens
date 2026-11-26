@@ -1,6 +1,6 @@
 /* 承認済みデザインのスタイル。Web フォントは使わない */
 body{margin:0}
-/* Layout: 上部に画面切替、俯瞰はプロジェクト別のタイムライン（機器ラックのように1案件=1段）＋右に今日の優先 */
+/* Layout: 上部に画面切替、俯瞰はプロジェクト別のタイムライン（機器ラックのように1案件=1段）＋右にこの週のタスク候補 */
 :root{
   --bg:#F0F3F7; --surface:#FFFFFF; --ink:#16202E; --muted:#5A6678; --line:#D6DDE8; --line-soft:#E8ECF3;
   --accent:#0B6E8A; --accent-soft:#DCEEF4; --pre:#C2670A; --next:#2E7D32;
@@ -24,7 +24,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:1
 .wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
 .mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
 header.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px;justify-content:space-between}
-/* ヘッダーと「今日の優先」は、スクロールしても上端に固定する。ヘッダーの高さは --hh（app.js が測る）で、固定の帯と「今日の優先」の位置に使う */
+/* ヘッダーと「この週のタスク候補」は、スクロールしても上端に固定する。ヘッダーの高さは --hh（app.js が測る）で、固定の帯と「この週のタスク候補」の位置に使う */
 header.top{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;margin-block:-8px 0}
 /* プロジェクト画面のフィルタ行は、ヘッダーの下に固定する。高さは --th（app.js が測る） */
 .toolbar.ptool{position:sticky;top:var(--hh,0px);z-index:9;background:var(--bg);padding:6px 0 10px;margin-bottom:0}
@@ -554,7 +554,7 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 #view section.panel > .gtop{padding-top:22px}
 #view section.panel > .stop{padding-top:16px}
 #view .cols>.side,#view .side-toggle{margin-top:8px}
-/* チェックリストの進み具合（細い線と「済み/全体」）。今日の優先・今日のタスク・ガントのラベルが使う */
+/* チェックリストの進み具合（細い線と「済み/全体」）。この週のタスク候補・今日のタスク・ガントのラベルが使う */
 #view .ck-meter{display:flex;align-items:center;gap:6px}
 #view .ck-bar{display:block;width:72px;height:4px;border-radius:2px;background:var(--line);overflow:hidden;flex:none}
 #view .ck-bar i{display:block;height:100%;background:var(--accent)}
@@ -597,7 +597,7 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 #view .tbl tr.imp td:first-child{box-shadow:inset 5px 0 0 var(--bad)}
 #view .tbl tr.imp{background:var(--bad-soft)}
 
-/* 今日の優先・今日のタスクの「重要」バッジ */
+/* この週のタスク候補・今日のタスクの「重要」バッジ */
 #view .impbadge{display:inline-block;background:var(--bad);color:#fff;font-size:12px;font-weight:700;line-height:1.4;border-radius:999px;padding:2px 9px;margin-left:4px;white-space:nowrap}
 
 /* スケジュールの重要の印: 枠も期限の行も、赤い太字の件名だけ（線は付けない） */

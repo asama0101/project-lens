@@ -1,5 +1,6 @@
-// 「今日のタスク」「今日の優先」パネル（プロジェクト画面・スケジュール画面で共通。右の列に並ぶ）
+// 「今日のタスク」「この週のタスク候補」パネル（プロジェクト画面・スケジュール画面で共通。右の列に並ぶ）
 import { rankTasks } from "../../core/schedule.js";
+import { weekTasks, mondayOf } from "../../core/week.js";
 import { taskActual, sessionKind, actualSlots } from "../../core/sessions.js";
 import { isClosed, isImportantMark } from "../../core/schema.js";
 import { esc, checkMeterHtml, fmtMD } from "../common.js";
@@ -59,14 +60,15 @@ export function renderTodayTasks(data, today, opts = {}) {
 }
 
 /**
- * @param opts.sched   true ならスケジュール画面用（全件・ドラッグ可）。false なら上位 4 件
+ * 今週（today のある週）のタスク候補のうち未完了（weekTasks の完了の組を除く）を、優先順位（rankTasks の点数の順）に並べる。
  * 今日のタスクに入っているタスクは出さない（順位の計算は変えず、表示で除く）
+ * @param opts.sched   true ならスケジュール画面用（ドラッグ可。「今日へ」は出さない）
  */
 export function renderPrio(data, today, opts = {}) {
   const { sched = false } = opts;
   const inToday = new Set(todayTaskIds(data, today));
-  const ranked = rankTasks(data, today).filter((r) => !inToday.has(r.taskId));
-  const shown = sched ? ranked : ranked.slice(0, 4);
+  const cand = new Set(weekTasks(data, mondayOf(today), today).filter((r) => r.group !== "done").map((r) => r.task.id));
+  const shown = rankTasks(data, today).filter((r) => cand.has(r.taskId) && !inToday.has(r.taskId));
   const items = shown.map((r, i) => {
     const t = data.tasks.find((x) => x.id === r.taskId);
     const a = taskActual(data, t.id);
@@ -79,14 +81,14 @@ export function renderPrio(data, today, opts = {}) {
   const note = sched
     ? "タスクをカレンダーへドラッグして配置します(15分刻み・長さ1時間)。今日のタスクの行からも、同じタスクをもう 1 つ置けます。配置済みの枠もドラッグで移動できます。"
     : "スケジュール画面で、時間枠に配置できます。";
-  return `<section class="panel prio" aria-labelledby="h-rk"><h2 id="h-rk">今日の優先</h2>${shown.length ? `<ol class="rank">${items}</ol>` : `<p class="muted">優先するタスクはありません。</p>`}<p class="note" style="margin:10px 0 0">${note}</p></section>`;
+  return `<section class="panel prio" aria-labelledby="h-rk"><h2 id="h-rk">この週のタスク候補</h2>${shown.length ? `<ol class="rank">${items}</ol>` : `<p class="muted">この週のタスクはありません。</p>`}<p class="note" style="margin:10px 0 0">${note}</p></section>`;
 }
 
-/** 右の列: 今日のタスク（あれば）＋今日の優先。列の直下の要素として固定表示（sticky）にするため、1 つの箱にまとめる */
+/** 右の列: 今日のタスク（あれば）＋この週のタスク候補。列の直下の要素として固定表示（sticky）にするため、1 つの箱にまとめる */
 export function renderSide(data, today, opts = {}) {
   return `<div class="side">${renderTodayTasks(data, today, opts)}${renderPrio(data, today, opts)}</div>`;
 }
 
-/** 本体と右の列の境界線の取っ手。押すと右の列（今日のタスク・今日の優先）を開け閉めする。閉じても、この取っ手は残る */
+/** 本体と右の列の境界線の取っ手。押すと右の列（今日のタスク・この週のタスク候補）を開け閉めする。閉じても、この取っ手は残る */
 export const renderSideToggle = (open) =>
-  `<button class="side-toggle" data-pref="prio" aria-expanded="${open}" aria-label="${open ? "今日の優先を閉じる" : "今日の優先を開く"}" title="${open ? "右の「今日のタスク」「今日の優先」を閉じます" : "右の「今日のタスク」「今日の優先」を開きます"}">${open ? "›" : "‹"}</button>`;
+  `<button class="side-toggle" data-pref="prio" aria-expanded="${open}" aria-label="${open ? "この週のタスク候補を閉じる" : "この週のタスク候補を開く"}" title="${open ? "右の「今日のタスク」「この週のタスク候補」を閉じます" : "右の「今日のタスク」「この週のタスク候補」を開きます"}">${open ? "›" : "‹"}</button>`;

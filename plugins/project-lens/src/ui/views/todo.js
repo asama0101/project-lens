@@ -1,4 +1,4 @@
-// 「ToDo」画面: 左に今日の ToDo（その下に、Waiting の催促の組）（todayTasks。今日の枠の時刻と札）、右に表示中の週のタスク候補（weekTasks のうち未完了を、今日の優先 rankTasks の順に 1 つの一覧で、理由つき。完了は見出し「完了」の下で末尾）、行の完了の入力欄、右の行の「今日へ」の入力欄。週の見返しは稼働画面（views/workload.js）。操作の結線は app.js（data-td*・data-tf*・data-tp*）。
+// 「ToDo」画面: 左に今日の ToDo（その下に、Waiting の催促の組）（todayTasks。今日の枠の時刻と札）、右に表示中の週のタスク候補（weekTasks のうち未完了を、優先順位 rankTasks の順に 1 つの一覧で、理由つき。完了は見出し「完了」の下で末尾）、行の完了の入力欄、右の行の「今日へ」の入力欄。週の見返しは稼働画面（views/workload.js）。操作の結線は app.js（data-td*・data-tf*・data-tp*）。
 import { addDays } from "../../core/dates.js";
 import { rankTasks } from "../../core/schedule.js";
 import { weekTasks, todayTasks, chaseTasks } from "../../core/week.js";
@@ -138,7 +138,7 @@ export function renderTodo(data, today, opts) {
     ? (todo.length ? `<ul class="tdlist">${todo.map((r) => row(data, r, ctx, whyOf(r))).join("")}</ul>` : "") + (closed.length ? `<h3>完了</h3><ul class="tdlist">${closed.map((r) => row(data, r, ctx)).join("")}</ul>` : "")
     : `<p class="muted">この週のタスクはありません。</p>`;
   const pt = plan && data.tasks.find((t) => t.id === plan.key);
-  const extra = pt && !isClosed(pt) && !rows.some((r) => r.task.id === pt.id) // 「今日の優先」から来たタスクが、この週の候補に無いとき、入力欄の行を候補の先頭に足す
+  const extra = pt && !isClosed(pt) && !rows.some((r) => r.task.id === pt.id) // 右の列の候補から来たタスクが、この週の候補に無いとき、入力欄の行を候補の先頭に足す
     ? `<h3>今日へ入れるタスク</h3><ul class="tdlist">${row(data, { task: pt, group: null, waiting: (pt.predecessors ?? []).some((id) => { const x = data.tasks.find((k) => k.id === id); return x && !isClosed(x); }), planned: 0, actual: 0, checked: null }, ctx)}</ul>`
     : "";
   const trows = todayTasks(data, today);

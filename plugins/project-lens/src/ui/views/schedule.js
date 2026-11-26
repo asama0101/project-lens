@@ -312,7 +312,7 @@ export function renderCalendar(data, today, opts) {
  * @param opts.date      表示する日（週表示ではその日を含む週）
  * @param opts.now       {date, time}  現在時刻（過ぎた予定の判定に使う）
  * @param opts.selSess   選択中の枠 ID / opts.selMtg 選択中の会議 ID / opts.mtgDraft 追加中の会議の下書き / opts.urgentDraft 追加中の突発タスクの下書き / opts.taskEdit 編集欄を開いているタスク { id, full, askDel } / opts.actAdd 「実績を追加」の入力欄 { date } / opts.actDraft 実績の入力欄の下書き { key, task, date, start, end }
- * @param opts.showPrio  false なら今日の優先を出さない
+ * @param opts.showPrio  false ならこの週のタスク候補を出さない
  * @param opts.showSkipped  true なら「参加しない」の会議も出す（既定は出さない。選択中の会議だけは、隠さない）
  * @param opts.showDue   false なら週表示の期限の行を閉じる（既定は開く）
  */

@@ -109,7 +109,7 @@ test("app.js: 画面（タブ）を切り替えるとき、未来の予定枠の
   assert.match(tab, /S\.pendingDone = null/);
 });
 
-test("app.js: 「今日の優先」の取っ手を押すとき、パネル内にしか出ない確認待ち（pendingDone）を捨てる。取っ手は view のクリックで扱い、上部のバー（filebar）には prio のボタンがない（actual は残る）", () => {
+test("app.js: 「この週のタスク候補」の取っ手を押すとき、パネル内にしか出ない確認待ち（pendingDone）を捨てる。取っ手は view のクリックで扱い、上部のバー（filebar）には prio のボタンがない（actual は残る）", () => {
   const pf = src.slice(src.indexOf("function togglePref"), src.indexOf("function togglePref") + 400);
   assert.match(pf, /S\.pendingDone = null/);
   assert.match(src, /view\.addEventListener\("click"[\s\S]*data-pref/);
@@ -1088,7 +1088,7 @@ test("theme.css: ファイル情報の詳細は .filebar を基準に絶対配�
   assert.doesNotMatch(info[0], /right:0|100vw/);
 });
 
-test("今日の優先の「今日へ」（data-prioplan）は、ToDo タブへ移り、S.todoWeek を今週にして、そのあと openPlan を呼ぶ", () => {
+test("この週のタスク候補の「今日へ」（data-prioplan）は、ToDo タブへ移り、S.todoWeek を今週にして、そのあと openPlan を呼ぶ", () => {
   const i = src.indexOf('const pp = q("[data-prioplan]")');
   assert.ok(i > 0, "ハンドラ");
   const h = src.slice(i, src.indexOf("return; }", i));

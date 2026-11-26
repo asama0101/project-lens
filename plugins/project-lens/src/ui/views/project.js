@@ -1,4 +1,4 @@
-// プロジェクト画面: 絞り込み × ガント／リスト、右に「今日のタスク」「今日の優先」
+// プロジェクト画面: 絞り込み × ガント／リスト、右に「今日のタスク」「この週のタスク候補」
 import { projectProgress, projectFlags, taskFlags } from "../../core/metrics.js";
 import { projectHours } from "../../core/workload.js";
 import { TASK_STATUS, PROJECT_STATUS, PROJECT_TYPE, isImportantMark } from "../../core/schema.js";
@@ -108,7 +108,7 @@ function renderList(data, p, today, opts) {
  * @param opts.view    "gantt" | "list"
  * @param opts.window  ガントの表示期間
  * @param opts.tpop    ガントの編集の窓({ id, x, y })。なければ出さない
- * @param opts.showPrio / opts.showActual  今日の優先・ガントの実績を出すか(既定は出す)
+ * @param opts.showPrio / opts.showActual  この週のタスク候補・ガントの実績を出すか(既定は出す)
  */
 export function renderProjects(data, today, opts = {}) {
   const { view = "gantt", hideDone = false, showPrio = true, showActual = true } = opts;

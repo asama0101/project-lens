@@ -443,7 +443,7 @@ function removeSelectedSession(s) {
   apply((d) => removeSession(d, s.id), `${s.title} の${s.kind === "actual" ? "実績の枠" : s.actual ? "枠（実績つき）" : "予定の枠"}を削除しました`);
 }
 
-/** 表示の好み（今日の優先・ガント実績）を反転して保存する。今日の優先を閉じると、パネル内にしか出ない確認待ちは出す場所がなくなるので捨てる */
+/** 表示の好み（この週のタスク候補・ガント実績）を反転して保存する。この週のタスク候補を閉じると、パネル内にしか出ない確認待ちは出す場所がなくなるので捨てる */
 function togglePref(key) {
   S.pendingDone = null;
   if (key === "showPrio" && S.screen === "gantt") S.resetScroll = true; // 右の列の開け閉めでガントの幅が変わるので、横スクロールを今日の位置へ戻す（スケジュールでは戻さない。scrollToMorning でページが跳ぶため）
@@ -670,7 +670,7 @@ view.addEventListener("click", (e) => {
     return;
   }
   if (q("[data-tdcancel]")) { S.tdOpen = null; S.tdCol = null; S.tdDraft = null; render(); return; }
-  const pp = q("[data-prioplan]"); // 今日の優先の行の「今日へ」。ToDo タブの今週へ移り、その行の入力欄を開く（画面の移動なので、ほかの入力欄は閉じる）
+  const pp = q("[data-prioplan]"); // この週のタスク候補の行の「今日へ」。ToDo タブの今週へ移り、その行の入力欄を開く（画面の移動なので、ほかの入力欄は閉じる）
   if (pp) { S.screen = "todo"; S.tpop = null; S.pendingDone = null; clearSel(); S.todoWeek = mondayOf(today); S.resetScroll = true; openPlan(pp.dataset.prioplan); return; }
   const tdp = q("[data-tdplan]"); // 今日へ（右の列の行）。開閉。完了の入力欄は閉じる
   if (tdp) { const id = tdp.dataset.tdplan; if (S.tdPlan?.key === id) { S.tdPlan = null; S.focusSel = null; render(); } else openPlan(id); return; }

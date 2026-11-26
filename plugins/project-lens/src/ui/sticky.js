@@ -52,7 +52,7 @@ view.addEventListener("scroll", (e) => {
   alignGScrolls(gs);
 }, true);
 
-// ヘッダーとフィルタ行は上端に固定する（theme.css）。その高さを --hh・--th に入れ、固定の帯・表の列見出し・「今日の優先」がその下に付くようにする
+// ヘッダーとフィルタ行は上端に固定する（theme.css）。その高さを --hh・--th に入れ、固定の帯・表の列見出し・「この週のタスク候補」がその下に付くようにする
 const topbar = document.querySelector("header.top");
 export function syncSticky() {
   const root = document.documentElement.style;

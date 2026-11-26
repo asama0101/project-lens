@@ -56,7 +56,7 @@ test("renderProjects(gantt/all): 全プロジェクト名・進捗率・遅延�
   const ticks = (html.match(/data-tick="[^"]+"/g) ?? []);
   const perSection = ticks.length / 3;
   assert.equal(perSection, Math.floor(perSection), "各ガントの目盛りは同数");
-  assert.ok(html.includes('id="h-rk"'), "既定で右の列（今日の優先）が開いている");
+  assert.ok(html.includes('id="h-rk"'), "既定で右の列（この週のタスク候補）が開いている");
 });
 
 test("renderProjects: 進捗率の値（Cancelled を除く Done の割合）", () => {
@@ -672,10 +672,10 @@ test("renderGantt: showActual:false で .gact と凡例の実績が消える（t
   assert.equal(count(gantt(d, ["AA", "AB"], { showActual: true }), /class="gact"/g), count(on, /class="gact"/g));
 });
 
-test("renderProjects/renderSchedule: showPrio:false で『今日の優先』が出ず、cols に one が付く", () => {
+test("renderProjects/renderSchedule: showPrio:false で『この週のタスク候補』が出ず、cols に one が付く", () => {
   const d = load();
   const p = renderProjects(d, TODAY, { filter: "all", view: "gantt", window: "m6", showPrio: false });
-  assert.ok(!p.includes('id="h-rk"') && p.includes('class="cols one"'), "パネル（見出し h-rk）が出ない。取っ手の名前には「今日の優先」が入る");
+  assert.ok(!p.includes('id="h-rk"') && p.includes('class="cols one"'), "パネル（見出し h-rk）が出ない。取っ手の名前には「この週のタスク候補」が入る");
   const s = sched(d, { showPrio: false });
   assert.ok(!s.includes('id="h-rk"') && s.includes('class="cols one"'));
   assert.ok(renderProjects(d, TODAY, { filter: "all", view: "gantt", window: "m6" }).includes('id="h-rk"'), "既定で開いている");
@@ -741,7 +741,7 @@ test("ガント: 編集画面の凡例は上端（固定の帯）にある", () 
   assert.equal(count(top, /class="legend"/g), 1);
 });
 
-test("今日の優先のパネルは、固定表示のための prio クラスを持つ（プロジェクト画面・スケジュール画面）", () => {
+test("この週のタスク候補のパネルは、固定表示のための prio クラスを持つ（プロジェクト画面・スケジュール画面）", () => {
   assert.ok(renderProjects(load(), TODAY, { filter: "all", view: "list" }).includes('<section class="panel prio"'));
   assert.ok(sched(load()).includes('<section class="panel prio"'));
 });
@@ -773,7 +773,7 @@ test("ガント: 全プロジェクトが隠れても、「完了を隠す」の
   assert.deepEqual(sections(html), []);
 });
 
-test("今日の優先: どのプロジェクトのタスクかを、項目の先頭の見出しで示す（プロジェクト画面・スケジュール画面）", () => {
+test("この週のタスク候補: どのプロジェクトのタスクかを、項目の先頭の見出しで示す（プロジェクト画面・スケジュール画面）", () => {
   const d = load();
   for (const sched of [false, true]) {
     const html = renderPrio(d, TODAY, { sched });
@@ -1107,20 +1107,32 @@ test("renderTodayTasks: 複数の枠は時間を並べる。pendingDone の行�
   assert.equal(count(html, /data-doneok=/g), 1);
 });
 
-test("renderPrio: 今日のタスクに入ったタスクは出さない（プロジェクト画面は残りから 4 件）。行に状態の pill があり、ボタンは無い", async () => {
+test("renderPrio（この週のタスク候補）: 今週の候補（未完了）を、優先順位の順に出す。今日のタスクに入ったタスクは出さない。全件を出す（件数の上限なし）。行に状態の pill があり、ボタンは無い", async () => {
   const { rankTasks } = await import("../plugins/project-lens/src/core/schedule.js");
+  const { weekTasks, mondayOf } = await import("../plugins/project-lens/src/core/week.js");
   const { d } = withToday();
   const base = rankTasks(d, TODAY).map((r) => r.taskId);
+  const cand = new Set(weekTasks(d, mondayOf(TODAY), TODAY).filter((r) => r.group !== "done").map((r) => r.task.id));
   const inToday = new Set(todayTaskIds(d, TODAY));
   assert.ok(base.some((id) => inToday.has(id)), "検査: 優先に並ぶタスクが今日のタスクに入っている");
   const full = renderPrio(d, TODAY, { sched: true });
   const ids = [...full.matchAll(/data-dragtask="([^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(ids, base.filter((id) => !inToday.has(id)));
+  assert.deepEqual(ids, base.filter((id) => cand.has(id) && !inToday.has(id)));
   assert.ok(!full.includes("data-setstatus") && full.includes('class="pill'), "ボタン無し・状態 pill");
-  assert.equal(count(renderPrio(d, TODAY, { sched: false }), /<li/g), Math.min(4, ids.length), "上位 4 件も除いたうえで");
+  assert.equal(count(renderPrio(d, TODAY, { sched: false }), /<li/g), ids.length, "プロジェクト画面も全件");
   const all = load();
   for (const t of all.tasks) t.sessions = [{ id: "S" + t.id, date: TODAY, start: "09:00", end: "09:15", kind: "planned" }];
-  assert.ok(renderPrio(all, TODAY, { sched: true }).includes("優先するタスクはありません") && !renderPrio(all, TODAY, { sched: true }).includes("<ol"));
+  assert.ok(renderPrio(all, TODAY, { sched: true }).includes("この週のタスクはありません") && !renderPrio(all, TODAY, { sched: true }).includes("<ol"));
+});
+
+test("renderPrio（この週のタスク候補）: 期限が来週以降で今週に予定の枠も無いタスクは、点数があっても出さない。今週が期限なら出る。見る週は今日のある週", () => {
+  const d = load();
+  const base = d.tasks.find((t) => t.status !== "Done" && t.status !== "Cancelled");
+  const mk = (id, due) => ({ ...base, id, title: id, due, start: undefined, predecessors: [], sessions: [], status: "To Do", checklist: [] });
+  d.tasks = [mk("ZZ-0001", addDays(TODAY, 21)), mk("ZZ-0002", addDays(TODAY, 2))];
+  const html = renderPrio(d, TODAY, { sched: true });
+  assert.ok(html.includes("ZZ-0002") && !html.includes("ZZ-0001"), html);
+  assert.ok(html.includes(">この週のタスク候補</h2>") && !html.includes("今日の優先"));
 });
 
 test("今日のタスクは、スケジュール・プロジェクトの両方の右パネルに出る（showPrio:false なら出ない）。pendingDone の確認はパネル内で、カレンダー側には出ない", () => {
@@ -1441,7 +1453,7 @@ test("renderGantt: 開始が期限と同じ日のタスクと、前のタスク�
   }
 });
 
-test("renderProjects・renderSchedule: showPrio が true でも false でも data-pref=\"prio\" の取っ手が 1 つ出る。aria-expanded は開閉に合わせ、閉じると「今日の優先」は出ない", () => {
+test("renderProjects・renderSchedule: showPrio が true でも false でも data-pref=\"prio\" の取っ手が 1 つ出る。aria-expanded は開閉に合わせ、閉じると「この週のタスク候補」は出ない", () => {
   const d = load();
   const views = {
     projects: (showPrio) => renderProjects(d, TODAY, { filter: "all", view: "gantt", window: "m6", showPrio }),
@@ -1453,8 +1465,8 @@ test("renderProjects・renderSchedule: showPrio が true でも false でも dat
     assert.equal(count(shut, /data-pref="prio"/g), 1, `${name}: 閉じているとき`);
     assert.match(open, /data-pref="prio"[^>]*aria-expanded="true"/, name);
     assert.match(shut, /data-pref="prio"[^>]*aria-expanded="false"/, name);
-    assert.ok(open.includes(">今日の優先</h2>"), `${name}: 開いているとき見出しが出る`);
-    assert.ok(!shut.includes(">今日の優先</h2>"), `${name}: 閉じると見出しが出ない`);
+    assert.ok(open.includes(">この週のタスク候補</h2>"), `${name}: 開いているとき見出しが出る`);
+    assert.ok(!shut.includes(">この週のタスク候補</h2>"), `${name}: 閉じると見出しが出ない`);
   }
 });
 
@@ -1693,7 +1705,7 @@ test("renderList: .twrap は表（.tlist）だけを含み、メモ・マイル�
   assert.ok(html.indexOf("マイルストーン", end) > end, "マイルストーンは .twrap の後");
 });
 
-// ---- チェックリストの M/N 表示（今日の優先・今日のタスク） ----
+// ---- チェックリストの M/N 表示（この週のタスク候補・今日のタスク） ----
 const ckTask = (n, done) => ({ checklist: Array.from({ length: n }, (_, i) => ({ id: `c${i + 1}`, text: `項目${i + 1}`, done: i < done })) });
 
 test("checkMeterHtml: 項目なしは空。あれば割合の幅と M/N。remain で残り件数。全部済みは all", () => {
@@ -1964,7 +1976,7 @@ test("プロジェクトなしのタスクがなければ、区切りも選択�
   assert.ok(!noneChip(html) && !noneOpt(html) && html.includes('data-row="AA-0001"'));
 });
 
-test("今日の優先・今日のタスク: プロジェクトなしのタスクは、プロジェクト名の欄に「プロジェクトなし」と出る", () => {
+test("この週のタスク候補・今日のタスク: プロジェクトなしのタスクは、プロジェクト名の欄に「プロジェクトなし」と出る", () => {
   const d = load();
   assert.ok(rankTasks(d, TODAY).some((r) => r.taskId === "ZZ-0001"), "ZZ-0001 が順位にある");
   const prio = renderPrio(d, TODAY, { sched: true });
@@ -1984,11 +1996,11 @@ test("renderTaskPop: プロジェクトの選択欄に、プロジェクトな�
   assert.ok(x.includes('<option value="" selected>プロジェクトなし</option>'));
 });
 
-test("重要バッジ: 今日の優先は理由の欄に impbadge を 1 つ（重要度の文字は出さない）。今日のタスクは未完了の重要だけ、状態 pill の後に出す", () => {
+test("重要バッジ: この週のタスク候補は理由の欄に impbadge を 1 つ（重要度の文字は出さない）。今日のタスクは未完了の重要だけ、状態 pill の後に出す", () => {
   const d = load();
   const a = d.tasks.find((x) => x.id === "AA-0003"); a.important = true;
   const row = { html: [...renderPrio(d, TODAY, { sched: true }).matchAll(/<li[^>]*data-dragtask="AA-0003"[^>]*>[\s\S]*?<\/li>/g)].map((m) => m[0]).join("") };
-  assert.ok(row.html, "AA-0003 が今日の優先にある");
+  assert.ok(row.html, "AA-0003 がこの週のタスク候補にある");
   assert.equal(count(row.html, /impbadge/g), 1);
   assert.ok(/<span class="why">[^]*<span class="impbadge">重要<\/span>/.test(row.html), "why の中");
   assert.ok(!row.html.includes("重要度"));
@@ -2051,7 +2063,7 @@ test("スケジュールの編集欄: 枠を選ぶと（selSess と taskEdit）�
 const visibleText = (html) => html.replace(/<[^>]*>/g, " ");
 const TASK_ID = /[A-Z]{2}-\d{4}/;
 
-test("スケジュール画面: タスクの ID を表示しない（週・日の枠、選んだ枠の編集欄（詳細を開いた前のタスクも）、期限の行、削除のボタン、右の列の今日のタスク・今日の優先と確認）。属性の ID は残す", () => {
+test("スケジュール画面: タスクの ID を表示しない（週・日の枠、選んだ枠の編集欄（詳細を開いた前のタスクも）、期限の行、削除のボタン、右の列の今日のタスク・この週のタスク候補と確認）。属性の ID は残す", () => {
   const d = load();
   d.tasks.find((t) => t.id === "AA-0007").sessions.push({ id: "S10", date: TODAY, start: "14:00", end: "15:00", kind: "planned" });
   d.tasks.find((t) => t.id === "AA-0006").due = TODAY; // 期限の行に出す

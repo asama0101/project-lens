@@ -7,7 +7,7 @@
 <title>project-lens</title>
 <style>/* 承認済みデザインのスタイル。Web フォントは使わない */
 body{margin:0}
-/* Layout: 上部に画面切替、俯瞰はプロジェクト別のタイムライン（機器ラックのように1案件=1段）＋右に今日の優先 */
+/* Layout: 上部に画面切替、俯瞰はプロジェクト別のタイムライン（機器ラックのように1案件=1段）＋右にこの週のタスク候補 */
 :root{
   --bg:#F0F3F7; --surface:#FFFFFF; --ink:#16202E; --muted:#5A6678; --line:#D6DDE8; --line-soft:#E8ECF3;
   --accent:#0B6E8A; --accent-soft:#DCEEF4; --pre:#C2670A; --next:#2E7D32;
@@ -31,7 +31,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:1
 .wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
 .mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
 header.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px;justify-content:space-between}
-/* ヘッダーと「今日の優先」は、スクロールしても上端に固定する。ヘッダーの高さは --hh（app.js が測る）で、固定の帯と「今日の優先」の位置に使う */
+/* ヘッダーと「この週のタスク候補」は、スクロールしても上端に固定する。ヘッダーの高さは --hh（app.js が測る）で、固定の帯と「この週のタスク候補」の位置に使う */
 header.top{position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;margin-block:-8px 0}
 /* プロジェクト画面のフィルタ行は、ヘッダーの下に固定する。高さは --th（app.js が測る） */
 .toolbar.ptool{position:sticky;top:var(--hh,0px);z-index:9;background:var(--bg);padding:6px 0 10px;margin-bottom:0}
@@ -561,7 +561,7 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 #view section.panel > .gtop{padding-top:22px}
 #view section.panel > .stop{padding-top:16px}
 #view .cols>.side,#view .side-toggle{margin-top:8px}
-/* チェックリストの進み具合（細い線と「済み/全体」）。今日の優先・今日のタスク・ガントのラベルが使う */
+/* チェックリストの進み具合（細い線と「済み/全体」）。この週のタスク候補・今日のタスク・ガントのラベルが使う */
 #view .ck-meter{display:flex;align-items:center;gap:6px}
 #view .ck-bar{display:block;width:72px;height:4px;border-radius:2px;background:var(--line);overflow:hidden;flex:none}
 #view .ck-bar i{display:block;height:100%;background:var(--accent)}
@@ -604,7 +604,7 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 #view .tbl tr.imp td:first-child{box-shadow:inset 5px 0 0 var(--bad)}
 #view .tbl tr.imp{background:var(--bad-soft)}
 
-/* 今日の優先・今日のタスクの「重要」バッジ */
+/* この週のタスク候補・今日のタスクの「重要」バッジ */
 #view .impbadge{display:inline-block;background:var(--bad);color:#fff;font-size:12px;font-weight:700;line-height:1.4;border-radius:999px;padding:2px 9px;margin-left:4px;white-space:nowrap}
 
 /* スケジュールの重要の印: 枠も期限の行も、赤い太字の件名だけ（線は付けない） */
@@ -1111,7 +1111,7 @@ function validate(data, now = nowLocal()) {
   const st = data.settings ?? {};
   // 形の違う設定は、注意にとどめる（読む側は、既定値で動く）
   if (st.waitingLongDays != null && !(Number.isInteger(st.waitingLongDays) && st.waitingLongDays >= 1)) {
-    warn("settings.waitingLongDays: 1 以上の整数にしてください（直すまで、遅延バッジと「今日の優先」の待ち長期化が正しく出ません）");
+    warn("settings.waitingLongDays: 1 以上の整数にしてください（直すまで、遅延バッジと「この週のタスク候補」の待ち長期化が正しく出ません）");
   }
   const lb = st.labels;
   if (lb != null && !(typeof lb === "object" && !Array.isArray(lb) && ["group", "subgroup"].every((k) => lb[k] === undefined || typeof lb[k] === "string"))) {
@@ -1828,7 +1828,7 @@ function openDownstream(tasks, id) {
 }
 
 /**
- * 今日の優先。対象は Done/Cancelled 以外。前のタスクが未完了（data.tasks にあって完了していない）のものも含め、理由の先頭に「前のタスク待ち」を入れる（点数は変えない）。
+ * 優先順位（右の列と ToDo の候補の並び順）。対象は Done/Cancelled 以外。前のタスクが未完了（data.tasks にあって完了していない）のものも含め、理由の先頭に「前のタスク待ち」を入れる（点数は変えない）。
  * 点数 = 期限超過 100 + 期限点 × 倍率 + 重要(important: true で 12)
  *   期限点 = 残り 30 日以内なら (30−残り日数)×1.5（超過した分も加算）、それより先は 0
  *   倍率   = 1 + min(未チェックの項目数, 10)/10（Waiting は 1）
@@ -2647,7 +2647,7 @@ return { createSync };
 
 /* src/ui/prefs.js */
 const { DEFAULT_PREFS, loadPrefs, savePrefs, loadInboxDraft, saveInboxDraft, SETTINGS_FOLDS, loadSettingsClosed, saveSettingsClosed } = (() => {
-// 画面の表示の好み（今日の優先・ガントの実績・スケジュールの参加しない会議・週表示の期限の行を出す／隠す）。データではないので、ブラウザ（localStorage）に保存する。
+// 画面の表示の好み（この週のタスク候補・ガントの実績・スケジュールの参加しない会議・週表示の期限の行を出す／隠す）。データではないので、ブラウザ（localStorage）に保存する。
 // localStorage が使えない・壊れているときは、既定のまま動く。
 
 const KEY = "project-lens.prefs";
@@ -3682,7 +3682,8 @@ return { summarizeSections, planOps, applyProposal, approveEdit };
 
 /* src/ui/views/prio.js */
 const { statusPill, slotHtml, doneAskHtml, todayTaskIds, renderTodayTasks, renderPrio, renderSide, renderSideToggle } = (() => {
-// 「今日のタスク」「今日の優先」パネル（プロジェクト画面・スケジュール画面で共通。右の列に並ぶ）
+// 「今日のタスク」「この週のタスク候補」パネル（プロジェクト画面・スケジュール画面で共通。右の列に並ぶ）
+
 
 
 
@@ -3743,14 +3744,15 @@ function renderTodayTasks(data, today, opts = {}) {
 }
 
 /**
- * @param opts.sched   true ならスケジュール画面用（全件・ドラッグ可）。false なら上位 4 件
+ * 今週（today のある週）のタスク候補のうち未完了（weekTasks の完了の組を除く）を、優先順位（rankTasks の点数の順）に並べる。
  * 今日のタスクに入っているタスクは出さない（順位の計算は変えず、表示で除く）
+ * @param opts.sched   true ならスケジュール画面用（ドラッグ可。「今日へ」は出さない）
  */
 function renderPrio(data, today, opts = {}) {
   const { sched = false } = opts;
   const inToday = new Set(todayTaskIds(data, today));
-  const ranked = rankTasks(data, today).filter((r) => !inToday.has(r.taskId));
-  const shown = sched ? ranked : ranked.slice(0, 4);
+  const cand = new Set(weekTasks(data, mondayOf(today), today).filter((r) => r.group !== "done").map((r) => r.task.id));
+  const shown = rankTasks(data, today).filter((r) => cand.has(r.taskId) && !inToday.has(r.taskId));
   const items = shown.map((r, i) => {
     const t = data.tasks.find((x) => x.id === r.taskId);
     const a = taskActual(data, t.id);
@@ -3763,17 +3765,17 @@ function renderPrio(data, today, opts = {}) {
   const note = sched
     ? "タスクをカレンダーへドラッグして配置します(15分刻み・長さ1時間)。今日のタスクの行からも、同じタスクをもう 1 つ置けます。配置済みの枠もドラッグで移動できます。"
     : "スケジュール画面で、時間枠に配置できます。";
-  return `<section class="panel prio" aria-labelledby="h-rk"><h2 id="h-rk">今日の優先</h2>${shown.length ? `<ol class="rank">${items}</ol>` : `<p class="muted">優先するタスクはありません。</p>`}<p class="note" style="margin:10px 0 0">${note}</p></section>`;
+  return `<section class="panel prio" aria-labelledby="h-rk"><h2 id="h-rk">この週のタスク候補</h2>${shown.length ? `<ol class="rank">${items}</ol>` : `<p class="muted">この週のタスクはありません。</p>`}<p class="note" style="margin:10px 0 0">${note}</p></section>`;
 }
 
-/** 右の列: 今日のタスク（あれば）＋今日の優先。列の直下の要素として固定表示（sticky）にするため、1 つの箱にまとめる */
+/** 右の列: 今日のタスク（あれば）＋この週のタスク候補。列の直下の要素として固定表示（sticky）にするため、1 つの箱にまとめる */
 function renderSide(data, today, opts = {}) {
   return `<div class="side">${renderTodayTasks(data, today, opts)}${renderPrio(data, today, opts)}</div>`;
 }
 
-/** 本体と右の列の境界線の取っ手。押すと右の列（今日のタスク・今日の優先）を開け閉めする。閉じても、この取っ手は残る */
+/** 本体と右の列の境界線の取っ手。押すと右の列（今日のタスク・この週のタスク候補）を開け閉めする。閉じても、この取っ手は残る */
 const renderSideToggle = (open) =>
-  `<button class="side-toggle" data-pref="prio" aria-expanded="${open}" aria-label="${open ? "今日の優先を閉じる" : "今日の優先を開く"}" title="${open ? "右の「今日のタスク」「今日の優先」を閉じます" : "右の「今日のタスク」「今日の優先」を開きます"}">${open ? "›" : "‹"}</button>`;
+  `<button class="side-toggle" data-pref="prio" aria-expanded="${open}" aria-label="${open ? "この週のタスク候補を閉じる" : "この週のタスク候補を開く"}" title="${open ? "右の「今日のタスク」「この週のタスク候補」を閉じます" : "右の「今日のタスク」「この週のタスク候補」を開きます"}">${open ? "›" : "‹"}</button>`;
 
 return { statusPill, slotHtml, doneAskHtml, todayTaskIds, renderTodayTasks, renderPrio, renderSide, renderSideToggle };
 })();
@@ -4094,7 +4096,7 @@ function renderSettings(data, today, opts = {}) {
       <p class="note" style="margin:0 0 10px">変更はその場でファイルに保存されます。</p>
       <div class="tscroll"><table class="tbl edit"><tbody>
         <tr><td data-l="項目">営業日の数え方</td><td data-l="値"><label><input type="checkbox" data-set="countWeekendsAndHolidays" aria-label="土日祝を営業日に数える"${countOn ? " checked" : ""}> 土日祝を営業日に数える</label>${warnOf("countWeekendsAndHolidays")}</td><td class="muted" data-l="説明">日数の計算（営業日後の期限）とスケジュールの作業枠で、土日と日本の祝日を飛ばすかどうかを選びます。オンにしても、手動の休みは飛ばします。</td></tr>
-        <tr><td data-l="項目">待ち長期化の日数</td><td data-l="値"><input class="in" type="number" min="1" step="1" data-set="waitingLongDays" value="${iv.waitingLongDays}" aria-label="待ち長期化とみなす日数"> 日${warnOf("waitingLongDays")}</td><td class="muted" data-l="説明">Waiting がこの日数を超えると、「今日の優先」と遅延バッジに出ます。</td></tr>
+        <tr><td data-l="項目">待ち長期化の日数</td><td data-l="値"><input class="in" type="number" min="1" step="1" data-set="waitingLongDays" value="${iv.waitingLongDays}" aria-label="待ち長期化とみなす日数"> 日${warnOf("waitingLongDays")}</td><td class="muted" data-l="説明">Waiting がこの日数を超えると、「この週のタスク候補」と遅延バッジに出ます。</td></tr>
         <tr><td data-l="項目">見出しの呼び名</td><td data-l="値"><input class="in" data-set="label-group" value="${esc(iv.labelGroup)}" aria-label="大項目の呼び名"> <input class="in" data-set="label-subgroup" value="${esc(iv.labelSubgroup)}" aria-label="中項目の呼び名">${warnOf("labels")}</td><td class="muted" data-l="説明">ガント・リストの見出しの呼び名です。空にすると既定（大項目・中項目）に戻ります。</td></tr>
       </tbody></table></div>`, warnN("countWeekendsAndHolidays", "waitingLongDays", "labels"));
 
@@ -4491,7 +4493,7 @@ return { predEditHtml, startInputHtml, taskFieldHtml, renderTaskPop, renderTaskE
 
 /* src/ui/views/project.js */
 const { statusCellHtml, renderProjects } = (() => {
-// プロジェクト画面: 絞り込み × ガント／リスト、右に「今日のタスク」「今日の優先」
+// プロジェクト画面: 絞り込み × ガント／リスト、右に「今日のタスク」「この週のタスク候補」
 
 
 
@@ -4601,7 +4603,7 @@ function renderList(data, p, today, opts) {
  * @param opts.view    "gantt" | "list"
  * @param opts.window  ガントの表示期間
  * @param opts.tpop    ガントの編集の窓({ id, x, y })。なければ出さない
- * @param opts.showPrio / opts.showActual  今日の優先・ガントの実績を出すか(既定は出す)
+ * @param opts.showPrio / opts.showActual  この週のタスク候補・ガントの実績を出すか(既定は出す)
  */
 function renderProjects(data, today, opts = {}) {
   const { view = "gantt", hideDone = false, showPrio = true, showActual = true } = opts;
@@ -4947,7 +4949,7 @@ function renderCalendar(data, today, opts) {
  * @param opts.date      表示する日（週表示ではその日を含む週）
  * @param opts.now       {date, time}  現在時刻（過ぎた予定の判定に使う）
  * @param opts.selSess   選択中の枠 ID / opts.selMtg 選択中の会議 ID / opts.mtgDraft 追加中の会議の下書き / opts.urgentDraft 追加中の突発タスクの下書き / opts.taskEdit 編集欄を開いているタスク { id, full, askDel } / opts.actAdd 「実績を追加」の入力欄 { date } / opts.actDraft 実績の入力欄の下書き { key, task, date, start, end }
- * @param opts.showPrio  false なら今日の優先を出さない
+ * @param opts.showPrio  false ならこの週のタスク候補を出さない
  * @param opts.showSkipped  true なら「参加しない」の会議も出す（既定は出さない。選択中の会議だけは、隠さない）
  * @param opts.showDue   false なら週表示の期限の行を閉じる（既定は開く）
  */
@@ -4986,7 +4988,7 @@ return { snapStart, selectionKey, sessionSelection, revealSelection, weekStartOf
 
 /* src/ui/views/todo.js */
 const { planDefault, completeInput, renderTodo } = (() => {
-// 「ToDo」画面: 左に今日の ToDo（その下に、Waiting の催促の組）（todayTasks。今日の枠の時刻と札）、右に表示中の週のタスク候補（weekTasks のうち未完了を、今日の優先 rankTasks の順に 1 つの一覧で、理由つき。完了は見出し「完了」の下で末尾）、行の完了の入力欄、右の行の「今日へ」の入力欄。週の見返しは稼働画面（views/workload.js）。操作の結線は app.js（data-td*・data-tf*・data-tp*）。
+// 「ToDo」画面: 左に今日の ToDo（その下に、Waiting の催促の組）（todayTasks。今日の枠の時刻と札）、右に表示中の週のタスク候補（weekTasks のうち未完了を、優先順位 rankTasks の順に 1 つの一覧で、理由つき。完了は見出し「完了」の下で末尾）、行の完了の入力欄、右の行の「今日へ」の入力欄。週の見返しは稼働画面（views/workload.js）。操作の結線は app.js（data-td*・data-tf*・data-tp*）。
 
 
 
@@ -5126,7 +5128,7 @@ function renderTodo(data, today, opts) {
     ? (todo.length ? `<ul class="tdlist">${todo.map((r) => row(data, r, ctx, whyOf(r))).join("")}</ul>` : "") + (closed.length ? `<h3>完了</h3><ul class="tdlist">${closed.map((r) => row(data, r, ctx)).join("")}</ul>` : "")
     : `<p class="muted">この週のタスクはありません。</p>`;
   const pt = plan && data.tasks.find((t) => t.id === plan.key);
-  const extra = pt && !isClosed(pt) && !rows.some((r) => r.task.id === pt.id) // 「今日の優先」から来たタスクが、この週の候補に無いとき、入力欄の行を候補の先頭に足す
+  const extra = pt && !isClosed(pt) && !rows.some((r) => r.task.id === pt.id) // 右の列の候補から来たタスクが、この週の候補に無いとき、入力欄の行を候補の先頭に足す
     ? `<h3>今日へ入れるタスク</h3><ul class="tdlist">${row(data, { task: pt, group: null, waiting: (pt.predecessors ?? []).some((id) => { const x = data.tasks.find((k) => k.id === id); return x && !isClosed(x); }), planned: 0, actual: 0, checked: null }, ctx)}</ul>`
     : "";
   const trows = todayTasks(data, today);
@@ -5281,7 +5283,7 @@ view.addEventListener("scroll", (e) => {
   alignGScrolls(gs);
 }, true);
 
-// ヘッダーとフィルタ行は上端に固定する（theme.css）。その高さを --hh・--th に入れ、固定の帯・表の列見出し・「今日の優先」がその下に付くようにする
+// ヘッダーとフィルタ行は上端に固定する（theme.css）。その高さを --hh・--th に入れ、固定の帯・表の列見出し・「この週のタスク候補」がその下に付くようにする
 const topbar = document.querySelector("header.top");
 function syncSticky() {
   const root = document.documentElement.style;
@@ -5797,7 +5799,7 @@ function removeSelectedSession(s) {
   apply((d) => removeSession(d, s.id), `${s.title} の${s.kind === "actual" ? "実績の枠" : s.actual ? "枠（実績つき）" : "予定の枠"}を削除しました`);
 }
 
-/** 表示の好み（今日の優先・ガント実績）を反転して保存する。今日の優先を閉じると、パネル内にしか出ない確認待ちは出す場所がなくなるので捨てる */
+/** 表示の好み（この週のタスク候補・ガント実績）を反転して保存する。この週のタスク候補を閉じると、パネル内にしか出ない確認待ちは出す場所がなくなるので捨てる */
 function togglePref(key) {
   S.pendingDone = null;
   if (key === "showPrio" && S.screen === "gantt") S.resetScroll = true; // 右の列の開け閉めでガントの幅が変わるので、横スクロールを今日の位置へ戻す（スケジュールでは戻さない。scrollToMorning でページが跳ぶため）
@@ -6024,7 +6026,7 @@ view.addEventListener("click", (e) => {
     return;
   }
   if (q("[data-tdcancel]")) { S.tdOpen = null; S.tdCol = null; S.tdDraft = null; render(); return; }
-  const pp = q("[data-prioplan]"); // 今日の優先の行の「今日へ」。ToDo タブの今週へ移り、その行の入力欄を開く（画面の移動なので、ほかの入力欄は閉じる）
+  const pp = q("[data-prioplan]"); // この週のタスク候補の行の「今日へ」。ToDo タブの今週へ移り、その行の入力欄を開く（画面の移動なので、ほかの入力欄は閉じる）
   if (pp) { S.screen = "todo"; S.tpop = null; S.pendingDone = null; clearSel(); S.todoWeek = mondayOf(today); S.resetScroll = true; openPlan(pp.dataset.prioplan); return; }
   const tdp = q("[data-tdplan]"); // 今日へ（右の列の行）。開閉。完了の入力欄は閉じる
   if (tdp) { const id = tdp.dataset.tdplan; if (S.tdPlan?.key === id) { S.tdPlan = null; S.focusSel = null; render(); } else openPlan(id); return; }
