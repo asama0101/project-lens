@@ -102,7 +102,7 @@ function row(data, r, ctx, why = []) {
   const late = lateInfo(t, ctx.today);
   const todayBtn = r.slots && !done && !isClosed(t) ? openBtn("today", "今日の分を完了", todayDone ? "" : " primary") : "";
   return `<li class="td-row${done ? " closed" : ""}${todayDone ? " part" : ""}${late.overdue || late.lapsed ? " late" : ""}"${drag} data-tdrow="${id}">
-    <div class="td-main"><span class="pj">${proj}</span><span class="td-title">${esc(t.title)}</span>${statusPill(t)}${r.waiting ? `<span class="pill wait">前のタスク待ち</span>` : ""}${lateBadgesHtml(late)}${todayDone ? `<span class="pill tdone">今日の分は完了</span>` : ""}${todayBtn}${done ? "" : openBtn("done", "完了")}${canPlan ? `<button class="btn" data-tdplan="${id}" aria-expanded="${planOpen}">今日へ</button>` : ""}<button class="btn" data-tdedit="${id}" data-tdcol="${ctx.col}" aria-expanded="${editing}">編集</button></div>
+    <div class="td-main"><span class="pj">${proj}</span><span class="td-title">${esc(t.title)}</span>${statusPill(t)}${r.waiting ? `<span class="pill wait">前のタスク待ち</span>` : ""}${lateBadgesHtml(late)}${todayDone ? `<span class="pill tdone">今日の分は完了</span>` : ""}${todayBtn}${done || ctx.col === "week" ? "" : openBtn("done", "完了")}${canPlan ? `<button class="btn" data-tdplan="${id}" aria-expanded="${planOpen}">今日へ</button>` : ""}<button class="btn" data-tdedit="${id}" data-tdcol="${ctx.col}" aria-expanded="${editing}">編集</button></div>
     ${r.slots ? `<div class="td-slots mono">${r.slots.map((s) => slotHtml(s, ctx.now, ctx.actuals) + (s.kind === "actual" || s.actual ? `<button class="btn tdactclear" data-tdactclear="${esc(s.id)}" aria-label="${esc(s.actual?.start ?? s.start)} の実績を外す">実績を外す</button>` : "")).join("")}</div>` : ""}
     ${why.length ? `<div class="td-why">${why.map(esc).join("・")}</div>` : ""}
     <div class="td-meta">${t.due ? dueLateHtml(fmtMD(t.due), late) : ""}${r.checked ? `<span>チェック <b class="mono">${progress(r)}</b></span>` : ""}<span>予定 <b class="mono">${r.planned}</b> 分</span><span>実績 <b class="mono">${r.actual}</b> 分</span></div>
@@ -138,10 +138,6 @@ export function renderTodo(data, today, opts) {
   const list = rows.length
     ? (todo.length ? `<ul class="tdlist">${todo.map((r) => row(data, r, ctx, whyOf(r))).join("")}</ul>` : "") + (closed.length ? `<h3>完了</h3><ul class="tdlist">${closed.map((r) => row(data, r, ctx)).join("")}</ul>` : "")
     : `<p class="muted">この週のタスクはありません。</p>`;
-  const pt = plan && data.tasks.find((t) => t.id === plan.key);
-  const extra = pt && !isClosed(pt) && !rows.some((r) => r.task.id === pt.id) // 右の列の候補から来たタスクが、この週の候補に無いとき、入力欄の行を候補の先頭に足す
-    ? `<h3>今日へ入れるタスク</h3><ul class="tdlist">${row(data, { task: pt, group: null, waiting: (pt.predecessors ?? []).some((id) => { const x = data.tasks.find((k) => k.id === id); return x && !isClosed(x); }), planned: 0, actual: 0, checked: null }, ctx)}</ul>`
-    : "";
   const trows = todayTasks(data, today);
   const tlist = trows.length
     ? `<ul class="tdlist">${trows.map((r) => row(data, r, todayCtx)).join("")}</ul>`
@@ -158,7 +154,7 @@ export function renderTodo(data, today, opts) {
       </div>
       <section class="panel tdweek" aria-label="この週のタスク候補"><h2>この週のタスク候補</h2>
         <div class="toolbar"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><button class="btn" data-tdweek="-1" aria-label="前の週">←</button><button class="btn" data-tdweek="1" aria-label="次の週">→</button><button class="btn" data-tdweek-today>今週</button><strong style="margin-left:6px">${fmtMD(week)}〜${fmtMD(weekEnd)} の週</strong></div></div>
-        ${extra}${list}</section>
+        ${list}</section>
     </div>
   </div>`;
 }

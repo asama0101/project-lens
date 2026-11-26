@@ -1092,16 +1092,6 @@ test("theme.css: ファイル情報の詳細は .filebar を基準に絶対配�
   assert.doesNotMatch(info[0], /right:0|100vw/);
 });
 
-test("この週のタスク候補の「今日へ」（data-prioplan）は、ToDo タブへ移り、S.todoWeek を今週にして、そのあと openPlan を呼ぶ", () => {
-  const i = src.indexOf('const pp = q("[data-prioplan]")');
-  assert.ok(i > 0, "ハンドラ");
-  const h = src.slice(i, src.indexOf("return; }", i));
-  const a = h.indexOf('S.screen = "todo"'), b = h.indexOf("S.todoWeek = mondayOf(today)"), c = h.indexOf("openPlan(");
-  assert.ok(a > 0 && b > a && c > b, h);
-  assert.ok(h.includes("clearSel()") && h.indexOf("clearSel()") < c, "画面の移動で、ほかの入力欄を閉じてから開く");
-  assert.ok(h.includes("S.resetScroll = true"), h);
-});
-
 test("theme.css: 催促の組は、黄色の背景と枠・黄色の見出し・白い行（画面案どおり）。「催促した」は主ボタン", () => {
   const css = readFileSync(new URL("../plugins/project-lens/src/ui/theme.css", import.meta.url), "utf8");
   assert.match(css, /\.tdchase\{border-color:var\(--warn\);background:var\(--warn-soft\)\}/);

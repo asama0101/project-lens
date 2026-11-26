@@ -87,9 +87,8 @@ export function renderPrio(data, today, opts = {}) {
     const pill = a.count ? ` <span class="pill ok">${a.count}回・実績 ${a.hours.toFixed(1)}h</span>` : "";
     const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? (t.projectId == null ? "プロジェクトなし" : ""));
     const drag = sched ? ` draggable="true" data-dragtask="${esc(t.id)}"` : "";
-    const plan = sched ? "" : `<button class="btn" data-prioplan="${esc(t.id)}">今日へ</button>`;
     const late = lateInfo(t, today);
-    return `<li${drag}${late.overdue || late.lapsed ? ' class="late"' : ""}><span class="n">${i + 1}</span><span class="pj">${proj}</span><span class="t">${r.action === "chase" ? `<span class="act">${r.reasons.some((x) => x.includes("催促")) ? "催促" : "確認"}</span>` : ""}${esc(t.title)} ${statusPill(t)}${pill}${lateBadgesHtml(late)}</span>${checkMeterHtml(t, { remain: true })}<span class="why">${isImportantMark(t) ? IMP_BADGE : ""}${esc(restReasons(r.reasons).filter((x) => x !== "重要").join("。"))}${late.overdue ? `<br>${dueLateHtml(fmtMD(t.due), late)}` : ""}</span>${plan}</li>`;
+    return `<li${drag}${late.overdue || late.lapsed ? ' class="late"' : ""}><span class="n">${i + 1}</span><span class="pj">${proj}</span><span class="t">${r.action === "chase" ? `<span class="act">${r.reasons.some((x) => x.includes("催促")) ? "催促" : "確認"}</span>` : ""}${esc(t.title)} ${statusPill(t)}${pill}${lateBadgesHtml(late)}</span>${checkMeterHtml(t, { remain: true })}<span class="why">${isImportantMark(t) ? IMP_BADGE : ""}${esc(restReasons(r.reasons).filter((x) => x !== "重要").join("。"))}${late.overdue ? `<br>${dueLateHtml(fmtMD(t.due), late)}` : ""}</span></li>`;
   }).join("");
   const note = sched
     ? "タスクをカレンダーへドラッグして配置します(15分刻み・長さ1時間)。今日のタスクの行からも、同じタスクをもう 1 つ置けます。配置済みの枠もドラッグで移動できます。"

@@ -2453,12 +2453,12 @@ test("renderTodo: 別の週を見ても、候補の並びは今日の点数の�
   assert.deepEqual(ids, rank.filter((id) => ids.includes(id)));
 });
 
-test("renderTodo: 前のタスク待ちの行に「前のタスク待ち」。完了していない行に「完了」ボタン（data-tdopen）、完了した行には出ない", () => {
+test("renderTodo: 前のタスク待ちの行に「前のタスク待ち」。「完了」ボタン（data-tdopen）は、左の列の未完了の行だけ。右の列（この週のタスク候補）と完了した行には出ない", () => {
   const html = tdHtml(tdData());
   assert.ok(tdRow(html, "AA-0003").includes("前のタスク待ち"));
   assert.ok(!tdRow(html, "AA-0001").includes("前のタスク待ち"));
-  for (const id of ["AA-0001", "AA-0002", "AA-0003"]) assert.ok(tdRow(html, id).includes(`data-tdopen="${id}"`), id);
-  assert.ok(!tdRow(html, "AA-0004").includes("data-tdopen"));
+  assert.ok(tdTodayRow(html, "AA-0002").includes('data-tdopen="AA-0002"'), "左の列");
+  for (const id of ["AA-0001", "AA-0002", "AA-0003", "AA-0004"]) assert.ok(!tdRow(html, id).includes("data-tdopen"), `右の列 ${id}`);
 });
 
 test("renderTodo: open の行に完了の入力欄（日付・開始・終了・状態（初期値 Done・Waiting なし）・チェックリストと「残りをすべてチェック」・保存・キャンセル）。ほかの行には出ない", () => {
@@ -2729,15 +2729,12 @@ test("renderTodo: 表示中の週が今日の週でなくても、左は今日�
   assert.equal(tdRow(html, "AA-0002"), "", "右は表示中の週のまま");
 });
 
-test("renderTodo: 『完了』を左の行で押したとき（col: today）、入力欄は左の行にだけ出る。col: week なら右の行にだけ。左の入力欄の日付は今日", () => {
+test("renderTodo: 『完了』を左の行で押したとき（col: today）、入力欄は左の行にだけ出る。左の入力欄の日付は今日", () => {
   const l = tdHtml(tdData(), { open: "AA-0002", col: "today" });
   assert.ok(tdTodayRow(l, "AA-0002").includes("data-tf="), "左に出る");
   assert.ok(!tdRow(l, "AA-0002").includes("data-tf="), "右には出ない");
   assert.equal(l.split('data-tdsave="AA-0002"').length, 2, "入力欄は 1 つだけ");
   assert.ok(tdTodayRow(l, "AA-0002").includes('data-tdopen="AA-0002" data-tdcol="today" data-tdmodeopen="done" aria-expanded="true"'), "左のボタンだけ開いた印");
-  assert.ok(tdRow(l, "AA-0002").includes('data-tdcol="week" data-tdmodeopen="done" aria-expanded="false"'));
-  const w = tdHtml(tdData(), { open: "AA-0002", col: "week" });
-  assert.ok(!tdTodayRow(w, "AA-0002").includes("data-tf=") && tdRow(w, "AA-0002").includes("data-tf="));
   const other = tdTodayRow(tdHtml(tdData(), { week: "2026-11-02", open: "AA-0002", col: "today" }), "AA-0002");
   assert.match(other, /data-tf="date" value="2026-10-20"/, "表示中の週の外でも、左は今日");
 });
@@ -3069,45 +3066,6 @@ test("renderGantt: Waiting の印を足しても、バー（data-gt・つまみ�
   assert.ok(plain.includes('<b class="gh l"') && plain.includes('<b class="gh r"'));
 });
 
-test("renderPrio: 未完了の行に「今日へ」（data-prioplan）。スケジュール画面には出ない。今日のタスクにある行・完了の行には出ない", async () => {
-  const { rankTasks } = await import("../plugins/project-lens/src/core/schedule.js");
-  const { d } = withToday();
-  const inToday = new Set(todayTaskIds(d, TODAY));
-  const ids = rankTasks(d, TODAY).map((r) => r.taskId).filter((id) => !inToday.has(id));
-  assert.ok(ids.length > 0 && inToday.size > 0, "検査: 優先の行があり、今日のタスクもある");
-  const html = renderPrio(d, TODAY, { sched: false });
-  const shown = [...html.matchAll(/data-prioplan="([^"]+)"/g)].map((m) => m[1]);
-  assert.ok(shown.length > 0, "検査: ボタンが出る");
-  assert.deepEqual(shown, ids.slice(0, shown.length));
-  assert.equal(shown.length, count(html, /<li/g), "全行に出る");
-  assert.ok(html.includes('<button class="btn" data-prioplan="') && html.includes(">今日へ</button>"));
-  for (const id of inToday) assert.ok(!html.includes(`data-prioplan="${id}"`), `今日のタスク ${id}`);
-  assert.ok(!renderPrio(d, TODAY, { sched: true }).includes("data-prioplan"), "スケジュール画面には出さない");
-  assert.ok(renderSide(d, TODAY, { sched: false }).includes("data-prioplan"), "右の列にも出る");
-  const victim = shown[0];
-  d.tasks.find((t) => t.id === victim).status = "Done";
-  const after = renderPrio(d, TODAY, { sched: false });
-  assert.ok(!after.includes(`data-prioplan="${victim}"`), "完了の行には出ない");
-  assert.ok(count(after, /data-prioplan=/g) > 0, "ほかの未完了の行には出る");
-});
-
-test("renderTodo: plan のタスクが週の候補に無いとき、右の列の先頭に見出しつきの行を足して入力欄を出す。候補にあるときは足さない", () => {
-  const d = tdData();
-  d.tasks.push(tdTask("AA-0007", { title: "遠い期限", due: "2026-12-25" }));
-  const html = tdHtml(d, { plan: { key: "AA-0007", start: "10:00", minutes: 30 } });
-  assert.ok(!tdHtml(d).includes("今日へ入れるタスク"), "plan なしでは出ない");
-  assert.equal(count(html, /data-tdplansave="AA-0007"/g), 1, "入力欄は 1 つ");
-  assert.equal(count(html, /今日へ入れるタスク/g), 1);
-  const w = tdList(html);
-  assert.ok(w.indexOf("今日へ入れるタスク") < w.indexOf("data-tdplansave") && w.indexOf("data-tdplansave") < w.indexOf('data-tdrow="AA-0001"'), "先頭");
-  const inList = tdHtml(tdData(), { plan: { key: "AA-0001", start: "10:00", minutes: 30 } });
-  assert.equal(count(inList, /data-tdplansave=/g), 1);
-  assert.ok(!inList.includes("今日へ入れるタスク"), "候補にあるときは足さない");
-  d.tasks.find((t) => t.id === "AA-0007").status = "Done";
-  assert.ok(!tdHtml(d, { plan: { key: "AA-0007", start: "10:00", minutes: 30 } }).includes("data-tdplansave"), "完了は出さない");
-  assert.ok(!tdHtml(d, { plan: { key: "ZZ-9999", start: "10:00", minutes: 30 } }).includes("今日へ入れるタスク"), "無いタスク");
-});
-
 // 催促の組（Waiting で、回答予定日を過ぎた・長く待っている）
 const chData = () => {
   const d = tdData();
@@ -3174,4 +3132,10 @@ test("predEditHtml: 前のタスクは、選ぶ欄が上、選んだ札が下（
   assert.ok(h.includes('<div class="chips"><span class="chip">AA-0001'), "札は、その下の入れ物の中");
   const none = predEditHtml(data, data.tasks[2]);
   assert.ok(!none.includes('<div class="chips">'), "札が無ければ、札の入れ物は出さない");
+});
+
+test("右の列（この週のタスク候補）に「今日へ」は出ない。ToDo タブの右の列の「今日へ」は残る", () => {
+  const { d } = withToday();
+  assert.ok(!renderPrio(d, TODAY, { sched: false }).includes("今日へ") && !renderSide(d, TODAY, { sched: false }).includes("data-prioplan"));
+  assert.ok(tdRow(tdHtml(tdData()), "AA-0001").includes("data-tdplan="), "ToDo タブの右の列");
 });

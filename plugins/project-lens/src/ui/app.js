@@ -668,8 +668,6 @@ view.addEventListener("click", (e) => {
     return;
   }
   if (q("[data-tdcancel]")) { S.tdOpen = null; S.tdCol = null; S.tdDraft = null; render(); return; }
-  const pp = q("[data-prioplan]"); // この週のタスク候補の行の「今日へ」。ToDo タブの今週へ移り、その行の入力欄を開く（画面の移動なので、ほかの入力欄は閉じる）
-  if (pp) { S.screen = "todo"; S.tpop = null; S.pendingDone = null; clearSel(); S.todoWeek = mondayOf(today); S.resetScroll = true; openPlan(pp.dataset.prioplan); return; }
   const tdp = q("[data-tdplan]"); // 今日へ（右の列の行）。開閉。完了の入力欄は閉じる
   if (tdp) { const id = tdp.dataset.tdplan; if (S.tdPlan?.key === id) { S.tdPlan = null; S.focusSel = null; render(); } else openPlan(id); return; }
   const tps = q("[data-tdplansave]"); // 今日に入れる（今日の予定の枠を足す）。欄の値は、押したときに読む。失敗しても打った値が消えないよう、先に S.tdPlan へ写す
