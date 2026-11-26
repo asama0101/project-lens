@@ -13,7 +13,7 @@ const S = {
   prefs: loadPrefs(), settingsClosed: loadSettingsClosed(), tpop: null, addAt: null, last: null, ruleError: "",
   ib: { open: false, text: loadInboxDraft(), projectId: "", replies: {}, reasons: {}, causes: {} },
   wperiod: "day", wdate: clock().date,
-  todoWeek: mondayOf(clock().date), tdOpen: null, tdCol: null, tdDraft: null, tdPlan: null, tdChase: null, askDelSess: null, // 実績つきの枠の削除の確認を出している枠の id（メモリのみ）。ToDo 画面の週（月曜日）・完了の入力欄を開いているタスクと、開いた列（"today" か "week"）と、その下書き・「今日へ」の入力欄（{ key: タスクの id, start, minutes }。完了の入力欄とは同時に開かない）・催促の入力欄 tdChase（{ key, mode, days, party, expected }。完了・「今日へ」とは同時に開かない）
+  todoWeek: mondayOf(clock().date), tdOpen: null, tdCol: null, tdDraft: null, tdPlan: null, tdChase: null, tdMode: "done", tdEditCol: null, askDelSess: null, // 実績つきの枠の削除の確認を出している枠の id（メモリのみ）。ToDo 画面の週（月曜日）・完了の入力欄を開いているタスクと、開いた列（"today" か "week"）と、その下書き・「今日へ」の入力欄（{ key: タスクの id, start, minutes }。完了の入力欄とは同時に開かない）・催促の入力欄 tdChase（{ key, mode, days, party, expected }。完了・「今日へ」とは同時に開かない）
 };
 const $ = (id) => document.getElementById(id);
 const view = $("view");
@@ -56,7 +56,7 @@ function renderBody() {
     return renderProjects(S.data, today, { filter: S.filter, view: S.screen, window: S.gwin, hideDone: S.hideDone, askDel: S.askDel, askDelProject: S.askDelProject, pendingWait: S.pendingWait, pendingDone: S.pendingDone, checkOpen: S.checkOpen, addAt: S.addAt, tpop: S.screen === "gantt" ? S.tpop : null, showPrio: S.prefs.showPrio, showActual: S.prefs.showActual, now: clock() });
   }
   if (S.screen === "settings") return renderSettings(S.data, today, { ruleError: S.ruleError, closed: S.settingsClosed });
-  if (S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, col: S.tdCol, draft: S.tdDraft, plan: S.tdPlan, chase: S.tdChase, urgentDraft: S.urgentDraft });
+  if (S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, col: S.tdCol, draft: S.tdDraft, mode: S.tdMode, plan: S.tdPlan, chase: S.tdChase, urgentDraft: S.urgentDraft, edit: S.taskEdit, editCol: S.tdEditCol, pendingWait: S.pendingWait, pendingDone: S.pendingDone });
   if (S.screen === "workload") return renderWorkload(S.data, today, { period: S.wperiod, date: S.wdate, now: clock() });
   return renderSchedule(S.data, today, scheduleOpts());
 }
@@ -88,7 +88,7 @@ function render() {
   sync.rendered(); // 読み直しで待たせた描き直しは、この描き直しで済む
   if (S.tpop && !S.data.tasks.some((t) => t.id === S.tpop.id)) S.tpop = null; // 読み直しで対象のタスクが消えたら、窓も閉じる
   if (S.selSess && !allSessions(S.data).some((s) => s.id === S.selSess)) { S.selSess = null; S.taskEdit = null; } // 読み直しなどで選択中の枠が無くなったら、選択と編集欄を外す
-  if (S.taskEdit && (S.screen !== "schedule" || !S.data.tasks.some((t) => t.id === S.taskEdit.id))) { S.taskEdit = null; S.selSess = null; } // スケジュールの編集欄も同じ（編集欄は枠の選択と一緒なので、選択も外す）
+  if (S.taskEdit && (!["schedule", "todo"].includes(S.screen) || !S.data.tasks.some((t) => t.id === S.taskEdit.id))) { S.taskEdit = null; S.selSess = null; } // スケジュールの編集欄も同じ（編集欄は枠の選択と一緒なので、選択も外す）
   if (S.askDelSess && (S.screen !== "schedule" || S.askDelSess !== S.selSess)) S.askDelSess = null; // 削除の確認は、その枠を選んでいる間だけ（枠の id は S.data.tasks で検証しない）
   if (S.tdOpen && (!S.data?.tasks.some((t) => t.id === S.tdOpen) || !["today", "week"].includes(S.tdCol))) { S.tdOpen = null; S.tdCol = null; S.tdDraft = null; } // 読み直しなどでタスクが無くなったら（開いた列が不正でも）、完了の入力欄を閉じる
   if (S.tdPlan && !S.data?.tasks.some((t) => t.id === S.tdPlan.key)) S.tdPlan = null; // 「今日へ」の入力欄も同じ
@@ -283,6 +283,8 @@ const sync = createSync({
 /** 編集を適用して描画・保存する。edit は、いまのデータへの差分（data → data）で、例外を投げたら理由を表示して、データは変えない。
  *  決まった結果を返す編集（() => data）は、競合のとき、最新のファイルに当て直すと、他の更新を消すので、書かない */
 function apply(edit, msg, { partial = false, quiet = false } = {}) {
+  const tf = view.querySelector(".tdform"); // 完了の入力欄を開いているときは、描き直しても入力が残るよう、先に下書きへ写す（チェックリストの操作は、その場で保存して描き直す）
+  if (tf && S.tdOpen) S.tdDraft = tdFormDraft(tf, S.tdOpen);
   let next;
   try { next = edit(S.data); } catch (e) { toast(e.message); if (partial) renderCal(); else render(); return false; }
   S.data = next;
@@ -638,22 +640,27 @@ view.addEventListener("click", (e) => {
   /* ToDo 画面 */
   const tw = q("[data-tdweek]"); if (tw) { moveTodoWeek(addDays(S.todoWeek, 7 * +tw.dataset.tdweek)); return; }
   if (q("[data-tdweek-today]")) { moveTodoWeek(mondayOf(today)); return; }
+  // 完了の入力欄。「今日の分を完了」（data-tdmodeopen="today"）と「完了」（"done"）で開く。同じ行の同じボタンをもう一度押すと閉じる。編集欄は閉じる
   const tdo = q("[data-tdopen]");
-  if (tdo) { const id = tdo.dataset.tdopen, col = tdo.dataset.tdcol, same = S.tdOpen === id && S.tdCol === col; S.tdOpen = same ? null : id; S.tdCol = same ? null : col; S.tdDraft = null; S.tdPlan = null; S.tdChase = null; S.focusSel = S.tdOpen ? '[data-tf="start"]' : null; render(); return; }
-  const tdd = q("[data-tdckdel]"); // 入力欄の項目の削除。すぐタスクへ保存する。描き直しても入力が残るよう、先に下書きへ写す
-  if (tdd) { const [tid, iid] = tdd.dataset.tdckdel.split(":"); S.tdDraft = tdFormDraft(tdd.closest(".tdform"), tid); apply((d) => removeChecklistItem(d, tid, iid)); return; }
-  const tdca = q("[data-tdckall]"); // 入力欄のチェックを、すべて付ける（描き直さない。保存で書く）
-  if (tdca) { // 欄の値を変えても change は起きないので、下書きへも写す（読み直しの描き直しで、チェックが戻らないように）
-    const form = tdca.closest(".tdform"), key = form.querySelector("[data-tdsave]")?.dataset.tdsave;
-    form.querySelectorAll("[data-tfck]").forEach((c) => { c.checked = true; });
-    if (key && key === S.tdOpen) S.tdDraft = tdFormDraft(form, key);
-    return;
-  }
+  if (tdo) { const id = tdo.dataset.tdopen, col = tdo.dataset.tdcol, m = tdo.dataset.tdmodeopen, same = S.tdOpen === id && S.tdCol === col && S.tdMode === m; S.tdOpen = same ? null : id; S.tdCol = same ? null : col; S.tdMode = m; S.tdDraft = null; S.tdPlan = null; S.tdChase = null; S.taskEdit = null; S.tdEditCol = null; S.focusSel = S.tdOpen ? '[data-tf="start"]' : null; render(); return; }
+  const tdm = q("[data-tdmode]"); // 入力欄の「今日の分を完了」⇔「タスクを完了」の切り替え。入力は残す
+  if (tdm) { S.tdDraft = tdFormDraft(tdm.closest(".tdform"), S.tdOpen); S.tdMode = tdm.dataset.tdmode; render(); return; }
+  const tde = q("[data-tdedit]"); // 編集欄（ガント・リスト・スケジュールと同じ）。同じ行をもう一度押すと閉じる。完了・今日へ・催促の入力欄は閉じる
+  if (tde) { const id = tde.dataset.tdedit, col = tde.dataset.tdcol, same = S.taskEdit?.id === id && S.tdEditCol === col; S.taskEdit = same ? null : { id, full: false, askDel: false }; S.tdEditCol = same ? null : col; S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.tdPlan = null; S.tdChase = null; render(); return; }
+  const tdca = q("[data-tdckall]"); // 入力欄の「残りをすべてチェック」。ほかのチェックの操作と同じく、すぐタスクへ保存する
+  if (tdca) { apply((d) => checkAllChecklist(d, tdca.dataset.tdckall)); return; }
   const tds = q("[data-tdsave]"); // 完了の保存。入力欄の値は、押したときに読む。失敗しても打った値が消えないよう、先に下書きへ写す
   if (tds) {
     const id = tds.dataset.tdsave;
     S.tdDraft = tdFormDraft(tds.closest(".tdform"), id);
     const draft = S.tdDraft, title = taskTitle(id);
+    if (S.tdMode === "today") { // 今日の分: 実績だけを書く（状態・チェック・予定の枠は変えない）
+      if (apply((d) => completeToday(d, id, completeInput(draft).actual, now).data, null, { quiet: true })) {
+        S.tdOpen = null; S.tdCol = null; S.tdDraft = null; render();
+        toast(`「${title}」の今日の分を記録しました`);
+      }
+      return;
+    }
     let r;
     if (apply((d) => { r = completeTask(d, id, completeInput(draft), now); return r.data; }, null, { quiet: true })) {
       S.tdOpen = null; S.tdCol = null; S.tdDraft = null; render();
@@ -788,7 +795,7 @@ function moveTodoWeek(week) {
 
 /** 「今日へ」の入力欄を、そのタスクの行の下に開く（「今日へ」のボタンと、左の列へのドロップで共通）。完了の入力欄は閉じる */
 function openPlan(id) {
-  S.tdPlan = { key: id, ...planDefault(clock()) }; S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.tdChase = null; S.focusSel = '[data-tp="start"]';
+  S.tdPlan = { key: id, ...planDefault(clock()) }; S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.tdChase = null; S.taskEdit = null; S.focusSel = '[data-tp="start"]';
   render();
 }
 
@@ -796,7 +803,7 @@ function openPlan(id) {
 function openChase(id, mode) {
   const w = S.data.tasks.find((t) => t.id === id)?.waitingOn;
   S.tdChase = { key: id, mode, days: 3, party: w?.party ?? "", expected: w?.expected ?? "" };
-  S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.tdPlan = null; S.urgentDraft = null; S.focusSel = mode === "done" ? '[data-ch="days"]' : '[data-ch="party"]';
+  S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.tdPlan = null; S.urgentDraft = null; S.taskEdit = null; S.focusSel = mode === "done" ? '[data-ch="days"]' : '[data-ch="party"]';
   render();
 }
 
@@ -813,11 +820,10 @@ function tdPlanDraft(form, key) {
   return { key, start: f("start"), minutes: +f("minutes") };
 }
 
-/** 完了の入力欄（.tdform）の値 → 下書き（{ key, date, start, end, status, checks }） */
+/** 完了の入力欄（.tdform）の値 → 下書き（{ key, date, start, end, status }）。チェックは、操作のたびにタスクへ保存するので、持たない */
 function tdFormDraft(form, key) {
   const f = (k) => form?.querySelector(`[data-tf="${k}"]`)?.value ?? "";
-  const checks = Object.fromEntries([...(form?.querySelectorAll("[data-tfck]") ?? [])].map((c) => [c.dataset.tfck, c.checked]));
-  return { key, date: f("date"), start: f("start"), end: f("end"), status: f("status"), checks };
+  return { key, date: f("date"), start: f("start"), end: f("end"), status: f("status") };
 }
 
 /** 突発タスクの入力欄の確定。件名が空なら何もしない。Error のときは通知だけで、入力欄を残す */
@@ -881,17 +887,6 @@ view.addEventListener("keydown", (e) => {
   const text = el.value.trim(), id = el.dataset.ckadd;
   if (!text) return;
   S.focusSel = `[data-ckadd="${id}"]`;
-  apply((d) => addChecklistItem(d, id, text));
-});
-/** 完了の入力欄の、項目の追加欄: Enter ですぐタスクへ保存する（isComposing では追加しない）。描き直しても入力が残るよう、先に下書きへ写す */
-view.addEventListener("keydown", (e) => {
-  const el = e.target.closest("[data-tdckadd]");
-  if (!el || e.key !== "Enter" || e.isComposing) return;
-  e.preventDefault();
-  const text = el.value.trim(), id = el.dataset.tdckadd;
-  if (!text) return;
-  S.tdDraft = tdFormDraft(el.closest(".tdform"), id);
-  S.focusSel = `[data-tdckadd="${id}"]`;
   apply((d) => addChecklistItem(d, id, text));
 });
 /**
@@ -997,7 +992,7 @@ function onChange(el) {
     return;
   }
   // ToDo 画面
-  if (el.dataset.tf !== undefined || el.dataset.tfck !== undefined) { // 完了の入力欄の下書き（描き直しても入力を残す）。この欄を開いたままのときだけ
+  if (el.dataset.tf !== undefined) { // 完了の入力欄の下書き（描き直しても入力を残す）。この欄を開いたままのときだけ
     const form = el.closest(".tdform"), key = form?.querySelector("[data-tdsave]")?.dataset.tdsave;
     if (key && key === S.tdOpen) S.tdDraft = tdFormDraft(form, key);
     return;

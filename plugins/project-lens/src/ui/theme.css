@@ -494,11 +494,14 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .tdchase h2{color:var(--warn)}
 .tdchase .tdlist>li{background:var(--surface);border-color:var(--warn)}
 .tf-cks{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;flex-basis:100%}
-.tdform label.tf-ck{flex-direction:row;align-items:center;gap:6px;font-size:13px;color:var(--ink)}
-.tf-ck input[type=checkbox]{width:18px;height:18px;margin:0;accent-color:var(--accent);flex:none}
-.tf-ckitem{display:inline-flex;align-items:center}
-.tf-ckitem .gx{opacity:1;min-width:28px;min-height:28px}
-.tf-cks [data-tdckadd]{flex:1 1 180px;min-width:0}
+.tf-cks .ckedit{flex:1 1 100%}
+.tdform .seg{display:inline-flex;gap:0;flex-basis:100%}
+.tdform .seg .btn{border-radius:0}
+.tdform .seg .btn:first-child{border-radius:6px 0 0 6px}
+.tdform .seg .btn:last-child{border-radius:0 6px 6px 0}
+.tdform .seg .btn.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+.tdlist>li.part{background:var(--accent-soft)}
+.pill.tdone{background:var(--ok);color:#fff;border-color:transparent;font-weight:700}
 
 /* 固定表示（ガント・リスト）: 画面のスクロールに対して、CSS の sticky で付ける */
 #view{overflow-anchor:none} /* 描き直しのたびに、ブラウザのスクロール位置の補正(スクロールアンカー)で縦の位置が数 px ずれるのを防ぐ。位置は render が戻す */

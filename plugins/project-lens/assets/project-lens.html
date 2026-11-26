@@ -501,11 +501,14 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .tdchase h2{color:var(--warn)}
 .tdchase .tdlist>li{background:var(--surface);border-color:var(--warn)}
 .tf-cks{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;flex-basis:100%}
-.tdform label.tf-ck{flex-direction:row;align-items:center;gap:6px;font-size:13px;color:var(--ink)}
-.tf-ck input[type=checkbox]{width:18px;height:18px;margin:0;accent-color:var(--accent);flex:none}
-.tf-ckitem{display:inline-flex;align-items:center}
-.tf-ckitem .gx{opacity:1;min-width:28px;min-height:28px}
-.tf-cks [data-tdckadd]{flex:1 1 180px;min-width:0}
+.tf-cks .ckedit{flex:1 1 100%}
+.tdform .seg{display:inline-flex;gap:0;flex-basis:100%}
+.tdform .seg .btn{border-radius:0}
+.tdform .seg .btn:first-child{border-radius:6px 0 0 6px}
+.tdform .seg .btn:last-child{border-radius:0 6px 6px 0}
+.tdform .seg .btn.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+.tdlist>li.part{background:var(--accent-soft)}
+.pill.tdone{background:var(--ok);color:#fff;border-color:transparent;font-weight:700}
 
 /* 固定表示（ガント・リスト）: 画面のスクロールに対して、CSS の sticky で付ける */
 #view{overflow-anchor:none} /* 描き直しのたびに、ブラウザのスクロール位置の補正(スクロールアンカー)で縦の位置が数 px ずれるのを防ぐ。位置は render が戻す */
@@ -2839,7 +2842,7 @@ return { depPath, depMarkup, drawDeps, focusDeps };
 })();
 
 /* src/ui/edit.js */
-const { predecessorCandidates, updateTask, markChased, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, recordActual, recordSlotActual, completeTask, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject } = (() => {
+const { predecessorCandidates, updateTask, markChased, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, recordActual, recordSlotActual, completeToday, completeTask, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject } = (() => {
 // 画面からの編集（追加・削除・更新）。すべて不変更新で、不正な入力は例外にする（呼び出し側が理由を表示する）。
 
 
@@ -3251,6 +3254,24 @@ function recordSlotActual(data, sessionId, slot, now) {
 
 const COMPLETE_STATUSES = ["To Do", "In Progress", "Done", "Cancelled"];
 
+/** その日の実績を書く。その日の、実績のない予定の枠があれば、最初の枠の実績にする。なければ、実績の枠を足す */
+function recordDayActual(d, task, slot, now) {
+  const planned = (task.sessions ?? []).filter((s) => s.kind === "planned" && s.date === slot.date && !s.actual).sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0))[0];
+  return (planned ? recordSlotActual(d, planned.id, slot, now) : recordActual(d, task.id, slot, now)).data;
+}
+
+/**
+ * 「今日の分を完了」: 実績（{ date, start, end }。3 つとも必須）だけを書く。状態・チェック・未来の予定の枠は変えない
+ * （To Do・Waiting は、実績の規則で In Progress になる）。完了したタスクは断る。失敗は Error（入力のデータは変わらない）
+ */
+function completeToday(data, taskId, actual, now) {
+  const orig = data.tasks.find((t) => t.id === taskId);
+  if (!orig) throw new Error(`タスク ${taskId} がありません`);
+  if (isClosed(orig)) throw new Error("完了したタスクには、今日の分を記録できません");
+  if (!actual?.date || !actual?.start || !actual?.end) throw new Error("実績の日付と開始・終了の時刻を、すべて入れてください");
+  return { data: recordDayActual(data, orig, { date: actual.date, start: actual.start, end: actual.end }, now) };
+}
+
 /**
  * タスクの完了を、実績・状態・チェックでまとめて保存する。失敗は Error（純関数なので、入力のデータは変わらない）。
  * actual: { date, start, end }（3 つとも空・undefined なら実績なし）。status は To Do／In Progress／Done／Cancelled（選んだ状態が優先で、実績による In Progress への自動変更は上書きする）。
@@ -3264,10 +3285,7 @@ function completeTask(data, taskId, { actual, status, checks = {} }, now) {
   const filled = Object.values(slot).filter(Boolean).length;
   if (filled !== 0 && filled !== 3) throw new Error("実績の日付と開始・終了の時刻は、すべて入れるか、すべて空にしてください");
   let d = data;
-  if (filled === 3) {
-    const planned = (orig.sessions ?? []).filter((s) => s.kind === "planned" && s.date === slot.date && !s.actual).sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0))[0];
-    d = (planned ? recordSlotActual(d, planned.id, slot, now) : recordActual(d, taskId, slot, now)).data;
-  }
+  if (filled === 3) d = recordDayActual(d, orig, slot, now);
   d = updateTask(d, taskId, { status }, now.date);
   for (const [id, done] of Object.entries(checks)) d = updateChecklistItem(d, taskId, id, { done });
   if (status === "Done" && (d.tasks.find((t) => t.id === taskId).checklist ?? []).some((c) => !c.done)) throw new Error("未完了の項目があります。チェックするか、削除してください");
@@ -3408,7 +3426,7 @@ function deleteProject(data, projectId) {
   return { ...data, settings, events, ...(inbox ? { inbox } : {}), projects: data.projects.filter((p) => p.id !== projectId), tasks: data.tasks.filter((t) => t.projectId !== projectId) };
 }
 
-return { predecessorCandidates, updateTask, markChased, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, recordActual, recordSlotActual, completeTask, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject };
+return { predecessorCandidates, updateTask, markChased, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, checkAllChecklist, newChecklist, updateProject, addMilestone, updateMilestone, deleteMilestone, moveMilestone, moveTaskDates, addPredecessor, moveTask, moveToProject, moveProjectDates, nextProjectId, nextTaskId, spawnNextRepeat, addTaskQuick, addUrgentTask, recordActual, recordSlotActual, completeToday, completeTask, addTask, deleteTask, updateSettings, addHoliday, holidayRangeDays, addHolidayRange, removeHoliday, addWorkday, removeWorkday, addProject, deleteProject };
 })();
 
 /* src/ui/donecheck.js */
@@ -4978,6 +4996,10 @@ const { planDefault, completeInput, renderTodo } = (() => {
 
 
 
+
+
+
+
 /** 完了の入力欄で選べる状態（completeTask と同じ。Waiting は選べない） */
 const FORM_STATUSES = ["To Do", "In Progress", "Done", "Cancelled"];
 
@@ -5031,23 +5053,24 @@ const progress = (r) => (r.checked ? `${r.checked.done}/${r.checked.total}` : "�
  * 完了の入力欄。初期値は、日付が day、時刻がその日のそのタスクの、始まった予定の枠（actual なし）の時刻（なければ空）、状態が Done、チェックがタスクの今の状態。
  * 下書き（key が同じ）があれば、その値（下書きに無い項目は、タスクの状態）。各項目の「×」と末尾の追加の欄は、押すとすぐタスクへ保存する（app.js）。Done・Cancelled で解除される未来の予定の枠があれば、その件数を添える
  */
-function completeForm(data, t, day, now, draft) {
+function completeForm(data, t, day, now, draft, mode) {
   const dr = draft?.key === t.id ? draft : null;
+  const today = mode === "today"; // 「今日の分を完了」: 実績だけを保存する（状態・チェックは、その場で保存済み）
   const started = (s) => s.date < now.date || (s.date === now.date && s.start <= now.time); // 始まっていない枠の時刻は、実績に入れられないので初期値にしない
   const plan = (t.sessions ?? []).filter((s) => s.kind === "planned" && s.date === day && !s.actual && started(s)).sort((a, b) => a.start.localeCompare(b.start))[0];
   const time = (k) => `<label>${k === "start" ? "開始" : "終了"}<input class="in" type="time" step="900" data-tf="${k}" value="${esc(dr ? dr[k] : plan?.[k] ?? "")}"></label>`;
-  const status = dr?.status ?? "Done";
-  const ck = t.checklist ?? [];
-  const items = ck.map((c) => `<span class="tf-ckitem"><label class="tf-ck"><input type="checkbox" data-tfck="${esc(c.id)}"${(dr?.checks?.[c.id] ?? c.done) ? " checked" : ""}>${esc(c.text)}</label><button class="gx" data-tdckdel="${esc(t.id)}:${esc(c.id)}" aria-label="${esc(c.text)} を削除">×</button></span>`).join("");
-  const add = `<input class="in" data-tdckadd="${esc(t.id)}" placeholder="＋ 項目を追加（Enter）" aria-label="項目を追加">`;
+  const status = dr?.status || "Done"; // 「今日の分」で開いた下書きの状態は空。「タスクを完了」へ切り替えたら Done から始める
   const n = futurePlanned(data, t.id, now).length;
-  return `<div class="actform tdform" role="group" aria-label="完了の入力">
-    <span class="note" style="flex-basis:100%;margin:0">実績（省略できます）・状態・チェックリストを、まとめて保存します</span>
+  const seg = `<span class="seg" role="group" aria-label="入力の種類"><button class="btn${today ? " on" : ""}" data-tdmode="today" aria-pressed="${today}">今日の分を完了</button><button class="btn${today ? "" : " on"}" data-tdmode="done" aria-pressed="${!today}">タスクを完了</button></span>`;
+  const state = today ? `<span class="note">状態は変えません</span>` : `<label>状態<select class="in" data-tf="status">${FORM_STATUSES.map((s) => `<option value="${s}"${s === status ? " selected" : ""}>${s}</option>`).join("")}</select></label>`;
+  return `<div class="actform tdform" role="group" aria-label="${today ? "今日の分の入力" : "完了の入力"}">
+    ${seg}
+    <span class="note" style="flex-basis:100%;margin:0">${today ? "今日の実績（開始・終了は必須）を保存します。状態・予定の枠は変えません" : "実績（省略できます）と状態を、まとめて保存します"}。チェックリストの変更は、その場で保存します</span>
     <label>日付${dateInputHtml({ value: dr ? dr.date : day, attrs: 'data-tf="date"', label: "実績の日付" })}</label>
     ${time("start")}${time("end")}
-    <label>状態<select class="in" data-tf="status">${FORM_STATUSES.map((s) => `<option value="${s}"${s === status ? " selected" : ""}>${s}</option>`).join("")}</select></label>
-    <div class="tf-cks">${items}${ck.length ? `<button class="btn" data-tdckall>残りをすべてチェック</button>` : ""}${add}</div>
-    ${n ? `<span class="note" style="flex-basis:100%;margin:0">Done・Cancelled にすると、未来の予定の枠 ${n} 件を解除します</span>` : ""}
+    ${state}
+    <div class="tf-cks">${checklistEditorHtml(t)}${today || !(t.checklist ?? []).length ? "" : `<button class="btn" data-tdckall="${esc(t.id)}">残りをすべてチェック</button>`}</div>
+    ${!today && n ? `<span class="note" style="flex-basis:100%;margin:0">Done・Cancelled にすると、未来の予定の枠 ${n} 件を解除します</span>` : ""}
     <div style="display:flex;gap:6px;align-items:center"><button class="btn primary" data-tdsave="${esc(t.id)}">保存</button><button class="btn" data-tdcancel>キャンセル</button></div>
   </div>`;
 }
@@ -5059,32 +5082,38 @@ function row(data, r, ctx, why = []) {
   const done = t.status === "Done";
   const open = ctx.open === t.id && ctx.openCol === ctx.col;
   const canPlan = ctx.col === "week" && !isClosed(t), planOpen = canPlan && ctx.plan?.key === t.id;
-  const drag = canPlan && !open && !planOpen ? ` draggable="true" data-tdrag="${id}"` : ""; // 左の列へドラッグして「今日へ」。入力欄を開いた行は、欄の文字を選べるよう動かさない
-  return `<li class="td-row${done ? " closed" : ""}"${drag} data-tdrow="${id}">
-    <div class="td-main"><span class="pj">${proj}</span><span class="td-title">${esc(t.title)}</span>${statusPill(t)}${r.waiting ? `<span class="pill wait">前のタスク待ち</span>` : ""}${done ? "" : `<button class="btn" data-tdopen="${id}" data-tdcol="${ctx.col}" aria-expanded="${open}">完了</button>`}${canPlan ? `<button class="btn" data-tdplan="${id}" aria-expanded="${planOpen}">今日へ</button>` : ""}</div>
+  const editing = ctx.edit?.id === t.id && ctx.editCol === ctx.col;
+  const drag = canPlan && !open && !planOpen && !editing ? ` draggable="true" data-tdrag="${id}"` : ""; // 左の列へドラッグして「今日へ」。入力欄を開いた行は、欄の文字を選べるよう動かさない
+  const mode = open ? ctx.mode : null;
+  const todayDone = r.slots && !isClosed(t) && r.slots.some((s) => s.kind === "actual" || s.actual); // 今日の実績があれば「今日の分は完了」（保存する値は持たない）
+  const openBtn = (m, label, cls = "") => `<button class="btn${cls}" data-tdopen="${id}" data-tdcol="${ctx.col}" data-tdmodeopen="${m}" aria-expanded="${open && mode === m}">${label}</button>`;
+  const todayBtn = r.slots && !done && !isClosed(t) ? openBtn("today", "今日の分を完了", todayDone ? "" : " primary") : "";
+  return `<li class="td-row${done ? " closed" : ""}${todayDone ? " part" : ""}"${drag} data-tdrow="${id}">
+    <div class="td-main"><span class="pj">${proj}</span><span class="td-title">${esc(t.title)}</span>${statusPill(t)}${r.waiting ? `<span class="pill wait">前のタスク待ち</span>` : ""}${todayDone ? `<span class="pill tdone">今日の分は完了</span>` : ""}${todayBtn}${done ? "" : openBtn("done", "完了")}${canPlan ? `<button class="btn" data-tdplan="${id}" aria-expanded="${planOpen}">今日へ</button>` : ""}<button class="btn" data-tdedit="${id}" data-tdcol="${ctx.col}" aria-expanded="${editing}">編集</button></div>
     ${r.slots ? `<div class="td-slots mono">${r.slots.map((s) => slotHtml(s, ctx.now, ctx.actuals)).join("")}</div>` : ""}
     ${why.length ? `<div class="td-why">${why.map(esc).join("・")}</div>` : ""}
     <div class="td-meta">${t.due ? `<span>期限 <b class="mono">${fmtMD(t.due)}</b></span>` : ""}${r.checked ? `<span>チェック <b class="mono">${progress(r)}</b></span>` : ""}<span>予定 <b class="mono">${r.planned}</b> 分</span><span>実績 <b class="mono">${r.actual}</b> 分</span></div>
-    ${open ? completeForm(data, t, ctx.day, ctx.now, ctx.draft) : planOpen ? planForm(t, ctx.plan) : ""}
+    ${open ? completeForm(data, t, ctx.day, ctx.now, ctx.draft, ctx.mode) : planOpen ? planForm(t, ctx.plan) : ""}
+    ${editing ? renderTaskEditPanel(data, ctx.edit, statusCellHtml(t, ctx.statusOpts, taskFlags(t, ctx.day, data.settings).includes("overdue"))) : ""}
   </li>`;
 }
 
 /** 完了の入力欄の下書き → completeTask の入力。開始・終了がどちらも空なら、日付が入っていても実績は送らない（日付は初期値で埋まるため）。片方だけなら送って、completeTask の検査で止める */
-const completeInput = (dr) => ({ actual: dr.start || dr.end ? { date: dr.date, start: dr.start, end: dr.end } : undefined, status: dr.status, checks: dr.checks });
+const completeInput = (dr) => ({ actual: dr.start || dr.end ? { date: dr.date, start: dr.start, end: dr.end } : undefined, status: dr.status });
 
 /**
  * @param opts.week  表示中の週の月曜日
  * @param opts.now   {date, time} 未来の予定の枠の判定
  * @param opts.open  完了の入力欄を開いているタスクの ID か null
  * @param opts.col   入力欄を開いた列（"today" か "week"。省略は "week"）。同じタスクが左右にあっても、この列の行にだけ出す
- * @param opts.draft 完了の入力欄の下書き（{ key: タスクの ID, date, start, end, status, checks: { 項目 ID: 済みか } }）か null
+ * @param opts.draft 完了の入力欄の下書き（{ key: タスクの ID, date, start, end, status }）か null
  * @param opts.plan  「今日へ」の入力欄（{ key: タスクの ID, start, minutes }）か null。右の列の行にだけ出す
  * @param opts.chase 催促の入力欄（{ key: タスクの ID, mode: "done"|"edit", days, party, expected }）か null。催促の組の行にだけ出す
  */
 function renderTodo(data, today, opts) {
-  const { week, now, open = null, col = "week", draft = null, plan = null, chase = null, urgentDraft = null } = opts;
+  const { week, now, open = null, col = "week", draft = null, plan = null, chase = null, urgentDraft = null, edit = null, editCol = null, pendingWait = null, pendingDone = null, mode = "done" } = opts;
   const weekEnd = addDays(week, 6);
-  const base = { open, openCol: col, draft, plan, now, actuals: actualSlots(data) };
+  const base = { open, openCol: col, draft, mode, plan, now, actuals: actualSlots(data), edit, editCol, statusOpts: { pendingWait, pendingDone, todayIds: new Set() } };
   const ctx = { ...base, col: "week", day: today >= week && today <= weekEnd ? today : week };
   const todayCtx = { ...base, col: "today", day: today };
   const rows = weekTasks(data, week, today);
@@ -5338,7 +5367,7 @@ const S = {
   prefs: loadPrefs(), settingsClosed: loadSettingsClosed(), tpop: null, addAt: null, last: null, ruleError: "",
   ib: { open: false, text: loadInboxDraft(), projectId: "", replies: {}, reasons: {}, causes: {} },
   wperiod: "day", wdate: clock().date,
-  todoWeek: mondayOf(clock().date), tdOpen: null, tdCol: null, tdDraft: null, tdPlan: null, tdChase: null, askDelSess: null, // 実績つきの枠の削除の確認を出している枠の id（メモリのみ）。ToDo 画面の週（月曜日）・完了の入力欄を開いているタスクと、開いた列（"today" か "week"）と、その下書き・「今日へ」の入力欄（{ key: タスクの id, start, minutes }。完了の入力欄とは同時に開かない）・催促の入力欄 tdChase（{ key, mode, days, party, expected }。完了・「今日へ」とは同時に開かない）
+  todoWeek: mondayOf(clock().date), tdOpen: null, tdCol: null, tdDraft: null, tdPlan: null, tdChase: null, tdMode: "done", tdEditCol: null, askDelSess: null, // 実績つきの枠の削除の確認を出している枠の id（メモリのみ）。ToDo 画面の週（月曜日）・完了の入力欄を開いているタスクと、開いた列（"today" か "week"）と、その下書き・「今日へ」の入力欄（{ key: タスクの id, start, minutes }。完了の入力欄とは同時に開かない）・催促の入力欄 tdChase（{ key, mode, days, party, expected }。完了・「今日へ」とは同時に開かない）
 };
 const $ = (id) => document.getElementById(id);
 const view = $("view");
@@ -5381,7 +5410,7 @@ function renderBody() {
     return renderProjects(S.data, today, { filter: S.filter, view: S.screen, window: S.gwin, hideDone: S.hideDone, askDel: S.askDel, askDelProject: S.askDelProject, pendingWait: S.pendingWait, pendingDone: S.pendingDone, checkOpen: S.checkOpen, addAt: S.addAt, tpop: S.screen === "gantt" ? S.tpop : null, showPrio: S.prefs.showPrio, showActual: S.prefs.showActual, now: clock() });
   }
   if (S.screen === "settings") return renderSettings(S.data, today, { ruleError: S.ruleError, closed: S.settingsClosed });
-  if (S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, col: S.tdCol, draft: S.tdDraft, plan: S.tdPlan, chase: S.tdChase, urgentDraft: S.urgentDraft });
+  if (S.screen === "todo") return renderTodo(S.data, today, { week: S.todoWeek, now: clock(), open: S.tdOpen, col: S.tdCol, draft: S.tdDraft, mode: S.tdMode, plan: S.tdPlan, chase: S.tdChase, urgentDraft: S.urgentDraft, edit: S.taskEdit, editCol: S.tdEditCol, pendingWait: S.pendingWait, pendingDone: S.pendingDone });
   if (S.screen === "workload") return renderWorkload(S.data, today, { period: S.wperiod, date: S.wdate, now: clock() });
   return renderSchedule(S.data, today, scheduleOpts());
 }
@@ -5413,7 +5442,7 @@ function render() {
   sync.rendered(); // 読み直しで待たせた描き直しは、この描き直しで済む
   if (S.tpop && !S.data.tasks.some((t) => t.id === S.tpop.id)) S.tpop = null; // 読み直しで対象のタスクが消えたら、窓も閉じる
   if (S.selSess && !allSessions(S.data).some((s) => s.id === S.selSess)) { S.selSess = null; S.taskEdit = null; } // 読み直しなどで選択中の枠が無くなったら、選択と編集欄を外す
-  if (S.taskEdit && (S.screen !== "schedule" || !S.data.tasks.some((t) => t.id === S.taskEdit.id))) { S.taskEdit = null; S.selSess = null; } // スケジュールの編集欄も同じ（編集欄は枠の選択と一緒なので、選択も外す）
+  if (S.taskEdit && (!["schedule", "todo"].includes(S.screen) || !S.data.tasks.some((t) => t.id === S.taskEdit.id))) { S.taskEdit = null; S.selSess = null; } // スケジュールの編集欄も同じ（編集欄は枠の選択と一緒なので、選択も外す）
   if (S.askDelSess && (S.screen !== "schedule" || S.askDelSess !== S.selSess)) S.askDelSess = null; // 削除の確認は、その枠を選んでいる間だけ（枠の id は S.data.tasks で検証しない）
   if (S.tdOpen && (!S.data?.tasks.some((t) => t.id === S.tdOpen) || !["today", "week"].includes(S.tdCol))) { S.tdOpen = null; S.tdCol = null; S.tdDraft = null; } // 読み直しなどでタスクが無くなったら（開いた列が不正でも）、完了の入力欄を閉じる
   if (S.tdPlan && !S.data?.tasks.some((t) => t.id === S.tdPlan.key)) S.tdPlan = null; // 「今日へ」の入力欄も同じ
@@ -5608,6 +5637,8 @@ const sync = createSync({
 /** 編集を適用して描画・保存する。edit は、いまのデータへの差分（data → data）で、例外を投げたら理由を表示して、データは変えない。
  *  決まった結果を返す編集（() => data）は、競合のとき、最新のファイルに当て直すと、他の更新を消すので、書かない */
 function apply(edit, msg, { partial = false, quiet = false } = {}) {
+  const tf = view.querySelector(".tdform"); // 完了の入力欄を開いているときは、描き直しても入力が残るよう、先に下書きへ写す（チェックリストの操作は、その場で保存して描き直す）
+  if (tf && S.tdOpen) S.tdDraft = tdFormDraft(tf, S.tdOpen);
   let next;
   try { next = edit(S.data); } catch (e) { toast(e.message); if (partial) renderCal(); else render(); return false; }
   S.data = next;
@@ -5963,22 +5994,27 @@ view.addEventListener("click", (e) => {
   /* ToDo 画面 */
   const tw = q("[data-tdweek]"); if (tw) { moveTodoWeek(addDays(S.todoWeek, 7 * +tw.dataset.tdweek)); return; }
   if (q("[data-tdweek-today]")) { moveTodoWeek(mondayOf(today)); return; }
+  // 完了の入力欄。「今日の分を完了」（data-tdmodeopen="today"）と「完了」（"done"）で開く。同じ行の同じボタンをもう一度押すと閉じる。編集欄は閉じる
   const tdo = q("[data-tdopen]");
-  if (tdo) { const id = tdo.dataset.tdopen, col = tdo.dataset.tdcol, same = S.tdOpen === id && S.tdCol === col; S.tdOpen = same ? null : id; S.tdCol = same ? null : col; S.tdDraft = null; S.tdPlan = null; S.tdChase = null; S.focusSel = S.tdOpen ? '[data-tf="start"]' : null; render(); return; }
-  const tdd = q("[data-tdckdel]"); // 入力欄の項目の削除。すぐタスクへ保存する。描き直しても入力が残るよう、先に下書きへ写す
-  if (tdd) { const [tid, iid] = tdd.dataset.tdckdel.split(":"); S.tdDraft = tdFormDraft(tdd.closest(".tdform"), tid); apply((d) => removeChecklistItem(d, tid, iid)); return; }
-  const tdca = q("[data-tdckall]"); // 入力欄のチェックを、すべて付ける（描き直さない。保存で書く）
-  if (tdca) { // 欄の値を変えても change は起きないので、下書きへも写す（読み直しの描き直しで、チェックが戻らないように）
-    const form = tdca.closest(".tdform"), key = form.querySelector("[data-tdsave]")?.dataset.tdsave;
-    form.querySelectorAll("[data-tfck]").forEach((c) => { c.checked = true; });
-    if (key && key === S.tdOpen) S.tdDraft = tdFormDraft(form, key);
-    return;
-  }
+  if (tdo) { const id = tdo.dataset.tdopen, col = tdo.dataset.tdcol, m = tdo.dataset.tdmodeopen, same = S.tdOpen === id && S.tdCol === col && S.tdMode === m; S.tdOpen = same ? null : id; S.tdCol = same ? null : col; S.tdMode = m; S.tdDraft = null; S.tdPlan = null; S.tdChase = null; S.taskEdit = null; S.tdEditCol = null; S.focusSel = S.tdOpen ? '[data-tf="start"]' : null; render(); return; }
+  const tdm = q("[data-tdmode]"); // 入力欄の「今日の分を完了」⇔「タスクを完了」の切り替え。入力は残す
+  if (tdm) { S.tdDraft = tdFormDraft(tdm.closest(".tdform"), S.tdOpen); S.tdMode = tdm.dataset.tdmode; render(); return; }
+  const tde = q("[data-tdedit]"); // 編集欄（ガント・リスト・スケジュールと同じ）。同じ行をもう一度押すと閉じる。完了・今日へ・催促の入力欄は閉じる
+  if (tde) { const id = tde.dataset.tdedit, col = tde.dataset.tdcol, same = S.taskEdit?.id === id && S.tdEditCol === col; S.taskEdit = same ? null : { id, full: false, askDel: false }; S.tdEditCol = same ? null : col; S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.tdPlan = null; S.tdChase = null; render(); return; }
+  const tdca = q("[data-tdckall]"); // 入力欄の「残りをすべてチェック」。ほかのチェックの操作と同じく、すぐタスクへ保存する
+  if (tdca) { apply((d) => checkAllChecklist(d, tdca.dataset.tdckall)); return; }
   const tds = q("[data-tdsave]"); // 完了の保存。入力欄の値は、押したときに読む。失敗しても打った値が消えないよう、先に下書きへ写す
   if (tds) {
     const id = tds.dataset.tdsave;
     S.tdDraft = tdFormDraft(tds.closest(".tdform"), id);
     const draft = S.tdDraft, title = taskTitle(id);
+    if (S.tdMode === "today") { // 今日の分: 実績だけを書く（状態・チェック・予定の枠は変えない）
+      if (apply((d) => completeToday(d, id, completeInput(draft).actual, now).data, null, { quiet: true })) {
+        S.tdOpen = null; S.tdCol = null; S.tdDraft = null; render();
+        toast(`「${title}」の今日の分を記録しました`);
+      }
+      return;
+    }
     let r;
     if (apply((d) => { r = completeTask(d, id, completeInput(draft), now); return r.data; }, null, { quiet: true })) {
       S.tdOpen = null; S.tdCol = null; S.tdDraft = null; render();
@@ -6113,7 +6149,7 @@ function moveTodoWeek(week) {
 
 /** 「今日へ」の入力欄を、そのタスクの行の下に開く（「今日へ」のボタンと、左の列へのドロップで共通）。完了の入力欄は閉じる */
 function openPlan(id) {
-  S.tdPlan = { key: id, ...planDefault(clock()) }; S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.tdChase = null; S.focusSel = '[data-tp="start"]';
+  S.tdPlan = { key: id, ...planDefault(clock()) }; S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.tdChase = null; S.taskEdit = null; S.focusSel = '[data-tp="start"]';
   render();
 }
 
@@ -6121,7 +6157,7 @@ function openPlan(id) {
 function openChase(id, mode) {
   const w = S.data.tasks.find((t) => t.id === id)?.waitingOn;
   S.tdChase = { key: id, mode, days: 3, party: w?.party ?? "", expected: w?.expected ?? "" };
-  S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.tdPlan = null; S.urgentDraft = null; S.focusSel = mode === "done" ? '[data-ch="days"]' : '[data-ch="party"]';
+  S.tdOpen = null; S.tdCol = null; S.tdDraft = null; S.tdPlan = null; S.urgentDraft = null; S.taskEdit = null; S.focusSel = mode === "done" ? '[data-ch="days"]' : '[data-ch="party"]';
   render();
 }
 
@@ -6138,11 +6174,10 @@ function tdPlanDraft(form, key) {
   return { key, start: f("start"), minutes: +f("minutes") };
 }
 
-/** 完了の入力欄（.tdform）の値 → 下書き（{ key, date, start, end, status, checks }） */
+/** 完了の入力欄（.tdform）の値 → 下書き（{ key, date, start, end, status }）。チェックは、操作のたびにタスクへ保存するので、持たない */
 function tdFormDraft(form, key) {
   const f = (k) => form?.querySelector(`[data-tf="${k}"]`)?.value ?? "";
-  const checks = Object.fromEntries([...(form?.querySelectorAll("[data-tfck]") ?? [])].map((c) => [c.dataset.tfck, c.checked]));
-  return { key, date: f("date"), start: f("start"), end: f("end"), status: f("status"), checks };
+  return { key, date: f("date"), start: f("start"), end: f("end"), status: f("status") };
 }
 
 /** 突発タスクの入力欄の確定。件名が空なら何もしない。Error のときは通知だけで、入力欄を残す */
@@ -6206,17 +6241,6 @@ view.addEventListener("keydown", (e) => {
   const text = el.value.trim(), id = el.dataset.ckadd;
   if (!text) return;
   S.focusSel = `[data-ckadd="${id}"]`;
-  apply((d) => addChecklistItem(d, id, text));
-});
-/** 完了の入力欄の、項目の追加欄: Enter ですぐタスクへ保存する（isComposing では追加しない）。描き直しても入力が残るよう、先に下書きへ写す */
-view.addEventListener("keydown", (e) => {
-  const el = e.target.closest("[data-tdckadd]");
-  if (!el || e.key !== "Enter" || e.isComposing) return;
-  e.preventDefault();
-  const text = el.value.trim(), id = el.dataset.tdckadd;
-  if (!text) return;
-  S.tdDraft = tdFormDraft(el.closest(".tdform"), id);
-  S.focusSel = `[data-tdckadd="${id}"]`;
   apply((d) => addChecklistItem(d, id, text));
 });
 /**
@@ -6322,7 +6346,7 @@ function onChange(el) {
     return;
   }
   // ToDo 画面
-  if (el.dataset.tf !== undefined || el.dataset.tfck !== undefined) { // 完了の入力欄の下書き（描き直しても入力を残す）。この欄を開いたままのときだけ
+  if (el.dataset.tf !== undefined) { // 完了の入力欄の下書き（描き直しても入力を残す）。この欄を開いたままのときだけ
     const form = el.closest(".tdform"), key = form?.querySelector("[data-tdsave]")?.dataset.tdsave;
     if (key && key === S.tdOpen) S.tdDraft = tdFormDraft(form, key);
     return;
