@@ -875,7 +875,7 @@ test("ToDo タブ: 完了の入力欄のチェックリストは、ほかの画�
 
 test("ToDo タブ: 状態（S.todoWeek・S.tdOpen・S.tdDraft）。描き直しで、無いタスクの入力欄を閉じる。画面の移動・週の移動・clearSel で閉じる", () => {
   assert.match(src, /todoWeek: mondayOf\(clock\(\)\.date\), tdOpen: null, tdCol: null, tdDraft: null/);
-  assert.ok(src.includes('if (S.tdOpen && (!S.data?.tasks.some((t) => t.id === S.tdOpen) || !["today", "week"].includes(S.tdCol))) { S.tdOpen = null; S.tdCol = null; S.tdDraft = null; }'), "無いタスク・列の値が無い／不正なら閉じる");
+  assert.ok(src.includes('if (S.tdOpen && (!S.data?.tasks.some((t) => t.id === S.tdOpen) || S.tdCol !== "today")) { S.tdOpen = null; S.tdCol = null; S.tdDraft = null; }'), "無いタスク・列の値が無い／不正なら閉じる");
   assert.match(src, /const clearSel = \(\) => \{[^\n]*S\.tdOpen = null; S\.tdCol = null; S\.tdDraft = null;/);
   assert.match(src, /function moveTodoWeek\(week\) \{[^}]*S\.tdOpen = null; S\.tdCol = null; S\.tdDraft = null;/);
 });

@@ -37,6 +37,16 @@ function oldShared(p) {
   } catch { return false; }
 }
 
+/** cwd 自身に無く、親のどこかにある .project-lens/data.json の置き場（そのフォルダ）。無ければ null。子フォルダで開いたときに、データが 2 つに分かれるのを防ぐ */
+function parentWithData(cwd) {
+  const here = resolve(cwd);
+  if (existsSync(join(here, DATA))) return null;
+  for (let d = dirname(here); ; d = dirname(d)) {
+    if (existsSync(join(d, DATA))) return d;
+    if (dirname(d) === d) return null;
+  }
+}
+
 const lineOf = (s) => s.split(/\r?\n/).some((l) => l.trim() === IGNORE || l.trim() === ".project-lens");
 
 /**
@@ -51,6 +61,9 @@ export function init({ cwd, pluginRoot, sample = false, mine = null }) {
   if (current !== null && !current.includes(MARKER)) {
     return { ok: false, results: [], error: `${HTML} が既にあり、project-lens が作ったものではないため、何も変更せずに止めました。名前を変えるか移動してから、もう一度実行してください` };
   }
+
+  const parent = parentWithData(cwd);
+  if (parent) return { ok: false, results: [], error: `親のフォルダ ${parent} に、既に project-lens のデータ（${DATA}）があります。そのフォルダで実行するか、Claude Code をそのフォルダで開いてください。何も変更せずに止めました` };
 
   const dataPath = join(cwd, DATA);
   // 既存の data.json が、作業枠・予定を含む旧形式なら、空の個人ファイルを隣に足さずに止める（読むと、枠・予定が空のデータになる）

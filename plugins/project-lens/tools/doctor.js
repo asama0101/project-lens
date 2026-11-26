@@ -1,7 +1,7 @@
 // 使い方: node tools/doctor.js [--data <置き場>]
 // 動作環境の診断のみ（何も変更しない）。別の PC で使い始めるときに、足りないものと対処を表示する。
 // 置き場は、環境変数 PROJECT_LENS_HOME が最優先、次に --data（${CLAUDE_PLUGIN_DATA}）。どちらもなければ「保存先」が要対処になる。
-// 確認する項目: Node.js 24 以上・保存先（以上は必須）、project-lens の版・祝日一覧への接続・Excel の読み取り（Python・pip・openpyxl）・予定表の MCP（以上は任意）。
+// 確認する項目: Node.js 24 以上・保存先（以上は必須）、いまのフォルダの project-lens.html が最新か・project-lens の版・祝日一覧への接続・Excel の読み取り（Python・pip・openpyxl）・予定表の MCP（以上は任意）。
 // 版は、今の plugin.json の版を示し、GitHub が known_marketplaces.json に登録されていれば、GitHub の最新の版と比べる（環境変数 PROJECT_LENS_LATEST_URL で取得先を変えられる。テスト用）。
 // 祝日一覧と最新の版へは接続を試すだけで、data.json は変えない。Excel の判定は xlsx.js の診断を使う。
 // 終了コード 0: 必須の項目がすべて満たされている / 3: 必須の項目に要対処がある（任意の項目だけが足りないときは 0）。
@@ -13,6 +13,7 @@ import { takeData, pickHome } from "./home.js";
 import { fetchHolidays } from "./holidays.js";
 import { choosePython, pickPython, probePython, diagnose, realRun, venvDir, readPin, MIN_PYTHON } from "./xlsx.js";
 import { readMcpConfig, validateMcpConfig } from "../src/import/mcpconf.js";
+import { MARKER } from "./init.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const MIN_NODE = 24;
@@ -169,6 +170,15 @@ async function checkVersion(readPlugin, readMarketplace, latest) {
   ]);
 }
 
+/** いまのフォルダの project-lens.html（init が置いたコピー）が、プラグインに入っている最新の画面と同じか（任意）。更新後は、init をもう一度実行するまで古いまま */
+function checkDashboard({ current, bundled }) {
+  const name = "ダッシュボード（project-lens.html）";
+  if (current === null) return item(name, "opt", "いまのフォルダにありません", ["使い始めるフォルダで /project-lens:init を実行する"]);
+  if (!current.includes(MARKER)) return item(name, "opt", "project-lens が作ったものではないため、確認しません");
+  if (current === bundled) return item(name, "ok", "最新です");
+  return item(name, "opt", "プラグインに入っている版と違います（古い版の可能性があります）", ["/project-lens:init を実行して更新する（データは変わりません）"]);
+}
+
 function checkMcp(dir, readMcp) {
   const name = "予定表の MCP の指定";
   if (!dir) return item(name, "opt", "保存先が決まらないため確認できません", ["先に「保存先」を直す"]);
@@ -187,6 +197,7 @@ function checkMcp(dir, readMcp) {
 export async function runChecks({
   dir, platform = process.platform, nodeVersion = process.versions.node, canWrite = defaultCanWrite, exists = existsSync,
   holidays = fetchHolidays, run = realRun, readMcp = readMcpConfig,
+  readDashboard = () => ({ current: existsSync("project-lens.html") ? readFileSync("project-lens.html", "utf8") : null, bundled: readFileSync(join(HERE, "..", "assets", "project-lens.html"), "utf8") }),
   readPlugin = () => JSON.parse(readFileSync(PLUGIN_JSON, "utf8")), readMarketplace = readMarketplaces, latest = fetchLatestVersion,
 }) {
   return [
@@ -196,6 +207,7 @@ export async function runChecks({
     await guard("祝日一覧への接続（内閣府）", "opt", () => checkHolidays(holidays)),
     await guard("Excel の読み取り（Python・pip・openpyxl）", "opt", () => checkExcel(dir, run, exists)),
     await guard("予定表の MCP の指定", "opt", () => checkMcp(dir, readMcp)),
+    await guard("ダッシュボード（project-lens.html）", "opt", () => checkDashboard(readDashboard())),
     await guard("プラグインのバージョン", "info", () => checkVersion(readPlugin, readMarketplace, latest)),
   ];
 }

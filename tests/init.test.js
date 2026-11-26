@@ -250,3 +250,15 @@ test("既存の data.json が、作業枠・予定を含む旧形式なら、何
   assert.deepEqual(names(join(cwd, ".project-lens")), ["data.json"]);
   assert.equal(readFileSync(join(cwd, ".project-lens/data.json"), "utf8"), old);
 });
+
+test("親のフォルダに data.json があるとき、子フォルダでの init は何も作らずに止める。cwd 自身にあれば、これまでどおり", () => {
+  const parent = proj(), pluginRoot = plugin();
+  init({ cwd: parent, pluginRoot });
+  const child = join(parent, "sub");
+  mkdirSync(child);
+  const r = init({ cwd: child, pluginRoot });
+  assert.equal(r.ok, false);
+  assert.ok(r.error.includes(parent) && r.error.includes("何も変更せずに止めました"));
+  assert.deepEqual(names(child), [], "子には何も作らない");
+  assert.equal(status(init({ cwd: parent, pluginRoot }), ".project-lens/data.json"), "unchanged");
+});
