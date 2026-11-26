@@ -1345,7 +1345,7 @@ return { taskStart, lateInfo, ganttRows, ganttLayout, timeTicks, projectProgress
 })();
 
 /* src/core/sessions.js */
-const { LAST_END, ownerOf, allSessions, actualSpans, actualSlots, sessionKind, addSession, addActual, setActual, clearActual, moveSession, resizeSession, removeSession, taskActual, runningPlanned, futurePlanned } = (() => {
+const { LAST_END, ownerOf, allSessions, actualSpans, actualSlots, sessionKind, addSession, addActual, setActual, clearActual, moveSession, resizeSession, removeSession, runningPlanned, futurePlanned } = (() => {
 // 作業枠（予定／実績）の規則。枠は「作業した時間の記録」で、タスクの状態は変えない。すべて不変更新。
 
 
@@ -1476,14 +1476,6 @@ function removeSession(data, sessionId) {
   return mapOwners(data, (t) => ((t.sessions ?? []).some((s) => s.id === sessionId) ? { ...t, sessions: t.sessions.filter((s) => s.id !== sessionId) } : t));
 }
 
-/** タスクの実績の時間（実績の区間から）。count は枠の数 */
-function taskActual(data, taskId) {
-  const ss = data.tasks.find((x) => x.id === taskId).sessions ?? [];
-  const actual = ss.map(spanOf).filter(Boolean);
-  const minutes = actual.reduce((sum, s) => sum + toMin(s.end) - toMin(s.start), 0);
-  return { hours: minutes / 60, firstDate: actual.length ? actual.map((s) => s.date).sort()[0] : null, count: ss.length };
-}
-
 /** 進行中（開始済みで未終了）の予定枠の ID。タスクを完了にしても残す枠（futurePlanned に含めない） */
 function runningPlanned(data, taskId, now) {
   const t = data.tasks.find((x) => x.id === taskId);
@@ -1498,7 +1490,7 @@ function futurePlanned(data, taskId, now) {
   return (t?.sessions ?? []).filter((s) => s.kind === "planned" && !s.actual && notStarted(s)).map((s) => s.id);
 }
 
-return { LAST_END, ownerOf, allSessions, actualSpans, actualSlots, sessionKind, addSession, addActual, setActual, clearActual, moveSession, resizeSession, removeSession, taskActual, runningPlanned, futurePlanned };
+return { LAST_END, ownerOf, allSessions, actualSpans, actualSlots, sessionKind, addSession, addActual, setActual, clearActual, moveSession, resizeSession, removeSession, runningPlanned, futurePlanned };
 })();
 
 /* src/core/week.js */
@@ -3778,12 +3770,10 @@ function renderPrio(data, today, opts = {}) {
   const shown = rankTasks(data, today).filter((r) => cand.has(r.taskId) && !inToday.has(r.taskId));
   const items = shown.map((r, i) => {
     const t = data.tasks.find((x) => x.id === r.taskId);
-    const a = taskActual(data, t.id);
-    const pill = a.count ? ` <span class="pill ok">${a.count}回・実績 ${a.hours.toFixed(1)}h</span>` : "";
     const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? (t.projectId == null ? "プロジェクトなし" : ""));
     const drag = sched ? ` draggable="true" data-dragtask="${esc(t.id)}"` : "";
     const late = lateInfo(t, today);
-    return `<li${drag}${late.overdue || late.lapsed ? ' class="late"' : ""}><span class="n">${i + 1}</span><span class="pj">${proj}</span><span class="t">${r.action === "chase" ? `<span class="act">${r.reasons.some((x) => x.includes("催促")) ? "催促" : "確認"}</span>` : ""}${esc(t.title)} ${statusPill(t)}${pill}${lateBadgesHtml(late)}</span>${checkMeterHtml(t, { remain: true })}<span class="why">${isImportantMark(t) ? IMP_BADGE : ""}${esc(restReasons(r.reasons).filter((x) => x !== "重要").join("。"))}${late.overdue ? `<br>${dueLateHtml(fmtMD(t.due), late)}` : ""}</span></li>`;
+    return `<li${drag}${late.overdue || late.lapsed ? ' class="late"' : ""}><span class="n">${i + 1}</span><span class="pj">${proj}</span><span class="t">${r.action === "chase" ? `<span class="act">${r.reasons.some((x) => x.includes("催促")) ? "催促" : "確認"}</span>` : ""}${esc(t.title)} ${statusPill(t)}${lateBadgesHtml(late)}</span>${checkMeterHtml(t, { remain: true })}<span class="why">${isImportantMark(t) ? IMP_BADGE : ""}${esc(restReasons(r.reasons).filter((x) => x !== "重要").join("。"))}${late.overdue ? `<br>${dueLateHtml(fmtMD(t.due), late)}` : ""}</span></li>`;
   }).join("");
   const note = sched
     ? "タスクをカレンダーへドラッグして配置します(15分刻み・長さ1時間)。今日のタスクの行からも、同じタスクをもう 1 つ置けます。配置済みの枠もドラッグで移動できます。"

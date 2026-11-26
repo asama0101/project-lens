@@ -13,7 +13,6 @@ import { renderTaskPop, renderTaskEditPanel, predEditHtml } from "../plugins/pro
 import { renderInboxBar, ibExamples } from "../plugins/project-lens/src/ui/views/inboxpanel.js";
 import { ruleMeetingCounts } from "../plugins/project-lens/src/core/rules.js";
 import { renderSchedule, renderCalendar, selectionKey, sessionSelection, revealSelection, snapStart, calendarGeometry, urgentDefaultStart, urgentInput } from "../plugins/project-lens/src/ui/views/schedule.js";
-import { taskActual } from "../plugins/project-lens/src/core/sessions.js";
 import { rankTasks } from "../plugins/project-lens/src/core/schedule.js";
 import { bannerHtml } from "../plugins/project-lens/src/ui/common.js";
 import { validate } from "../plugins/project-lens/src/core/schema.js";
@@ -290,7 +289,6 @@ test("renderSchedule(day): 優先タスクと理由・枠の種別クラス・�
   assert.ok(w.includes("class=\"blk task act"), "実績");
   assert.ok(w.includes("class=\"blk task plan"), "予定");
   assert.ok(w.includes(`${(3.5).toFixed(1)}時間`), "週の実績(10/19 の 1.5h + 1h + ZZ-0001 の 1h)");
-  assert.equal(taskActual(load(), "AA-0005").hours + taskActual(load(), "AB-0002").hours, 4.5);
 });
 
 test("renderSchedule(week): 7 日分の列と会議の時間枠・件名（画面では常に件名を出す）", () => {
@@ -643,7 +641,7 @@ test("renderSchedule: 優先リストはドラッグ可で、置いた回数と�
   assert.ok(!html.includes("data-pick") && !html.includes("picked"), "押して選ぶ方法は持たない（ドラッグだけで配置する）");
   assert.ok(!/<li[^>]*data-dragtask[^>]*tabindex/.test(html), "行はフォーカスを受けない");
   assert.ok(html.includes("タスクをカレンダーへドラッグして配置します(15分刻み・長さ1時間)。今日のタスクの行からも、同じタスクをもう 1 つ置けます。配置済みの枠もドラッグで移動できます。</p>") && !html.includes("キーボード"), "注記に選んで配置する文がない");
-  assert.ok(html.includes("2回・実績 1.0h"));
+  assert.ok(!html.includes("回・実績"), "この週のタスク候補に、実績の札は出さない");
   assert.ok(html.includes("早朝作業"));
 });
 

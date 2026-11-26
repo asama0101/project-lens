@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { sessionKind, actualSlots, actualSpans, addSession, addActual, setActual, clearActual, moveSession, resizeSession, removeSession, taskActual, futurePlanned, runningPlanned } from "../plugins/project-lens/src/core/sessions.js";
+import { sessionKind, actualSlots, actualSpans, addSession, addActual, setActual, clearActual, moveSession, resizeSession, removeSession, futurePlanned, runningPlanned } from "../plugins/project-lens/src/core/sessions.js";
 import * as sessionsMod from "../plugins/project-lens/src/core/sessions.js";
 
 test("予定の枠を実績に書き換える confirmSession は持たない（実績は addActual で、予定とは別の枠として入れる）", () => {
@@ -91,11 +91,9 @@ test("removeSession と、枠の操作でタスクの状態は変わらない", 
   assert.equal(JSON.stringify(x.tasks.map((t) => [t.id, t.status, t.doneAt])), before);
 });
 
-test("taskActual / futurePlanned", () => {
+test("futurePlanned", () => {
   const d = load();
   const t = task(d, "AA-0005");
-  assert.deepEqual(taskActual(d, "AA-0005"), { hours: 3.5, firstDate: "2026-10-14", count: 3 });
-  assert.deepEqual(taskActual(d, "AA-0004"), { hours: 0, firstDate: null, count: 0 });
   assert.deepEqual(futurePlanned(d, "AA-0005", NOW), ["S3"]);
   assert.deepEqual(futurePlanned(d, "AA-0001", NOW), []);
   assert.equal(t.sessions.length, 3);
@@ -374,12 +372,6 @@ test("moveSession: 予定の枠を別の日へ動かしても actual.date は変
   const m = moveSession(d, "S30", { date: "2026-10-23", start: "14:00" }, NOW);
   assert.equal(m.error, undefined);
   assert.deepEqual(sx(m.data, "S30"), P({ date: "2026-10-23", start: "14:00", end: "15:00", actual: { date: "2026-10-20", start: "08:00", end: "09:00" } }));
-});
-
-test("taskActual: 予定の枠の actual を含めた時間と、最初の日付", () => {
-  const d = load();
-  task(d, "AA-0005").sessions.push(P({ actual: { date: "2026-10-13", start: "08:00", end: "09:30" } }));
-  assert.deepEqual(taskActual(d, "AA-0005"), { hours: 5, firstDate: "2026-10-13", count: 4 });
 });
 
 test("futurePlanned: actual を持つ未来の予定の枠は含まない（actual の無い未来の枠は含む）", () => {

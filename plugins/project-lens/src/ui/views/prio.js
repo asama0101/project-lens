@@ -2,7 +2,7 @@
 import { rankTasks } from "../../core/schedule.js";
 import { weekTasks, mondayOf } from "../../core/week.js";
 import { lateInfo } from "../../core/metrics.js";
-import { taskActual, sessionKind, actualSlots } from "../../core/sessions.js";
+import { sessionKind, actualSlots } from "../../core/sessions.js";
 import { isClosed, isImportantMark } from "../../core/schema.js";
 import { esc, checkMeterHtml, fmtMD } from "../common.js";
 
@@ -83,12 +83,10 @@ export function renderPrio(data, today, opts = {}) {
   const shown = rankTasks(data, today).filter((r) => cand.has(r.taskId) && !inToday.has(r.taskId));
   const items = shown.map((r, i) => {
     const t = data.tasks.find((x) => x.id === r.taskId);
-    const a = taskActual(data, t.id);
-    const pill = a.count ? ` <span class="pill ok">${a.count}回・実績 ${a.hours.toFixed(1)}h</span>` : "";
     const proj = esc(data.projects.find((p) => p.id === t.projectId)?.name ?? (t.projectId == null ? "プロジェクトなし" : ""));
     const drag = sched ? ` draggable="true" data-dragtask="${esc(t.id)}"` : "";
     const late = lateInfo(t, today);
-    return `<li${drag}${late.overdue || late.lapsed ? ' class="late"' : ""}><span class="n">${i + 1}</span><span class="pj">${proj}</span><span class="t">${r.action === "chase" ? `<span class="act">${r.reasons.some((x) => x.includes("催促")) ? "催促" : "確認"}</span>` : ""}${esc(t.title)} ${statusPill(t)}${pill}${lateBadgesHtml(late)}</span>${checkMeterHtml(t, { remain: true })}<span class="why">${isImportantMark(t) ? IMP_BADGE : ""}${esc(restReasons(r.reasons).filter((x) => x !== "重要").join("。"))}${late.overdue ? `<br>${dueLateHtml(fmtMD(t.due), late)}` : ""}</span></li>`;
+    return `<li${drag}${late.overdue || late.lapsed ? ' class="late"' : ""}><span class="n">${i + 1}</span><span class="pj">${proj}</span><span class="t">${r.action === "chase" ? `<span class="act">${r.reasons.some((x) => x.includes("催促")) ? "催促" : "確認"}</span>` : ""}${esc(t.title)} ${statusPill(t)}${lateBadgesHtml(late)}</span>${checkMeterHtml(t, { remain: true })}<span class="why">${isImportantMark(t) ? IMP_BADGE : ""}${esc(restReasons(r.reasons).filter((x) => x !== "重要").join("。"))}${late.overdue ? `<br>${dueLateHtml(fmtMD(t.due), late)}` : ""}</span></li>`;
   }).join("");
   const note = sched
     ? "タスクをカレンダーへドラッグして配置します(15分刻み・長さ1時間)。今日のタスクの行からも、同じタスクをもう 1 つ置けます。配置済みの枠もドラッグで移動できます。"
