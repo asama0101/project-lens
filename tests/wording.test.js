@@ -30,3 +30,12 @@ test("削除したコマンド（/project-lens:inbox・/project-lens:replan・/p
   }
   assert.deepEqual(left, []);
 });
+
+test("廃止した画面の名前（「今日の優先」）が、README・利用ガイド・図に残っていない（今は「この週のタスク候補」）", () => {
+  const files = [join(repo, "README.md"), join(repo, "docs/guide.md"), ...walk(join(repo, "docs/images")).filter((p) => p.endsWith(".svg"))];
+  const left = [];
+  for (const p of files) {
+    readFileSync(p, "utf8").split(/\r?\n/).forEach((line, i) => { if (line.includes("今日の優先")) left.push(`${relative(repo, p)}:${i + 1}`); });
+  }
+  assert.deepEqual(left, []);
+});

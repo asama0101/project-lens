@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 320" font-family="'Yu Gothic','Meiryo','Hiragino Sans',sans-serif" role="img" aria-labelledby="t d">
-  <title id="t">「今日の優先」の点数の計算例</title>
+  <title id="t">優先順位の点数の計算例</title>
   <desc id="d">4 つの例の点数。突発タスク（期限は今日）は 45。期限 5 日後で項目なしは 37.5。期限 5 日後で未チェック 3 件は 48.75。3 日超過で未チェック 10 件は 199。</desc>
   <rect width="860" height="320" fill="#ffffff"/>
   <g stroke="#d3dce2" stroke-width="1">
