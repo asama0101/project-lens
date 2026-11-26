@@ -749,6 +749,12 @@ view.addEventListener("click", (e) => {
     }
     return;
   }
+  const tac = q("[data-tdactclear]"); // ToDo の左の行の「実績を外す」。予定の枠の実績（actual）だけを外す。実績だけの枠は、枠ごと消す（外す先の予定が無い）
+  if (tac) {
+    const s = allSessions(S.data).find((x) => x.id === tac.dataset.tdactclear);
+    if (s && apply((d) => { if (s.kind !== "planned") return removeSession(d, s.id); const r = clearActual(d, s.id); if (r.error) throw new Error(r.error); return r.data; }, null, { quiet: true })) { render(); toast(`${taskTitle(s.taskId)} の実績を外しました`); }
+    return;
+  }
   if (q("[data-actcancel]")) { S.actAdd = null; S.actDraft = null; render(); return; }
   const mact = q("[data-mtgact]"); // 会議の実績の保存（confirmed と actual を書く）
   if (mact) { const id = mact.dataset.mtgact, f = (k) => view.querySelector(`[data-ma="${k}"]`)?.value ?? "", span = { start: f("start"), end: f("end") }, upd = S.data.events.find((m) => m.id === id)?.confirmed === true; if (apply((d) => setMeetingActual(d, id, span, now), upd ? "会議の実績を更新しました" : "会議の実績を入れました")) S.actDraft = null; return; }

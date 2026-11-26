@@ -2506,6 +2506,17 @@ test("renderTodo: 左の行（今日の枠あり）に「今日の分を完了�
   assert.ok(!tdRow(tdHtml(d), "AA-0002").includes("今日の分は完了"), "右の列には出ない");
 });
 
+test("renderTodo: 左の行の、実績のある枠に「実績を外す」（data-tdactclear）。実績の無い枠・右の列の行には出ない", () => {
+  const d = tdData();
+  const t = d.tasks.find((x) => x.id === "AA-0002");
+  t.sessions.push({ id: "S9", kind: "actual", date: TODAY, start: "08:00", end: "09:00" });
+  const html = tdHtml(d), l = tdTodayRow(html, "AA-0002");
+  assert.equal(count(l, /data-tdactclear="/g), 1, "実績のある枠だけ");
+  assert.ok(l.includes('data-tdactclear="S9"') && l.includes("実績を外す"), l);
+  assert.ok(!tdRow(html, "AA-0002").includes("data-tdactclear"), "右の列には出ない");
+  assert.ok(!tdTodayRow(tdHtml(tdData()), "AA-0002").includes("data-tdactclear"), "実績が無ければ出ない");
+});
+
 test("renderTodo: すべての行に「編集」（data-tdedit）。Done の行にも出る。edit を開いた行・列だけ、編集欄（スケジュールと同じ部品）が出る", () => {
   const html = tdHtml(tdData());
   for (const id of ["AA-0001", "AA-0002", "AA-0003", "AA-0004"]) assert.ok(tdRow(html, id).includes(`data-tdedit="${id}"`), id);

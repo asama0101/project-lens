@@ -478,7 +478,7 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .tdcols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start;margin-bottom:16px}
 @media(max-width:700px){.tdcols{grid-template-columns:minmax(0,1fr)}}
 .tdleft{display:flex;flex-direction:column;gap:16px;min-width:0}
-.td-slots{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px}
+.td-slots{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;font-size:12px}
 .td-slots .ts{display:inline-flex;align-items:center;gap:6px}
 .tdweek h3{margin:14px 0 6px;font-size:13px;color:var(--muted)}
 .tdweek h3:first-of-type{margin-top:0}
@@ -495,6 +495,7 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 .td-why{font-size:12px;color:var(--muted)}
 .td-meta{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
 .tdlist .actform{margin:0}
+.tdactclear{min-height:22px;padding:0 8px;font-size:11px}
 /* 催促の組: 黄色の背景と枠、見出しも黄色、行は白（面）。「催促した」は主ボタン（画面案どおり） */
 .tdchase{border-color:var(--warn);background:var(--warn-soft)}
 .tdchase h2{color:var(--warn)}
@@ -5075,7 +5076,7 @@ function row(data, r, ctx, why = []) {
   const todayBtn = r.slots && !done && !isClosed(t) ? openBtn("today", "今日の分を完了", todayDone ? "" : " primary") : "";
   return `<li class="td-row${done ? " closed" : ""}${todayDone ? " part" : ""}"${drag} data-tdrow="${id}">
     <div class="td-main"><span class="pj">${proj}</span><span class="td-title">${esc(t.title)}</span>${statusPill(t)}${r.waiting ? `<span class="pill wait">前のタスク待ち</span>` : ""}${todayDone ? `<span class="pill tdone">今日の分は完了</span>` : ""}${todayBtn}${done ? "" : openBtn("done", "完了")}${canPlan ? `<button class="btn" data-tdplan="${id}" aria-expanded="${planOpen}">今日へ</button>` : ""}<button class="btn" data-tdedit="${id}" data-tdcol="${ctx.col}" aria-expanded="${editing}">編集</button></div>
-    ${r.slots ? `<div class="td-slots mono">${r.slots.map((s) => slotHtml(s, ctx.now, ctx.actuals)).join("")}</div>` : ""}
+    ${r.slots ? `<div class="td-slots mono">${r.slots.map((s) => slotHtml(s, ctx.now, ctx.actuals) + (s.kind === "actual" || s.actual ? `<button class="btn tdactclear" data-tdactclear="${esc(s.id)}" aria-label="${esc(s.actual?.start ?? s.start)} の実績を外す">実績を外す</button>` : "")).join("")}</div>` : ""}
     ${why.length ? `<div class="td-why">${why.map(esc).join("・")}</div>` : ""}
     <div class="td-meta">${t.due ? `<span>期限 <b class="mono">${fmtMD(t.due)}</b></span>` : ""}${r.checked ? `<span>チェック <b class="mono">${progress(r)}</b></span>` : ""}<span>予定 <b class="mono">${r.planned}</b> 分</span><span>実績 <b class="mono">${r.actual}</b> 分</span></div>
     ${open ? completeForm(data, t, ctx.day, ctx.now, ctx.draft, ctx.mode) : planOpen ? planForm(t, ctx.plan) : ""}
@@ -6086,6 +6087,12 @@ view.addEventListener("click", (e) => {
       S.actDraft = null; S.askDelSess = null; render();
       toast(`${taskTitle(s.taskId)} の実績を消しました`);
     }
+    return;
+  }
+  const tac = q("[data-tdactclear]"); // ToDo の左の行の「実績を外す」。予定の枠の実績（actual）だけを外す。実績だけの枠は、枠ごと消す（外す先の予定が無い）
+  if (tac) {
+    const s = allSessions(S.data).find((x) => x.id === tac.dataset.tdactclear);
+    if (s && apply((d) => { if (s.kind !== "planned") return removeSession(d, s.id); const r = clearActual(d, s.id); if (r.error) throw new Error(r.error); return r.data; }, null, { quiet: true })) { render(); toast(`${taskTitle(s.taskId)} の実績を外しました`); }
     return;
   }
   if (q("[data-actcancel]")) { S.actAdd = null; S.actDraft = null; render(); return; }

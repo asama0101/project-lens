@@ -891,6 +891,11 @@ test("ToDo タブ: 編集（data-tdedit）は、スケジュールと同じ編�
   assert.ok(src.includes('!["schedule", "todo"].includes(S.screen)'), "ToDo 画面でも、編集欄を開いたままにする");
 });
 
+test("ToDo タブ: 「実績を外す」（data-tdactclear）は、予定の枠なら clearActual、実績だけの枠なら removeSession を apply に通す", () => {
+  const i = src.indexOf('const tac = q("[data-tdactclear]")'), a = src.slice(i, i + 700);
+  assert.ok(i > 0 && a.includes('s.kind !== "planned"') && a.includes("removeSession(d, s.id)") && a.includes("clearActual(d, s.id)") && a.includes("の実績を外しました"), a);
+});
+
 test("ToDo タブ: 今日の分の保存は、実績だけを completeToday で書き、成功で閉じて通知する", () => {
   const i = src.indexOf('if (S.tdMode === "today")'), a = src.slice(i, i + 500);
   assert.ok(i > 0 && a.includes("completeToday(d, id, completeInput(draft).actual, now).data") && a.includes("S.tdOpen = null;") && a.includes("今日の分を記録しました"), a);
