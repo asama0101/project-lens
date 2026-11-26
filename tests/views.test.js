@@ -2429,12 +2429,13 @@ test("renderTodo: 未完了の候補は見出しなしの 1 つの一覧で rank
   const html = tdHtml(tdData()), list = tdList(html);
   for (const h of ["期限超過", "今週の期限"]) assert.ok(!list.includes(`<h3>${h}</h3>`), h);
   assert.ok(!list.includes("<h3>今週に予定あり</h3>"));
-  assert.equal(list.match(/<h3>/g)?.length, 1);
-  assert.ok(list.includes("<h3>完了</h3>"));
+  assert.equal(list.match(/<h3>/g)?.length, 2, "今日の ToDo に登録済み・完了");
+  assert.ok(list.includes("<h3>完了</h3>") && list.includes("<h3>今日の ToDo に登録済み（1 件）</h3>"));
   const pos = (id) => list.indexOf(`data-tdrow="${id}"`);
   const order = rankTasks(tdData(), TODAY).map((r) => r.taskId).filter((id) => pos(id) >= 0);
   assert.deepEqual(order, ["AA-0001", "AA-0003", "AA-0002"]);
-  assert.ok(order.every((id, i) => i === 0 || pos(order[i - 1]) < pos(id)), "rankTasks の順");
+  assert.ok(order.every((id, i) => i === 0 || pos(order[i - 1]) < pos(id)), "未登録は rankTasks の順。登録済み（AA-0002。今日に枠がある）は、そのあと");
+  assert.ok(pos("AA-0002") > list.indexOf("<h3>今日の ToDo に登録済み"), "登録済みの組");
   assert.ok(pos("AA-0004") > list.indexOf("<h3>完了</h3>") && list.indexOf("<h3>完了</h3>") > pos("AA-0002"), "完了は末尾");
   const r1 = tdRow(html, "AA-0001"), r2 = tdRow(html, "AA-0002");
   for (const s of ["超過のタスク", "案件X", "To Do", "10/15", "1/2"]) assert.ok(r1.includes(s), s);
@@ -2451,7 +2452,7 @@ test("renderTodo: 各候補の行に理由（td-why）が「・」でつない�
   assert.ok(!why("AA-0001").includes("期限超過"), "期限超過は札にして、理由の文章からは除く");
   assert.ok(tdRow(html, "AA-0001").includes('<span class="latebadge">期限超過 5日</span>') && tdRow(html, "AA-0001").includes("（5 日超過）"), "札と、期限の日数");
   assert.ok(why("AA-0003").startsWith("前のタスク待ち・"), why("AA-0003"));
-  assert.ok(why("AA-0002").startsWith("今週に予定あり・"), why("AA-0002"));
+  assert.equal(why("AA-0002"), undefined, "登録済みの行（AA-0002）には、理由を出さない");
   assert.ok(tdRow(html, "AA-0002").indexOf("td-why") < tdRow(html, "AA-0002").indexOf("td-meta"), "td-meta の上");
   assert.ok(!tdRow(html, "AA-0004").includes("td-why"));
   assert.ok(!tdTodayCol(html).includes("td-why"));
@@ -2552,6 +2553,19 @@ test("遅れの札: 期限超過・回答予定日の超過は、右の列・ToD
   assert.match(g, /class="g-due mono lt"[^>]*>[^<]*▲ 2 日超過/, "ガントの期限");
   const l = renderProjects(w, TODAY, { filter: "AA", view: "list" });
   assert.ok(l.includes("class=\"latenote\">▲") && l.includes("class=\"latenote\">回答予定を 5 日超過"), "リストの期限・待ち先の欄");
+});
+
+test("renderTodo: 今日の ToDo に登録済みの候補（今日の日付に枠がある未完了のタスク）は、末尾の組「今日の ToDo に登録済み（N 件）」に、✓・今日の枠の時刻・「もう 1 枠入れる」・「編集」で出る。理由は出さない。未登録の行には出ない", () => {
+  const html = tdHtml(tdData()), list = tdList(html);
+  const r = tdRow(html, "AA-0002");
+  assert.ok(r.includes('class="regchk"') && r.includes("もう 1 枠入れる") && r.includes('data-tdedit="AA-0002"') && r.includes("td-slots"), r);
+  assert.ok(!r.includes("td-why") && !r.includes(">今日へ<"), "理由・「今日へ」は出ない");
+  const f = tdRow(html, "AA-0001");
+  assert.ok(!f.includes("regchk") && f.includes(">今日へ<") && !f.includes("もう 1 枠入れる") && !f.includes("td-slots"), "未登録の行");
+  assert.ok(r.includes('data-tdplan="AA-0002"'), "「もう 1 枠入れる」は、「今日へ」と同じ入力欄を開く");
+  const none = tdHtml(tdData({}), { week: "2026-10-26" });
+  assert.ok(!list.includes("登録済み（2"), "件数は、登録済みの行の数");
+  assert.ok(!none.includes("<h3>今日の ToDo に登録済み") || none.includes("登録済み（"), "組は、行があるときだけ");
 });
 
 test("renderTodo: すべての行に「編集」（data-tdedit）。Done の行にも出る。edit を開いた行・列だけ、編集欄（スケジュールと同じ部品）が出る", () => {
@@ -2975,7 +2989,7 @@ test("renderTodo: 未完了の候補の行に draggable と data-tdrag。完了�
   const d = tdData();
   d.tasks.push(tdTask("AA-0006", { title: "中止の今週", status: "Cancelled", sessions: [{ id: "S6", date: "2026-10-21", start: "09:00", end: "10:00", kind: "planned" }] }));
   const html = tdHtml(d);
-  for (const id of ["AA-0001", "AA-0002", "AA-0003"]) assert.ok(tdRow(html, id).startsWith(`<li class="td-row${id === "AA-0001" ? " late" : ""}" draggable="true" data-tdrag="${id}"`), id);
+  for (const id of ["AA-0001", "AA-0002", "AA-0003"]) assert.ok(tdRow(html, id).startsWith(`<li class="td-row${id === "AA-0001" ? " late" : ""}${id === "AA-0002" ? " regd" : ""}" draggable="true" data-tdrag="${id}"`), id);
   assert.ok(!tdRow(html, "AA-0004").includes("draggable") && !tdRow(html, "AA-0004").includes("data-tdrag"), "Done");
   assert.ok(!html.includes('data-tdrag="AA-0006"'), "Cancelled");
   assert.ok(tdTodayRow(html, "AA-0002") && !tdTodayRow(html, "AA-0002").includes("draggable") && !tdTodayRow(html, "AA-0002").includes("data-tdrag"), "左の列");

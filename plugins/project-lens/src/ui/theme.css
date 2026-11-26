@@ -683,3 +683,8 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 #view .tbl tr.late{background:var(--bad-soft)}
 #view .tbl tr.late td:first-child{box-shadow:inset 5px 0 0 var(--bad)}
 #view .tbl tr.imp.late td:first-child{box-shadow:inset 5px 0 0 var(--imp),inset 10px 0 0 var(--bad)}
+/* 今日の ToDo に登録済みの候補: 末尾の組にまとめ、背景を沈ませて、✓ と今日の枠の時刻を出す */
+#view .tdlist>li.regd{background:var(--line-soft)}
+#view .tdlist>li.regd .td-title{color:var(--muted)}
+#view .regchk{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--accent);color:var(--on-accent);font-size:12px;font-weight:700;flex:none}
+#view .tdweek h3{margin:14px 0 6px}

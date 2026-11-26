@@ -101,9 +101,10 @@ function row(data, r, ctx, why = []) {
   const openBtn = (m, label, cls = "") => `<button class="btn${cls}" data-tdopen="${id}" data-tdcol="${ctx.col}" data-tdmodeopen="${m}" aria-expanded="${open && mode === m}">${label}</button>`;
   const late = lateInfo(t, ctx.today);
   const todayBtn = r.slots && !done && !isClosed(t) ? openBtn("today", "今日の分を完了", todayDone ? "" : " primary") : "";
-  return `<li class="td-row${done ? " closed" : ""}${todayDone ? " part" : ""}${late.overdue || late.lapsed ? " late" : ""}"${drag} data-tdrow="${id}">
-    <div class="td-main"><span class="pj">${proj}</span><span class="td-title">${esc(t.title)}</span>${statusPill(t)}${r.waiting ? `<span class="pill wait">前のタスク待ち</span>` : ""}${lateBadgesHtml(late)}${todayDone ? `<span class="pill tdone">今日の分は完了</span>` : ""}${todayBtn}${done || ctx.col === "week" ? "" : openBtn("done", "完了")}${canPlan ? `<button class="btn" data-tdplan="${id}" aria-expanded="${planOpen}">今日へ</button>` : ""}<button class="btn" data-tdedit="${id}" data-tdcol="${ctx.col}" aria-expanded="${editing}">編集</button></div>
+  return `<li class="td-row${done ? " closed" : ""}${todayDone ? " part" : ""}${late.overdue || late.lapsed ? " late" : ""}${r.regd ? " regd" : ""}"${drag} data-tdrow="${id}">
+    <div class="td-main">${r.regd ? `<span class="regchk" title="今日の ToDo に登録済み" aria-label="今日の ToDo に登録済み">✓</span>` : ""}<span class="pj">${proj}</span><span class="td-title">${esc(t.title)}</span>${statusPill(t)}${r.waiting ? `<span class="pill wait">前のタスク待ち</span>` : ""}${lateBadgesHtml(late)}${todayDone ? `<span class="pill tdone">今日の分は完了</span>` : ""}${todayBtn}${done || ctx.col === "week" ? "" : openBtn("done", "完了")}${canPlan ? `<button class="btn" data-tdplan="${id}" aria-expanded="${planOpen}">${r.regd ? "もう 1 枠入れる" : "今日へ"}</button>` : ""}<button class="btn" data-tdedit="${id}" data-tdcol="${ctx.col}" aria-expanded="${editing}">編集</button></div>
     ${r.slots ? `<div class="td-slots mono">${r.slots.map((s) => slotHtml(s, ctx.now, ctx.actuals) + (s.kind === "actual" || s.actual ? `<button class="btn tdactclear" data-tdactclear="${esc(s.id)}" aria-label="${esc(s.actual?.start ?? s.start)} の実績を外す">実績を外す</button>` : "")).join("")}</div>` : ""}
+    ${r.regd ? `<div class="td-slots mono">${r.regd.map((s) => slotHtml(s, ctx.now, ctx.actuals)).join("")}</div>` : ""}
     ${why.length ? `<div class="td-why">${why.map(esc).join("・")}</div>` : ""}
     <div class="td-meta">${t.due ? dueLateHtml(fmtMD(t.due), late) : ""}${r.checked ? `<span>チェック <b class="mono">${progress(r)}</b></span>` : ""}<span>予定 <b class="mono">${r.planned}</b> 分</span><span>実績 <b class="mono">${r.actual}</b> 分</span></div>
     ${open ? completeForm(data, t, ctx.day, ctx.now, ctx.draft, ctx.mode) : planOpen ? planForm(t, ctx.plan) : ""}
@@ -134,11 +135,13 @@ export function renderTodo(data, today, opts) {
   const rank = new Map(ranked.map((k, i) => [k.taskId, i]));
   const todo = rows.filter((r) => r.group !== "done").sort((a, b) => (rank.get(a.task.id) ?? Infinity) - (rank.get(b.task.id) ?? Infinity)); // 順位に無い行は、元の順のまま末尾
   const closed = rows.filter((r) => r.group === "done");
+  const trows = todayTasks(data, today);
+  const inToday = new Map(trows.map((r) => [r.task.id, r.slots])); // 今日の ToDo に登録済み（今日の日付に枠がある）のタスク
+  const fresh = todo.filter((r) => !inToday.has(r.task.id)), regd = todo.filter((r) => inToday.has(r.task.id)).map((r) => ({ ...r, regd: inToday.get(r.task.id) }));
   const whyOf = (r) => [...(r.group === "scheduled" ? ["今週に予定あり"] : []), ...restReasons(ranked[rank.get(r.task.id)]?.reasons ?? [])];
   const list = rows.length
-    ? (todo.length ? `<ul class="tdlist">${todo.map((r) => row(data, r, ctx, whyOf(r))).join("")}</ul>` : "") + (closed.length ? `<h3>完了</h3><ul class="tdlist">${closed.map((r) => row(data, r, ctx)).join("")}</ul>` : "")
+    ? (fresh.length ? `<ul class="tdlist">${fresh.map((r) => row(data, r, ctx, whyOf(r))).join("")}</ul>` : "") + (regd.length ? `<h3>今日の ToDo に登録済み（${regd.length} 件）</h3><ul class="tdlist">${regd.map((r) => row(data, r, ctx)).join("")}</ul>` : "") + (closed.length ? `<h3>完了</h3><ul class="tdlist">${closed.map((r) => row(data, r, ctx)).join("")}</ul>` : "")
     : `<p class="muted">この週のタスクはありません。</p>`;
-  const trows = todayTasks(data, today);
   const tlist = trows.length
     ? `<ul class="tdlist">${trows.map((r) => row(data, r, todayCtx)).join("")}</ul>`
     : `<p class="muted">今日の枠のあるタスクはありません。</p>`;
