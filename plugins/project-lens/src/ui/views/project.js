@@ -52,7 +52,8 @@ function renderList(data, p, today, opts) {
       : "";
     const delCell = `<button class="btn" data-del="${esc(t.id)}" aria-label="${esc(t.id)} を削除">削除</button>`; // 確認は、狭い欄に入れず、全幅の行（askrow）に出す
     const late = taskFlags(t, today, data.settings).includes("overdue"), li = lateInfo(t, today);
-    return `<tr${isImportantMark(t) ? ' class="imp"' : ""} data-row="${esc(t.id)}" data-mvrow="${esc(t.id)}"><td class="id" data-l="ID"><span class="mv" draggable="true" data-mvh="${esc(t.id)}" title="ドラッグで並べ替え" aria-label="${esc(t.id)} を並べ替え">⠿</span>${esc(t.id)}${t.repeat ? ` <span class="muted" title="${t.repeat.unit === "week" ? "毎週" : `毎月 ${esc(t.repeat.day)} 日`}の定例（完了で次回を作ります）" aria-label="定例">↻</span>` : ""}</td>
+    const rowCls = [isImportantMark(t) ? "imp" : "", li.overdue || li.lapsed ? "late" : ""].filter(Boolean).join(" ");
+    return `<tr${rowCls ? ` class="${rowCls}"` : ""} data-row="${esc(t.id)}" data-mvrow="${esc(t.id)}"><td class="id" data-l="ID"><span class="mv" draggable="true" data-mvh="${esc(t.id)}" title="ドラッグで並べ替え" aria-label="${esc(t.id)} を並べ替え">⠿</span>${esc(t.id)}${t.repeat ? ` <span class="muted" title="${t.repeat.unit === "week" ? "毎週" : `毎月 ${esc(t.repeat.day)} 日`}の定例（完了で次回を作ります）" aria-label="定例">↻</span>` : ""}</td>
       <td data-l="${esc(labels.group)}"><input class="in gi" data-f="group" data-id="${esc(t.id)}" value="${esc(t.group ?? "")}" aria-label="${esc(t.id)} の${esc(labels.group)}"></td>
       <td data-l="${esc(labels.subgroup)}"><input class="in gi" data-f="subgroup" data-id="${esc(t.id)}" value="${esc(t.subgroup ?? "")}" aria-label="${esc(t.id)} の${esc(labels.subgroup)}"></td>
       <td data-l="件名"><input class="in" id="f-${esc(t.id)}-t" data-f="title" data-id="${esc(t.id)}" value="${esc(t.title)}" aria-label="${esc(t.id)} の件名"></td>

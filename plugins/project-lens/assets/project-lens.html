@@ -682,6 +682,14 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 #view .g-due.lt{color:var(--bad);font-weight:700;font-size:12px}
 #view .latenote{display:block;color:var(--bad);font-weight:700;font-size:11px;white-space:nowrap}
 #view .g-lane .gwait-lab.afterdue{margin-left:130px} /* 期限の日付が「▲ N 日超過」で長くなる分、待ち先の文字を右へずらす */
+/* 遅れ（期限超過・回答予定日の超過）の行: ガントはラベルの左に赤の帯、リストは行頭に赤の帯と、行の薄い赤の背景。重要（紫）と重なるときは、紫の帯の内側に赤の帯を並べる。赤の背景を優先する */
+#view .g-label.late-lab{background:var(--bad-soft)}
+#view .g-row:has(>.g-label.late-lab){background:var(--bad-soft)}
+#view .g-label.late-lab::after{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--bad)}
+#view .g-label.imp-high.late-lab::after{left:5px}
+#view .tbl tr.late{background:var(--bad-soft)}
+#view .tbl tr.late td:first-child{box-shadow:inset 5px 0 0 var(--bad)}
+#view .tbl tr.imp.late td:first-child{box-shadow:inset 5px 0 0 var(--imp),inset 10px 0 0 var(--bad)}
 </style>
 </head>
 <body>
@@ -3955,7 +3963,7 @@ function renderGantt(data, projectIds, today, opts = {}) {
       } else {
         const name = `<button class="g-name" data-gedit="${esc(t.id)}" title="クリックで編集">${esc(t.title)}</button>`;
         const del = `<button class="gx" data-del="${esc(t.id)}" aria-label="${esc(t.id)} を削除">×</button>`;
-        const imp = isImportantMark(t) ? " imp-high" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
+        const li = lateInfo(t, today), imp = (isImportantMark(t) ? " imp-high" : "") + (li.overdue || li.lapsed ? " late-lab" : ""); // 重要は紫の帯、遅れ（期限超過・回答予定日の超過）は赤の帯と背景。完了したタスクには付けない // 重要の印。完了したタスクには付けない（isImportantMark）
         lab = `<div class="g-label${imp}" data-mvrow="${esc(t.id)}"><span class="mv" draggable="true" data-mvh="${esc(t.id)}" title="ドラッグで並べ替え" aria-label="${esc(t.id)} を並べ替え">⠿</span><span class="id">${esc(t.id)}</span>${name}${del}<span class="g-pre">${hasPre ? "← " + esc(t.predecessors.join(", ")) : ""}</span>${checkMeterHtml(t)}</div>`;
       }
       return `<div class="g-row">${lab}<div class="g-lane" ${laneStyle}>${bar}<span class="g-due mono${lateInfo(t, today).overdue ? " lt" : ""}" style="left:${x(addDays(r.end, 1))}">${fmtMD(t.due)}${lateInfo(t, today).overdue ? ` ▲ ${lateInfo(t, today).overdue} 日超過` : ""}</span>${wait}</div></div>`;
@@ -4556,7 +4564,8 @@ function renderList(data, p, today, opts) {
       : "";
     const delCell = `<button class="btn" data-del="${esc(t.id)}" aria-label="${esc(t.id)} を削除">削除</button>`; // 確認は、狭い欄に入れず、全幅の行（askrow）に出す
     const late = taskFlags(t, today, data.settings).includes("overdue"), li = lateInfo(t, today);
-    return `<tr${isImportantMark(t) ? ' class="imp"' : ""} data-row="${esc(t.id)}" data-mvrow="${esc(t.id)}"><td class="id" data-l="ID"><span class="mv" draggable="true" data-mvh="${esc(t.id)}" title="ドラッグで並べ替え" aria-label="${esc(t.id)} を並べ替え">⠿</span>${esc(t.id)}${t.repeat ? ` <span class="muted" title="${t.repeat.unit === "week" ? "毎週" : `毎月 ${esc(t.repeat.day)} 日`}の定例（完了で次回を作ります）" aria-label="定例">↻</span>` : ""}</td>
+    const rowCls = [isImportantMark(t) ? "imp" : "", li.overdue || li.lapsed ? "late" : ""].filter(Boolean).join(" ");
+    return `<tr${rowCls ? ` class="${rowCls}"` : ""} data-row="${esc(t.id)}" data-mvrow="${esc(t.id)}"><td class="id" data-l="ID"><span class="mv" draggable="true" data-mvh="${esc(t.id)}" title="ドラッグで並べ替え" aria-label="${esc(t.id)} を並べ替え">⠿</span>${esc(t.id)}${t.repeat ? ` <span class="muted" title="${t.repeat.unit === "week" ? "毎週" : `毎月 ${esc(t.repeat.day)} 日`}の定例（完了で次回を作ります）" aria-label="定例">↻</span>` : ""}</td>
       <td data-l="${esc(labels.group)}"><input class="in gi" data-f="group" data-id="${esc(t.id)}" value="${esc(t.group ?? "")}" aria-label="${esc(t.id)} の${esc(labels.group)}"></td>
       <td data-l="${esc(labels.subgroup)}"><input class="in gi" data-f="subgroup" data-id="${esc(t.id)}" value="${esc(t.subgroup ?? "")}" aria-label="${esc(t.id)} の${esc(labels.subgroup)}"></td>
       <td data-l="件名"><input class="in" id="f-${esc(t.id)}-t" data-f="title" data-id="${esc(t.id)}" value="${esc(t.title)}" aria-label="${esc(t.id)} の件名"></td>

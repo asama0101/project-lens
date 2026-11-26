@@ -158,7 +158,7 @@ export function renderGantt(data, projectIds, today, opts = {}) {
       } else {
         const name = `<button class="g-name" data-gedit="${esc(t.id)}" title="クリックで編集">${esc(t.title)}</button>`;
         const del = `<button class="gx" data-del="${esc(t.id)}" aria-label="${esc(t.id)} を削除">×</button>`;
-        const imp = isImportantMark(t) ? " imp-high" : ""; // 重要の印。完了したタスクには付けない（isImportantMark）
+        const li = lateInfo(t, today), imp = (isImportantMark(t) ? " imp-high" : "") + (li.overdue || li.lapsed ? " late-lab" : ""); // 重要は紫の帯、遅れ（期限超過・回答予定日の超過）は赤の帯と背景。完了したタスクには付けない // 重要の印。完了したタスクには付けない（isImportantMark）
         lab = `<div class="g-label${imp}" data-mvrow="${esc(t.id)}"><span class="mv" draggable="true" data-mvh="${esc(t.id)}" title="ドラッグで並べ替え" aria-label="${esc(t.id)} を並べ替え">⠿</span><span class="id">${esc(t.id)}</span>${name}${del}<span class="g-pre">${hasPre ? "← " + esc(t.predecessors.join(", ")) : ""}</span>${checkMeterHtml(t)}</div>`;
       }
       return `<div class="g-row">${lab}<div class="g-lane" ${laneStyle}>${bar}<span class="g-due mono${lateInfo(t, today).overdue ? " lt" : ""}" style="left:${x(addDays(r.end, 1))}">${fmtMD(t.due)}${lateInfo(t, today).overdue ? ` ▲ ${lateInfo(t, today).overdue} 日超過` : ""}</span>${wait}</div></div>`;

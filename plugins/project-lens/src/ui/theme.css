@@ -675,3 +675,11 @@ body{padding-block:8px 76px} /* 上の 8px は、ヘッダーの負の margin（
 #view .g-due.lt{color:var(--bad);font-weight:700;font-size:12px}
 #view .latenote{display:block;color:var(--bad);font-weight:700;font-size:11px;white-space:nowrap}
 #view .g-lane .gwait-lab.afterdue{margin-left:130px} /* 期限の日付が「▲ N 日超過」で長くなる分、待ち先の文字を右へずらす */
+/* 遅れ（期限超過・回答予定日の超過）の行: ガントはラベルの左に赤の帯、リストは行頭に赤の帯と、行の薄い赤の背景。重要（紫）と重なるときは、紫の帯の内側に赤の帯を並べる。赤の背景を優先する */
+#view .g-label.late-lab{background:var(--bad-soft)}
+#view .g-row:has(>.g-label.late-lab){background:var(--bad-soft)}
+#view .g-label.late-lab::after{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--bad)}
+#view .g-label.imp-high.late-lab::after{left:5px}
+#view .tbl tr.late{background:var(--bad-soft)}
+#view .tbl tr.late td:first-child{box-shadow:inset 5px 0 0 var(--bad)}
+#view .tbl tr.imp.late td:first-child{box-shadow:inset 5px 0 0 var(--imp),inset 10px 0 0 var(--bad)}

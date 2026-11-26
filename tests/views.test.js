@@ -651,8 +651,8 @@ test("リスト: 「重要」のチェックボックスとメモを編集でき
     const t = d.tasks.find((x) => x.id === id); if (imp) t.important = true; else delete t.important; t.status = st;
   }
   const html = renderProjects(d, TODAY, { filter: "AA", view: "list" });
-  assert.ok(html.includes('<tr class="imp" data-row="AA-0003"'));
-  for (const id of ["AA-0001", "AA-0002", "AA-0004"]) assert.ok(!html.includes(`<tr class="imp" data-row="${id}"`), id);
+  assert.ok(/<tr class="imp[^"]*" data-row="AA-0003"/.test(html));
+  for (const id of ["AA-0001", "AA-0002", "AA-0004"]) assert.ok(!new RegExp(`<tr class="imp[^"]*" data-row="${id}"`).test(html), id);
   assert.ok(/<input type="checkbox" data-f="important" data-id="AA-0003" checked/.test(html), "AA-0003 は重要");
   assert.ok(/<input type="checkbox" data-f="important" data-id="AA-0004"(?! checked)/.test(html), "AA-0004 は重要でない");
   assert.ok(!html.includes("重要度") && !html.includes('data-f="importance"'));
@@ -1405,7 +1405,25 @@ test("renderGantt: 重要で未完了のタスクのラベルにだけ印（imp-
   set("AA-0001", true, "Done"); set("AA-0002", true, "Cancelled"); set("AA-0003", true, "Waiting"); set("AA-0004", false, "To Do"); set("AA-0005", true, "In Progress"); set("AA-0006", false, "To Do");
   const html = gantt(d, ["AA"]);
   const label = (id) => /<div class="g-label([^"]*)"/.exec(html.split('<div class="g-row">').find((r) => r.includes(`data-gt="${id}"`)))[1];
-  assert.deepEqual(["AA-0001", "AA-0002", "AA-0003", "AA-0004", "AA-0005", "AA-0006"].map(label), ["", "", " imp-high", "", " imp-high", ""]);
+  assert.deepEqual(["AA-0001", "AA-0002", "AA-0003", "AA-0004", "AA-0005", "AA-0006"].map((id) => label(id).includes("imp-high")), [false, false, true, false, true, false]);
+});
+
+test("遅れの行: 期限超過・回答予定日の超過の未完了のタスクに、ガントのラベルは late-lab、リストの行は late が付く。重要と重なれば両方。遅れの無い行・完了した行には付かない", () => {
+  const d = load();
+  const set = (id, o) => Object.assign(d.tasks.find((x) => x.id === id), o);
+  set("AA-0001", { status: "Done", due: "2026-10-01" }); // 完了は付かない
+  set("AA-0002", { status: "To Do", due: "2026-10-10" }); // 期限超過
+  set("AA-0003", { status: "Waiting", due: "2026-12-31", waitingOn: { party: "X", since: "2026-10-01", expected: "2026-10-15" } }); // 回答予定日の超過だけ
+  set("AA-0004", { status: "To Do", due: "2026-12-31" }); // 遅れなし
+  set("AA-0005", { status: "In Progress", due: "2026-10-12", important: true }); // 期限超過 + 重要
+  const g = gantt(d, ["AA"]);
+  const label = (id) => /<div class="g-label([^"]*)"/.exec(g.split('<div class="g-row">').find((r) => r.includes(`data-gt="${id}"`)))[1];
+  assert.deepEqual(["AA-0001", "AA-0002", "AA-0003", "AA-0004", "AA-0005"].map((id) => label(id).includes("late-lab")), [false, true, true, false, true]);
+  assert.ok(label("AA-0005").includes("imp-high") && label("AA-0005").includes("late-lab"), "重要と遅れは両方");
+  const l = renderProjects(d, TODAY, { filter: "AA", view: "list" });
+  const cls = (id) => new RegExp(`<tr(?: class="([^"]*)")? data-row="${id}"`).exec(l)?.[1] ?? "";
+  assert.deepEqual(["AA-0001", "AA-0002", "AA-0003", "AA-0004", "AA-0005"].map((id) => cls(id).split(" ").includes("late")), [false, true, true, false, true]);
+  assert.equal(cls("AA-0005"), "imp late");
 });
 
 test("renderGantt: 開始も前のタスクもない（期限だけの）タスクは点で、期限の日のマスの中央に置く。期限の表示は翌日の左端", () => {
