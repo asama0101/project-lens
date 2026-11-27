@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { validate } from "../plugins/project-lens/src/core/schema.js";
-import { planCalendarSync, excludeSolo, planAutoSync } from "../plugins/project-lens/src/import/calendar.js";
+import { planCalendarSync, excludeSolo, excludeByTitle, planAutoSync } from "../plugins/project-lens/src/import/calendar.js";
 
 const D = "2026-10-20";
 const range = { start: "2026-10-19", end: "2026-10-25" };
@@ -305,4 +305,23 @@ test("planAutoSync: now.date より前の会議も取り込まず、過去の取
   assert.deepEqual(p.added.map((e) => e.title), ["今日"]);
   assert.deepEqual(p.removed, []);
   assert.equal(p.valid, 1);
+});
+
+test("excludeByTitle: 件名に文字列を含む予定は対象外（前後の空白・大文字小文字は区別しない）。参加者の情報がなくても効く。未設定なら何も除かない", () => {
+  const input = [f("e1", "朝会 定例"), f("e2", "Weekly 1ON1"), f("e3", "設計レビュー")];
+  const before = JSON.stringify(input);
+  const r = excludeByTitle(input, { excludeTitles: ["朝会", " 1on1 "] });
+  assert.deepEqual([r.excluded.map((e) => e.externalId), r.kept.map((e) => e.externalId)], [["e1", "e2"], ["e3"]]);
+  assert.equal(excludeByTitle(input, {}).excluded.length, 0);
+  assert.equal(excludeByTitle(input, undefined).kept.length, 3);
+  assert.equal(JSON.stringify(input), before);
+});
+
+test("planCalendarSync: excludeTitles に当たる予定は取り込まず、取り込み済みなら消え、excluded に出る。excludeSolo の除外と合算する", () => {
+  const d = mk([ev("m1", "朝会", { externalId: "e1" })]);
+  const c = { selfEmails: [SELF], excludeTitles: ["朝会"] };
+  const p = planCalendarSync(d, [f("e1", "朝会"), f("e2", "1人作業", { attendees: [who(SELF)] }), f("e3", "本物の会議", { attendees: [who(SELF), who("a@example.com")] })], range, c, TODAY);
+  assert.deepEqual(p.excluded.map((e) => e.externalId).sort(), ["e1", "e2"]);
+  assert.deepEqual(p.added.map((e) => e.title), ["本物の会議"]);
+  assert.deepEqual(p.removed.map((e) => e.id), ["m1"]);
 });
