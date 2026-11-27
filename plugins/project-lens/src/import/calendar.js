@@ -29,6 +29,16 @@ export function excludeSolo(fetched, cfg = {}) {
   return { kept: fetched.filter((f) => !solo(f)), excluded: fetched.filter(solo), warnings };
 }
 
+/**
+ * 件名に cfg.excludeTitles のどれかを含む予定を、取り込みの対象から外す（純関数。引数は変えない）。
+ * 前後の空白と大文字小文字は区別しない部分一致。参加者の情報には依存しない。未設定なら何も除かない。
+ */
+export function excludeByTitle(fetched, cfg = {}) {
+  const words = (cfg?.excludeTitles ?? []).map((k) => k.trim().toLowerCase()).filter(Boolean);
+  const hit = (f) => words.some((w) => String(f.title ?? "").toLowerCase().includes(w));
+  return { kept: fetched.filter((f) => !hit(f)), excluded: fetched.filter(hit) };
+}
+
 /** 取り込める予定か。externalId が空でない文字列、title が文字列、日付が YYYY-MM-DD、開始・終了が HH:MM で終了が開始より後（終日の予定・24:00・秒つきは取り込めない） */
 const importable = (f) => !!f && typeof f === "object" && typeof f.externalId === "string" && f.externalId.trim() !== "" && typeof f.title === "string"
   && isDate(f.date) && isTime(f.start) && isTime(f.end) && toMin(f.end) > toMin(f.start);
@@ -52,13 +62,15 @@ function checkFetched(fetched) {
   return { ok, keepIds, warnings };
 }
 
-/** fetched = {externalId, title, date, start, end, attendees?}[]、range = {start, end}、cfg = {selfEmails, selfNames, roomKeywords}（excludeSolo を参照）。data は変えない。valid は、取り込める予定の件数。
+/** fetched = {externalId, title, date, start, end, attendees?}[]、range = {start, end}、cfg = {selfEmails, selfNames, roomKeywords, excludeTitles}（excludeSolo・excludeByTitle を参照）。data は変えない。valid は、取り込める予定の件数。
  * today より前の会議は取り込まない（実績は、取り込みでなく利用者の入力で決まるため）。範囲の開始も today に切り上げるので、過去の取り込み済みの会議は、取得に無くても消えない */
 export function planCalendarSync(data, fetchedRaw, rangeRaw, cfg, today = nowLocal().date) {
   const range = { ...rangeRaw, start: rangeRaw.start > today ? rangeRaw.start : today };
   const { ok: okAll, keepIds, warnings: fetchWarnings } = checkFetched(fetchedRaw);
   const fetched = okAll.filter((f) => f.date >= today);
-  const { kept, excluded, warnings: soloWarnings } = excludeSolo(fetched, cfg);
+  const byTitle = excludeByTitle(fetched, cfg);
+  const solo = excludeSolo(byTitle.kept, cfg);
+  const kept = solo.kept, excluded = [...byTitle.excluded, ...solo.excluded], soloWarnings = solo.warnings;
   const warnings = [...fetchWarnings, ...soloWarnings];
   const next = assignMeetingProjects(syncMcpEvents(data, kept, range, new Set(excluded.map((f) => f.externalId)), keepIds));
   const before = new Map(data.events.map((e) => [e.id, e]));

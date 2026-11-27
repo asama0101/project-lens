@@ -218,7 +218,7 @@
   <div class="cell s"><span class="tag write">書き込み</span><code>set calendar server=… listTool=…</code> を <code>project-lens-mcp.json</code> に保存する（他の項目は保つ。保存日を付ける）。<small class="src">src/import/mcpconf.js setMcpRole</small></div>
 
   <div class="branch"><p class="bt">保存の検証</p><div class="flow">
-    <div class="case">項目名の打ち間違い（<code>server</code>・<code>listTool</code>・<code>selfEmails</code>・<code>selfNames</code>・<code>roomKeywords</code> 以外） → 例外、何も書かない（黙って無視すると、除外が効かないことに気づけないため）</div>
+    <div class="case">項目名の打ち間違い（<code>server</code>・<code>listTool</code>・<code>selfEmails</code>・<code>selfNames</code>・<code>roomKeywords</code>・<code>excludeTitles</code> 以外） → 例外、何も書かない（黙って無視すると、除外が効かないことに気づけないため）</div>
     <div class="case"><code>key=value</code> の形でない → 例外、何も書かない</div>
     <div class="case"><code>server</code> か <code>listTool</code> が空 → 例外、何も書かない</div>
   </div></div>
@@ -226,7 +226,7 @@
   <div class="n">5</div>
   <div class="cell u">自分のメールアドレス（複数可）と、自分の名前（複数可。同じ表示名の別人に心当たりがないかを確かめられる）と、会議室の名前に含まれる言葉（複数可）を答える。どれも任意で、答えなくてよい。<b>保存済みなら聞かれない</b>（変えたいと伝えたときだけ聞き直す）。</div>
   <div class="cell c">「自分だけ・自分と会議室だけの予定（作業ブロックなど）を会議として取り込まない」ための 3 つを聞く。答えがなければ保存しない（保存のコマンドには、答えのあった項目だけを入れる）。手順1 の表示で自分のメールアドレスか名前が保存済みなら、聞かずに保存済みの値を伝えて手順5 へ進む。名前にカンマを含む・同じ表示名の別人に心当たりがあるときは、その名前を保存せず、メールアドレスだけにする。会議室の言葉を保存しないときは「会議室」が使われる。<small class="src">skills/mcp/SKILL.md 手順4</small></div>
-  <div class="cell s"><span class="tag write">書き込み</span><code>set calendar selfEmails=… selfNames=… roomKeywords=…</code>。保存済みの server・listTool はそのまま残る。答えのなかった項目はコマンドに書かず、保存済みの値のまま残る。<code>selfEmails=</code>（空）にすると、その項目を消す（消したいときだけ空で渡す）。<span class="tag unv">未確認</span>答えのない項目を書かない形で、実際の会話で保存したことは確かめていない（<code>setMcpRole</code> の動作はコードで確認）。<small class="src">tools/mcpconf.js / src/import/mcpconf.js</small></div>
+  <div class="cell s"><span class="tag write">書き込み</span><code>set calendar selfEmails=… selfNames=… roomKeywords=… excludeTitles=…</code>。保存済みの server・listTool はそのまま残る。答えのなかった項目はコマンドに書かず、保存済みの値のまま残る。<code>selfEmails=</code>（空）にすると、その項目を消す（消したいときだけ空で渡す）。<span class="tag unv">未確認</span>答えのない項目を書かない形で、実際の会話で保存したことは確かめていない（<code>setMcpRole</code> の動作はコードで確認）。<small class="src">tools/mcpconf.js / src/import/mcpconf.js</small></div>
 
   <div class="n">6</div>
   <div class="cell empty"></div>

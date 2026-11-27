@@ -179,3 +179,13 @@ test("setMcpRole: 一時ファイルを残さない", () => {
   setMcpRole(d, "calendar", { server: "s", listTool: "l" });
   assert.deepEqual(readdirSync(d), ["project-lens-mcp.json"]);
 });
+
+test("excludeTitles: 検証に通り、set でカンマ区切りから配列で保存され、空にすると消え、他の項目は保たれる", () => {
+  assert.deepEqual(validateMcpConfig({ calendar: { server: "s", listTool: "l", excludeTitles: ["朝会"] } }), []);
+  assert.ok(validateMcpConfig({ calendar: { server: "s", listTool: "l", excludeTitles: [1] } }).length > 0);
+  const d = dir();
+  setMcpRole(d, "calendar", { server: "s", listTool: "l", roomKeywords: "会議室" });
+  assert.deepEqual(setMcpRole(d, "calendar", { excludeTitles: "朝会, 1on1" }).calendar, { server: "s", listTool: "l", roomKeywords: ["会議室"], excludeTitles: ["朝会", "1on1"] });
+  assert.equal(setMcpRole(d, "calendar", { excludeTitles: "" }).calendar.excludeTitles, undefined);
+  assert.equal(cli(d, "set", "calendar", "excludeTitles=朝会").status, 0);
+});
