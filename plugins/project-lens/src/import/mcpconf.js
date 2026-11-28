@@ -34,7 +34,7 @@ export function readMcpConfig(dir) {
   const cfg = JSON.parse(readFileSync(p, "utf8"));
   if (cfg.schema_version === undefined) throw new Error(`project-lens-mcp.json に schema_version がありません（古い形式です）。project-lens-mcp.json（${p}）を削除してから、/project-lens:mcp で指定し直してください`);
   if (cfg.schema_version !== SCHEMA_VERSION) {
-    throw new Error(`project-lens-mcp.json の schema_version ${cfg.schema_version} には対応していません（対応: ${SCHEMA_VERSION}）。docs/development.md の移行手順を見てください`);
+    throw new Error(`project-lens-mcp.json の schema_version ${cfg.schema_version} には対応していません（対応: ${SCHEMA_VERSION}）。docs/development/design-decisions.md の移行手順を見てください`);
   }
   return cfg;
 }
